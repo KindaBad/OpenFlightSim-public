@@ -120,7 +120,7 @@ Options parse(int argc, char** argv) {
     if (!result.server.empty() || result.smoke || result.gunSmoke || result.dogfightSmoke ||
         !result.scenario.empty() || !result.flightDemo.empty() || result.visualBench)
       throw std::runtime_error("--bots requires ordinary local flight");
-    if (!ofs::aircraftDefinition(result.aircraft).gun) result.aircraft = ofs::AircraftType::Su57;
+    result.aircraft = ofs::dogfightAircraftType(result.aircraft);
     result.airborne = true;
   }
   if (result.dogfightSmoke && (!result.server.empty() || result.smoke || result.gunSmoke ||
@@ -568,7 +568,7 @@ int main(int argc, char** argv) {
           reset(offlineSim, controls, previous, camera, clock, true);
           dogfightReturnedSolo=true;
         } else if (!network) {
-          if (!definition.gun) options.aircraft = AircraftType::Su57;
+          options.aircraft = dogfightAircraftType(options.aircraft);
           definition = aircraftDefinition(options.aircraft);
           renderer.setAircraftType(options.aircraft);
           ofs::net::ServerConfig config;

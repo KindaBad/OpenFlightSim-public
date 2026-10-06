@@ -14,10 +14,10 @@ using namespace ofs::net;
 using namespace ofs::client;
 using scenario::check;
 void registry() {
-  check(aircraftDefinitions().size() == 4 &&
+  check(aircraftDefinitions().size() >= 3 &&
             aircraftTypeFromName("sr71") == AircraftType::SR71 &&
             static_cast<unsigned>(AircraftType::SR71) == 4,
-        "fourth stable aircraft");
+        "stable reconnaissance aircraft");
   const auto &d = aircraftDefinition(AircraftType::SR71);
   check(!d.gun && d.flight.engine_count == 2 && d.flight.variable_inlets,
         "unarmed twin reconnaissance aircraft");

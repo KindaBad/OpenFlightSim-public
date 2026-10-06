@@ -50,6 +50,8 @@ AircraftConfig typhoonConfig();
 AircraftConfig sr71Config();
 AircraftConfig su57Config();
 std::span<const AircraftDefinition> aircraftDefinitions();
+// Preserve an armed selection; otherwise choose an available dogfight fighter.
+AircraftType dogfightAircraftType(AircraftType selected);
 bool validAircraftType(AircraftType type);
 AircraftType aircraftTypeFromName(std::string_view name); // throws on unknown
 const AircraftDefinition& aircraftDefinition(AircraftType type);

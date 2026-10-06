@@ -105,7 +105,7 @@ jobs:
       - name: Provision approved release assets
         run: python scripts/provision_release_assets.py --catalog build/release/launcher-catalog.json --cache build/approved-assets.zip
       - name: Require all player aircraft and authored LODs
-        run: ctest --test-dir build/release -C Release --output-on-failure --parallel 3 -R "^(player.registry|assets.production|client.asset_pipeline|sr71.assets|typhoon.assets|typhoon.registry|launcher.security_config)$"
+        run: ctest --test-dir build/release -C Release --output-on-failure --parallel 3 -R "^(player.registry|assets.production|client.asset_pipeline|sr71.assets|sr71.registry|typhoon.assets|typhoon.registry|combat.solo_gun|bots.guidance|bots.connection|launcher.security_config)$"
       - name: Install simulator and runtime DLLs
         run: cmake --install build/release --config Release --prefix build/stage
       - name: Collect build dependency notices

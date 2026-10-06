@@ -20,6 +20,11 @@ int main() {
       catch (const std::invalid_argument&) { rejected = true; }
       if (!rejected) throw std::runtime_error("Excluded aircraft can still be selected");
     }
+    const auto fighter = OFS_INCLUDE_SU57 ? AircraftType::Su57 : AircraftType::Typhoon;
+    if (dogfightAircraftType(AircraftType::A320) != fighter ||
+        dogfightAircraftType(AircraftType::SR71) != fighter ||
+        dogfightAircraftType(AircraftType::Typhoon) != AircraftType::Typhoon)
+      throw std::runtime_error("Dogfight selection requires an available armed aircraft");
     std::printf("PASS player registry: %zu aircraft, Su-57=%d\n", aircraftDefinitions().size(), OFS_INCLUDE_SU57);
     return 0;
   } catch (const std::exception& error) {

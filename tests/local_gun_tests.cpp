@@ -8,8 +8,9 @@ void check(bool condition,const char* message) { if (!condition) throw std::runt
 int main() {
   try {
     State state; state.pos_ned={0,0,-1000}; state.vel_ned={140,30,0};
-    LocalGun gun(AircraftType::Su57);
-    const auto& definition=aircraftDefinition(AircraftType::Su57);
+    const auto fighter=dogfightAircraftType(AircraftType::A320);
+    LocalGun gun(fighter);
+    const auto& definition=aircraftDefinition(fighter);
     const auto initial=gun.ammo();
     for (int i=0;i<120;++i) gun.step(state,1./120,true);
     auto events=gun.takeEvents();

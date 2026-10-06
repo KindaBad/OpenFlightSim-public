@@ -43,7 +43,7 @@ void guidance() {
 }
 void dogfight() {
   World world;
-  const auto human = world.join(AircraftType::Su57);
+  const auto human = world.join(dogfightAircraftType(AircraftType::A320));
   const auto bot = world.joinBot();
   check(human && bot && world.botCount() == 1 && !world.joinBot(AircraftType::A320),
         "bounded armed bot roster");
@@ -113,7 +113,7 @@ void dogfight() {
 void connection() {
   ServerConfig config; config.bind="127.0.0.1"; config.port=0; config.bots=2;
   Server server(config);
-  Client client("dogfight-test",AircraftType::Su57);
+  Client client("dogfight-test",dogfightAircraftType(AircraftType::A320));
   client.connect("127.0.0.1",server.port());
   const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(4);
   while(std::chrono::steady_clock::now()<deadline && client.remotes().size()<2) {

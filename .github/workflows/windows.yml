@@ -9,7 +9,8 @@ on:
   workflow_dispatch:
 concurrency:
   group: windows-${{ github.ref }}
-  cancel-in-progress: true
+  # Let an initial dependency build finish and save its cache for newer pushes.
+  cancel-in-progress: false
 permissions:
   contents: read
 jobs:

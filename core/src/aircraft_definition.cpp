@@ -132,6 +132,15 @@ bool validAircraftType(AircraftType type) {
   return false;
 }
 
+AircraftType dogfightAircraftType(AircraftType selected) {
+  if (aircraftDefinition(selected).gun) return selected;
+  if (validAircraftType(AircraftType::Su57) && aircraftDefinition(AircraftType::Su57).gun)
+    return AircraftType::Su57;
+  for (const auto& definition : aircraftDefinitions())
+    if (definition.gun) return definition.type;
+  throw std::invalid_argument("dogfight requires an available armed aircraft");
+}
+
 const AircraftDefinition& aircraftDefinition(AircraftType type) {
   for (const auto& definition : aircraftDefinitions())
     if (definition.type == type) return definition;
