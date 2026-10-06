@@ -143,6 +143,8 @@ jobs:
         run: cmake -S . -B build/release -G "Visual Studio 17 2022" -A x64 "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" "-DOFS_RELEASE_CHANNEL=$env:OFS_CHANNEL"
       - name: Build simulator, server and compiled catalogue
         run: cmake --build build/release --config Release --parallel 3
+      - name: Check source provenance first
+        run: ctest --test-dir build/release -C Release --output-on-failure -R "^regression.provenance"
       - name: Full source regressions with the development aircraft registry
         run: ctest --test-dir build/release -C Release --output-on-failure --parallel 3
       - name: Configure player registry without the restricted Su-57

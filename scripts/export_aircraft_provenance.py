@@ -6,6 +6,7 @@ a retrieved, parameter-specific primary source remains ESTIMATE here.
 import argparse
 import hashlib
 import json
+import math
 import re
 import subprocess
 import tempfile
@@ -18,6 +19,33 @@ ANGLE={'alpha0','alpha_crit_clean','alpha_limit','elev_max','elev_min','ail_max'
 INERTIA={'ixx','iyy','izz','ixy','ixz','iyz'}
 TIME={'engine_tau','response_time','input_tau'}
 RATE={'actuator_rate','flap_rate','spoiler_rate','inlet_spike_rate'}
+
+def provenance_difference(expected, actual, location='record'):
+    """Keep provenance exact while allowing insignificant compiler rounding."""
+    if isinstance(expected, dict) and isinstance(actual, dict):
+        if expected.keys() != actual.keys():
+            return location + ': fields differ'
+        for key in expected:
+            difference = provenance_difference(expected[key], actual[key], location + '.' + key)
+            if difference:
+                return difference
+        return None
+    if isinstance(expected, list) and isinstance(actual, list):
+        if len(expected) != len(actual):
+            return location + ': lengths differ'
+        for index, (left, right) in enumerate(zip(expected, actual)):
+            difference = provenance_difference(left, right, f'{location}[{index}]')
+            if difference:
+                return difference
+        return None
+    if ((location.endswith('.values') or '.values[' in location)
+            and isinstance(expected, (int, float)) and not isinstance(expected, bool)
+            and isinstance(actual, (int, float)) and not isinstance(actual, bool)):
+        if math.isfinite(expected) and math.isfinite(actual) and math.isclose(expected, actual, rel_tol=1e-12, abs_tol=1e-12):
+            return None
+    elif type(expected) is type(actual) and expected == actual:
+        return None
+    return f'{location}: expected {expected!r}, got {actual!r}'
 
 def export(build,binary=None,emit_cpp=None):
     header=(ROOT/'core/include/ofs/aircraft.hpp').read_text()
@@ -128,6 +156,7 @@ if __name__=='__main__':
     for name,dataset in data.items():
         path=ROOT/'data/aircraft'/f'{name}.json';text=json.dumps(dataset,indent=2,allow_nan=False)+'\n'
         if args.check:
-            if path.read_text()!=text:raise SystemExit('Provenance stale: '+str(path))
+            difference = provenance_difference(json.loads(path.read_text()), dataset)
+            if difference:raise SystemExit('Provenance stale: '+str(path)+'; '+difference)
         else:path.write_text(text)
         print(name,len(dataset['parameters']),'auditable parameters')

@@ -57,5 +57,7 @@ jobs:
         run: cmake -S . -B build/msvc -G "Visual Studio 17 2022" -A x64 "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
       - name: Build Including DXBC Shaders
         run: cmake --build build/msvc --config Release --parallel 3
+      - name: Check source provenance first
+        run: ctest --test-dir build/msvc -C Release --output-on-failure -R "^regression.provenance"
       - name: Headless Regressions
         run: ctest --test-dir build/msvc -C Release --output-on-failure --parallel 3

@@ -214,6 +214,8 @@ ofs_target_defaults(ofs_provenance_export)
 add_test(NAME regression.provenance COMMAND "${Python3_EXECUTABLE}"
   "${CMAKE_SOURCE_DIR}/scripts/export_aircraft_provenance.py" --binary $<TARGET_FILE:ofs_provenance_export> --check)
 set_tests_properties(regression.provenance PROPERTIES LABELS "regression-plausibility")
+add_test(NAME regression.provenance_comparison COMMAND "${Python3_EXECUTABLE}"
+  "${CMAKE_SOURCE_DIR}/tests/provenance_tests.py")
 add_test(NAME assets.missing_policy COMMAND "${Python3_EXECUTABLE}"
   "${CMAKE_SOURCE_DIR}/tests/asset_policy_tests.py" $<TARGET_FILE:ofs_asset_conformance>)
 set_tests_properties(assets.missing_policy PROPERTIES LABELS "asset-conformance")
