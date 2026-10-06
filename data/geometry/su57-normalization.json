@@ -1,84 +1,84 @@
 {
   "schema_version": 1,
   "aircraft": "Su-57 visual surrogate",
-  "configuration": "Existing supplied-art normalization",
+  "configuration": "Sketchfab replacement dimension fitting",
   "parameters": [
     {
-      "parameter": "source_dimension_baselines",
+      "provenance": "DERIVED",
+      "source": "scripts/import_su57_sketchfab.py; https://sketchfab.com/3d-models/sukhoi-su-57-felon-fighter-jet-free-59995d6f34ba4bb7990195be3a745fc5",
+      "revision": "bf5ee985899c4f03d682b5586615820924d0c2a25263048712a00c4756bfcfcb",
+      "configuration": "bohmerang Sketchfab CC BY-NC-SA 4.0 replacement, gear extended",
+      "validity_envelope": "Supplied 2024-07-28 archive only; no OEM geometry accuracy claim",
+      "confidence": "Measured Blender source vertices and exported GLB bounds",
+      "validation_status": "Production GLB dimension and rig checks",
+      "notes": "Measured source axes +X nose, +Y port, +Z up. Converted to metre-scale authoring axes and fitted to existing registry. Nose/main gear and wheel radii fitted separately to existing physics contacts. Retired CGTrader geometry/textures are not used.",
+      "parameter": "source_dimensions_authoring_units",
       "values": [
-        17.16999626159668,
-        12.367127895355225,
-        2.78005594
+        195.89627075195312,
+        141.7047576904297,
+        45.6732177734375
       ],
-      "unit": "m",
-      "provenance": "ESTIMATE",
-      "source": "scripts/su57_normalize.py",
-      "revision": "2440045523b5f11828c8c85e5192f56ee3d1d1bec3149d981bb05312f00d7ab6",
-      "configuration": "Supplied original Su57_Mid/Cockpit authoring source",
-      "validity_envelope": "Existing authoring script baselines; not arbitrary replacement models",
-      "confidence": "Recomputed imposed visual deformation",
-      "validation_status": "Mathematical calculation; no OEM shape validation",
-      "notes": "Calculated from the existing normalization baselines and targets; not a fresh Blender measurement. Original art redistribution remains UNVERIFIED. Target height includes assembled gear geometry."
+      "unit": "source_units"
     },
     {
+      "provenance": "DERIVED",
+      "source": "scripts/import_su57_sketchfab.py; https://sketchfab.com/3d-models/sukhoi-su-57-felon-fighter-jet-free-59995d6f34ba4bb7990195be3a745fc5",
+      "revision": "bf5ee985899c4f03d682b5586615820924d0c2a25263048712a00c4756bfcfcb",
+      "configuration": "bohmerang Sketchfab CC BY-NC-SA 4.0 replacement, gear extended",
+      "validity_envelope": "Supplied 2024-07-28 archive only; no OEM geometry accuracy claim",
+      "confidence": "Measured Blender source vertices and exported GLB bounds",
+      "validation_status": "Production GLB dimension and rig checks",
+      "notes": "Measured source axes +X nose, +Y port, +Z up. Converted to metre-scale authoring axes and fitted to existing registry. Nose/main gear and wheel radii fitted separately to existing physics contacts. Retired CGTrader geometry/textures are not used.",
       "parameter": "dimension_targets",
       "values": [
         20.1,
         14.1,
         4.6
       ],
-      "unit": "m",
-      "provenance": "ESTIMATE",
-      "source": "scripts/su57_normalize.py",
-      "revision": "2440045523b5f11828c8c85e5192f56ee3d1d1bec3149d981bb05312f00d7ab6",
-      "configuration": "Supplied original Su57_Mid/Cockpit authoring source",
-      "validity_envelope": "Existing authoring script baselines; not arbitrary replacement models",
-      "confidence": "Recomputed imposed visual deformation",
-      "validation_status": "Mathematical calculation; no OEM shape validation",
-      "notes": "Calculated from the existing normalization baselines and targets; not a fresh Blender measurement. Original art redistribution remains UNVERIFIED. Target height includes assembled gear geometry."
+      "unit": "m"
     },
     {
+      "provenance": "DERIVED",
+      "source": "scripts/import_su57_sketchfab.py; https://sketchfab.com/3d-models/sukhoi-su-57-felon-fighter-jet-free-59995d6f34ba4bb7990195be3a745fc5",
+      "revision": "bf5ee985899c4f03d682b5586615820924d0c2a25263048712a00c4756bfcfcb",
+      "configuration": "bohmerang Sketchfab CC BY-NC-SA 4.0 replacement, gear extended",
+      "validity_envelope": "Supplied 2024-07-28 archive only; no OEM geometry accuracy claim",
+      "confidence": "Measured Blender source vertices and exported GLB bounds",
+      "validation_status": "Production GLB dimension and rig checks",
+      "notes": "Measured source axes +X nose, +Y port, +Z up. Converted to metre-scale authoring axes and fitted to existing registry. Nose/main gear and wheel radii fitted separately to existing physics contacts. Retired CGTrader geometry/textures are not used.",
       "parameter": "anisotropic_scale",
       "values": [
-        1.1706467312958433,
-        1.140119203044354,
-        1.1706467312958433
+        0.10260532051324844,
+        0.09950266033411026,
+        0.10071548074483871
       ],
-      "unit": "1",
-      "provenance": "DERIVED",
-      "source": "scripts/su57_normalize.py",
-      "revision": "2440045523b5f11828c8c85e5192f56ee3d1d1bec3149d981bb05312f00d7ab6",
-      "configuration": "Supplied original Su57_Mid/Cockpit authoring source",
-      "validity_envelope": "Existing authoring script baselines; not arbitrary replacement models",
-      "confidence": "Recomputed imposed visual deformation",
-      "validation_status": "Mathematical calculation; no OEM shape validation",
-      "notes": "Calculated from the existing normalization baselines and targets; not a fresh Blender measurement. Original art redistribution remains UNVERIFIED. Target height includes assembled gear geometry."
+      "unit": "m/source_unit"
     },
     {
-      "parameter": "span_relative_to_uniform_length_scaling",
-      "values": -0.026077489848450597,
-      "unit": "1",
       "provenance": "DERIVED",
-      "source": "scripts/su57_normalize.py",
-      "revision": "2440045523b5f11828c8c85e5192f56ee3d1d1bec3149d981bb05312f00d7ab6",
-      "configuration": "Supplied original Su57_Mid/Cockpit authoring source",
-      "validity_envelope": "Existing authoring script baselines; not arbitrary replacement models",
-      "confidence": "Recomputed imposed visual deformation",
-      "validation_status": "Mathematical calculation; no OEM shape validation",
-      "notes": "Calculated from the existing normalization baselines and targets; not a fresh Blender measurement. Original art redistribution remains UNVERIFIED. Target height includes assembled gear geometry."
+      "source": "scripts/import_su57_sketchfab.py; https://sketchfab.com/3d-models/sukhoi-su-57-felon-fighter-jet-free-59995d6f34ba4bb7990195be3a745fc5",
+      "revision": "bf5ee985899c4f03d682b5586615820924d0c2a25263048712a00c4756bfcfcb",
+      "configuration": "bohmerang Sketchfab CC BY-NC-SA 4.0 replacement, gear extended",
+      "validity_envelope": "Supplied 2024-07-28 archive only; no OEM geometry accuracy claim",
+      "confidence": "Measured Blender source vertices and exported GLB bounds",
+      "validation_status": "Production GLB dimension and rig checks",
+      "notes": "Measured source axes +X nose, +Y port, +Z up. Converted to metre-scale authoring axes and fitted to existing registry. Nose/main gear and wheel radii fitted separately to existing physics contacts. Retired CGTrader geometry/textures are not used.",
+      "parameter": "span_relative_to_length_change_percent",
+      "values": -3.0238784534936114,
+      "unit": "percent"
     },
     {
-      "parameter": "volume_scale",
-      "values": 1.5624350547161006,
-      "unit": "1",
       "provenance": "DERIVED",
-      "source": "scripts/su57_normalize.py",
-      "revision": "2440045523b5f11828c8c85e5192f56ee3d1d1bec3149d981bb05312f00d7ab6",
-      "configuration": "Supplied original Su57_Mid/Cockpit authoring source",
-      "validity_envelope": "Existing authoring script baselines; not arbitrary replacement models",
-      "confidence": "Recomputed imposed visual deformation",
-      "validation_status": "Mathematical calculation; no OEM shape validation",
-      "notes": "Calculated from the existing normalization baselines and targets; not a fresh Blender measurement. Original art redistribution remains UNVERIFIED. Target height includes assembled gear geometry."
+      "source": "scripts/import_su57_sketchfab.py; https://sketchfab.com/3d-models/sukhoi-su-57-felon-fighter-jet-free-59995d6f34ba4bb7990195be3a745fc5",
+      "revision": "bf5ee985899c4f03d682b5586615820924d0c2a25263048712a00c4756bfcfcb",
+      "configuration": "bohmerang Sketchfab CC BY-NC-SA 4.0 replacement, gear extended",
+      "validity_envelope": "Supplied 2024-07-28 archive only; no OEM geometry accuracy claim",
+      "confidence": "Measured Blender source vertices and exported GLB bounds",
+      "validation_status": "Production GLB dimension and rig checks",
+      "notes": "Measured source axes +X nose, +Y port, +Z up. Converted to metre-scale authoring axes and fitted to existing registry. Nose/main gear and wheel radii fitted separately to existing physics contacts. Retired CGTrader geometry/textures are not used.",
+      "parameter": "vertical_relative_to_length_change_percent",
+      "values": -1.8418535792846247,
+      "unit": "percent"
     }
   ]
 }

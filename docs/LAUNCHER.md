@@ -316,10 +316,13 @@ contains exactly the registry GLBs/LODs, `asset-approval.json`, and optional
 ```
 
 List **every** model/LOD, not only Su-57. A publisher must actually establish
-those rights; a JSON assertion cannot grant them. The Su-57 donor's CGTrader
-listing is recorded in ASSET_RELEASE_PROVENANCE.md; its incorporated-use terms
-require asset protection and do not permit standalone GLB/source downloads.
-The current loose-GLB package is not approved for it. CI fails when release inputs or
+those rights; a JSON assertion cannot grant them. The active Su-57 is the
+bohmerang Sketchfab replacement under CC BY-NC-SA 4.0, allowing noncommercial
+loose-GLB distribution with attribution and the same license for adaptations.
+Its import pipeline generates a hash-bound Su-57 approval record; include
+`licenses/assets/SU57.md`, installed automatically by CMake. Combine its record
+with independently reviewed approvals for every other aircraft. The retired
+CGTrader exports must not enter the pack. CI fails when release inputs or
 approval are missing. See LAUNCHER_DEPENDENCIES.md for runtime/license/source
 publication requirements.
 

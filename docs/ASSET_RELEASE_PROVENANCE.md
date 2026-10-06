@@ -23,54 +23,56 @@ weapons or other outlying geometry, add explicit airframe measurement metadata
 and independently test those anchors rather than relaxing tolerances. Passing
 imposed dimensions proves export scale, not accurate aerodynamic planform.
 
-## Su-57 normalization
+## Su-57 replacement and normalization
 
-The original local donor is `/home/kindabad/Downloads/Su57-Felon.blend`, recorded
-in the existing source inventory. Working copy: `output/Su57-Felon.blend`;
-exports: `assets/aircraft/su57/su57_lod0.glb` through `su57_lod3.glb`.
-The original audit could not identify the donor's author or license from embedded
-metadata. On 2026-10-06 the user supplied the original listing and license screenshot:
-[SU57-Felon, model 5684228, by lullabie](https://www.cgtrader.com/free-3d-models/aircraft/military-aircraft/su57-felon).
-The listing currently displays Royalty Free License (no AI).
+On 2026-10-06 the user supplied the official Sketchfab ZIP for
+[Sukhoi Su-57 Felon - Fighter Jet - Free by bohmerang](https://sketchfab.com/3d-models/sukhoi-su-57-felon-fighter-jet-free-59995d6f34ba4bb7990195be3a745fc5).
+The public Sketchfab model API reports **CC BY-NC-SA 4.0**. The supplied ZIP and
+embedded Blender file are hash-recorded in
+`data/geometry/su57-sketchfab-source.json`. This is the active donor.
 
-[CGTrader's terms](https://www.cgtrader.com/pages/terms-and-conditions) permit use
-inside an incorporated game while requiring reasonable asset safeguarding. They
-do not permit giving away the standalone model file. Modifications and a free
-game do not remove that distinction. The user-supplied listing identifies the
-intended donor; the source has not been re-downloaded and byte-matched against
-the local original.
+[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+allows sharing and adaptations for noncommercial purposes, with attribution,
+license links, indication of changes and the same license for adaptations.
+`licenses/assets/SU57.md` records the creator/source, our modifications and the
+adaptation license. CMake installs this notice under `licenses/assets/`.
+Loose model files may be distributed under these terms; asset encryption is
+unnecessary and must not restrict the rights granted by this license.
 
-**PUBLIC SOURCE EXCLUDED / CURRENT LOOSE-GLB RELEASE NOT APPROVED.** The runtime
-and release packager currently store ordinary derivative GLBs, so they need a
-protected asset packaging/loading path before approving this donor for game
-distribution. Keep Blender sources and loose GLBs out of the public repository
-and public repair/download file indexes. Preserve the license/provenance evidence
-and review the incorporated package format when completing asset approval.
-Original cockpit artwork with F-14 names is preserved locally but is not used in
-runtime exports. Other pack assets and library notices still require review.
+`scripts/import_su57_sketchfab.py` opens only the supplied replacement, preserves
+its UVs/packed images, separates controls, rigs gear and exports four native GLBs.
+The working scene is `output/Su57-Sketchfab.blend`; runtime paths stay
+`assets/aircraft/su57/su57_lod0.glb` through `su57_lod3.glb`. Generated assets stay
+local under the source-only policy and belong in reviewed game/asset releases.
+The pipeline writes `output/su57-sketchfab/asset-approval-su57.json` with exact
+export hashes; this approves only these four Su-57 derivatives for noncommercial
+packaging. The other registry models still require their own approval records.
 
-The existing normalization baselines are 17.1699963 m length, 12.3671279 m span,
-2.78005594 m donor height. They are recorded authoring measurements, **not a fresh
-measurement of the original donor in this milestone**. The length/span targets
-are 20.1/14.1 m; assembled extended-gear height is 4.6 m. Source axes (+X port,
--Y nose, +Z up) differ from canonical authoring axes; corrections in canonical
-length/span/vertical order are **1.1706467313 / 1.1401192030 / 1.1706467313**.
+Measured source dimensions are 195.896271 / 141.704758 / 45.673218 in the donor's
+authoring units. Scale factors in source longitudinal/span/vertical order are
+0.102605321 / 0.099502660 / 0.100715481 metres per source unit. The imposed metre
+bounds are 20.1 / 14.1 / 4.6. Span is -3.023878% and vertical -1.841854% relative
+to uniform length conversion. `data/geometry/su57-normalization.json` records this
+active baseline. Gear contact/radius corrections are additional local edits.
 
-Thus donor length/vertical increase 17.0647%, span 14.0119%; span is compressed
-**2.6077% relative to uniform length scaling**, with volume scaling 1.5624351.
-Uniform length scaling would produce about 14.4775 m span, approximately .3775 m
-too wide for the configured target. This alters sweep/aspect ratios and is a
-meaningful surrogate-shape uncertainty. The donor height is not directly scaled
-to 4.6 m: gear/reconstruction and vertical positioning produce the final height.
+Existing physics contacts and hinge anchors are preserved. The donor nose gear
+moves forward 2.482 m and down .303 m; main gear moves aft .562 m and inward
+.099 m. Wheel radii are fitted to .33/.515 m. The original mesh's bay positions,
+surface cuts, pivots and gear folding/compression remain engineering visual
+approximations. Passing dimension/hinge checks is not OEM geometry validation.
+See `assets/aircraft/su57/README.md` for reproduction and limitations.
 
-The exporter already bakes this normalization into the working geometry. Runtime
-registry model scales are (1,1,1), not an additional anisotropic correction.
-For a licensed replacement/full-content pipeline, measure source airframe bounds
-and gear pose, choose true metre units, prefer a uniform unit conversion, correct
-planform/gear once in Blender against justified anchors, apply transforms, and
-export all LODs consistently. Preserve donor provenance and compare local
-cross-sections/hinges as well as bounds; dimension-fitting alone cannot establish
-OEM fidelity. No artwork was changed by this milestone.
+### Retired donor
+
+The former CGTrader donor was identified as
+[SU57-Felon by lullabie, model 5684228](https://www.cgtrader.com/free-3d-models/aircraft/military-aircraft/su57-felon).
+Its original/modified Blender scenes and archived exports remain local/private;
+none of its geometry or textures are used by the replacement pipeline.
+[CGTrader's terms](https://www.cgtrader.com/pages/terms-and-conditions)
+forbid standalone redistribution of that donor. Its older asset-bearing Git
+history remains private. The previous deformation audit is preserved in
+`data/geometry/su57-cgtrader-normalization-historical.json`; older validation
+documents describe that historical artwork rather than the new model.
 
 ## Texture costs and renderer terminology
 

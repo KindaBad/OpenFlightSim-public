@@ -19,7 +19,14 @@ void assets(const std::string& root) {
  check(std::abs(m.boundsMax[0]-m.boundsMin[0]-20.1)<.01 && std::abs(m.boundsMax[2]-m.boundsMin[2]-14.1)<.01 && std::abs(m.boundsMax[1]-m.boundsMin[1]-4.6)<.01,"metre scale length/span/gear height");
  std::set<std::string> channels;for(auto n:m.nodes)if(!n.channel.empty())channels.insert(n.channel);
  for(auto name:{"elevator","rudder","aileron_L","aileron_R","flap","slat","levcon","gear_fold","gear_door","steering","nose_wheel","wheel","compression_L","compression_R","compression_nose","vector_L","vector_R"})check(channels.contains(name),"complete useful rig channels");
- check(m.images.size()>=6,"retained packed PBR maps");
+ // The replacement has one body atlas, one normal map and a packed
+ // metallic/roughness image. Check their actual use, not the retired donor's
+ // six-image count; otherwise missing material bindings could pass unnoticed.
+ check(m.images.size()>=3,"retained replacement PBR maps");
+ check(std::any_of(m.materials.begin(),m.materials.end(),[](const auto& material){
+   return material.name=="airframe" && material.baseColorTexture>=0 &&
+     material.normalTexture>=0 && material.metallicRoughnessTexture>=0;
+ }),"replacement airframe uses colour, normal and metallic/roughness textures");
  std::uint64_t previous=m.triangleCount;
  for(auto path:d.lodAssets) {
   auto lod=loadGltf(root+'/'+std::string(path));check(lod.valid() && lod.images.empty() && lod.triangleCount<previous,"LOD triangle reduction and shared texture table");
@@ -45,6 +52,21 @@ void assets(const std::string& root) {
 
  for(const auto& p:m.primitives)if(p.name.find("tire")!=std::string::npos)
   std::printf("tire %s bounds %.4f/%.4f/%.4f -> %.4f/%.4f/%.4f material %u\n",p.name.c_str(),p.boundsMin[0],p.boundsMin[1],p.boundsMin[2],p.boundsMax[0],p.boundsMax[1],p.boundsMax[2],p.material);
+ // Bay-door skins/brackets must not follow the shock-strut fold: that leaves
+ // a long nose-door piece hanging below the aircraft even with gear fully up.
+ AircraftPose retracted;retracted.gear=0;
+ evaluatePose(m.nodes,retracted,moved);
+ unsigned gearLegs=0;
+ for(const auto& primitive:m.primitives)
+  if(primitive.name=="Su57 | N leg"||primitive.name=="Su57 | L leg"||primitive.name=="Su57 | R leg") {
+   ++gearLegs;check(primitive.transformNode>=0,"replacement strut is animated");
+   const auto& transform=moved.at(primitive.transformNode);
+   double lowest=std::numeric_limits<double>::max();
+   for(std::size_t k=0;k<primitive.vertices.size();k+=kGltfVertexFloats)
+    lowest=std::min(lowest,double(transform[1]*primitive.vertices[k]+transform[5]*primitive.vertices[k+1]+transform[9]*primitive.vertices[k+2]+transform[13]));
+   check(lowest>1.4,"retracted replacement strut is inside the lower airframe envelope");
+  }
+ check(gearLegs==3,"replacement has all three animated gear struts");
 }
 void replay() {
  const auto& cfg=aircraftDefinition(AircraftType::Su57).flight;

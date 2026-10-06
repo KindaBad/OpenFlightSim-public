@@ -125,3 +125,6 @@ output/m4/
 # Launcher runtime state; release products remain under build/.
 /.installation.lock
 /last-update-result.json
+
+# Replacement aircraft authoring reports and native-renderer previews.
+output/su57-sketchfab/

@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "title": "Sukhoi Su-57 Felon - Fighter Jet - Free",
+  "author": "bohmerang",
+  "author_url": "https://sketchfab.com/bohmerang",
+  "source": "https://sketchfab.com/3d-models/sukhoi-su-57-felon-fighter-jet-free-59995d6f34ba4bb7990195be3a745fc5",
+  "license": "CC-BY-NC-SA-4.0",
+  "license_url": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+  "verified_date": "2026-10-06",
+  "archive_sha256": "379cb50bd7a85a0b746be8ddacfac96e35b613efebdbcdf41f9e10f9e45a4fef",
+  "blend_sha256": "bf5ee985899c4f03d682b5586615820924d0c2a25263048712a00c4756bfcfcb",
+  "changes": [
+    "Dimension fitting and axis conversion",
+    "Control-surface separation and rigid animation pivots",
+    "Landing-gear contact/radius fitting",
+    "Glass material converted to renderer-supported alpha-blended PBR",
+    "Four native glTF levels of detail"
+  ],
+  "adaptation_license": "CC-BY-NC-SA-4.0",
+  "retired_source": "CGTrader lullabie donor is not used in these exports",
+  "distribution": "Noncommercial distribution of original and adapted assets under CC BY-NC-SA 4.0; no additional restrictions"
+}

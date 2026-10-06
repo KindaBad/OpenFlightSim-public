@@ -1,7 +1,9 @@
 {
   "level": 0,
-  "triangles": 206748,
-  "primitives": 145,
-  "nodes": 175,
-  "bytes": 89599824
+  "triangles": 52185,
+  "nodes": 59,
+  "bytes": 23712164,
+  "sha256": "44aba1a8903e05aeb1c3028fffebfa3a21093a4298c3f992ee2feaa416390432",
+  "source": "https://sketchfab.com/3d-models/sukhoi-su-57-felon-fighter-jet-free-59995d6f34ba4bb7990195be3a745fc5",
+  "license": "CC BY-NC-SA 4.0"
 }
