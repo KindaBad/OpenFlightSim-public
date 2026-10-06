@@ -18,7 +18,7 @@ from scripts.package_release import archive_tree, records_for
 class Setup(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        self.base = Path(self.temp.name)
+        self.base = Path(self.temp.name).resolve()
         self.root = self.base / 'game with spaces'
         payload = self.base / 'payload'
         fixture(payload)

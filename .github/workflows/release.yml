@@ -72,7 +72,8 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
+        id: vcpkg-cache
         with:
           path: .vcpkg-cache
           key: vcpkg-x64-windows-openssl-protobuf-${{ runner.os }}-v1
@@ -80,6 +81,12 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: vcpkg install openssl:x64-windows protobuf:x64-windows
+      - uses: actions/cache/save@v4
+        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        with:
+          path: .vcpkg-cache
+          key: vcpkg-x64-windows-openssl-protobuf-${{ runner.os }}-v1
       - name: Configure Linux
         if: runner.os == 'Linux'
         run: cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DOFS_RELEASE_CHANNEL=${{ env.OFS_CHANNEL }}

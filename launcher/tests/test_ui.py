@@ -29,7 +29,7 @@ class UI(unittest.TestCase):
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        root = Path(self.temp.name)
+        root = Path(self.temp.name).resolve()
         self.directory = root / 'game'
         fixture(self.directory)
         self.data = root / 'user'
@@ -56,7 +56,7 @@ class UI(unittest.TestCase):
     def test_available_update_is_offered_on_play_page(self):
         self.assertFalse(self.window.update_button.isVisible())
         self.window.installation.managed = True
-        self.window.release = release_for(fixture(Path(self.temp.name) / 'next', '0.4.0'))
+        self.window.release = release_for(fixture(Path(self.temp.name).resolve() / 'next', '0.4.0'))
         self.window.refresh_summary()
         self.assertTrue(self.window.update_button.isVisible())
         self.assertEqual(self.window.update_button.text(), 'Update to 0.4.0')
@@ -108,7 +108,7 @@ class SetupUI(unittest.TestCase):
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         self.game = self.root / 'installed game'
         fixture(self.game / 'releases/initial')
         write_json(self.game / 'current.json', {'schema': 1, 'active': 'releases/initial', 'previous': None})

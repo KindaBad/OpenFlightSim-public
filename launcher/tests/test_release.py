@@ -19,7 +19,7 @@ from scripts.publish_github_release import publication_files, publish
 class ReleasePipeline(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
-        self.root = Path(self.temporary.name)
+        self.root = Path(self.temporary.name).resolve()
         self.simulator = self.root / 'simulator'
         self.metadata = fixture(self.simulator)
         # CMake stage contains no GUI; the packaging step adds that bundle.

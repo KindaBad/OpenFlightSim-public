@@ -82,7 +82,8 @@ class Versions(unittest.TestCase):
 class Engine(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
-        self.root = Path(self.temporary.name)
+        # Windows tempfile paths can use 8.3 aliases; production paths are resolved.
+        self.root = Path(self.temporary.name).resolve()
         self.active = self.root / 'releases/initial'
         self.metadata = fixture(self.active)
         write_json(self.root / 'current.json', {'schema': 1, 'active': 'releases/initial', 'previous': None})
