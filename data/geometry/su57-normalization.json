@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "aircraft": "Su-57 visual surrogate",
+  "configuration": "Existing supplied-art normalization",
+  "parameters": [
+    {
+      "parameter": "source_dimension_baselines",
+      "values": [
+        17.16999626159668,
+        12.367127895355225,
+        2.78005594
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "scripts/su57_normalize.py",
+      "revision": "2440045523b5f11828c8c85e5192f56ee3d1d1bec3149d981bb05312f00d7ab6",
+      "configuration": "Supplied original Su57_Mid/Cockpit authoring source",
+      "validity_envelope": "Existing authoring script baselines; not arbitrary replacement models",
+      "confidence": "Recomputed imposed visual deformation",
+      "validation_status": "Mathematical calculation; no OEM shape validation",
+      "notes": "Calculated from the existing normalization baselines and targets; not a fresh Blender measurement. Original art redistribution remains UNVERIFIED. Target height includes assembled gear geometry."
+    },
+    {
+      "parameter": "dimension_targets",
+      "values": [
+        20.1,
+        14.1,
+        4.6
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "scripts/su57_normalize.py",
+      "revision": "2440045523b5f11828c8c85e5192f56ee3d1d1bec3149d981bb05312f00d7ab6",
+      "configuration": "Supplied original Su57_Mid/Cockpit authoring source",
+      "validity_envelope": "Existing authoring script baselines; not arbitrary replacement models",
+      "confidence": "Recomputed imposed visual deformation",
+      "validation_status": "Mathematical calculation; no OEM shape validation",
+      "notes": "Calculated from the existing normalization baselines and targets; not a fresh Blender measurement. Original art redistribution remains UNVERIFIED. Target height includes assembled gear geometry."
+    },
+    {
+      "parameter": "anisotropic_scale",
+      "values": [
+        1.1706467312958433,
+        1.140119203044354,
+        1.1706467312958433
+      ],
+      "unit": "1",
+      "provenance": "DERIVED",
+      "source": "scripts/su57_normalize.py",
+      "revision": "2440045523b5f11828c8c85e5192f56ee3d1d1bec3149d981bb05312f00d7ab6",
+      "configuration": "Supplied original Su57_Mid/Cockpit authoring source",
+      "validity_envelope": "Existing authoring script baselines; not arbitrary replacement models",
+      "confidence": "Recomputed imposed visual deformation",
+      "validation_status": "Mathematical calculation; no OEM shape validation",
+      "notes": "Calculated from the existing normalization baselines and targets; not a fresh Blender measurement. Original art redistribution remains UNVERIFIED. Target height includes assembled gear geometry."
+    },
+    {
+      "parameter": "span_relative_to_uniform_length_scaling",
+      "values": -0.026077489848450597,
+      "unit": "1",
+      "provenance": "DERIVED",
+      "source": "scripts/su57_normalize.py",
+      "revision": "2440045523b5f11828c8c85e5192f56ee3d1d1bec3149d981bb05312f00d7ab6",
+      "configuration": "Supplied original Su57_Mid/Cockpit authoring source",
+      "validity_envelope": "Existing authoring script baselines; not arbitrary replacement models",
+      "confidence": "Recomputed imposed visual deformation",
+      "validation_status": "Mathematical calculation; no OEM shape validation",
+      "notes": "Calculated from the existing normalization baselines and targets; not a fresh Blender measurement. Original art redistribution remains UNVERIFIED. Target height includes assembled gear geometry."
+    },
+    {
+      "parameter": "volume_scale",
+      "values": 1.5624350547161006,
+      "unit": "1",
+      "provenance": "DERIVED",
+      "source": "scripts/su57_normalize.py",
+      "revision": "2440045523b5f11828c8c85e5192f56ee3d1d1bec3149d981bb05312f00d7ab6",
+      "configuration": "Supplied original Su57_Mid/Cockpit authoring source",
+      "validity_envelope": "Existing authoring script baselines; not arbitrary replacement models",
+      "confidence": "Recomputed imposed visual deformation",
+      "validation_status": "Mathematical calculation; no OEM shape validation",
+      "notes": "Calculated from the existing normalization baselines and targets; not a fresh Blender measurement. Original art redistribution remains UNVERIFIED. Target height includes assembled gear geometry."
+    }
+  ]
+}

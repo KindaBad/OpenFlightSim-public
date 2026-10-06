@@ -1,0 +1,134 @@
+{
+  "version": 5,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 24,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "release",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/build/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "headless",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/build/headless",
+      "cacheVariables": {
+        "OFS_BUILD_CLIENT": "OFF"
+      }
+    },
+    {
+      "name": "sanitize",
+      "inherits": "headless",
+      "binaryDir": "${sourceDir}/build/sanitize",
+      "cacheVariables": {
+        "OFS_SANITIZE": "ON"
+      }
+    },
+    {
+      "name": "flight-validation",
+      "inherits": "headless",
+      "binaryDir": "${sourceDir}/build/flight-validation",
+      "cacheVariables": {
+        "OFS_ENABLE_F16_REFERENCE": "ON"
+      }
+    },
+    {
+      "name": "asset-validation",
+      "inherits": "headless",
+      "binaryDir": "${sourceDir}/build/asset-validation",
+      "cacheVariables": {
+        "OFS_REQUIRE_PRODUCTION_ASSETS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "debug",
+      "configurePreset": "debug",
+      "jobs": 3
+    },
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "jobs": 3
+    },
+    {
+      "name": "headless",
+      "configurePreset": "headless",
+      "jobs": 3
+    },
+    {
+      "name": "sanitize",
+      "configurePreset": "sanitize",
+      "jobs": 3
+    },
+    {
+      "name": "flight-validation",
+      "configurePreset": "flight-validation",
+      "jobs": 3
+    },
+    {
+      "name": "asset-validation",
+      "configurePreset": "asset-validation",
+      "jobs": 3
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "debug",
+      "configurePreset": "debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "headless",
+      "configurePreset": "headless",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "sanitize",
+      "configurePreset": "sanitize",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "flight-validation",
+      "configurePreset": "flight-validation",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "asset-validation",
+      "configurePreset": "asset-validation",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

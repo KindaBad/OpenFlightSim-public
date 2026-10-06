@@ -1,0 +1,552 @@
+#include "ofs/net/world.hpp"
+#include "ofs/net/bot_ai.hpp"
+#include "ofs/trim.hpp"
+#include "ofs/weapons.hpp"
+#include "ofs/terrain.hpp"
+#include <algorithm>
+#include <chrono>
+#include <stdexcept>
+namespace ofs::net {
+World::World(bool airborne, std::optional<GunConfig> gun)
+    : combat_(gun.value_or(GunConfig{})), airborne_(airborne), gunOverride_(gun) {
+  for (const auto& definition : aircraftDefinitions()) {
+    auto& spawn = spawns_[definition.type];
+    if (airborne_) {
+    auto trim = solveTrim(definition.flight);
+    if (!trim.converged)
+      throw std::runtime_error("network spawn trim failed");
+    spawn.state = trim.state;
+    spawn.controls = trim.controls;
+  } else {
+    spawn.state.pos_ned.z = -(definition.flight.gear_nose.z - .15);
+    spawn.controls.brake01 = 1;
+  }
+  }
+}
+const GunConfig& World::gunFor(AircraftType type) const {
+  return gunOverride_ ? *gunOverride_ : aircraftDefinition(type).gun.value();
+}
+EntityId World::join(AircraftType type) {
+  if (!validAircraftType(type) || players_.size() >= maxPlayers)
+    return 0;
+  unsigned slot = 0;
+  for (; slot < maxPlayers; ++slot) {
+    bool used = false;
+    for (const auto &[id, p] : players_) {
+      (void)id;
+      used = used || p.spawnSlot == slot;
+    }
+    if (!used)
+      break;
+  }
+  const auto id = nextId_++;
+  auto &p = players_[id];
+  p.type = type;
+  p.sim = Simulator(aircraftDefinition(type).flight);
+  p.spawnSlot = slot;
+  p.life.ammo = aircraftDefinition(type).gun ? gunFor(type).ammo : 0;
+  spawn(id, p);
+  return id;
+}
+EntityId World::joinBot(AircraftType type) {
+  if (!validAircraftType(type) || !aircraftDefinition(type).gun || botCount() >= 8)
+    return 0;
+  const auto id = join(type);
+  if (id) {
+    auto &p = players_.at(id);
+    p.bot = true;
+    spawn(id, p);
+  }
+  return id;
+}
+std::size_t World::botCount() const {
+  return std::count_if(players_.begin(), players_.end(),
+                       [](const auto &entry) { return entry.second.bot; });
+}
+void World::spawn(EntityId id, Player &p) {
+  const auto& spawn = spawns_.at(p.type);
+  auto s = spawn.state;
+  s.pos_ned.x = -double(p.spawnSlot / 8) * 150;
+  s.pos_ned.y = double(p.spawnSlot % 8) * 100;
+  auto controls = spawn.controls;
+  if (p.bot) {
+    const auto trim = solveTrim(p.sim.config(), {1000, 160, 0, 0, 0});
+    if (!trim.converged) throw std::runtime_error("bot spawn trim failed");
+    s = trim.state;
+    controls = trim.controls;
+    const auto human = std::find_if(players_.begin(), players_.end(),
+        [](const auto &entry) { return !entry.second.bot && entry.second.life.alive(); });
+    if (human != players_.end()) {
+      const auto &target = human->second.sim.state();
+      const double yaw = std::atan2(target.vel_ned.y, target.vel_ned.x);
+      const auto heading = quatFromEuler(0, 0, yaw);
+      const bool pursuing = p.spawnSlot % 2 != 0;
+      s.pos_ned = target.pos_ned + heading.rotate(
+          {pursuing ? -650. - 250. * (p.spawnSlot / 2) : 1500. + 350. * (p.spawnSlot / 2),
+           pursuing ? -60. : 180., 0});
+      s.pos_ned.z = std::min(s.pos_ned.z, groundHeightNed(s.pos_ned.x, s.pos_ned.y) - 1000.);
+      const auto rotation = quatFromEuler(0, 0, yaw + (pursuing ? 0 : kPi));
+      s.att = rotation * s.att;
+      s.vel_ned = rotation.rotate(s.vel_ned);
+    }
+    p.botTarget = 0;
+    p.evadeUntil = 0;
+    p.missileReady = tick_ + 960;
+    p.lastHealth = 100;
+  }
+  // Existing slots supply the baseline; move back if a currently alive aircraft
+  // occupies it. At most 64 exclusions, spaced candidates terminate in 65
+  // tries.
+  for (unsigned attempt = 0; attempt <= maxPlayers; ++attempt) {
+    bool safe = true;
+    for (const auto &[other, q] : players_)
+      if (other != id && q.life.alive() &&
+          (q.sim.state().pos_ned - s.pos_ned).norm() < 60)
+        safe = false;
+    if (safe)
+      break;
+    s.pos_ned.x -= 150;
+  }
+  p.weapons.inventory.reset(p.type);
+  p.weapons.radar.reset();
+  p.weapons.actions.clear();
+  p.weapons.readyTick = tick_;
+  p.weapons.acquisition = {};
+  p.weapons.acquisitionTarget = {};
+  p.weapons.inventory.applyPayload(p.sim.config(), s);
+  s.time = double(tick_) * tickSeconds;
+  if(airborne_ || p.bot) s.vel_ned+=weather_.wind_ned;
+  p.sim.setWeather(weather_);
+  p.sim.setState(s);
+  p.sim.setControls(controls);
+  p.lastInput = tick_;
+}
+void World::controlBot(EntityId id, Player &p) {
+  // Human aircraft are opponents. Bots share the same damage/weapon rules,
+  // but do not waste ammunition attacking each other.
+  EntityId target = 0;
+  double nearest = 30000.;
+  for (const auto &[other, q] : players_)
+    if (other != id && !q.bot && q.life.alive()) {
+      const double distance = (q.sim.state().pos_ned - p.sim.state().pos_ned).norm();
+      const double score = distance * (other == p.botTarget ? .8 : 1.);
+      if (score < nearest) { nearest = score; target = other; }
+    }
+  p.botTarget = target;
+  if (p.life.health < p.lastHealth) p.evadeUntil = tick_ + 180;
+  p.lastHealth = p.life.health;
+  const State *opponent = target ? &players_.at(target).sim.state() : nullptr;
+  const auto decision = flyBot(p.sim, opponent, gunFor(p.type), tick_,
+                               tick_ < p.evadeUntil, id % 2 ? -1 : 1);
+  p.sim.setControls(decision.controls);
+  p.lastInput = p.lastFireInput = tick_;
+  p.firing = decision.firing && p.life.ammo > 0;
+  auto &w = p.weapons;
+  const weapons::EntityRef ref{target, target ? players_.at(target).life.generation : 0};
+  if (target && w.radar.find(ref)) {
+    const bool supported = w.radar.selected == ref && w.radar.locked == ref &&
+        w.inventory.selected == WeaponType::ActiveRadar;
+    w.radar.selected = ref;
+    if (w.radar.locked != ref) {
+      w.radar.locked = {};
+      w.radar.toggleLock();
+    }
+    w.inventory.selected = WeaponType::ActiveRadar;
+    // Spaced shots, with the same track, seeker, range and inventory checks
+    // as player launches. No forced missile locks or scripted damage.
+    const auto station = w.inventory.nextStation();
+    if (supported && tick_ >= p.missileReady && tick_ >= p.evadeUntil && w.seekerReady &&
+        station >= 0 && w.envelope.targetRange > 600 && w.envelope.targetRange < 8000) {
+      WeaponAction action;
+      action.sequence = w.lastSequence + 1;
+      action.tick = tick_ + 1;
+      action.generation = p.life.generation;
+      action.kind = WeaponActionKind::Launch;
+      action.station = static_cast<std::uint8_t>(station);
+      if (enqueueWeapon(id, action)) p.missileReady = tick_ + 960;
+    }
+  } else {
+    w.radar.selected = w.radar.locked = {};
+  }
+}
+void World::setWeather(const Weather& weather) {
+  Simulator sanitizer;sanitizer.setWeather(weather);weather_=sanitizer.weather();
+  for(auto& [id,p]:players_) { (void)id;p.sim.setWeather(weather_); }
+}
+void World::leave(EntityId id) {
+  combat_.removeOwner(id);
+  missiles_.removeOwner(id, tick_);
+  players_.erase(id);
+}
+bool World::enqueue(EntityId id, const std::vector<Command> &commands,
+                    std::uint32_t generation) {
+  auto it = players_.find(id);
+  if (it == players_.end() || commands.empty() || commands.size() > maxBatch) {
+    ++stats_.rejected;
+    return false;
+  }
+  auto &p = it->second;
+  if (generation > p.life.generation) {
+    ++stats_.rejected;
+    return false;
+  }
+  // Delayed previous-life and in-flight dead input is retired without striking
+  // an honest session. It can never mutate flight state.
+  if (generation < p.life.generation || !p.life.alive()) {
+    ++stats_.rejected;
+    return true;
+  }
+  // Validate the whole batch before any mutation; old redundant commands are
+  // harmless.
+  std::uint64_t previousSequence = 0;
+  Tick previousTick = 0;
+  for (const auto &c : commands) {
+    if (!validControls(c.controls) || !c.sequence ||
+        (previousSequence &&
+         (c.sequence <= previousSequence || c.tick <= previousTick)) ||
+        c.tick > tick_ + 120 || c.sequence > p.highestSequence + 512) {
+      ++stats_.rejected;
+      return false;
+    }
+    if (c.sequence > p.acknowledged) {
+      for (const auto &[queuedTick, queued] : p.inputs) {
+        const bool sameSequence = c.sequence == queued.sequence;
+        if ((sameSequence && (c.tick != queuedTick ||
+                              !sameControls(c.controls, queued.controls))) ||
+            (!sameSequence &&
+             ((c.sequence < queued.sequence && c.tick >= queuedTick) ||
+              (c.sequence > queued.sequence && c.tick <= queuedTick)))) {
+          ++stats_.rejected;
+          return false;
+        }
+      }
+    }
+    previousSequence = c.sequence;
+    previousTick = c.tick;
+  }
+  for (const auto &c : commands) {
+    if (c.sequence <= p.acknowledged)
+      continue;
+    if (c.tick <= tick_) {
+      ++stats_.late;
+      p.acknowledged = std::max(p.acknowledged, c.sequence);
+      p.highestSequence = std::max(p.highestSequence, c.sequence);
+      continue;
+    }
+    auto existing = p.inputs.find(c.tick);
+    if (existing != p.inputs.end()) {
+      if (existing->second.sequence != c.sequence) {
+        ++stats_.rejected;
+        return false;
+      }
+      continue;
+    }
+    if (p.inputs.size() >= 256) {
+      ++stats_.rejected;
+      return false;
+    }
+    p.inputs.emplace(c.tick, c);
+    p.highestSequence = std::max(p.highestSequence, c.sequence);
+  }
+  stats_.maxQueue = std::max(stats_.maxQueue, p.inputs.size());
+  return true;
+}
+bool World::enqueueFire(EntityId id, const FireCommand &c) {
+  auto it = players_.find(id);
+  auto reject = [&] {
+    ++combat_.stats().rejectedFire;
+    return false;
+  };
+  if (it == players_.end() || !c.sequence || c.weapon || c.tick > tick_ + 120 ||
+      (c.tick < tick_ && tick_ - c.tick > 120))
+    return reject();
+  auto &p = it->second;
+  if (!aircraftDefinition(p.type).gun) {
+    ++combat_.stats().rejectedFire;
+    return true; // Unarmed input ignored; no fire queue, ammo or projectile.
+  }
+  if (c.generation > p.life.generation || c.sequence > p.fireSequence + 512)
+    return reject();
+  if (c.generation < p.life.generation || !p.life.alive()) {
+    ++combat_.stats().rejectedFire;
+    return true;
+  }
+  if (c.sequence <= p.fireSequence)
+    return true; // duplicate/reorder cannot refire
+  if (c.tick < p.fireTick || p.fireInputs.size() >= 128)
+    return reject();
+  p.fireSequence = c.sequence;
+  p.fireTick = c.tick;
+  // Keep only the latest state for a single due tick, no allocations per round.
+  p.fireInputs[std::max(tick_ + 1, c.tick)] = c;
+  combat_.stats().peakFireQueue =
+      std::max(combat_.stats().peakFireQueue, p.fireInputs.size());
+  return true;
+}
+bool World::enqueueWeapon(EntityId id, const WeaponAction &action) {
+  auto it = players_.find(id);
+  auto reject = [&] {
+    ++missiles_.stats().rejected;
+    return false;
+  };
+  if (it == players_.end() || !action.sequence ||
+      unsigned(action.kind) > unsigned(WeaponActionKind::Unlock) ||
+      action.tick > tick_ + 120 ||
+      (action.tick < tick_ && tick_ - action.tick > 120))
+    return reject();
+  auto &p = it->second;
+  auto &w = p.weapons;
+  if (action.generation > p.life.generation ||
+      action.sequence > w.lastSequence + 512)
+    return reject();
+  if (action.generation < p.life.generation || !p.life.alive())
+    return true;
+  if (action.sequence <= w.lastSequence)
+    return true;
+  if (w.actions.size() >= 32 || !aircraftDefinition(p.type).gun)
+    return reject();
+  if (action.kind == WeaponActionKind::Launch &&
+      action.station >= w.inventory.stations.size())
+    return reject();
+  w.lastSequence = action.sequence;
+  // Reliable actions share a tick: retain order without overwriting a launch.
+  Tick due = std::max(tick_ + 1, action.tick);
+  if (!w.actions.empty())
+    due = std::max(due, w.actions.rbegin()->first + 1);
+  w.actions.emplace(due, action);
+  return true;
+}
+void World::step() {
+  auto start = std::chrono::steady_clock::now();
+  ++tick_;
+  std::vector<weapons::SensorTarget> sensorTargets;
+  for (const auto &[id, p] : players_)
+    if (p.life.alive()) {
+      const auto &s = p.sim.state();
+      sensorTargets.push_back({{id, p.life.generation},
+                               s.pos_ned,
+                               s.vel_ned,
+                               s.att,
+                               p.type,
+                               (s.n1[0] + s.n1[1]) * .5,
+                               (s.afterburner[0] + s.afterburner[1]) * .5,
+                               true});
+    }
+  auto radarStart = std::chrono::steady_clock::now();
+  for (auto &[id, p] : players_)
+    if (p.life.alive() && aircraftDefinition(p.type).gun) {
+      p.weapons.radar.update(p.sim.state(), sensorTargets,
+                             {id, p.life.generation},
+                             double(tick_) * tickSeconds);
+      if (p.weapons.radar.locked.id)
+        p.weapons.radar.mode = weapons::RadarMode::Track;
+    }
+  missiles_.stats().radarUs = std::chrono::duration<double, std::micro>(
+                                  std::chrono::steady_clock::now() - radarStart)
+                                  .count();
+  std::array<CombatTarget, maxPlayers> targets;
+  std::size_t count = 0;
+  for (auto &[id, p] : players_) {
+    if (!p.life.alive()) {
+      p.inputs.clear();
+      p.fireInputs.clear();
+      p.firing = false;
+      p.acknowledged = std::max(p.acknowledged, p.highestSequence);
+      combat_.removeOwner(id);
+      p.weapons.actions.clear();
+      p.weapons.radar.reset();
+      p.weapons.seekerReady = false;
+      p.weapons.acquisition = {};
+      p.weapons.acquisitionTarget = {};
+      if (tick_ >= p.life.respawnTick) {
+        ++p.life.generation;
+        p.life.health = 100;
+        p.life.ammo = aircraftDefinition(p.type).gun ? gunFor(p.type).ammo : 0;
+        p.life.readyTick = tick_;
+        p.life.respawnTick = 0;
+        spawn(id, p);
+        ++combat_.stats().respawns;
+        CombatEvent e;
+        e.kind = CombatKind::Respawn;
+        e.tick = tick_;
+        e.owner = e.target = id;
+        e.generation = p.life.generation;
+        e.health = 100;
+        e.position = p.sim.state().pos_ned;
+        combat_.emit(e);
+      } else
+        continue;
+    }
+    auto &w = p.weapons;
+    w.seekerReady = false;
+    w.envelope = {};
+    const auto *selected = w.radar.find(w.radar.selected);
+    if (selected && w.inventory.nextStation() >= 0) {
+      const auto &definition = weapons::missileDefinition(w.inventory.selected);
+      w.envelope = weapons::estimateEnvelope(
+          definition, p.sim.state(),
+          {selected->position, selected->velocity, true});
+      if (w.inventory.selected == WeaponType::ActiveRadar)
+        w.seekerReady =
+            w.radar.locked == selected->entity &&
+            double(tick_) * tickSeconds - selected->lastDetection <= .5;
+      else {
+        const auto sensor = std::find_if(
+            sensorTargets.begin(), sensorTargets.end(),
+            [&](const auto &t) { return t.entity == selected->entity; });
+        if (sensor != sensorTargets.end()) {
+          if (w.acquisitionTarget != selected->entity) {
+            w.acquisition = {};
+            w.acquisitionTarget = selected->entity;
+            w.acquisition.boresight = p.sim.state().att.rotate({1, 0, 0});
+          }
+          const auto index = unsigned(w.inventory.nextStation());
+          const auto offset = w.inventory.stations[index].position -
+                              loadedCg(p.sim.config(), p.sim.state());
+          auto seeker =
+              weapons::launchState(definition, p.sim.state(), offset, {});
+          seeker.seeker = w.acquisition;
+          weapons::updateSeeker(definition, seeker, &*sensor, tickSeconds);
+          w.acquisition = seeker.seeker;
+          w.seekerReady = seeker.seeker.phase == weapons::SeekerPhase::Tracking;
+        }
+      }
+    }
+    while (!w.actions.empty() && w.actions.begin()->first <= tick_) {
+      const auto action = w.actions.begin()->second;
+      w.actions.erase(w.actions.begin());
+      switch (action.kind) {
+      case WeaponActionKind::NextTarget:
+        w.radar.cycle(1);
+        break;
+      case WeaponActionKind::PreviousTarget:
+        w.radar.cycle(-1);
+        break;
+      case WeaponActionKind::Lock:
+        w.radar.toggleLock();
+        break;
+      case WeaponActionKind::Unlock:
+        w.radar.locked = {};
+        w.radar.mode = weapons::RadarMode::Search;
+        break;
+      case WeaponActionKind::SelectIR:
+        w.inventory.selected = WeaponType::Infrared;
+        break;
+      case WeaponActionKind::SelectRadar:
+        w.inventory.selected = WeaponType::ActiveRadar;
+        break;
+      case WeaponActionKind::Launch: {
+        const auto *track = w.radar.find(w.radar.selected);
+        auto &station = w.inventory.stations[action.station];
+        if (!track || !w.seekerReady ||
+            station.mounted != w.inventory.selected ||
+            w.envelope.targetRange <
+                weapons::missileDefinition(w.inventory.selected).minimumRange ||
+            tick_ < w.readyTick) {
+          ++missiles_.stats().rejected;
+          break;
+        }
+        const auto offset =
+            station.position - loadedCg(p.sim.config(), p.sim.state());
+        if (missiles_.launch(tick_, {id, p.life.generation}, p.sim.state(),
+                             offset, station.mounted, *track)) {
+          w.inventory.consume(action.station, station.mounted);
+          w.readyTick = tick_ + 60;
+          auto state = p.sim.state();
+          w.inventory.applyPayload(p.sim.config(), state);
+          p.sim.setState(state);
+        }
+        break;
+      }
+      }
+    }
+    const auto previous = p.sim.state();
+    while (!p.inputs.empty() && p.inputs.begin()->first <= tick_) {
+      auto c = p.inputs.begin()->second;
+      p.inputs.erase(p.inputs.begin());
+      p.sim.setControls(c.controls);
+      p.acknowledged = std::max(p.acknowledged, c.sequence);
+      p.lastInput = tick_;
+      ++stats_.applied;
+    }
+    if (tick_ - p.lastInput > 120) {
+      auto c = p.sim.controls();
+      c.elevator_stick = c.aileron_stick = c.rudder_pedal = c.steering = 0;
+      p.sim.setControls(c);
+    }
+    while (!p.fireInputs.empty() && p.fireInputs.begin()->first <= tick_) {
+      const auto c = p.fireInputs.begin()->second;
+      p.fireInputs.erase(p.fireInputs.begin());
+      p.firing = c.held;
+      p.lastFireInput = tick_;
+    }
+    if (tick_ - p.lastFireInput > 120)
+      p.firing = false;
+    if (p.bot) controlBot(id, p);
+    // Shot spawns at the start of this tick; target sweep uses the same
+    // interval.
+    if (p.firing && aircraftDefinition(p.type).gun) {
+      auto gun=gunFor(p.type);gun.muzzle=gun.muzzle-loadedCg(p.sim.config(),previous);
+      combat_.fire(tick_, id, previous, p.life, gun);
+    }
+    p.sim.step(tickSeconds);
+    const auto& impact=p.sim.groundImpact();
+    if(impact.damage>0) {
+      p.life.health=std::max(0.,p.life.health-impact.damage*100.);
+      if(aircraftCrashed(p.sim.state())) p.life.health=0;
+      if(impact.damage>.02 || !p.life.alive()) {
+        CombatEvent event;
+        event.kind=CombatKind::Hit;event.tick=tick_;event.owner=event.target=id;
+        event.generation=p.life.generation;event.health=p.life.health;
+        event.position=impact.position;event.velocity=impact.velocity;
+        combat_.emit(event);
+        if(!p.life.alive()) {
+          ++p.life.deaths;
+          p.life.respawnTick=tick_+combat_.gun().respawnDelay;
+          event.kind=CombatKind::Destroyed;combat_.emit(event);
+        }
+      }
+    }
+    targets[count++] = {id, previous, p.sim.state(), &p.life, p.type};
+  }
+  combat_.step(tick_, std::span(targets).first(count));
+  std::map<EntityId, AircraftWeapons *> controllers;
+  for (auto &[id, p] : players_)
+    if (p.life.alive())
+      controllers[id] = &p.weapons;
+  missiles_.step(tick_, std::span(targets).first(count), controllers, weather_,
+                 combat_);
+  for (auto &[id, p] : players_)
+    if (!p.life.alive()) {
+      p.inputs.clear();
+      p.fireInputs.clear();
+      p.firing = false;
+      p.acknowledged = std::max(p.acknowledged, p.highestSequence);
+      combat_.removeOwner(id);
+      p.weapons.actions.clear();
+      p.weapons.radar.reset();
+      p.weapons.seekerReady = false;
+      p.weapons.acquisition = {};
+      p.weapons.acquisitionTarget = {};
+    }
+  stats_.lastTickUs = std::chrono::duration<double, std::micro>(
+                          std::chrono::steady_clock::now() - start)
+                          .count();
+  stats_.maxTickUs = std::max(stats_.maxTickUs, stats_.lastTickUs);
+}
+Aircraft World::aircraft(EntityId id) const {
+  const auto &p = players_.at(id);
+  return {id, p.acknowledged, p.sim.state(), p.sim.controls(), p.life, p.type};
+}
+Message World::snapshot() const {
+  Message m;
+  m.type = Type::Snapshot;
+  m.weather=weather_;
+  m.tick = tick_;
+  for (const auto &[id, p] : players_) {
+    (void)p;
+    m.aircrafts.push_back(aircraft(id));
+  }
+  return m;
+}
+} // namespace ofs::net

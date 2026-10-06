@@ -1,0 +1,45 @@
+name: Windows Preparation
+# Standard Windows runners are free for the public source repository. Keep the
+# private archive's builds manual so publishing source never adds private bills.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  msvc:
+    if: github.event_name == 'workflow_dispatch' || github.event.repository.private == false
+    runs-on: windows-2022
+    env:
+      QT_QPA_PLATFORM: offscreen
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}\.vcpkg-cache
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Launcher dependencies
+        run: python -m pip install -r launcher/requirements.txt
+      - name: vcpkg binary cache directory
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE
+      - uses: actions/cache@v4
+        with:
+          path: .vcpkg-cache
+          key: vcpkg-x64-windows-openssl-protobuf-${{ runner.os }}-v1
+      - name: Dependencies
+        shell: pwsh
+        run: vcpkg install openssl:x64-windows protobuf:x64-windows
+      - name: Configure
+        shell: pwsh
+        run: cmake -S . -B build/msvc -G "Visual Studio 17 2022" -A x64 "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+      - name: Build Including DXBC Shaders
+        run: cmake --build build/msvc --config Release --parallel 3
+      - name: Headless Regressions
+        run: ctest --test-dir build/msvc -C Release --output-on-failure --parallel 3

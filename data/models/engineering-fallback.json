@@ -1,0 +1,321 @@
+{
+  "schema_version": 1,
+  "aircraft": "Shared engineering fallback",
+  "configuration": "Registry engineering surrogates",
+  "parameters": [
+    {
+      "parameter": "lift_mach",
+      "values": [
+        1.0,
+        1.0,
+        1.08,
+        1.04,
+        0.9,
+        0.75,
+        0.6
+      ],
+      "axes": [
+        [
+          0.0,
+          0.6,
+          0.85,
+          1.0,
+          1.4,
+          2.0,
+          3.0
+        ]
+      ],
+      "axis_units": [
+        "1"
+      ],
+      "unit": "1",
+      "provenance": "CALIBRATED_APPROXIMATION",
+      "source": "core/include/ofs/aerodynamics.hpp::liftMach",
+      "revision": "611d5b58fb927e0693666f47d14047fc4bff70fe14c654fcc3e35c237ed1f032",
+      "configuration": "Shared engineering fallback; includes Su-57 surrogate",
+      "validity_envelope": "Bounded heuristic curves; no independently validated aircraft envelope",
+      "confidence": "Engineering approximation",
+      "validation_status": "NOT_EXTERNALLY_VALIDATED",
+      "notes": "Smoothstep interpolation with endpoint clamp; not measured aircraft polars. Separation axis normalizes excess alpha by 10 degrees."
+    },
+    {
+      "parameter": "control_mach",
+      "values": [
+        1.0,
+        1.0,
+        0.85,
+        0.65,
+        0.5
+      ],
+      "axes": [
+        [
+          0.0,
+          0.8,
+          1.0,
+          2.0,
+          3.0
+        ]
+      ],
+      "axis_units": [
+        "1"
+      ],
+      "unit": "1",
+      "provenance": "CALIBRATED_APPROXIMATION",
+      "source": "core/include/ofs/aerodynamics.hpp::controlMach",
+      "revision": "611d5b58fb927e0693666f47d14047fc4bff70fe14c654fcc3e35c237ed1f032",
+      "configuration": "Shared engineering fallback; includes Su-57 surrogate",
+      "validity_envelope": "Bounded heuristic curves; no independently validated aircraft envelope",
+      "confidence": "Engineering approximation",
+      "validation_status": "NOT_EXTERNALLY_VALIDATED",
+      "notes": "Smoothstep interpolation with endpoint clamp; not measured aircraft polars. Separation axis normalizes excess alpha by 10 degrees."
+    },
+    {
+      "parameter": "separation",
+      "values": [
+        0.0,
+        0.3,
+        0.75,
+        1.0,
+        1.0
+      ],
+      "axes": [
+        [
+          0.0,
+          0.5,
+          1.0,
+          2.0,
+          20.0
+        ]
+      ],
+      "axis_units": [
+        "1"
+      ],
+      "unit": "1",
+      "provenance": "CALIBRATED_APPROXIMATION",
+      "source": "core/include/ofs/aerodynamics.hpp::separation",
+      "revision": "611d5b58fb927e0693666f47d14047fc4bff70fe14c654fcc3e35c237ed1f032",
+      "configuration": "Shared engineering fallback; includes Su-57 surrogate",
+      "validity_envelope": "Bounded heuristic curves; no independently validated aircraft envelope",
+      "confidence": "Engineering approximation",
+      "validation_status": "NOT_EXTERNALLY_VALIDATED",
+      "notes": "Smoothstep interpolation with endpoint clamp; not measured aircraft polars. Separation axis normalizes excess alpha by 10 degrees."
+    },
+    {
+      "parameter": "vortex_breakdown",
+      "values": [
+        0.0,
+        0.0,
+        1.0,
+        1.0,
+        0.45,
+        0.0,
+        0.0
+      ],
+      "axes": [
+        [
+          0.0,
+          0.13962634015954636,
+          0.3141592653589793,
+          0.5235987755982988,
+          0.7853981633974483,
+          1.1344640137963142,
+          3.141592653589793
+        ]
+      ],
+      "axis_units": [
+        "rad"
+      ],
+      "unit": "1",
+      "provenance": "CALIBRATED_APPROXIMATION",
+      "source": "core/include/ofs/aerodynamics.hpp::vortexLift",
+      "revision": "611d5b58fb927e0693666f47d14047fc4bff70fe14c654fcc3e35c237ed1f032",
+      "configuration": "Shared engineering fallback; includes Su-57 surrogate",
+      "validity_envelope": "Bounded heuristic curves; no independently validated aircraft envelope",
+      "confidence": "Engineering approximation",
+      "validation_status": "NOT_EXTERNALLY_VALIDATED",
+      "notes": "Smoothstep interpolation with endpoint clamp; not measured aircraft polars. Separation axis normalizes excess alpha by 10 degrees."
+    },
+    {
+      "parameter": "running_idle_thrust_fraction",
+      "values": 0.05,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "core/src/propulsion_model.cpp",
+      "revision": "6d949e0c4f405822b9df538333e134851259b0c3f88a7f7d536ff6f99743deba",
+      "configuration": "Shared engineering jet fallback",
+      "validity_envelope": "Regression only; no independent engine-envelope validation",
+      "confidence": "Engineering approximation",
+      "validation_status": "NOT_EXTERNALLY_VALIDATED",
+      "notes": "Explicit engineering running-idle definition; stopped health/fuel gate is separate."
+    },
+    {
+      "parameter": "power_to_thrust_exponent",
+      "values": 2.5,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "core/src/propulsion_model.cpp",
+      "revision": "6d949e0c4f405822b9df538333e134851259b0c3f88a7f7d536ff6f99743deba",
+      "configuration": "Shared engineering jet fallback",
+      "validity_envelope": "Regression only; no independent engine-envelope validation",
+      "confidence": "Engineering approximation",
+      "validation_status": "NOT_EXTERNALLY_VALIDATED",
+      "notes": "Power shape n1^2 * sqrt(n1); n1 is a command proxy, not compressor RPM."
+    },
+    {
+      "parameter": "mach_lapse_slope",
+      "values": -0.2,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "core/src/propulsion_model.cpp",
+      "revision": "6d949e0c4f405822b9df538333e134851259b0c3f88a7f7d536ff6f99743deba",
+      "configuration": "Shared engineering jet fallback",
+      "validity_envelope": "Regression only; no independent engine-envelope validation",
+      "confidence": "Engineering approximation",
+      "validation_status": "NOT_EXTERNALLY_VALIDATED",
+      "notes": "Engineering non-variable-inlet lapse term; no validated compressor/turbine maps."
+    },
+    {
+      "parameter": "density_ratio_floor",
+      "values": 0.02,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "core/src/propulsion_model.cpp",
+      "revision": "6d949e0c4f405822b9df538333e134851259b0c3f88a7f7d536ff6f99743deba",
+      "configuration": "Shared engineering jet fallback",
+      "validity_envelope": "Regression only; no independent engine-envelope validation",
+      "confidence": "Engineering approximation",
+      "validation_status": "NOT_EXTERNALLY_VALIDATED",
+      "notes": "Numerical engineering envelope floor."
+    },
+    {
+      "parameter": "transport_gear_spoiler_cd",
+      "values": [
+        0.025,
+        0.06
+      ],
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "core/src/aerodynamic_model.cpp",
+      "revision": "c2714b1c016de65b67f27876f4a2ae6e8f5f89331eab68b262b2f37aef67afc4",
+      "configuration": "A320 ceo engineering",
+      "validity_envelope": "No independently validated envelope for this engineering reconstruction",
+      "confidence": "Engineering estimate",
+      "validation_status": "NOT_EXTERNALLY_VALIDATED",
+      "notes": "Incremental gear/spoiler drag and spoiler lift loss -.55 per unit travel are estimates. Transport has its own high-lift schedule."
+    },
+    {
+      "parameter": "transport_lift_mach",
+      "values": [
+        0.55,
+        0.82,
+        0.08
+      ],
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "core/src/aerodynamic_model.cpp",
+      "revision": "c2714b1c016de65b67f27876f4a2ae6e8f5f89331eab68b262b2f37aef67afc4",
+      "configuration": "A320 ceo engineering",
+      "validity_envelope": "No independently validated envelope for this engineering reconstruction",
+      "confidence": "Engineering estimate",
+      "validation_status": "NOT_EXTERNALLY_VALIDATED",
+      "notes": "1+.08*smooth((M-.55)/.27); bounded transport compressibility estimate."
+    },
+    {
+      "parameter": "ground_effect",
+      "values": [
+        0.28,
+        0.18
+      ],
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "core/src/aerodynamic_model.cpp",
+      "revision": "c2714b1c016de65b67f27876f4a2ae6e8f5f89331eab68b262b2f37aef67afc4",
+      "configuration": "A320/Su57 engineering model",
+      "validity_envelope": "No independently validated envelope for this engineering reconstruction",
+      "confidence": "Engineering estimate",
+      "validation_status": "NOT_EXTERNALLY_VALIDATED",
+      "notes": "Induced drag multiplier 1-.28 exp(-height/(span*.18)); engineering surrogate, no published flight calibration."
+    },
+    {
+      "parameter": "cfm56_engine_deck",
+      "values": [
+        0.75,
+        -0.45,
+        0.1,
+        0.25,
+        0.04,
+        0.96,
+        2.5,
+        1.65e-05,
+        0.2,
+        0.12
+      ],
+      "unit": "mixed; see notes",
+      "provenance": "CALIBRATED_APPROXIMATION",
+      "source": "core/src/airliner.cpp",
+      "revision": "3f8cc720e9a74e60b314b0bb5f64511433d921211b15e3120c9fbce1bfe99789",
+      "configuration": "CFM56-5B4/P engineering off-design deck",
+      "validity_envelope": "No independently validated envelope for this engineering reconstruction",
+      "confidence": "Engineering estimate",
+      "validation_status": "NOT_EXTERNALLY_VALIDATED",
+      "notes": "Constants: pressure exponent .75; Mach linear/quadratic -.45/.10 and lapse floor .25; idle/full-power blend .04/.96; power exponent2.5; TSFC1.65e-5 kg/(N s), part-power multiplier .20; fuel floor .12kg/s. Rated120100N separately REFERENCE in aircraft authoring."
+    },
+    {
+      "parameter": "transport_control_law",
+      "values": [
+        0.18,
+        4,
+        2,
+        1.2,
+        33,
+        67,
+        0.8,
+        0.15,
+        350,
+        0.82
+      ],
+      "unit": "mixed; see notes",
+      "provenance": "CALIBRATED_APPROXIMATION",
+      "source": "core/src/flight_control_system.cpp",
+      "revision": "b58198f32708106b23e08d3c93b71b0f4b072705d88ec55b1fb97a4bd499482d",
+      "configuration": "OpenFlightSim A320 control law",
+      "validity_envelope": "No independently validated envelope for this engineering reconstruction",
+      "confidence": "Engineering estimate",
+      "validation_status": "NOT_EXTERNALLY_VALIDATED",
+      "notes": "Estimated gains/thresholds: load-to-rate .18rad/s/g, alphaProt offset4deg, protected command range2deg, alpha gain1.2/s, neutralbank33deg/max67deg, bankgain.8/s, overspeed noseup cap.15rad/s. Vmo350kt is an unverified estimate; Mmo.82 is separately published. Highlift loadlimit0/+2. Concepts from FAA/Airbus, not proprietary implementation."
+    },
+    {
+      "parameter": "unsteady_section_architecture",
+      "values": [
+        8,
+        0.65,
+        0.94
+      ],
+      "unit": "mixed; see notes",
+      "provenance": "ESTIMATE",
+      "source": "core/src/unsteady_aero.cpp",
+      "revision": "72ff888f175aad2a1f7eee615de2269d07610f4fc0f7948c4412c4eaa7f3fe00",
+      "configuration": "Su57 generic mechanism reconstruction",
+      "validity_envelope": "No independently validated envelope for this engineering reconstruction",
+      "confidence": "Engineering estimate",
+      "validation_status": "NOT_EXTERNALLY_VALIDATED",
+      "notes": "Alpha-dot incidence correction bounded+-8deg; lag/separation/vortex mechanism architecture, parameters in data/physics/su57.json; no flight-data identification. .65 lift recovery and .94 control blanking constants used by aerodynamic_model.cpp."
+    },
+    {
+      "parameter": "unsteady_lift_blanking",
+      "values": [
+        0.65,
+        0.94
+      ],
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "core/src/aerodynamic_model.cpp",
+      "revision": "c2714b1c016de65b67f27876f4a2ae6e8f5f89331eab68b262b2f37aef67afc4",
+      "configuration": "Su57 estimated high-AoA architecture",
+      "validity_envelope": "No independently validated envelope for this engineering reconstruction",
+      "confidence": "Engineering estimate",
+      "validation_status": "NOT_EXTERNALLY_VALIDATED",
+      "notes": "Lagged separation recovery: (staticSep-storedSep)*.65 CL; authority 1-.94 mean storedSep. Static vortex curve corrected by delayed stored vortex strength."
+    }
+  ]
+}

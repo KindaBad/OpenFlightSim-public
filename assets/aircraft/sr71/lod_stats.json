@@ -1,0 +1,34 @@
+[
+  {
+    "level": 0,
+    "triangles": 291530,
+    "meshes": 218,
+    "primitives": 223,
+    "nodes": 298,
+    "bytes": 14861900
+  },
+  {
+    "level": 1,
+    "triangles": 116811,
+    "meshes": 157,
+    "primitives": 162,
+    "nodes": 237,
+    "bytes": 3107528
+  },
+  {
+    "level": 2,
+    "triangles": 27355,
+    "meshes": 64,
+    "primitives": 69,
+    "nodes": 144,
+    "bytes": 782812
+  },
+  {
+    "level": 3,
+    "triangles": 5435,
+    "meshes": 24,
+    "primitives": 29,
+    "nodes": 104,
+    "bytes": 187196
+  }
+]

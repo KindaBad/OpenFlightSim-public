@@ -1,0 +1,1455 @@
+{
+  "schema_version": 1,
+  "aircraft": "su57",
+  "configuration": "Su-57 AL-41F1-era engineering reference; no classified/OEM fidelity",
+  "parameters": [
+    {
+      "parameter": "table_aileron_sign",
+      "values": 1.0,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "table_aileron_sign"
+    },
+    {
+      "parameter": "wing_area",
+      "values": 78.8,
+      "unit": "m2",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "wing_area"
+    },
+    {
+      "parameter": "mac",
+      "values": 5.5,
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "mac"
+    },
+    {
+      "parameter": "alpha0",
+      "values": -0.008726646259971648,
+      "unit": "rad",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "alpha0"
+    },
+    {
+      "parameter": "cl_alpha",
+      "values": 3.8,
+      "unit": "1/rad",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "cl_alpha"
+    },
+    {
+      "parameter": "cl_max_clean",
+      "values": 1.5,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "cl_max_clean"
+    },
+    {
+      "parameter": "cl_max_full_flap",
+      "values": 1.85,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "cl_max_full_flap"
+    },
+    {
+      "parameter": "flap_lift",
+      "values": 0.35,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "flap_lift"
+    },
+    {
+      "parameter": "alpha_crit_clean",
+      "values": 0.4188790204786391,
+      "unit": "rad",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "alpha_crit_clean"
+    },
+    {
+      "parameter": "cd0_clean",
+      "values": 0.022,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "cd0_clean"
+    },
+    {
+      "parameter": "oswald_e",
+      "values": 0.75,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "oswald_e"
+    },
+    {
+      "parameter": "cm0",
+      "values": 0.02,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "cm0"
+    },
+    {
+      "parameter": "cm_alpha",
+      "values": -0.22,
+      "unit": "1/rad",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "cm_alpha"
+    },
+    {
+      "parameter": "cm_de",
+      "values": -1.1,
+      "unit": "1/rad",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "cm_de"
+    },
+    {
+      "parameter": "cm_q",
+      "values": -16.0,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "cm_q"
+    },
+    {
+      "parameter": "cl_beta",
+      "values": -0.06,
+      "unit": "1/rad",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "cl_beta"
+    },
+    {
+      "parameter": "cl_p",
+      "values": -0.52,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "cl_p"
+    },
+    {
+      "parameter": "cl_da",
+      "values": 0.22,
+      "unit": "1/rad",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "cl_da"
+    },
+    {
+      "parameter": "cn_beta",
+      "values": 0.1,
+      "unit": "1/rad",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "cn_beta"
+    },
+    {
+      "parameter": "cn_r",
+      "values": -0.24,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "cn_r"
+    },
+    {
+      "parameter": "cn_dr",
+      "values": -0.12,
+      "unit": "1/rad",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "cn_dr"
+    },
+    {
+      "parameter": "cy_beta",
+      "values": -0.6,
+      "unit": "1/rad",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "cy_beta"
+    },
+    {
+      "parameter": "mass",
+      "values": 25100.0,
+      "unit": "kg",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "mass"
+    },
+    {
+      "parameter": "ixx",
+      "values": 67071.13692810458,
+      "unit": "kg m2",
+      "provenance": "DERIVED",
+      "source": "core/src/su57.cpp component inertia",
+      "notes": "Runtime recomputes from estimated component masses, first-moment balance and covariance; exported runtime inertia is authoritative. These historical seeds are not measured and are not assigned."
+    },
+    {
+      "parameter": "iyy",
+      "values": 328905.375751634,
+      "unit": "kg m2",
+      "provenance": "DERIVED",
+      "source": "core/src/su57.cpp component inertia",
+      "notes": "Runtime recomputes from estimated component masses, first-moment balance and covariance; exported runtime inertia is authoritative. These historical seeds are not measured and are not assigned."
+    },
+    {
+      "parameter": "izz",
+      "values": 388964.87882352946,
+      "unit": "kg m2",
+      "provenance": "DERIVED",
+      "source": "core/src/su57.cpp component inertia",
+      "notes": "Runtime recomputes from estimated component masses, first-moment balance and covariance; exported runtime inertia is authoritative. These historical seeds are not measured and are not assigned."
+    },
+    {
+      "parameter": "ixz",
+      "values": 4648.696078431372,
+      "unit": "kg m2",
+      "provenance": "DERIVED",
+      "source": "core/src/su57.cpp component inertia",
+      "notes": "Runtime recomputes from estimated component masses, first-moment balance and covariance; exported runtime inertia is authoritative. These historical seeds are not measured and are not assigned."
+    },
+    {
+      "parameter": "ixy",
+      "values": 0.0,
+      "unit": "kg m2",
+      "provenance": "DERIVED",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Assumed symmetry; unavailable measured products, not a measurement of zero.",
+      "field": "ixy"
+    },
+    {
+      "parameter": "iyz",
+      "values": 0.0,
+      "unit": "kg m2",
+      "provenance": "DERIVED",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Assumed symmetry; unavailable measured products, not a measurement of zero.",
+      "field": "iyz"
+    },
+    {
+      "parameter": "empty_mass",
+      "values": 18500.0,
+      "unit": "kg",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "empty_mass"
+    },
+    {
+      "parameter": "initial_fuel",
+      "values": 6500.0,
+      "unit": "kg",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "initial_fuel"
+    },
+    {
+      "parameter": "initial_payload",
+      "values": 100.0,
+      "unit": "kg",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "initial_payload"
+    },
+    {
+      "parameter": "fuel_capacity",
+      "values": 10300.0,
+      "unit": "kg",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "fuel_capacity"
+    },
+    {
+      "parameter": "dry_tsfc",
+      "values": 2.2e-05,
+      "unit": "kg/(N s)",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "dry_tsfc"
+    },
+    {
+      "parameter": "reheat_tsfc",
+      "values": 5.1e-05,
+      "unit": "kg/(N s)",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "reheat_tsfc"
+    },
+    {
+      "parameter": "fuel_flow_scale",
+      "values": 1.0,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "fuel_flow_scale"
+    },
+    {
+      "parameter": "payload_cd_per_kg",
+      "values": 0.0,
+      "unit": "1/kg",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "payload_cd_per_kg"
+    },
+    {
+      "parameter": "levcon_lift_share",
+      "values": 0.048,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "levcon_lift_share"
+    },
+    {
+      "parameter": "levcon_control_share",
+      "values": 0.25,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "levcon_control_share"
+    },
+    {
+      "parameter": "levcon_max",
+      "values": 0.3490658503988659,
+      "unit": "rad",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "levcon_max"
+    },
+    {
+      "parameter": "pitch_arm",
+      "values": -6.6,
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "pitch_arm"
+    },
+    {
+      "parameter": "pitch_span",
+      "values": 3.15,
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "pitch_span"
+    },
+    {
+      "parameter": "mach_drag_onset",
+      "values": 0.88,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "mach_drag_onset"
+    },
+    {
+      "parameter": "mach_drag_peak",
+      "values": 0.04,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "mach_drag_peak"
+    },
+    {
+      "parameter": "mach_drag_supersonic",
+      "values": 0.02,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "mach_drag_supersonic"
+    },
+    {
+      "parameter": "thrust_density_exponent",
+      "values": 0.6,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "thrust_density_exponent"
+    },
+    {
+      "parameter": "thrust_ram_gain",
+      "values": 0.23,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "thrust_ram_gain"
+    },
+    {
+      "parameter": "inlet_spike_rate",
+      "values": 0.2,
+      "unit": "1/s",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "inlet_spike_rate"
+    },
+    {
+      "parameter": "max_pitch_rate",
+      "values": 0.75,
+      "unit": "rad/s",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "max_pitch_rate"
+    },
+    {
+      "parameter": "max_roll_rate",
+      "values": 3.1,
+      "unit": "rad/s",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "max_roll_rate"
+    },
+    {
+      "parameter": "response_time",
+      "values": 0.38,
+      "unit": "s",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "response_time"
+    },
+    {
+      "parameter": "g_positive",
+      "values": 9.0,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "g_positive"
+    },
+    {
+      "parameter": "g_negative",
+      "values": -3.0,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "g_negative"
+    },
+    {
+      "parameter": "alpha_limit",
+      "values": 0.6108652381980153,
+      "unit": "rad",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "alpha_limit"
+    },
+    {
+      "parameter": "actuator_rate",
+      "values": 4.0,
+      "unit": "1/s",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "actuator_rate"
+    },
+    {
+      "parameter": "flap_rate",
+      "values": 0.25,
+      "unit": "1/s",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "flap_rate"
+    },
+    {
+      "parameter": "spoiler_rate",
+      "values": 1.7,
+      "unit": "1/s",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "spoiler_rate"
+    },
+    {
+      "parameter": "control_q_limit",
+      "values": 60000.0,
+      "unit": "Pa",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "control_q_limit"
+    },
+    {
+      "parameter": "vortex_lift",
+      "values": 1.15,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "vortex_lift"
+    },
+    {
+      "parameter": "input_deadzone",
+      "values": 0.0,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "input_deadzone"
+    },
+    {
+      "parameter": "input_exponent",
+      "values": 1.0,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "input_exponent"
+    },
+    {
+      "parameter": "input_tau",
+      "values": 0.035,
+      "unit": "s",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "input_tau"
+    },
+    {
+      "parameter": "thrust_sl_static_each",
+      "values": 93000.0,
+      "unit": "N",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "thrust_sl_static_each"
+    },
+    {
+      "parameter": "engine_tau",
+      "values": 0.8,
+      "unit": "s",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "engine_tau"
+    },
+    {
+      "parameter": "afterburner_thrust_each",
+      "values": 147000.0,
+      "unit": "N",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "afterburner_thrust_each"
+    },
+    {
+      "parameter": "afterburner_threshold",
+      "values": 0.85,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "afterburner_threshold"
+    },
+    {
+      "parameter": "oleo_stroke",
+      "values": 0.34,
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "oleo_stroke"
+    },
+    {
+      "parameter": "oleo_k",
+      "values": 850000.0,
+      "unit": "N/m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "oleo_k"
+    },
+    {
+      "parameter": "oleo_c",
+      "values": 45000.0,
+      "unit": "N s/m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "oleo_c"
+    },
+    {
+      "parameter": "mu_brake_max",
+      "values": 0.56,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "mu_brake_max"
+    },
+    {
+      "parameter": "mu_side",
+      "values": 0.64,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "mu_side"
+    },
+    {
+      "parameter": "mu_roll",
+      "values": 0.022,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "mu_roll"
+    },
+    {
+      "parameter": "elev_max",
+      "values": 0.3490658503988659,
+      "unit": "rad",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "elev_max"
+    },
+    {
+      "parameter": "elev_min",
+      "values": -0.4363323129985824,
+      "unit": "rad",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "elev_min"
+    },
+    {
+      "parameter": "ail_max",
+      "values": 0.3839724354387525,
+      "unit": "rad",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "ail_max"
+    },
+    {
+      "parameter": "rud_max",
+      "values": 0.4363323129985824,
+      "unit": "rad",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "rud_max"
+    },
+    {
+      "parameter": "fuel_inertia_per_kg",
+      "values": [
+        5.0,
+        12.0,
+        17.0
+      ],
+      "unit": "m2",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "fuel_inertia_per_kg"
+    },
+    {
+      "parameter": "fuel_position",
+      "values": [
+        -0.25,
+        0.0,
+        0.05
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "fuel_position"
+    },
+    {
+      "parameter": "payload_position",
+      "values": [
+        4.0,
+        0.0,
+        -0.4
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "payload_position"
+    },
+    {
+      "parameter": "levcon_position[0]",
+      "values": [
+        4.1,
+        -1.8,
+        0.1
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "levcon_position[0]"
+    },
+    {
+      "parameter": "levcon_position[1]",
+      "values": [
+        4.1,
+        1.8,
+        0.1
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "levcon_position[1]"
+    },
+    {
+      "parameter": "gear_nose",
+      "values": [
+        6.95,
+        0.0,
+        2.45
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "gear_nose"
+    },
+    {
+      "parameter": "gear_main_l",
+      "values": [
+        -2.3,
+        -2.25,
+        2.45
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "gear_main_l"
+    },
+    {
+      "parameter": "gear_main_r",
+      "values": [
+        -2.3,
+        2.25,
+        2.45
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "gear_main_r"
+    },
+    {
+      "parameter": "engine_count",
+      "values": 2.0,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
+      "field": "engine_count"
+    },
+    {
+      "parameter": "asset_cg",
+      "values": [
+        10.95,
+        2.45,
+        0
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Reference loaded CG anchor in asset coordinates; not the manufacturer datum. Mass changes are resolved relative to this anchor."
+    },
+    {
+      "parameter": "length",
+      "values": 20.1,
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "Existing project target; primary manufacturer dimensions not verified",
+      "notes": "Provisional target; no OEM dimensional accuracy claim."
+    },
+    {
+      "parameter": "height",
+      "values": 4.6,
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "Existing project target",
+      "notes": "Height target includes estimated added gear."
+    },
+    {
+      "parameter": "wing_span",
+      "values": 14.1,
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "Existing project target",
+      "notes": "Provisional Su-57 dimension; not a verified manufacturer measurement.",
+      "field": "wing_span"
+    },
+    {
+      "parameter": "wing_sweep",
+      "values": 0.8377580409572781,
+      "unit": "rad",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Quarter-chord sweep estimate for finite-wing slope; not an exact leading-edge sweep."
+    },
+    {
+      "parameter": "aerodynamic_reference",
+      "values": [
+        0,
+        0,
+        0
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Moment reference is the loaded reference body origin; current-CG moment is shifted by r cross F."
+    },
+    {
+      "parameter": "engine_pos_l",
+      "values": [
+        -7.85,
+        -1.34,
+        0.16
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Nozzle exit, rather than engine mass centroid; supplied model location is only an engineering constraint.",
+      "field": "engine_pos_l"
+    },
+    {
+      "parameter": "nozzle_pivot_l",
+      "values": [
+        -6.4,
+        -1.34,
+        0.16
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Fixed nozzle hinge; separate from exit and mass centroid."
+    },
+    {
+      "parameter": "engine_pos_r",
+      "values": [
+        -7.85,
+        1.34,
+        0.16
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Nozzle exit, rather than engine mass centroid; supplied model location is only an engineering constraint.",
+      "field": "engine_pos_r"
+    },
+    {
+      "parameter": "nozzle_pivot_r",
+      "values": [
+        -6.4,
+        1.34,
+        0.16
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Fixed nozzle hinge; separate from exit and mass centroid."
+    },
+    {
+      "parameter": "engine_mass",
+      "values": 1600,
+      "unit": "kg",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Approximate AL-41F1 engine mass; no manufacturer mass certificate retrieved."
+    },
+    {
+      "parameter": "engine_mass_position_l",
+      "values": [
+        -6.4,
+        -1.34,
+        0.16
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engine component mass centroid; distinct from nozzle exit force site."
+    },
+    {
+      "parameter": "engine_mass_position_r",
+      "values": [
+        -6.4,
+        1.34,
+        0.16
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Mirrored engine mass centroid."
+    },
+    {
+      "parameter": "unsteady_alpha_tau",
+      "values": 0.12,
+      "unit": "s",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Generic engineering lag/asymmetry parameter. No Su-57-specific transient data was retrieved.",
+      "field": "unsteady_alpha_tau"
+    },
+    {
+      "parameter": "unsteady_detach_tau",
+      "values": 0.18,
+      "unit": "s",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Generic engineering lag/asymmetry parameter. No Su-57-specific transient data was retrieved.",
+      "field": "unsteady_detach_tau"
+    },
+    {
+      "parameter": "unsteady_attach_tau",
+      "values": 0.55,
+      "unit": "s",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Generic engineering lag/asymmetry parameter. No Su-57-specific transient data was retrieved.",
+      "field": "unsteady_attach_tau"
+    },
+    {
+      "parameter": "unsteady_vortex_tau",
+      "values": 0.25,
+      "unit": "s",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Generic engineering lag/asymmetry parameter. No Su-57-specific transient data was retrieved.",
+      "field": "unsteady_vortex_tau"
+    },
+    {
+      "parameter": "unsteady_alpha_dot_gain",
+      "values": 0.12,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Generic engineering lag/asymmetry parameter. No Su-57-specific transient data was retrieved.",
+      "field": "unsteady_alpha_dot_gain"
+    },
+    {
+      "parameter": "unsteady_beta_gain",
+      "values": 0.35,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Generic engineering lag/asymmetry parameter. No Su-57-specific transient data was retrieved.",
+      "field": "unsteady_beta_gain"
+    },
+    {
+      "parameter": "cg_forward_mac",
+      "values": 0.17,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Conservative audit comparison envelope, not an operational certified load sheet."
+    },
+    {
+      "parameter": "cg_aft_mac",
+      "values": 0.35,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "A320 planning jacking table WV015 gives 17%-36.8% reference chord; applicability to WV017 flight envelope unverified. Su-57 is an estimate."
+    },
+    {
+      "parameter": "reference_cg_mac",
+      "values": 0.25,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Selected loaded reference CG fraction; estimated relation to MAC."
+    },
+    {
+      "parameter": "hinge_elevator_L",
+      "values": [
+        -4.8021390691847845,
+        -2.280238406088708,
+        0.08218888937520807
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Hinge station from authored/supplied visual geometry, not an OEM structural drawing."
+    },
+    {
+      "parameter": "hinge_aileron_L",
+      "values": [
+        -4.31046744204053,
+        -5.130536413699593,
+        0.08218888937520807
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Hinge station from authored/supplied visual geometry, not an OEM structural drawing."
+    },
+    {
+      "parameter": "hinge_fin_L",
+      "values": [
+        -4.216815703536863,
+        -2.6222741670020144,
+        -0.32753746657833727
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Hinge station from authored/supplied visual geometry, not an OEM structural drawing."
+    },
+    {
+      "parameter": "hinge_nozzle_L",
+      "values": [
+        -6.4,
+        -1.34,
+        0.16
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Hinge station from authored/supplied visual geometry, not an OEM structural drawing."
+    },
+    {
+      "parameter": "hinge_levcon_L",
+      "values": [
+        4.909999999999999,
+        -1.938202645175402,
+        0.05
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Hinge station from authored/supplied visual geometry, not an OEM structural drawing."
+    },
+    {
+      "parameter": "hinge_elevator_R",
+      "values": [
+        -4.8021390691847845,
+        2.280238406088708,
+        0.08218888937520807
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Hinge station from authored/supplied visual geometry, not an OEM structural drawing."
+    },
+    {
+      "parameter": "hinge_aileron_R",
+      "values": [
+        -4.31046744204053,
+        5.130536413699593,
+        0.08218888937520807
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Hinge station from authored/supplied visual geometry, not an OEM structural drawing."
+    },
+    {
+      "parameter": "hinge_fin_R",
+      "values": [
+        -4.216815703536863,
+        2.6222741670020144,
+        -0.32753746657833727
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Hinge station from authored/supplied visual geometry, not an OEM structural drawing."
+    },
+    {
+      "parameter": "hinge_nozzle_R",
+      "values": [
+        -6.4,
+        1.34,
+        0.16
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Hinge station from authored/supplied visual geometry, not an OEM structural drawing."
+    },
+    {
+      "parameter": "hinge_levcon_R",
+      "values": [
+        4.909999999999999,
+        1.938202645175402,
+        0.05
+      ],
+      "unit": "m",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Hinge station from authored/supplied visual geometry, not an OEM structural drawing."
+    },
+    {
+      "parameter": "component_engine_mass",
+      "values": 1600,
+      "unit": "kg",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim component model; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering mass allocation/shape assumption or control/engine constant; no OEM validation."
+    },
+    {
+      "parameter": "structure_variance",
+      "values": [
+        5.29,
+        1.6384,
+        0.2025
+      ],
+      "unit": "m2",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim component model; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering mass allocation/shape assumption or control/engine constant; no OEM validation."
+    },
+    {
+      "parameter": "engine_variance",
+      "values": [
+        0.81,
+        0.0784,
+        0.0784
+      ],
+      "unit": "m2",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim component model; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering mass allocation/shape assumption or control/engine constant; no OEM validation."
+    },
+    {
+      "parameter": "fuel_variance",
+      "values": [
+        12,
+        5,
+        0
+      ],
+      "unit": "m2",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim component model; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering mass allocation/shape assumption or control/engine constant; no OEM validation."
+    },
+    {
+      "parameter": "payload_variance",
+      "values": [
+        0.01,
+        0.01,
+        0.01
+      ],
+      "unit": "m2",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim component model; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering mass allocation/shape assumption or control/engine constant; no OEM validation."
+    },
+    {
+      "parameter": "engines[0].vector_axis",
+      "values": [
+        0,
+        0.8660254037844387,
+        0.49999999999999994
+      ],
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim component model; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering mass allocation/shape assumption or control/engine constant; no OEM validation.",
+      "field": "engines[0].vector_axis"
+    },
+    {
+      "parameter": "engines[0].vector_limit",
+      "values": 0.2617993877991494,
+      "unit": "rad",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim component model; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering mass allocation/shape assumption or control/engine constant; no OEM validation.",
+      "field": "engines[0].vector_limit"
+    },
+    {
+      "parameter": "engines[0].vector_rate",
+      "values": 1.0471975511965976,
+      "unit": "rad/s",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim component model; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering mass allocation/shape assumption or control/engine constant; no OEM validation.",
+      "field": "engines[0].vector_rate"
+    },
+    {
+      "parameter": "engines[1].vector_axis",
+      "values": [
+        0,
+        0.8660254037844387,
+        -0.49999999999999994
+      ],
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim component model; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering mass allocation/shape assumption or control/engine constant; no OEM validation.",
+      "field": "engines[1].vector_axis"
+    },
+    {
+      "parameter": "engines[1].vector_limit",
+      "values": 0.2617993877991494,
+      "unit": "rad",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim component model; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering mass allocation/shape assumption or control/engine constant; no OEM validation.",
+      "field": "engines[1].vector_limit"
+    },
+    {
+      "parameter": "engines[1].vector_rate",
+      "values": 1.0471975511965976,
+      "unit": "rad/s",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim component model; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Engineering mass allocation/shape assumption or control/engine constant; no OEM validation.",
+      "field": "engines[1].vector_rate"
+    },
+    {
+      "parameter": "flap_max_deg",
+      "values": 20,
+      "unit": "deg",
+      "field": "flap_max_deg",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim geometry/contact estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "No measured structural contact geometry or control schedule."
+    },
+    {
+      "parameter": "belly_contacts[0]",
+      "values": [
+        5.5,
+        0.0,
+        0.8
+      ],
+      "unit": "m",
+      "field": "belly_contacts[0]",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim geometry/contact estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "No measured structural contact geometry or control schedule."
+    },
+    {
+      "parameter": "belly_contacts[1]",
+      "values": [
+        -3.0,
+        -1.34,
+        1.1
+      ],
+      "unit": "m",
+      "field": "belly_contacts[1]",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim geometry/contact estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "No measured structural contact geometry or control schedule."
+    },
+    {
+      "parameter": "belly_contacts[2]",
+      "values": [
+        -3.0,
+        1.34,
+        1.1
+      ],
+      "unit": "m",
+      "field": "belly_contacts[2]",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim geometry/contact estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "No measured structural contact geometry or control schedule."
+    },
+    {
+      "parameter": "belly_contacts[3]",
+      "values": [
+        -6.5,
+        0.0,
+        0.55
+      ],
+      "unit": "m",
+      "field": "belly_contacts[3]",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim geometry/contact estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "No measured structural contact geometry or control schedule."
+    },
+    {
+      "parameter": "belly_contacts[4]",
+      "values": [
+        -3.2,
+        -6.95,
+        0.1
+      ],
+      "unit": "m",
+      "field": "belly_contacts[4]",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim geometry/contact estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "No measured structural contact geometry or control schedule."
+    },
+    {
+      "parameter": "belly_contacts[5]",
+      "values": [
+        -3.2,
+        6.95,
+        0.1
+      ],
+      "unit": "m",
+      "field": "belly_contacts[5]",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim geometry/contact estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "No measured structural contact geometry or control schedule."
+    },
+    {
+      "parameter": "payload_inertia_per_kg",
+      "values": [
+        0.02,
+        0.02,
+        0.02
+      ],
+      "unit": "m2",
+      "field": "payload_inertia_per_kg",
+      "provenance": "DERIVED",
+      "source": "Component payload_variance in this authoring dataset",
+      "notes": "Ixx/m=variance_y+variance_z, Iyy/m=variance_x+variance_z, Izz/m=variance_x+variance_y. Estimated payload shape, not measured aircraft inertia."
+    }
+  ],
+  "hinges": [
+    {
+      "name": "elevator_L",
+      "channel": "elevator",
+      "parameter": "hinge_elevator_L"
+    },
+    {
+      "name": "aileron_L",
+      "channel": "aileron_L",
+      "parameter": "hinge_aileron_L"
+    },
+    {
+      "name": "fin_L",
+      "channel": "rudder",
+      "parameter": "hinge_fin_L"
+    },
+    {
+      "name": "nozzle_L",
+      "channel": "vector_L",
+      "parameter": "hinge_nozzle_L"
+    },
+    {
+      "name": "levcon_L",
+      "channel": "levcon",
+      "parameter": "hinge_levcon_L"
+    },
+    {
+      "name": "elevator_R",
+      "channel": "elevator",
+      "parameter": "hinge_elevator_R"
+    },
+    {
+      "name": "aileron_R",
+      "channel": "aileron_R",
+      "parameter": "hinge_aileron_R"
+    },
+    {
+      "name": "fin_R",
+      "channel": "rudder",
+      "parameter": "hinge_fin_R"
+    },
+    {
+      "name": "nozzle_R",
+      "channel": "vector_R",
+      "parameter": "hinge_nozzle_R"
+    },
+    {
+      "name": "levcon_R",
+      "channel": "levcon",
+      "parameter": "hinge_levcon_R"
+    }
+  ],
+  "force_sites": [
+    [
+      0,
+      -3.102,
+      -0.1
+    ],
+    [
+      0,
+      3.102,
+      -0.1
+    ],
+    [
+      -6.6,
+      -3.15,
+      0
+    ],
+    [
+      -6.6,
+      3.15,
+      0
+    ],
+    [
+      -6.6,
+      0,
+      -1.5
+    ],
+    [
+      0,
+      0,
+      0
+    ]
+  ],
+  "force_sites_provenance": {
+    "provenance": "ESTIMATE",
+    "source": "Engineering force partition, not measured pressure centres",
+    "notes": "Stationary lift/moment decomposition uses the configured reference coefficients. These stations constrain local angular flow and damage coupling."
+  },
+  "sources_retrieved": "2026-10-03",
+  "mechanism_sources": [
+    {
+      "source": "https://patents.google.com/patent/RU2440916C1/en",
+      "notes": "Sukhoi patent, 2012: integrated lifting body, controlled leading-edge extensions, all-moving tails and separate nozzles. Exact angles/derivatives not supplied. Patent configuration is qualitative evidence, not a production dimension drawing."
+    },
+    {
+      "source": "https://www.rostec.ru/media/news/dvigatel-al-41f-1-zavershil-gosudarstvennye-stendovye-ispytaniya/",
+      "notes": "Rostec 2018 identifies AL-41F1 / izdeliye 117 as first-stage Su57 vectored afterburning engine. No numerical map from this source; exclude AL-41F1S and izdeliye30 figures."
+    }
+  ]
+}

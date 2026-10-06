@@ -1,0 +1,4 @@
+#include "gltf.hpp"
+#include "ofs/aircraft_definition.hpp"
+#include <cstdio>
+int main(){for(const auto& d:ofs::aircraftDefinitions()){const auto m=ofs::client::loadGltf(std::string(d.modelAsset));std::printf("SCALE %s min=%.6f/%.6f/%.6f max=%.6f/%.6f/%.6f length=%.6f span=%.6f height=%.6f triangles=%llu\\n",std::string(d.key).c_str(),m.boundsMin[0],m.boundsMin[1],m.boundsMin[2],m.boundsMax[0],m.boundsMax[1],m.boundsMax[2],m.boundsMax[0]-m.boundsMin[0],m.boundsMax[2]-m.boundsMin[2],m.boundsMax[1]-m.boundsMin[1],(unsigned long long)m.triangleCount);const auto c=d.flight;std::printf("MASS %s empty=%.1f fuel=%.1f payload=%.1f total=%.1f Ixx=%.2f Iyy=%.2f Izz=%.2f Ixz=%.2f nose=%.2f main=%.2f stance=%.2f nozzle=%u\\n",std::string(d.key).c_str(),c.empty_mass,c.initial_fuel,c.initial_payload,c.mass,c.ixx,c.iyy,c.izz,c.ixz,c.gear_nose.x,c.gear_main_l.x,c.gear_nose.z,c.engine_count);}}

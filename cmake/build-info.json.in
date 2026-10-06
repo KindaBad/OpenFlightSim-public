@@ -1,0 +1,1 @@
+{"schema":1,"version":"@PROJECT_VERSION@","commit":"@OFS_COMMIT@","build_date":"@OFS_BUILD_DATE@","channel":"@OFS_RELEASE_CHANNEL@","minimum_launcher_version":"@OFS_MIN_LAUNCHER_VERSION@"}

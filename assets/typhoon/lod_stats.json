@@ -1,0 +1,26 @@
+[
+  {
+    "level": 0,
+    "triangles": 220472,
+    "objects": 458,
+    "bytes": 18123876
+  },
+  {
+    "level": 1,
+    "triangles": 95833,
+    "objects": 271,
+    "bytes": 2479648
+  },
+  {
+    "level": 2,
+    "triangles": 38479,
+    "objects": 153,
+    "bytes": 1017828
+  },
+  {
+    "level": 3,
+    "triangles": 7281,
+    "objects": 86,
+    "bytes": 360996
+  }
+]

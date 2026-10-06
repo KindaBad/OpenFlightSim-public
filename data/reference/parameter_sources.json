@@ -1,0 +1,114 @@
+{
+  "typhoon": {
+    "thrust_sl_static_each": {
+      "provenance": "REFERENCE",
+      "source": "https://www.eurojet.de/wp-content/uploads/EUJ_Factsheet_A4_Ansicht.pdf # EJ200 ENGINE SPECIFICATIONS",
+      "notes": "Public nominal dry rating 60 kN. Already a runtime anchor, not independent aircraft flight validation.",
+      "unit": "N"
+    },
+    "engines[0].dry_thrust": {
+      "provenance": "REFERENCE",
+      "source": "https://www.eurojet.de/wp-content/uploads/EUJ_Factsheet_A4_Ansicht.pdf # EJ200 ENGINE SPECIFICATIONS",
+      "notes": "Public nominal dry rating 60 kN. Already a runtime anchor, not independent aircraft flight validation.",
+      "unit": "N"
+    },
+    "engines[1].dry_thrust": {
+      "provenance": "REFERENCE",
+      "source": "https://www.eurojet.de/wp-content/uploads/EUJ_Factsheet_A4_Ansicht.pdf # EJ200 ENGINE SPECIFICATIONS",
+      "notes": "Public nominal dry rating 60 kN. Already a runtime anchor, not independent aircraft flight validation.",
+      "unit": "N"
+    },
+    "afterburner_thrust_each": {
+      "provenance": "REFERENCE",
+      "source": "https://www.eurojet.de/wp-content/uploads/EUJ_Factsheet_A4_Ansicht.pdf # EJ200 ENGINE SPECIFICATIONS",
+      "notes": "Public nominal reheat rating 90 kN. Installed/off-design curve not validated.",
+      "unit": "N"
+    },
+    "engines[0].reheat_thrust": {
+      "provenance": "REFERENCE",
+      "source": "https://www.eurojet.de/wp-content/uploads/EUJ_Factsheet_A4_Ansicht.pdf # EJ200 ENGINE SPECIFICATIONS",
+      "notes": "Public nominal reheat rating 90 kN. Installed/off-design curve not validated.",
+      "unit": "N"
+    },
+    "engines[1].reheat_thrust": {
+      "provenance": "REFERENCE",
+      "source": "https://www.eurojet.de/wp-content/uploads/EUJ_Factsheet_A4_Ansicht.pdf # EJ200 ENGINE SPECIFICATIONS",
+      "notes": "Public nominal reheat rating 90 kN. Installed/off-design curve not validated.",
+      "unit": "N"
+    },
+    "dry_tsfc": {
+      "provenance": "CALIBRATED_APPROXIMATION",
+      "source": "https://www.eurojet.de/wp-content/uploads/EUJ_Factsheet_A4_Ansicht.pdf # EJ200 ENGINE SPECIFICATIONS",
+      "notes": "Runtime selects 22/48 g/(kN s), the midpoints of public 21-23/47-49 bands. Off-design dependence remains approximate.",
+      "unit": "kg/(N s)"
+    },
+    "reheat_tsfc": {
+      "provenance": "CALIBRATED_APPROXIMATION",
+      "source": "https://www.eurojet.de/wp-content/uploads/EUJ_Factsheet_A4_Ansicht.pdf # EJ200 ENGINE SPECIFICATIONS",
+      "notes": "Runtime selects 22/48 g/(kN s), the midpoints of public 21-23/47-49 bands. Off-design dependence remains approximate.",
+      "unit": "kg/(N s)"
+    },
+    "engines[0].dry_tsfc": {
+      "provenance": "CALIBRATED_APPROXIMATION",
+      "source": "https://www.eurojet.de/wp-content/uploads/EUJ_Factsheet_A4_Ansicht.pdf # EJ200 ENGINE SPECIFICATIONS",
+      "notes": "Runtime selects 22/48 g/(kN s), the midpoints of public 21-23/47-49 bands. Off-design dependence remains approximate.",
+      "unit": "kg/(N s)"
+    },
+    "engines[1].dry_tsfc": {
+      "provenance": "CALIBRATED_APPROXIMATION",
+      "source": "https://www.eurojet.de/wp-content/uploads/EUJ_Factsheet_A4_Ansicht.pdf # EJ200 ENGINE SPECIFICATIONS",
+      "notes": "Runtime selects 22/48 g/(kN s), the midpoints of public 21-23/47-49 bands. Off-design dependence remains approximate.",
+      "unit": "kg/(N s)"
+    },
+    "engines[0].reheat_tsfc": {
+      "provenance": "CALIBRATED_APPROXIMATION",
+      "source": "https://www.eurojet.de/wp-content/uploads/EUJ_Factsheet_A4_Ansicht.pdf # EJ200 ENGINE SPECIFICATIONS",
+      "notes": "Runtime selects 22/48 g/(kN s), the midpoints of public 21-23/47-49 bands. Off-design dependence remains approximate.",
+      "unit": "kg/(N s)"
+    },
+    "engines[1].reheat_tsfc": {
+      "provenance": "CALIBRATED_APPROXIMATION",
+      "source": "https://www.eurojet.de/wp-content/uploads/EUJ_Factsheet_A4_Ansicht.pdf # EJ200 ENGINE SPECIFICATIONS",
+      "notes": "Runtime selects 22/48 g/(kN s), the midpoints of public 21-23/47-49 bands. Off-design dependence remains approximate.",
+      "unit": "kg/(N s)"
+    }
+  },
+  "sr71": {
+    "empty_mass": {
+      "provenance": "REFERENCE",
+      "source": "https://ntrs.nasa.gov/api/citations/20020057965/downloads/20020057965.pdf # Table 2 baseline flights 37-44",
+      "notes": "60728 lb zero-fuel reconstruction converted to kg. Not interchangeable with an arbitrary operational empty-weight convention.",
+      "unit": "kg"
+    },
+    "ixx": {
+      "provenance": "DERIVED",
+      "source": "https://ntrs.nasa.gov/api/citations/20020057965/downloads/20020057965.pdf # Table 2 and equations 13/14; core/src/sr71.cpp",
+      "notes": "NASA zero-fuel tensor in slug ft2 converted to kg m2; negate aerospace Ixz for matrix XZ entry, translate basic CG and add estimated fuel covariance/parallel-axis contribution. Zero-fuel source agreement independently checked.",
+      "unit": "kg m2"
+    },
+    "iyy": {
+      "provenance": "DERIVED",
+      "source": "https://ntrs.nasa.gov/api/citations/20020057965/downloads/20020057965.pdf # Table 2 and equations 13/14; core/src/sr71.cpp",
+      "notes": "NASA zero-fuel tensor in slug ft2 converted to kg m2; negate aerospace Ixz for matrix XZ entry, translate basic CG and add estimated fuel covariance/parallel-axis contribution. Zero-fuel source agreement independently checked.",
+      "unit": "kg m2"
+    },
+    "izz": {
+      "provenance": "DERIVED",
+      "source": "https://ntrs.nasa.gov/api/citations/20020057965/downloads/20020057965.pdf # Table 2 and equations 13/14; core/src/sr71.cpp",
+      "notes": "NASA zero-fuel tensor in slug ft2 converted to kg m2; negate aerospace Ixz for matrix XZ entry, translate basic CG and add estimated fuel covariance/parallel-axis contribution. Zero-fuel source agreement independently checked.",
+      "unit": "kg m2"
+    },
+    "ixz": {
+      "provenance": "DERIVED",
+      "source": "https://ntrs.nasa.gov/api/citations/20020057965/downloads/20020057965.pdf # Table 2 and equations 13/14; core/src/sr71.cpp",
+      "notes": "NASA zero-fuel tensor in slug ft2 converted to kg m2; negate aerospace Ixz for matrix XZ entry, translate basic CG and add estimated fuel covariance/parallel-axis contribution. Zero-fuel source agreement independently checked.",
+      "unit": "kg m2"
+    },
+    "afterburner_thrust_each": {
+      "provenance": "REFERENCE",
+      "source": "https://ntrs.nasa.gov/api/citations/20020057965/downloads/20020057965.pdf # Baseline Configuration page 5",
+      "notes": "NASA identifies two 34000 lbf thrust-class J58 engines. Other NASA fact sheets use 32500 lbf; nominal class is not an exact installed engine deck.",
+      "unit": "N"
+    }
+  }
+}

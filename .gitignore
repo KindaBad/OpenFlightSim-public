@@ -1,0 +1,127 @@
+# ---------------------------------------------------------------------------
+# Repository policy
+#
+# Tracked: C/C++ sources and headers (core/, client/, network/, tests/),
+# CMake build files, GLSL shader sources, asset-generation and export scripts,
+# documentation, aircraft definitions and manifests, physics tables and this
+# file.
+#
+# Not tracked: build trees, dependency caches, compiler output, Blender
+# sources, runtime 3D models, large textures, generated screenshots, validation
+# videos, temporary logs and other generated validation artifacts. See
+# docs/ASSETS.md for how to obtain or regenerate the excluded runtime content.
+# ---------------------------------------------------------------------------
+
+# Research-only third-party documents and images are kept locally.
+/reference/
+
+# Build trees
+/build*/
+/.cache/
+
+# Dependency caches
+__pycache__/
+*.py[cod]
+.venv/
+vcpkg_installed/
+/.vcpkg-cache/
+/CMakeUserPresets.json
+
+# Compiler and linker outputs
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.pdb
+*.ilk
+*.gch
+
+# Generated shader binaries. GLSL sources and pack_shaders.py are tracked.
+*.spv
+
+# Blender sources and autosave backups. The aircraft models are rebuilt from
+# scripts/ and the reference material; no .blend is version controlled.
+*.blend
+*.blend1
+*.blend2
+
+# Runtime 3D models. These are large generated binaries, rebuilt by the
+# export scripts in scripts/ from the documented authoring pipeline.
+*.glb
+*.gltf
+
+# Large textures (1 MiB and above). Editable source textures below this
+# threshold stay tracked; runtime ships them embedded in the LOD models.
+assets/typhoon/textures/fuselage_base.png
+assets/typhoon/textures/fuselage_mr.png
+assets/typhoon/textures/tail_base.png
+assets/typhoon/textures/wings_base.png
+assets/typhoon/textures/wings_mr.png
+assets/aircraft/sr71/textures/sr71_fuselage_4k_basecolor.png
+assets/aircraft/sr71/textures/sr71_nacelle_2k_basecolor.png
+assets/aircraft/sr71/textures/sr71_wing_4k_basecolor.png
+
+# Generated screenshots. Canonical validation captures are produced locally by
+# scripts/capture_*.py and scripts/benchmark_*.py.
+docs/images/
+output/**/*.png
+output/**/*.jpg
+output/**/*.jpeg
+output/**/*.ppm
+
+# Validation videos
+*.mp4
+*.webm
+*.mkv
+*.mov
+*.avi
+
+# Temporary logs
+*.log
+*.tmp
+
+# Third-party colour-management configuration. These are OCIO/ACES configs, LUTs
+# and ICC profiles supplied by the local Blender/colour pipeline, not project
+# source, and they carry their own upstream licences.
+output/color_management/
+
+# Extensionless helper binaries built from the .cpp files beside them. Only the
+# sources are tracked; these are debug-info ELF executables.
+output/m3_68/inspect_gear
+output/m3_68/measure_assets
+
+# Generated validation artifacts: test transcripts, measurement reports,
+# manifests, telemetry CSVs and render benchmarks. Retained locally as the
+# evidence behind the validation documents, which cite them in prose rather
+# than linking them. These are scoped by extension rather than by excluding
+# the output/ directory, because git cannot re-include a file whose parent
+# directory is excluded; that keeps the hand-written helper sources
+# (comparison_probe.cpp, inspect_gear.cpp, measure_assets.cpp) tracked.
+output/**/*.txt
+output/**/*.json
+output/**/*.csv
+
+# Local editor and OS state
+/imgui.ini
+.DS_Store
+Thumbs.db
+# M3.68.1 generated test transcripts, JUnit and diagnostics
+output/m3_68_1/
+
+# Generated M3.7 measurements, parser/impairment evidence and JUnit transcripts
+output/m3_7/
+
+# Generated M3.7.1 measurements, baseline comparison builds and JUnit
+output/m3_7_1/
+
+# Generated M4 measurements, baseline builds, JUnit and screenshots
+output/m4/
+
+# Launcher runtime state; release products remain under build/.
+/.installation.lock
+/last-update-result.json

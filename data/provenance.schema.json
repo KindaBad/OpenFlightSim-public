@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OpenFlightSim physical dataset provenance",
+  "type": "object",
+  "required": ["schema_version", "aircraft", "configuration", "parameters"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "aircraft": {"type": "string"},
+    "configuration": {"type": "string"},
+    "parameters": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["parameter", "values", "unit", "provenance", "source", "revision", "configuration", "validity_envelope", "confidence", "validation_status", "notes"],
+        "properties": {
+          "parameter": {"type": "string"},
+          "values": {"oneOf": [{"type": "number"}, {"type": "array", "items": {"type": "number"}}]},
+          "unit": {"type": "string"},
+          "provenance": {"enum": ["REFERENCE", "DERIVED", "ESTIMATE", "CALIBRATED_APPROXIMATION"]},
+          "source": {"type": "string"}, "revision": {"type": "string"},
+          "configuration": {"type": "string"}, "validity_envelope": {"type": "string"},
+          "confidence": {"type": "string"}, "validation_status": {"type": "string"}, "notes": {"type": "string"}
+        }
+      }
+    }
+  }
+}

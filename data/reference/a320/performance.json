@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "configuration": "A320-200 ceo CFM56; planning figures, not airline AFM dispatch data",
+  "source": "https://www.aircraft.airbus.com/sites/g/files/jlcbta126/files/2025-07/AC_A320_20250715.pdf",
+  "source_revision": "15 July 2025, retrieved 3 October 2026",
+  "approach": {
+    "mass_kg": 66000,
+    "ias_knots": 136,
+    "tolerance_knots": 5,
+    "provenance": "REFERENCE",
+    "locator": "3-5-0 page 1, A320-200; maximum landing configuration",
+    "notes": "Held out from coefficient generation. Full-flap CLmax is an engineering assumption, not solved from this figure."
+  },
+  "landing": {
+    "mass_kg": 66000,
+    "field_length_m": 1590,
+    "digitization_tolerance_m": 80,
+    "field_factor": 0.6,
+    "provenance": "DERIVED",
+    "locator": "3-4-1 page 2, CFM56 sea-level curve; x-axis in pounds",
+    "notes": "Approximate visual reading near 145500 lb; actual distance equals 0.6 times field length. Simulation differences are reported, not relabeled as certified performance."
+  },
+  "takeoff": {
+    "mass_kg": 64000,
+    "planning_runway_m": 1330,
+    "digitization_tolerance_m": 100,
+    "provenance": "DERIVED",
+    "locator": "3-3-1 page 2, CFM56 ISA sea-level curve near 141100 lb",
+    "notes": "Runway limitation incorporates certified operational assumptions. An all-engines simulator ground run is not an equivalent balanced field-length test. Report only until accelerate-stop/engine-out schedules are independently defined."
+  },
+  "mmo": {
+    "value": 0.82,
+    "provenance": "REFERENCE",
+    "source": "https://www.aircraft.airbus.com/en/aircraft/a320-family/a320ceo",
+    "notes": "Operating limit; not evidence for a drag/thrust map or economic cruise Mach."
+  },
+  "vls_stall_ratio": {
+    "value": 1.23,
+    "provenance": "REFERENCE",
+    "source": "https://www.faa.gov/lessons_learned/transport_airplane/accidents/VT-EPN",
+    "notes": "FAA A320-231 accident account describes Airbus normal-law concepts. It is a different engine variant and accident configuration: use only the documented control concept, never its numerical stall/alpha-protection speeds as A320-214 validation."
+  }
+}

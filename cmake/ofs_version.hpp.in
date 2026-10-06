@@ -1,0 +1,3 @@
+#pragma once
+#define OFS_VERSION "@PROJECT_VERSION@"
+#define OFS_COMMIT "@OFS_COMMIT@"

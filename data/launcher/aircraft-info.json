@@ -1,0 +1,6 @@
+{
+  "a320": {"manufacturer": "Airbus", "type": "Airliner", "role": "Passenger transport", "engine_type": "CFM56 turbofan"},
+  "typhoon": {"manufacturer": "Eurofighter", "type": "Fighter", "role": "Multirole / air superiority", "engine_type": "EJ200 afterburning turbofan"},
+  "sr71": {"manufacturer": "Lockheed", "type": "Reconnaissance", "role": "High altitude reconnaissance", "engine_type": "J58 afterburning turbojet"},
+  "su57": {"manufacturer": "Sukhoi", "type": "Fighter", "role": "Multirole / air superiority", "engine_type": "AL-41F1 approximation"}
+}
