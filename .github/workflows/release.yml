@@ -108,14 +108,22 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ninja-build g++ libx11-dev libxext-dev libxcursor-dev libxi-dev libxrandr-dev libxfixes-dev libgl-dev libegl-dev libssl-dev libprotobuf-dev protobuf-compiler libxkbcommon0 libxcb-cursor0
       - name: Windows dependency cache directory
+        id: vcpkg-environment
         if: runner.os == 'Windows'
         shell: pwsh
-        run: New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE
+        run: |
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE
+          $cacheVersion = $env:ImageVersion
+          if (-not $cacheVersion) { $cacheVersion = $env:GITHUB_RUN_ID }
+          "version=$cacheVersion" >> $env:GITHUB_OUTPUT
       - uses: actions/cache/restore@v4
         id: vcpkg-cache
         with:
           path: .vcpkg-cache
-          key: vcpkg-x64-windows-openssl-protobuf-${{ runner.os }}-v1
+          key: vcpkg-x64-windows-openssl-protobuf-${{ runner.os }}-v2-${{ steps.vcpkg-environment.outputs.version }}
+          restore-keys: |
+            vcpkg-x64-windows-openssl-protobuf-${{ runner.os }}-v2-
+            vcpkg-x64-windows-openssl-protobuf-${{ runner.os }}-v1
       - name: Windows build dependencies
         if: runner.os == 'Windows'
         shell: pwsh
@@ -125,7 +133,7 @@ jobs:
         continue-on-error: true
         with:
           path: .vcpkg-cache
-          key: vcpkg-x64-windows-openssl-protobuf-${{ runner.os }}-v1
+          key: vcpkg-x64-windows-openssl-protobuf-${{ runner.os }}-v2-${{ steps.vcpkg-environment.outputs.version }}
       - name: Configure Linux
         if: runner.os == 'Linux'
         run: cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DOFS_RELEASE_CHANNEL=${{ env.OFS_CHANNEL }}

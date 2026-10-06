@@ -28,13 +28,21 @@ jobs:
       - name: Launcher dependencies
         run: python -m pip install -r launcher/requirements.txt
       - name: vcpkg binary cache directory
+        id: vcpkg-environment
         shell: pwsh
-        run: New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE
+        run: |
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE
+          $cacheVersion = $env:ImageVersion
+          if (-not $cacheVersion) { $cacheVersion = $env:GITHUB_RUN_ID }
+          "version=$cacheVersion" >> $env:GITHUB_OUTPUT
       - uses: actions/cache/restore@v4
         id: vcpkg-cache
         with:
           path: .vcpkg-cache
-          key: vcpkg-x64-windows-openssl-protobuf-${{ runner.os }}-v1
+          key: vcpkg-x64-windows-openssl-protobuf-${{ runner.os }}-v2-${{ steps.vcpkg-environment.outputs.version }}
+          restore-keys: |
+            vcpkg-x64-windows-openssl-protobuf-${{ runner.os }}-v2-
+            vcpkg-x64-windows-openssl-protobuf-${{ runner.os }}-v1
       - name: Dependencies
         shell: pwsh
         run: vcpkg install openssl:x64-windows protobuf:x64-windows
@@ -43,7 +51,7 @@ jobs:
         continue-on-error: true
         with:
           path: .vcpkg-cache
-          key: vcpkg-x64-windows-openssl-protobuf-${{ runner.os }}-v1
+          key: vcpkg-x64-windows-openssl-protobuf-${{ runner.os }}-v2-${{ steps.vcpkg-environment.outputs.version }}
       - name: Configure
         shell: pwsh
         run: cmake -S . -B build/msvc -G "Visual Studio 17 2022" -A x64 "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
