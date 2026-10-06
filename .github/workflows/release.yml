@@ -1,6 +1,7 @@
 name: Launcher and Simulator Release
 on:
   push:
+    branches: [main]
     tags: ['v*']
   workflow_dispatch:
     inputs:
@@ -15,8 +16,46 @@ concurrency:
 permissions:
   contents: read
 jobs:
-  build:
+  prepare:
     if: github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    outputs:
+      build: ${{ steps.version.outputs.build }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OFS_CHANNEL: ${{ inputs.channel || (endsWith(github.ref_name, '-development') && 'development' || 'stable') }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build only a new or unfinished game version
+        id: version
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, re, subprocess, tempfile
+          from launcher.manifest import Release
+          from launcher.storage import read_json
+          version = re.search(r'project\(OpenFlightSim VERSION ([0-9.]+)', pathlib.Path('CMakeLists.txt').read_text())[1]
+          tag = 'v' + version + ('-development' if os.environ['OFS_CHANNEL'] == 'development' else '')
+          response = subprocess.run(['gh', 'api', f'repos/{os.environ["GITHUB_REPOSITORY"]}/releases/tags/{tag}'], capture_output=True, text=True)
+          if response.returncode and '(HTTP 404)' not in response.stderr:
+              raise SystemExit(response.stderr)
+          release = json.loads(response.stdout) if not response.returncode else None
+          build = not release or release['draft']
+          if release and not release['draft'] and not any(a['name'] == 'manifest.json' for a in release['assets']):
+              raise SystemExit('Existing version release lacks its manifest; review it before publishing')
+          if not build:
+              with tempfile.TemporaryDirectory() as temporary:
+                  subprocess.run(['gh', 'release', 'download', 'launcher-updates', '--repo', os.environ['GITHUB_REPOSITORY'], '--pattern', 'manifest.json', '--dir', temporary], check=True)
+                  index = read_json(pathlib.Path(temporary) / 'manifest.json')
+                  entries = [Release.parse(entry) for entry in index['releases']]
+                  if not any(entry.version == version and entry.data['channel'] == os.environ['OFS_CHANNEL'] for entry in entries):
+                      raise SystemExit('Published version is absent from the launcher index; restore the index before reporting delivery')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'build={str(build).lower()}\n')
+          print(f'{tag}: ' + ('build and publish' if build else 'already published; increment the game version for a new release'))
+          PY
+  build:
+    needs: prepare
+    if: needs.prepare.outputs.build == 'true'
     permissions:
       contents: write
     strategy:

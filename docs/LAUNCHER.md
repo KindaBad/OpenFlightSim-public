@@ -333,9 +333,10 @@ approval are missing. See LAUNCHER_DEPENDENCIES.md for runtime/license/source
 publication requirements.
 
 For the configured public repository, increment the root CMake version, commit
-and push the source, then push a matching `v<VERSION>` tag in the independent
-public checkout. Alternatively dispatch **Launcher and Simulator Release** on
-public `main`. Both build and publish; published versions cannot be replaced.
+and push both source snapshots. The public `main` push automatically builds and
+publishes the new version. A published version is skipped; unfinished drafts can
+be retried. Matching `v<VERSION>` tags and dispatching **Launcher and Simulator
+Release** on public `main` can also start a build. Published versions cannot be replaced.
 The Windows Preparation workflow continues to build/test ordinary source pushes.
 Only version releases advance installed launchers. Development releases use
 `v<VERSION>-development` and the development channel.

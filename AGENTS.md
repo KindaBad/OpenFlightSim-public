@@ -31,3 +31,19 @@ commits; never merge, mirror-push or copy the private Git history into it.
 
 Exclude reference/, generated models/Blender files, restricted imported data,
 caches, generated test/build output and unrelated archives. See docs/PUBLIC_SOURCE.md.
+
+## Player update delivery
+
+The public release workflow automatically builds and publishes a new CMake
+project version on `main`. For completed changes that affect the shipped game
+or launcher, increment the root `project(OpenFlightSim VERSION ...)` before
+committing and delivering both source snapshots. Published versions are immutable.
+Documentation-only and local-only artwork work does not require a version bump.
+Do not increment again merely to retry an unpublished or draft version.
+
+Player builds currently exclude the Su-57 with `OFS_INCLUDE_SU57=OFF`; local
+development retains it. Rebuild and verify the approved aircraft content pack
+and refresh its CI hash/size/URL when shipping changes to its original aircraft.
+Do not publish the current Su-57 model files without resolving their distribution
+rights. Verify release workflow results and the public launcher manifest before
+reporting that a player update is available; report genuine release blockers.
