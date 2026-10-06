@@ -387,36 +387,28 @@ stay under ignored build/.cache directories.
 
 ## Publish a new version
 
-1. Change the root CMake project version once, update release notes, commit it and
-   tag that commit `v<version>` for stable; workflow_dispatch can produce the
-   development channel. Never republish different bytes under a published version.
-2. Prepare the approved asset pack and dependency notices/matching source offers;
-   configure the CI secrets/public base URL, then let the release workflow build
-   and validate both native platforms. Download `OpenFlightSim-publish`.
-3. Upload the versioned setup executables, ZIPs and **all** `files/` objects to the HTTPS CDN/object
-   store first. Object paths must match generated URLs. Keep them immutable.
-   Use release infrastructure/CI credentials, never credentials in the launcher.
-   Publish the generated SHA256SUMS alongside archives. Descriptors also carry an
-   optional installer URL/size/hash for verifying the initial distribution before
-   running its bootstrap.
-4. Preserve the current host manifest locally, then merge it with the new
-   descriptors using `python scripts/merge_update_manifests.py --output
-   build/publish/manifest.json old-manifest.json build/publish/*-manifest.json`.
-   Retain old descriptors/files needed for repair. Conflicting descriptors are
-   rejected rather than silently replacing releases.
-5. Publish manifest.json **last**, atomically at the host. Avoid long CDN cache TTLs
-   for the manifest; versioned ZIPs/files can have immutable cache headers. Verify
-   HTTP availability, hashes and a staged update/rollback on each target OS before
-   announcing the release. Test a fresh setup download/install/Play on a Windows
-   account without Python or build tools, then verify offline re-opening, Start
-   Menu launch after deleting setup, cancellation/resume and an available update.
-   Link the Windows `*-setup.exe` as the main player download on your download page.
-   Signing/publishing credentials stay only in CI/host.
+1. Increment the root CMake project version and update release notes. Refresh
+   aircraft provenance when its tracked source inputs change. If approved art
+   changes, rebuild the approved pack and update its CI URL, size and hash.
+2. Commit and push the reviewed source to both repositories. A public `main`
+   push automatically builds an unpublished version; no Windows PC build or
+   manual tag is required. Documentation-only pushes skip already published
+   versions. The original repository remains private.
+3. Wait for the Windows release workflow to pass. It uploads immutable versioned
+   setup executables, ZIPs, checksums and every repair object to GitHub Releases,
+   verifies them, and updates the launcher manifest last. Matching library source
+   archives are published in their separate source release. Never replace a
+   published version with different bytes.
+4. Verify the public manifest and download hashes before announcing availability.
+   Link the Windows `*-setup.exe` as the player download. Test a fresh setup,
+   install and Play on a Windows account without Python or build tools, followed
+   by offline reopening and Start Menu launch after deleting setup. Enable
+   automatic updates once in the launcher to install future versions when idle.
 
-The repository can remain private: the release host contains compiled approved
-packages, required notices/sources and public manifests rather than repository
-access. Hosting and asset approvals are external prerequisites; this change does
-not claim to have deployed a CDN or published a public release.
+The public release feed is
+`https://github.com/KindaBad/OpenFlightSim-public/releases/download/launcher-updates/manifest.json`.
+Signing/publishing credentials stay in CI. Player downloads need no GitHub account.
+Shared internet multiplayer requires separate server setup.
 
 ## Verification and limitations
 

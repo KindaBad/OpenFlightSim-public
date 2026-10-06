@@ -47,3 +47,10 @@ and refresh its CI hash/size/URL when shipping changes to its original aircraft.
 Do not publish the current Su-57 model files without resolving their distribution
 rights. Verify release workflow results and the public launcher manifest before
 reporting that a player update is available; report genuine release blockers.
+
+Aircraft provenance hashes cover tracked configuration inputs, including
+`core/src/aircraft_definition.cpp`. After changing those inputs, rebuild the
+normal four-aircraft `ofs_provenance_export` target, refresh the records with
+`scripts/export_aircraft_provenance.py --binary <exporter>`, and run
+`regression.provenance` before delivery. Keep source line endings governed by
+`.gitattributes` so Windows checkouts preserve the same source hashes.
