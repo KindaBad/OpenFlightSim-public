@@ -53,7 +53,6 @@ add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/launcher-catalog.json"
 add_custom_target(ofs_launcher_catalog ALL DEPENDS "${CMAKE_BINARY_DIR}/launcher-catalog.json")
 install(FILES "${CMAKE_BINARY_DIR}/launcher-catalog.json" "${CMAKE_BINARY_DIR}/build-info.json" DESTINATION .)
 install(DIRECTORY data/launcher/ DESTINATION data/launcher)
-install(DIRECTORY licenses/assets/ DESTINATION licenses/assets)
 # CPU asset/animation/effect logic has no window, graphics API or GLM dependency.
 if(OFS_BUILD_CLIENT OR OFS_BUILD_TESTS)
   add_library(ofs_visual_core STATIC client/src/gltf.cpp client/src/json.cpp

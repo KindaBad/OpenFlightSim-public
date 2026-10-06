@@ -119,7 +119,7 @@ sources, scripts, definitions, manifests and documentation only:
 
 | Content | Rule | Regenerate with |
 |---|---|---|
-| Runtime models (`*.glb`) | `*.glb` | `scripts/{typhoon,sr71}_export.py`, `scripts/import_su57_sketchfab.py`; A320 comes from the author's Blender scenes |
+| Runtime models (`*.glb`) | `*.glb` | `scripts/{typhoon,sr71,su57}_export.py`; the A320 original come from the author's Blender scenes |
 | Blender sources (`*.blend`) | `*.blend` | Authored stages in `scripts/*.py` through live Blender MCP |
 | Large textures (>= 1 MiB) | explicit paths in `.gitignore` | Exported from the models; runtime ships them embedded in LOD0 |
 | Screenshots and contact sheets | `docs/images/` | `scripts/capture_*.py` |
@@ -135,7 +135,5 @@ Consequences for a fresh clone:
 - Validation documents cite evidence by name and location in prose; they do not
   link to files, because those files are regenerated locally.
 
-The active Su-57 uses bohmerang's Sketchfab model under CC BY-NC-SA 4.0. Its
-adaptations carry the same license; noncommercial releases must include
-`licenses/assets/SU57.md`. See `assets/aircraft/su57/README.md` for importing the
-official archive. The retired CGTrader donor stays local/private.
+The Su-57 additionally carries an unresolved redistribution question; see
+`assets/aircraft/su57/README.md` before publishing anything derived from it.

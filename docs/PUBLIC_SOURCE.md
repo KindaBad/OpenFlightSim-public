@@ -37,11 +37,10 @@ fresh CMake configuration passes `launcher.security_config` through CTest.
 
 Player releases still use the separate release workflow, an HTTPS download host,
 runtime/dependency notices and an approved aircraft pack. Public source publication
-excludes generated models. The active Su-57 now uses bohmerang's Sketchfab model
-under CC BY-NC-SA 4.0; its loose GLBs may be included in noncommercial releases
-with attribution and the same license for adaptations. The retired CGTrader
-artwork and historical asset-bearing Git history remain private. Record each
-asset's author, source, applicable license and approved hash for the pack; see
+does not permit publishing the CGTrader Su-57 as loose model/source files. Its
+user-supplied listing permits incorporated game use with asset safeguards; the
+current loose-GLB runtime/package needs a protected content path first. Record
+the original author, source and applicable license when preparing the pack; see
 [asset provenance](ASSET_RELEASE_PROVENANCE.md) and [release packaging](LAUNCHER.md).
 
 To update the public source, copy reviewed changes into its independent checkout,

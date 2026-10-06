@@ -282,14 +282,14 @@ p/q/r, speed/altitude, normal acceleration, specific energy, both nozzle
 angles, surface deflections and all lag/separation/vortex states. It is a
 mechanism/regression history, not a Cobra or flight-envelope acceptance target.
 
-### Historical CGTrader model measurements and anisotropic error
+### Supplied model measurements and anisotropic error
 
 The original pipeline baseline is17.1700×12.3671×2.7801m. Applied X/Z scale
 1.17065 and lateral scale1.14012 stretch length17.06% and span14.01%; span is
 2.6077% narrower than uniform length scaling would produce, and volume scales
 by1.56244. Gear is subsequently authored and vertical origin shifted to fit
 4.6m total height. This is not a measurement establishing real Su-57 shape.
-`data/geometry/su57-cgtrader-normalization-historical.json` preserves this historical audit. The active Sketchfab replacement has separate measurements in `data/geometry/su57-normalization.json` and `docs/ASSET_RELEASE_PROVENANCE.md`.
+`data/geometry/su57-normalization.json` preserves this deformation audit.
 
 The local assembled GLB measures20.1000×14.1000×4.6000m. Agreement is imposed
 by normalization. Independent real planform/area/tail/gear geometry error

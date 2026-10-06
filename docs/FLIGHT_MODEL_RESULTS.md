@@ -102,9 +102,9 @@ Production airframes retain generic engineering separation/stall/vortex, Mach/co
 
 ## 8. Su-57 unknowns
 
-Independent aerodynamic polars/control derivatives, high-AoA unsteady behavior, authoritative mass distribution/CG/inertia products, validated AL-41F1 deck/fuel-flow/spool behavior, real FCS/allocation/protection laws, nozzle hinge/deflection/rate limits, structural/actuator loads, landing-gear geometry/compliance and OEM geometry remain unknown. Existing mechanics remain, labeled as engineering estimates. The active replacement artwork has verified CC BY-NC-SA 4.0 terms; see `docs/ASSET_RELEASE_PROVENANCE.md`.
+Independent aerodynamic polars/control derivatives, high-AoA unsteady behavior, authoritative mass distribution/CG/inertia products, validated AL-41F1 deck/fuel-flow/spool behavior, real FCS/allocation/protection laws, nozzle hinge/deflection/rate limits, structural/actuator loads, landing-gear geometry/compliance and OEM geometry remain unknown. Existing mechanics remain, labeled as engineering estimates. Art redistribution permission remains unverified.
 
-Historical CGTrader visual normalization (superseded by the Sketchfab replacement) is anisotropic: original length/span 17.1699962616/12.3671278954 m, target 20.1/14.1 m. Longitudinal/vertical scale 1.1706467313, transverse scale 1.1401192030; +17.064673% length/height, +14.011920% span, -2.607749% span relative to uniform length scaling, volume factor 1.562435 (approximately +56.24%). This quantifies imposed art deformation, not OEM accuracy. `data/geometry/su57-cgtrader-normalization-historical.json` preserves this historical calculation. The active replacement baseline is in `data/geometry/su57-normalization.json`.
+Normalization of the supplied visual geometry is anisotropic: original length/span 17.1699962616/12.3671278954 m, target 20.1/14.1 m. Longitudinal/vertical scale 1.1706467313, transverse scale 1.1401192030; +17.064673% length/height, +14.011920% span, -2.607749% span relative to uniform length scaling, volume factor 1.562435 (approximately +56.24%). This quantifies imposed art deformation, not OEM accuracy. `data/geometry/su57-normalization.json` records the current baseline calculation; future authoring runs also write the exact deformation JSON.
 
 ## 9. Deliberately unavailable data
 

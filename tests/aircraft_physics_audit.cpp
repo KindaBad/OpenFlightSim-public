@@ -107,38 +107,12 @@ void geometry(const std::filesystem::path& root) {
     // confusing imposed overall scale with accurate planform.
     for(double span:{.25*g.span,.4*g.span}) {
       double leading=1e9,trailing=-1e9;
-      for(const auto& primitive:mesh.primitives) {
-        const bool wing=primitive.name.find("wing")!=std::string::npos||
-          primitive.name.find("Wing")!=std::string::npos||
-          primitive.name.find("Main_Body")!=std::string::npos||
-          (type==AircraftType::Su57 && (primitive.name=="Su57 | airframe"||
-            primitive.name.starts_with("Su57 | aileron_")||
-            primitive.name.starts_with("Su57 | flap_")||
-            primitive.name.starts_with("Su57 | slat_")));
-        if(!wing)continue;
-        // Intersect actual triangle edges with the section planes. A sparse
-        // replacement wing can span a station without a vertex within 12 cm.
-        // This measures its geometry independently of vertex density.
-        for(std::size_t triangle=0;triangle+2<primitive.indices.size();triangle+=3)
-          for(unsigned edge=0;edge<3;++edge) {
-            const auto a=primitive.indices[triangle+edge]*ofs::client::kGltfVertexFloats;
-            const auto b=primitive.indices[triangle+(edge+1)%3]*ofs::client::kGltfVertexFloats;
-            for(double station:{-span,span}) {
-              const double za=primitive.vertices[a+2],zb=primitive.vertices[b+2];
-              if((station<za&&station<zb)||(station>za&&station>zb))continue;
-              if(std::abs(zb-za)<1e-9) {
-                if(std::abs(za-station)<1e-6) {
-                  leading=std::min({leading,double(primitive.vertices[a]),double(primitive.vertices[b])});
-                  trailing=std::max({trailing,double(primitive.vertices[a]),double(primitive.vertices[b])});
-                }
-              } else {
-                const double t=(station-za)/(zb-za);
-                const double x=primitive.vertices[a]+t*(primitive.vertices[b]-primitive.vertices[a]);
-                leading=std::min(leading,x);trailing=std::max(trailing,x);
-              }
+      for(const auto& primitive:mesh.primitives)
+        if(primitive.name.find("wing")!=std::string::npos||primitive.name.find("Wing")!=std::string::npos||primitive.name.find("Main_Body")!=std::string::npos)
+          for(std::size_t k=0;k<primitive.vertices.size();k+=ofs::client::kGltfVertexFloats)
+            if(std::abs(std::abs(primitive.vertices[k+2])-span)<.12) {
+              leading=std::min(leading,double(primitive.vertices[k]));trailing=std::max(trailing,double(primitive.vertices[k]));
             }
-          }
-      }
       check(leading<trailing,"wing station mesh measurement exists");
       std::printf("  wing slice y=%.3f asset leading/trailing=%.3f/%.3f m (if absent, inspect supplied mesh names; no OEM planform validation)\n",span,leading,trailing);
     }

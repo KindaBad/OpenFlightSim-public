@@ -1,61 +1,48 @@
-# Su-57 Sketchfab replacement
+# Su-57 local asset integration
 
-Current artwork: **Sukhoi Su-57 Felon - Fighter Jet - Free** by **bohmerang**.
-Original: https://sketchfab.com/3d-models/sukhoi-su-57-felon-fighter-jet-free-59995d6f34ba4bb7990195be3a745fc5
-Creator: https://sketchfab.com/bohmerang
-License: **CC BY-NC-SA 4.0**, https://creativecommons.org/licenses/by-nc-sa/4.0/
-The adapted aircraft artwork is distributed under the same license.
-See `licenses/assets/SU57.md` for attribution, modifications and terms.
+Starting asset: supplied `.blend` specified by the `--source` pipeline argument, preserved intact.
+On 2026-10-06 the user identified the donor as
+[SU57-Felon by lullabie, CGTrader model 5684228](https://www.cgtrader.com/free-3d-models/aircraft/military-aircraft/su57-felon)
+and supplied the listing's license screenshot. The listing displays Royalty Free
+License (no AI). [CGTrader's terms](https://www.cgtrader.com/pages/terms-and-conditions)
+allow incorporated game use subject to protecting the asset, and prohibit
+standalone model redistribution. This identifies the supplied source/license;
+it does not approve publishing the Blender source or loose derivative GLBs.
 
-On 2026-10-06 the user supplied the official downloaded archive. Its SHA-256 and
-Blender-file SHA-256 are recorded in `data/geometry/su57-sketchfab-source.json`.
-The Sketchfab API independently reports bohmerang and CC BY-NC-SA 4.0.
+The current runtime loads ordinary GLB files. Public game packaging still needs
+asset safeguarding and recorded approval for that distribution format. Public
+source distributions exclude donor geometry/textures. Older private Git history
+contains donor models and must not be included in the clean public baseline.
 
-## Rebuild
+Working source: `output/Su57-Felon.blend`, edited through live Blender MCP.
+Metric geometry measures 20.1 m length, 14.1 m span, 4.6 m extended-gear height.
+Dimensions use public CAD research anchors; the rig, gear, close-up mechanical
+reconstruction and hidden structures are engineering visual estimates.
 
-Extract the downloaded ZIP locally. The Blender source has packed images; its
-separate texture directory can remain beside the source. From the project root:
+LOD0 retains the supplied six exterior body/engine PBR images. Imported cockpit
+artwork named for an F-14 is not used by the runtime model; owned materials and
+static display geometry replace it. The original source collections remain in
+the working .blend for recoverability and retain their original unknown status.
 
-```sh
-blender --background --disable-autoexec --python scripts/import_su57_sketchfab.py -- \
-  --source /path/to/extracted/source/su57.blend
-```
+1,551 additional real geometry components are grouped into 51 rig-aware meshes:
+hollow spoked hubs, brake stacks/calipers, clevis plates/pins, seals/collars,
+actuator barrels/pistons, hydraulic fittings/hoses, door hinges/ribs, skin seams,
+inspection-cover rims and millimetre flush fasteners. Camouflage and microscopic
+surface variation remain textures. Fine parts are excluded beyond LOD0/1.
 
-The original source stays intact. The pipeline writes a new working copy to
-`output/Su57-Sketchfab.blend`, GLBs to this directory, and normalization/export
-reports plus hash-bound Su-57 release approval to `output/su57-sketchfab/`.
-Optional arguments: `--output-dir`, `--working-output`, `--report-dir`.
-Blender and the official source archive are only needed to regenerate assets;
-players receive the generated GLBs through game releases.
+GLBs 1–3 reuse LOD0 textures by material name. The four `lod*_stats.json` files
+record evaluated geometry; runtime mesh merging can reduce the draw count.
+See `docs/M3_68_SU57_REALISM_GRAPHICS_VALIDATION.md` for physics, provenance,
+approximation labels, measured validation and remaining limitations.
 
-## Runtime adaptation
+Normalization is anisotropic: the source length/span anchors (17.1699963 m /
+12.3671279 m) are scaled to 20.1 m / 14.1 m. This imposes approximately +17.06%
+length and vertical scaling, +14.01% span scaling, and -2.61% span relative to
+uniform length scaling. The generated `normalization_deformation.json` records
+exact factors and volume deformation. The existing baseline calculation is also
+recorded in `data/geometry/su57-normalization.json`. These are visual dimension targets, not
+an OEM geometry validation.
 
-The aircraft is fitted to 20.1 m length, 14.1 m span and 4.6 m extended-gear height,
-with nose at asset X=0 and ground at asset Y=0. Length/span/vertical normalization
-is nonuniform: span is 3.024% smaller and vertical 1.842% smaller than uniform
-length scaling. This matches the simulator registry, not independent OEM geometry.
-
-The donor's welded airframe is separated into stabilators, canted fins, ailerons,
-flaps, slats, LEVCON surfaces and nozzle shells. Original UVs and packed images
-are retained. Rigid pivots use the existing engineering physics anchors. Donor
-gear and wheel radii are fitted to the existing simulation contacts; the nose
-assembly moves forward about 2.482 m and down 0.303 m, and the main assemblies
-move aft 0.562 m. Panel cuts, hinges, bay alignment and folding/compression poses
-remain approximations. Nose retraction adds an estimated .55 m upward stow
-translation. The flight model is unchanged. Glass is converted to
-renderer-supported alpha-blended PBR, without unsupported material extensions.
-
-LOD triangles: **52,185 / 26,084 / 10,422 / 3,360**, with 59 exported nodes.
-LOD0 embeds body color, normal and packed metallic/roughness images. LOD1–3
-retain rig/material identities and share LOD0 textures in the renderer.
-
-The old CGTrader airframe, cockpit, geometry details and textures are not opened,
-loaded or copied by this pipeline. Their former exports are preserved locally
-under `.cache/su57-sketchfab/retired-local-exports/`; the historical working scene
-remains local. The older `su57_normalize`, `su57_session`, `su57_rig` and related
-scripts describe the retired donor and must not be used to rebuild this model.
-
-Generated models and Blender sources remain outside the source-only Git
-repositories. Noncommercial releases may distribute these loose GLBs with the
-credit/license notice; preserve CC BY-NC-SA rights and license model adaptations
-likewise. Other aircraft need their own provenance and approval.
+Pipeline paths are arguments: `--source`, `--working-output`, `--output-dir`,
+`--report-dir`, and `--project-root`. Invoke Blender with arguments after `--`.
+Follow-on rig/detail/export stages share the resolved pipeline namespace.
