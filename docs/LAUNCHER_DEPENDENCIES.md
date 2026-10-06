@@ -11,6 +11,14 @@ The downloaded game still carries the full launcher in the one-directory bundle.
 Include setup's dependencies in the same notices, matching source publication
 and selected license review as the main launcher before distributing it.
 
+The GitHub publication job uploads the unmodified Qt 6.10.2 and
+PySide/shiboken 6.10.2 corresponding source archives to the persistent
+`qt-sources-6.10.2` release before publishing game binaries. Official source
+URLs, archive sizes and SHA-256 digests are pinned in
+`scripts/dependency-sources.json`; changing the PySide/Qt version requires
+updating those pins and the release-note source link together. LGPLv3, GPLv3
+and Qt's GPL exception texts are carried in `licenses/qt/` and installed notices.
+
 Redistributors must satisfy their selected upstream license, including applicable
 license texts, notices, source availability and relinking/replacement obligations.
 Obtain the **matching** Qt/PySide/shiboken source archives and license texts from

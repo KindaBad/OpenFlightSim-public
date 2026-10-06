@@ -77,6 +77,7 @@ std::span<const AircraftDefinition> aircraftDefinitions() {
       {{2,-4.14,-.15},1},{{-1.5,-4.14,-.15},1.2},{{-5.5,-4.14,-.15},1.2},{{-8.2,-7,0},1.4},
       {{2,4.14,-.15},1},{{-1.5,4.14,-.15},1.2},{{-5.5,4.14,-.15},1.2},{{-8.2,7,0},1.4},
       {{-8,0,-1.2},1.8}}};
+#if OFS_INCLUDE_SU57
     GunConfig su57Gun;
     su57Gun.rpm=1500;su57Gun.muzzleVelocity=860;su57Gun.ammo=150;
     su57Gun.muzzle={5.2,1.15,-.12};su57Gun.damage=34;
@@ -86,6 +87,7 @@ std::span<const AircraftDefinition> aircraftDefinitions() {
       {{-.8,-2.1,.10},1.20},{{-2.3,-3.6,.10},1.05},{{-3.3,-5.0,.10},.80},{{-3.5,-6.3,.10},.65},
       {{-.8,2.1,.10},1.20},{{-2.3,3.6,.10},1.05},{{-3.3,5.0,.10},.80},{{-3.5,6.3,.10},.65},
       {{-5.1,0,-1.15},1.15}}};
+#endif
     auto definitions = std::array{
       AircraftDefinition
       {AircraftType::A320, "a320", "Airbus A320-214 | CFM56-5B4/P reference", "output/Airbus_A320.glb", a320Config(),
@@ -103,12 +105,14 @@ std::span<const AircraftDefinition> aircraftDefinitions() {
           {{-9.43,-4.14,-.15},{-9.43,4.14,-.15}},{{-8.4,-8.38,.07},{-8.4,8.38,.07}},
           20.8,7,2,.34925,.3175,.020,true,1.9,1.6,-10*kDeg2Rad}, {1,1,1},std::nullopt,
         {"assets/aircraft/sr71/sr71_lod1.glb","assets/aircraft/sr71/sr71_lod2.glb","assets/aircraft/sr71/sr71_lod3.glb"},sr71Boxes},
+#if OFS_INCLUDE_SU57
       AircraftDefinition{AircraftType::Su57,"su57","Sukhoi Su-57 | AL-41F1 approximation",
         "assets/aircraft/su57/su57_lod0.glb",su57Config(),
         {{10.95,2.45,0},{6.70,0,-.98},{-37,6,-10},{-26,0,-6},{-.5,0,0},{-.5,0,0},
           {{-7.85,-1.34,.16},{-7.85,1.34,.16}},{{-3.2,-6.95,.10},{-3.2,6.95,.10}},
           13,5,2,.515,.33,.030,true,1.35,1.1}, {1,1,1},su57Gun,
         {"assets/aircraft/su57/su57_lod1.glb","assets/aircraft/su57/su57_lod2.glb","assets/aircraft/su57/su57_lod3.glb"},su57Boxes}
+#endif
     };
     // A320/Su-57 renderer and physics consume the same geometry anchors.
     for(auto& d:definitions) {

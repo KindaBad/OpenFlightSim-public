@@ -290,20 +290,24 @@ the HTTPS descriptor authenticates the archive including that internal manifest.
 
 ## Produce Windows and Linux releases
 
-`.github/workflows/release.yml` builds both platforms on matching native runners.
+`.github/workflows/release.yml` currently publishes Windows x64 on a native runner.
 It runs engine/widget tests, builds client/server/catalogue and embedded shaders,
 provisions an approved hash-pinned content pack, runs existing CTest regressions,
 installs the simulator/runtime, collects notices, freezes the GUI/bootstrap and
 produces standalone setup executables, install ZIP, update ZIP, SHA256SUMS,
 per-file repair content and manifest descriptors. It also runs the frozen setup
 on each native runner and requires it to render a screenshot successfully.
-The final job merges both platforms into the `OpenFlightSim-publish` artifact.
+The runner publishes verified packages directly to GitHub Releases, then advances
+the fixed `launcher-updates/manifest.json` endpoint. Release packages and matching
+library sources do not consume Actions artifact storage.
 It does not publish unapproved local donor assets or embed GitHub credentials.
 The existing Windows push/PR compilation workflow is preserved.
 
 Configure these CI-only secrets: OFS_ASSET_PACK_URL, OFS_ASSET_PACK_SHA256 and
 OFS_ASSET_PACK_SIZE. Configure public repository variable OFS_UPDATE_BASE_URL,
-for example `https://updates.your-domain.example/openflightsim`. The asset ZIP
+`https://github.com/KindaBad/OpenFlightSim-public/releases/download/launcher-updates`.
+Versioned downloads use their immutable `v<VERSION>` release tag; no GitHub
+credentials are embedded in player downloads. The asset ZIP
 contains exactly the registry GLBs/LODs, `asset-approval.json`, and optional
 `licenses/assets/` notices. Approval schema:
 
@@ -319,9 +323,29 @@ List **every** model/LOD, not only Su-57. A publisher must actually establish
 those rights; a JSON assertion cannot grant them. The Su-57 donor's CGTrader
 listing is recorded in ASSET_RELEASE_PROVENANCE.md; its incorporated-use terms
 require asset protection and do not permit standalone GLB/source downloads.
-The current loose-GLB package is not approved for it. CI fails when release inputs or
+The current loose-GLB package is not approved for it. Player builds set
+`OFS_INCLUDE_SU57=OFF`, excluding it from the compiled registry, launcher catalogue,
+installed models and content pack. Local development defaults to `ON`.
+CI runs the complete source regression suite with the normal registry, then
+rebuilds the player binaries with the three-aircraft registry and requires their
+model/LOD content checks to pass. CI fails when release inputs or
 approval are missing. See LAUNCHER_DEPENDENCIES.md for runtime/license/source
 publication requirements.
+
+For the configured public repository, increment the root CMake version, commit
+and push the source, then push a matching `v<VERSION>` tag in the independent
+public checkout. Alternatively dispatch **Launcher and Simulator Release** on
+public `main`. Both build and publish; published versions cannot be replaced.
+The Windows Preparation workflow continues to build/test ordinary source pushes.
+Only version releases advance installed launchers. Development releases use
+`v<VERSION>-development` and the development channel.
+
+The publisher uploads hash-named flat repair files, validates GitHub's upload
+sizes/digests, publishes the complete version, verifies its public descriptor,
+and updates the launcher index last. Older versions remain available. GitHub's
+index asset replacement briefly deletes/reuploads that file, so a startup check
+during that interval can fail and be retried without affecting the installed game.
+Do not delete historical version packages referenced by the index.
 
 Manual packaging after the platform-specific CMake build:
 

@@ -16,3 +16,20 @@ OpenFlightSim 0.3.0 Launcher
 - Progress, free-space checks, cancellation/resume and verified atomic first install.
 - Persistent Start Menu shortcut; later setup runs open the existing game offline.
 - Release packaging includes setup executables, checksums and a native UI smoke check.
+# First Windows player release
+
+Download the Windows `*-setup.exe`, run it and click **INSTALL GAME**, then **PLAY**.
+The game and Qt/Python runtime are installed for your user account; no compiler
+or separately installed Python is required. Enable automatic updates in the
+launcher's Updates page once to install subsequent published versions when idle.
+
+This release includes the original A320, Typhoon and SR-71. The current Su-57
+is temporarily omitted while its model distribution requirements are resolved.
+
+The launcher uses dynamically linked Qt/PySide/shiboken 6.10.2. License notices
+are included in the installed `licenses/` folder. Matching library sources:
+[Qt / PySide / shiboken sources](https://github.com/KindaBad/OpenFlightSim-public/releases/tag/qt-sources-6.10.2).
+Launcher source and reproducible freezing instructions are in this repository's
+`launcher/`, `scripts/package_launcher.py` and `docs/LAUNCHER_DEPENDENCIES.md`.
+The installed main launcher uses a one-directory bundle whose Qt libraries can
+be replaced; the setup executable extracts its runtime to a temporary folder.

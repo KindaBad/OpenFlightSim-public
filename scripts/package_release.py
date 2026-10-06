@@ -68,11 +68,14 @@ def archive_tree(directory, output):
                 shutil.copyfileobj(source, target, 1024 * 1024)
 
 
-def package(simulator, bundles, output, base_url, approval=None, local=False, notes='', platform=None):
+def package(simulator, bundles, output, base_url, approval=None, local=False, notes='', platform=None,
+            download_base_url=None, flat_downloads=False):
     simulator, bundles, output = Path(simulator), Path(bundles), Path(output)
     build = read_json(simulator / 'build-info.json')
     target = platform or platform_id()
     https_url(base_url)
+    download_base_url = (download_base_url or base_url).rstrip('/')
+    https_url(download_base_url)
     output.mkdir(parents=True, exist_ok=True)
     name = f'OpenFlightSim-{build["version"]}-{build["channel"]}-{target}'
     suffix = '.exe' if target.startswith('windows') else ''
@@ -107,11 +110,24 @@ def package(simulator, bundles, output, base_url, approval=None, local=False, no
     write_json(stage / 'release.json', metadata)
     package_path = output / (name + '-update.zip')
     archive_tree(stage, package_path)
-    content_path = output / 'files' / name
-    shutil.copytree(stage, content_path)
-    file_records = {path: {**record, 'url': base_url.rstrip('/') + '/files/' + name + '/' + quote(path, safe='/')} for path, record in files.items()}
+    if flat_downloads:
+        # Release assets have a flat namespace. Hash names deduplicate identical
+        # files across both platforms without exposing a directory hierarchy.
+        content_path = output / 'repair'
+        content_path.mkdir(exist_ok=True)
+        file_records = {}
+        for path, record in files.items():
+            blob = 'file-' + record['sha256']
+            destination = content_path / blob
+            if not destination.exists():
+                shutil.copy2(stage / path, destination)
+            file_records[path] = {**record, 'url': download_base_url + '/' + blob}
+    else:
+        content_path = output / 'files' / name
+        shutil.copytree(stage, content_path)
+        file_records = {path: {**record, 'url': download_base_url + '/files/' + name + '/' + quote(path, safe='/')} for path, record in files.items()}
     descriptor = {**metadata, 'files': file_records, 'minimum_launcher_version': build.get('minimum_launcher_version', '0.3.0'), 'minimum_bootstrap_protocol': 1,
-                  'notes': notes, 'package': {'url': base_url.rstrip('/') + '/' + package_path.name,
+                  'notes': notes, 'package': {'url': download_base_url + '/' + package_path.name,
                     'size': package_path.stat().st_size, 'sha256': sha256(package_path)}}
     Release.parse(descriptor)
     distribution = work / 'distribution'
@@ -135,13 +151,13 @@ def package(simulator, bundles, output, base_url, approval=None, local=False, no
     # The local fixture intentionally leaves a blank endpoint to prevent accidental publishing.
     installer_path = output / (name + '-install.zip')
     archive_tree(distribution, installer_path)
-    descriptor['installer'] = {'url': base_url.rstrip('/') + '/' + installer_path.name,
+    descriptor['installer'] = {'url': download_base_url + '/' + installer_path.name,
                               'size': installer_path.stat().st_size, 'sha256': sha256(installer_path)}
     setup_sum = ''
     if not local:
         setup_path = output / (name + '-setup' + suffix)
         shutil.copy2(setup, setup_path)
-        descriptor['setup'] = {'url': base_url.rstrip('/') + '/' + setup_path.name,
+        descriptor['setup'] = {'url': download_base_url + '/' + setup_path.name,
                                'size': setup_path.stat().st_size, 'sha256': sha256(setup_path)}
         setup_sum = f'{descriptor["setup"]["sha256"]}  {setup_path.name}\n'
     Release.parse(descriptor)
@@ -158,12 +174,15 @@ def main():
     parser.add_argument('--bundles', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--base-url', required=True)
+    parser.add_argument('--download-base-url', help='Immutable package host; defaults to --base-url')
+    parser.add_argument('--flat-downloads', action='store_true', help='Store repair files as flat, hash-named release assets')
     parser.add_argument('--asset-approval', type=Path)
     parser.add_argument('--local-development', action='store_true')
     parser.add_argument('--notes', type=Path)
     args = parser.parse_args()
     package(args.simulator, args.bundles, args.output, args.base_url, args.asset_approval,
-            args.local_development, args.notes.read_text() if args.notes else '')
+            args.local_development, args.notes.read_text() if args.notes else '',
+            download_base_url=args.download_base_url, flat_downloads=args.flat_downloads)
 
 
 if __name__ == '__main__':

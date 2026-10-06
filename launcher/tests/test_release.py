@@ -13,6 +13,7 @@ from launcher.storage import LauncherError, read_json, write_json
 from launcher.platform_process import child_environment
 from scripts.package_release import package, check_asset_approval
 from scripts.merge_update_manifests import merge
+from scripts.publish_github_release import publication_files, publish
 
 
 class ReleasePipeline(unittest.TestCase):
@@ -119,6 +120,88 @@ class ReleasePipeline(unittest.TestCase):
     def test_setup_endpoint_must_match_publication(self):
         with self.assertRaisesRegex(LauncherError, 'configuration'):
             package(self.simulator, self.bundles, self.root / 'mismatch', 'https://another.example.org')
+
+    def github_package(self):
+        repo = 'publisher/game'
+        index = f'https://github.com/{repo}/releases/download/launcher-updates'
+        immutable = f'https://github.com/{repo}/releases/download/v0.3.0'
+        write_json(self.bundles / 'setup-config.json', {
+            **read_json(self.bundles / 'setup-config.json'), 'manifest_url': index + '/manifest.json'})
+        approval = self.root / 'approval.json'
+        write_json(approval, {'schema': 1, 'assets': {name: {
+            'redistributable': True, 'license': 'Original fixture', 'source': 'Fixture',
+            'sha256': self.metadata['files'][name]['sha256']}
+            for name in ('assets/a320.glb', 'assets/typhoon.glb')}})
+        output = self.root / 'github'
+        descriptor = package(self.simulator, self.bundles, output, index, approval=approval,
+                             download_base_url=immutable, flat_downloads=True)
+        write_json(output / 'manifest.json', {'schema': 1, 'releases': [descriptor]})
+        return output, descriptor, repo, index, immutable
+
+    def test_github_packages_keep_fixed_index_and_verify_flat_repairs(self):
+        output, descriptor, repo, index, immutable = self.github_package()
+        self.assertTrue(descriptor['package']['url'].startswith(immutable + '/'))
+        self.assertEqual(read_json(next(output.glob('*-work')) / 'payload/publisher.json')['manifest_url'],
+                         index + '/manifest.json')
+        manifest = {'schema': 1, 'releases': [descriptor]}
+        write_json(output / 'manifest.json', manifest)
+        published = publication_files(output, manifest, repo, 'v0.3.0')
+        self.assertNotIn('asset-approval.json', published)  # Only its hash-named repair record is public.
+        for name, record in descriptor['files'].items():
+            blob = 'file-' + record['sha256']
+            self.assertEqual(record['url'], immutable + '/' + blob)
+            self.assertIn(blob, published)
+        # A corrupted repair blob must prevent every network publication step.
+        (output / 'repair' / ('file-' + descriptor['files']['assets/a320.glb']['sha256'])).write_bytes(b'bad')
+        with self.assertRaisesRegex(LauncherError, 'mismatch'):
+            publication_files(output, manifest, repo, 'v0.3.0')
+
+    def test_publication_announces_only_verified_complete_packages(self):
+        output, descriptor, repo, index, immutable = self.github_package()
+        manifest = read_json(output / 'manifest.json')
+        files = publication_files(output, manifest, repo, 'v0.3.0')
+        from launcher.storage import sha256
+        uploaded = {'assets': [{'name': name, 'size': p.stat().st_size, 'digest': 'sha256:' + sha256(p)}
+                              for name, p in files.items()]}
+        commands = []
+        def command(*args):
+            commands.append(args)
+            return '{"private": false}' if args[0] == 'api' else ''
+        with patch('scripts.publish_github_release.gh', side_effect=command), \
+             patch('scripts.publish_github_release.release_info', side_effect=[None, None, uploaded]), \
+             patch('scripts.publish_github_release.fetch_manifest', return_value=manifest):
+            publish(output, repo, 'a' * 40, self.root / 'notes.md')
+        version_edit = next(i for i, c in enumerate(commands) if c[:3] == ('release', 'edit', 'v0.3.0'))
+        index_upload = next(i for i, c in enumerate(commands) if c[:3] == ('release', 'upload', 'launcher-updates'))
+        self.assertLess(version_edit, index_upload)
+
+    def test_conflicting_existing_version_prevents_network_mutations(self):
+        output, descriptor, repo, *_ = self.github_package()
+        commands = []
+        def command(*args):
+            commands.append(args)
+            if args[0] == 'api':
+                return '{"private": false}'
+            if args[:2] == ('release', 'download'):
+                directory = Path(args[args.index('--dir') + 1])
+                write_json(directory / 'manifest.json', {'schema': 1, 'releases': [{**descriptor, 'notes': 'Published notes differ'}]})
+            return ''
+        with patch('scripts.publish_github_release.gh', side_effect=command), \
+             patch('scripts.publish_github_release.release_info', return_value={'draft': False, 'assets': [{'name': 'manifest.json'}]}):
+            with self.assertRaisesRegex(LauncherError, 'Conflicting'):
+                publish(output, repo, 'a' * 40, self.root / 'notes.md')
+        self.assertFalse(any(c[:2] in (('release', 'create'), ('release', 'upload'), ('release', 'edit')) for c in commands))
+
+    def test_github_publication_rejects_wrong_tag_and_host(self):
+        output = self.root / 'publish'
+        descriptor = package(self.simulator, self.bundles, output, 'https://updates.example.org', local=True)
+        # Rejection precedes any attempt to find installer/setup files.
+        with self.assertRaisesRegex(LauncherError, 'version/channel'):
+            publication_files(output, {'schema': 1, 'releases': [descriptor]}, 'publisher/game', 'v0.4.0')
+        output, descriptor, repo, *_ = self.github_package()
+        descriptor['package']['url'] = 'https://another.example.org/update.zip'
+        with self.assertRaisesRegex(LauncherError, 'immutable version tag'):
+            publication_files(output, {'schema': 1, 'releases': [descriptor]}, repo, 'v0.3.0')
 
     def test_merge_preserves_versions_rejects_conflicts(self):
         first = self.root / 'first.json'

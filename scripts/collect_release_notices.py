@@ -5,6 +5,7 @@ import importlib.metadata
 from pathlib import Path
 import shutil
 import os
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -37,6 +38,14 @@ def main():
     shutil.copy2(ROOT / 'assets/Karla-LICENSE.txt', output)
     shutil.copy2(ROOT / 'client/thirdparty/stb_image.h', output / 'stb_image-notice-and-source.h')
     shutil.copy2(ROOT / 'docs/LAUNCHER_DEPENDENCIES.md', output)
+    shutil.copytree(ROOT / 'licenses/qt', output / 'qt', dirs_exist_ok=True)
+    shutil.copytree(ROOT / 'licenses/python', output / 'python', dirs_exist_ok=True)
+    # Python's runtime is bundled by PyInstaller even though it is not a pip distribution.
+    for name in ('LICENSE.txt', 'LICENSE', 'lib/python' + sys.version[:4] + '/LICENSE.txt'):
+        source = Path(sys.base_prefix) / name
+        if source.is_file():
+            shutil.copy2(source, output / 'Python-LICENSE.txt')
+            break
 
 
 if __name__ == '__main__':

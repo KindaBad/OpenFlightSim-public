@@ -35,11 +35,13 @@ for a playable game distribution.
 The clean snapshot passes all 75 launcher tests, including Qt widgets, and its
 fresh CMake configuration passes `launcher.security_config` through CTest.
 
-Player releases still use the separate release workflow, an HTTPS download host,
+Player releases use the separate release workflow and GitHub Releases as their HTTPS download host,
 runtime/dependency notices and an approved aircraft pack. Public source publication
 does not permit publishing the CGTrader Su-57 as loose model/source files. Its
 user-supplied listing permits incorporated game use with asset safeguards; the
-current loose-GLB runtime/package needs a protected content path first. Record
+current loose-GLB runtime/package needs permission or a reviewed protected content path.
+The first player release uses `OFS_INCLUDE_SU57=OFF` and includes only the original
+A320, Typhoon and SR-71. Local development retains the Su-57. Record
 the original author, source and applicable license when preparing the pack; see
 [asset provenance](ASSET_RELEASE_PROVENANCE.md) and [release packaging](LAUNCHER.md).
 
