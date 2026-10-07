@@ -48,5 +48,7 @@ Encryption is a practical asset safeguard, not an extraction-proof guarantee.
 A sufficiently determined person can reverse engineer a game binary or inspect
 its memory, especially with a public loader implementation. No server check,
 online requirement or DRM is introduced. The key is embedded in the game binary,
-not published as a separate downloadable key file. This format does not expand
+not published as a separate downloadable key file. Compiled-dependency caches
+are saved only before the content key is added; keyed headers and objects are
+never saved to the shared build cache. This format does not expand
 any artwork license; each approved asset still needs documented rights evidence.
