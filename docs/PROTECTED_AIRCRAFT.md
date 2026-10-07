@@ -1,6 +1,12 @@
 # Protected aircraft content
 
-Player Su-57 assets use authenticated XChaCha20-Poly1305 encryption through
+No aircraft shipped from 0.4.3 uses this format, and release builds no longer
+embed a content key. The Su-57 of versions 0.3.1 to 0.4.2 did; its replacement
+is Creative Commons artwork that must stay unencrypted. The loader, tool and
+packaging checks remain for artwork whose license requires safeguarding, and
+the description below is written for that case.
+
+Protected assets use authenticated XChaCha20-Poly1305 encryption through
 Monocypher 4.0.2. The runtime resolves the canonical `.glb` name to a sibling
 `.glb.ofspack`, verifies authentication, and parses the decrypted GLB in memory.
 It writes no decrypted file. Corrupt packs fail instead of falling back to a
@@ -30,16 +36,15 @@ python scripts/protect_aircraft_assets.py \
   assets/aircraft/su57/su57_lod3.glb
 ```
 
-For installation configure `OFS_PROTECTED_SU57_ROOT` to that output root and
-retain the same key. The installer copies only encrypted Su-57 LODs. Source
-artwork remains local. Public builds receive the key through the existing
-repository's `OFS_ASSET_KEY_HEX` Actions secret. Unkeyed development builds
+Install the packs beside the canonical model paths and build with the same key.
+Source artwork remains local. A release that ships protected content must pass
+the key to its build as an Actions secret, never as a tracked file. Unkeyed development builds
 retain loose-model support and reject protected packs.
 
 Asset approval uses the encrypted filename and SHA-256, with
 `redistributable: true`, `license`, `source`, `protection: "OFSPACK1"`, `credit`,
 and `rights_evidence`. Approval is for incorporated game use, not standalone
-model distribution. Packaging rejects loose Su-57 content, duplicate loose
+model distribution. Packaging rejects duplicate loose
 copies of protected models, unregistered packs, Blender files and content keys.
 Repair/update indexes distribute only encrypted content for protected models.
 The existing update signature/hash, slot activation and rollback flow is retained.

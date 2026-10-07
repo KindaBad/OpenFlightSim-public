@@ -1,6 +1,5 @@
 # The random 32-byte key is a local/CI secret input, never a source file.
 set(OFS_ASSET_KEY_FILE "" CACHE FILEPATH "File containing the protected content key (64 lowercase hex digits)")
-set(OFS_PROTECTED_SU57_ROOT "" CACHE PATH "Root containing protected Su-57 assets for installation")
 set(ofs_key_enabled false)
 set(ofs_key_bytes "")
 if(OFS_ASSET_KEY_FILE)
@@ -21,9 +20,6 @@ file(WRITE "${CMAKE_BINARY_DIR}/generated/ofs_asset_key.hpp"
   "#pragma once\ninline constexpr bool kOfsAssetKeyEnabled = ${ofs_key_enabled};\ninline constexpr unsigned char kOfsAssetKey[32] = {${ofs_key_bytes}};\n")
 unset(ofs_key_hex)
 unset(ofs_key_bytes)
-if(OFS_PROTECTED_SU57_ROOT AND NOT OFS_ASSET_KEY_FILE)
-  message(FATAL_ERROR "Protected Su-57 installation requires OFS_ASSET_KEY_FILE")
-endif()
 add_library(ofs_monocypher STATIC client/thirdparty/monocypher/monocypher.c)
 target_include_directories(ofs_monocypher SYSTEM PUBLIC client/thirdparty/monocypher)
 target_link_libraries(ofs_visual_core PRIVATE ofs_monocypher)

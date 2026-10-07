@@ -1,48 +1,64 @@
-# Su-57 local asset integration
+# Su-57 runtime asset
 
-Starting asset: supplied `.blend` specified by the `--source` pipeline argument, preserved intact.
-On 2026-10-06 the user identified the donor as
-[SU57-Felon by lullabie, CGTrader model 5684228](https://www.cgtrader.com/free-3d-models/aircraft/military-aircraft/su57-felon)
-and supplied the listing's license screenshot. The listing displays Royalty Free
-License (no AI). [CGTrader's terms](https://www.cgtrader.com/pages/terms-and-conditions)
-allow incorporated game use subject to protecting the asset, and prohibit
-standalone model redistribution. This identifies the supplied source/license;
-it does not approve publishing the Blender source or loose derivative GLBs.
+Donor: [Sukhoi Su-57 Felon - Fighter Jet - Free by bohmerang](https://sketchfab.com/3d-models/sukhoi-su-57-felon-fighter-jet-free-59995d6f34ba4bb7990195be3a745fc5),
+Sketchfab model `59995d6f34ba4bb7990195be3a745fc5`, published 2023-07-20 under
+CC BY-NC-SA 4.0. The project owner supplied the download on 2026-10-07; the
+listing's license and its 31,929-triangle count were read the same day and match
+the archive. The archive contains one packed Blender file (SHA-256 `bf5ee985…bfcfcb`),
+loose copies of its textures and no license text, so the listing is the license record.
 
-The current runtime loads ordinary GLB files. Public game packaging still needs
-asset safeguarding and recorded approval for that distribution format. Public
-source distributions exclude donor geometry/textures. Older private Git history
-contains donor models and must not be included in the clean public baseline.
+It replaces the earlier CGTrader donor (SU57-Felon by lullabie), whose authoring
+stages remain in `scripts/su57_{normalize,rig,cockpit,correction,geometry_detail,export}.py`
+and are no longer part of the runtime model.
 
-Working source: `output/Su57-Felon.blend`, edited through live Blender MCP.
-Metric geometry measures 20.1 m length, 14.1 m span, 4.6 m extended-gear height.
-Dimensions use public CAD research anchors; the rig, gear, close-up mechanical
-reconstruction and hidden structures are engineering visual estimates.
+`su57_lod0.glb` through `su57_lod3.glb` are generated and not version
+controlled. Rebuild them headless from the unmodified donor:
 
-LOD0 retains the supplied six exterior body/engine PBR images. Imported cockpit
-artwork named for an F-14 is not used by the runtime model; owned materials and
-static display geometry replace it. The original source collections remain in
-the working .blend for recoverability and retain their original unknown status.
+```sh
+blender -b --factory-startup --disable-autoexec \
+  --python scripts/su57_donor_import.py -- --source /path/to/su57.blend
+```
 
-1,551 additional real geometry components are grouped into 51 rig-aware meshes:
-hollow spoked hubs, brake stacks/calipers, clevis plates/pins, seals/collars,
-actuator barrels/pistons, hydraulic fittings/hoses, door hinges/ribs, skin seams,
-inspection-cover rims and millimetre flush fasteners. Camouflage and microscopic
-surface variation remain textures. Fine parts are excluded beyond LOD0/1.
+The script writes the four GLBs and `lod_stats.json` here and an editable
+`output/Su57_Felon_donor.blend`. It is deterministic and safe to repeat.
 
-GLBs 1–3 reuse LOD0 textures by material name. The four `lod*_stats.json` files
-record evaluated geometry; runtime mesh merging can reduce the draw count.
-See `docs/M3_68_SU57_REALISM_GRAPHICS_VALIDATION.md` for physics, provenance,
-approximation labels, measured validation and remaining limitations.
+## What the import changes
 
-Normalization is anisotropic: the source length/span anchors (17.1699963 m /
-12.3671279 m) are scaled to 20.1 m / 14.1 m. This imposes approximately +17.06%
-length and vertical scaling, +14.01% span scaling, and -2.61% span relative to
-uniform length scaling. The generated `normalization_deformation.json` records
-exact factors and volume deformation. The existing baseline calculation is also
-recorded in `data/geometry/su57-normalization.json`. These are visual dimension targets, not
-an OEM geometry validation.
+- Length is scaled to the published 20.1 m (0.10261 m per donor unit). The donor
+  is 3.0 % wider for that length than the published 14.1 m span, so its lateral
+  axis alone is narrowed by 0.9698. Span, wingtips and engine spacing then agree
+  with `data/physics/su57.json`; every hinge and fold is rigged after that
+  correction, so moving parts stay rigid.
+- The aircraft stands with its nozzle centres on the simulated thrust line,
+  2.29 m above the ground. That raises the main legs 0.08 m into their wells and
+  extends the nose oleo 0.23 m (a vertical stretch of the piston only) so all
+  tyres rest on one plane. Overall height measures 4.61 m against the 4.6 m target.
+- The donor already separates its LEVCONs, leading-edge flaps, flaperons,
+  ailerons, stabilators, nozzles, gear and doors. They are grouped under pivots
+  with the channel names the renderer animates. The one cut is each fin blade,
+  which the donor welds to its fixed root fairing.
+- Thrust-vectoring pivots use the same canted axes as the flight model.
+- Each main door hinge is fitted so the open door lands on the donor's own
+  flush gear-up skin; the residual is 3.4 cm RMS.
+- Glass BSDF and transmissive HUD materials have no runtime equivalent and are
+  replaced by alpha-blended materials. The 4096 px base colour, normal and
+  metallic/roughness atlas is embedded unchanged in LOD0.
 
-Pipeline paths are arguments: `--source`, `--working-output`, `--output-dir`,
-`--report-dir`, and `--project-root`. Invoke Blender with arguments after `--`.
-Follow-on rig/detail/export stages share the resolved pipeline namespace.
+LOD triangles: **31,553 / 18,960 / 8,395 / 2,284**. Reduced levels are Blender
+collapse decimation of the same meshes and reuse LOD0 materials by name.
+
+## Known approximations
+
+- `data/physics/su57.json` takes its gear contact points and its stabilator,
+  aileron, fin and LEVCON hinge stations from this model, so the simulated
+  wheelbase is the donor's 6.25 m.
+- Nozzle centres are 1.41 m from the centreline; the simulated engines and the
+  exhaust plumes are at 1.34 m.
+- Retraction is one 90 degree forward fold per leg. The stowed main wheels also
+  slide 0.9 m inboard, into space the donor leaves empty behind its blanked
+  intake ducts. The forward nose doors stay shut, as the donor models them, so
+  the nose wheels pass through them while the gear is travelling.
+- The boom tail cone beside each nozzle moves with its stabilator, because the
+  donor's stabilator extends beneath it.
+- Nozzle petals do not open with reheat.
+- Markings are the donor's Russian Aerospace Forces "051" scheme.

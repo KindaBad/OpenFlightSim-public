@@ -46,11 +46,10 @@ committing and delivering both source snapshots. Published versions are immutabl
 Documentation-only and local-only artwork work does not require a version bump.
 Do not increment again merely to retry an unpublished or draft version.
 
-Player builds from 0.3.1 include the Su-57 only as reviewed protected content;
-local development may retain loose authoring exports. Rebuild and verify the approved aircraft content pack
-and refresh its CI hash/size/URL when shipping changes to its original aircraft.
-Do not publish the current Su-57 model files without resolving their distribution
-rights. Verify release workflow results and the public launcher manifest before
+Player builds from 0.4.3 ship the Su-57 and Typhoon as unencrypted CC BY-NC-SA
+adaptations with credit in `licenses/assets/`; the earlier CGTrader Su-57 is
+retired and must not be published. Rebuild and verify the approved aircraft content pack
+and refresh its CI hash/size/URL when shipping changes to any aircraft model. Verify release workflow results and the public launcher manifest before
 reporting that a player update is available; report genuine release blockers.
 
 Aircraft provenance hashes cover tracked configuration inputs, including

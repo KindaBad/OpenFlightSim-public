@@ -497,12 +497,11 @@ production renderer. Details and acceptance status are recorded in
 
 ## M3.68 Su-57 and shared realism/rendering
 
-Choose `--aircraft su57` for the local Downloads-based integration. No Blender is
-needed to run the four exported GLBs. The supplied asset's redistribution licence
-is unverified; see `assets/aircraft/su57/README.md` before publishing packages.
-The original Downloads .blend is preserved; the working source is
-`output/Su57-Felon.blend`. Authoring scripts in `scripts/su57_*.py` are executed
-inside the live Blender MCP session, not as background Blender batch jobs.
+Choose `--aircraft su57`. No Blender is needed to run the four exported GLBs.
+Since 0.4.3 they come from a Creative Commons donor through the headless
+`scripts/su57_donor_import.py`; see `assets/aircraft/su57/README.md`. The other
+`scripts/su57_*.py` stages belong to the retired M3.68 donor and ran inside a
+live Blender MCP session.
 
 Protocol v7 adds two authoritative nozzle actuator angles and stable type ID 5.
 Rebuild client, server, tests and C API consumers together. Supplemental

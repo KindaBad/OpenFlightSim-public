@@ -345,15 +345,12 @@ contains exactly the registry GLBs/LODs, `asset-approval.json`, and optional
 ```
 
 List **every** model/LOD, not only Su-57. A publisher must actually establish
-those rights; a JSON assertion cannot grant them. The Su-57 donor's CGTrader
-listing is recorded in ASSET_RELEASE_PROVENANCE.md; its incorporated-use terms
-require asset protection and do not permit standalone GLB/source downloads.
-The current loose-GLB package is not approved for it. Player builds set
-`OFS_INCLUDE_SU57=OFF`, excluding it from the compiled registry, launcher catalogue,
-installed models and content pack. Local development defaults to `ON`.
-CI runs the complete source regression suite with the normal registry, then
-rebuilds the player binaries with the three-aircraft registry and requires their
-model/LOD content checks to pass. CI fails when release inputs or
+those rights; a JSON assertion cannot grant them. The Su-57 and Typhoon donors' Creative
+Commons listings are recorded in ASSET_RELEASE_PROVENANCE.md; both ship as
+ordinary GLBs. `OFS_INCLUDE_SU57=OFF` still excludes the Su-57 from the compiled
+registry, launcher catalogue, installed models and content pack.
+CI runs the complete source regression suite, then reconfigures the player
+binaries to require every registry model and LOD and runs their content checks. CI fails when release inputs or
 approval are missing. See LAUNCHER_DEPENDENCIES.md for runtime/license/source
 publication requirements.
 

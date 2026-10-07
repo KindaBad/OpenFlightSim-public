@@ -40,8 +40,9 @@ runtime/dependency notices and an approved aircraft pack. Public source publicat
 does not permit publishing the CGTrader Su-57 as loose model/source files. Its
 user-supplied listing permits incorporated game use with asset safeguards; the
 reviewed protected-content path is documented in [protected aircraft packaging](PROTECTED_AIRCRAFT.md).
-The first player release (0.3.0) omitted the Su-57. Version 0.3.1 enables it
-through an encrypted game-content pack; source artwork remains excluded. Record
+The first player release (0.3.0) omitted the Su-57. Versions 0.3.1 to 0.4.2
+shipped that donor as an encrypted game-content pack. From 0.4.3 the Su-57 is a
+Creative Commons model shipped unencrypted; source artwork remains excluded. Record
 the original author, source and applicable license when preparing the pack; see
 [asset provenance](ASSET_RELEASE_PROVENANCE.md) and [release packaging](LAUNCHER.md).
 

@@ -64,11 +64,6 @@ def check_public_payload(stage):
     for path in stage.rglob('*.ofspack'):
         if path.relative_to(stage).as_posix() not in registered:
             raise LauncherError('Unregistered protected asset cannot be published')
-    su57 = stage / 'assets/aircraft/su57'
-    if su57.exists():
-        for path in su57.rglob('*'):
-            if path.is_file() and path.suffix.lower() not in ('.ofspack', '.md'):
-                raise LauncherError('Public Su-57 content must be protected; loose files prohibited')
 
 
 def records_for(directory):

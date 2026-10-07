@@ -69,7 +69,6 @@ jobs:
       OFS_ASSET_PACK_URL: ${{ secrets.OFS_ASSET_PACK_URL }}
       OFS_ASSET_PACK_SHA256: ${{ secrets.OFS_ASSET_PACK_SHA256 }}
       OFS_ASSET_PACK_SIZE: ${{ secrets.OFS_ASSET_PACK_SIZE }}
-      OFS_ASSET_KEY_HEX: ${{ secrets.OFS_ASSET_KEY_HEX }}
       OFS_UPDATE_BASE_URL: ${{ vars.OFS_UPDATE_BASE_URL }}
       OFS_CHANNEL: ${{ inputs.channel || (endsWith(github.ref_name, '-development') && 'development' || 'stable') }}
       QT_QPA_PLATFORM: offscreen
@@ -90,7 +89,7 @@ jobs:
           tag = 'v' + version + ('-development' if os.environ['OFS_CHANNEL'] == 'development' else '')
           if ref.startswith('refs/tags/') and ref != 'refs/tags/' + tag:
               raise SystemExit('Tag must match the CMake project version')
-          for key in ('OFS_ASSET_PACK_URL', 'OFS_ASSET_PACK_SHA256', 'OFS_ASSET_PACK_SIZE', 'OFS_UPDATE_BASE_URL', 'OFS_ASSET_KEY_HEX'):
+          for key in ('OFS_ASSET_PACK_URL', 'OFS_ASSET_PACK_SHA256', 'OFS_ASSET_PACK_SIZE', 'OFS_UPDATE_BASE_URL'):
               if not os.environ.get(key):
                   raise SystemExit(f'{key} must be configured before release packaging')
           expected = f'https://github.com/{os.environ["GITHUB_REPOSITORY"]}/releases/download/launcher-updates'
@@ -148,7 +147,7 @@ jobs:
       - name: Configure Windows
         if: runner.os == 'Windows'
         shell: pwsh
-        run: cmake -S . -B build/release -G "Visual Studio 17 2022" -A x64 "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" "-DOFS_RELEASE_CHANNEL=$env:OFS_CHANNEL" -DOFS_INCLUDE_SU57=ON -DOFS_REQUIRE_PRODUCTION_ASSETS=OFF -DOFS_ASSET_KEY_FILE= -DOFS_PROTECTED_SU57_ROOT=
+        run: cmake -S . -B build/release -G "Visual Studio 17 2022" -A x64 "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" "-DOFS_RELEASE_CHANNEL=$env:OFS_CHANNEL" -DOFS_INCLUDE_SU57=ON -DOFS_REQUIRE_PRODUCTION_ASSETS=OFF -DOFS_ASSET_KEY_FILE=
       - name: Build simulator, server and compiled catalogue
         run: cmake --build build/release --config Release --parallel 3
       - name: Check source provenance first
@@ -162,18 +161,9 @@ jobs:
         with:
           path: build/release
           key: windows-native-build-${{ steps.vcpkg-environment.outputs.version }}-${{ hashFiles('cmake/Dependencies.cmake', 'network/CMakeLists.txt') }}-v1
-      - name: Prepare protected content key
-        shell: bash
-        run: |
-          python - <<'PY'
-          import os, pathlib, re
-          key = os.environ['OFS_ASSET_KEY_HEX'].strip()
-          if not re.fullmatch('[0-9a-f]{64}', key):
-              raise SystemExit('Invalid protected content key secret')
-          pathlib.Path('build/content.ofskey').write_text(key + '\n')
-          PY
-      - name: Configure player registry with protected Su-57
-        run: cmake -S . -B build/release -DOFS_INCLUDE_SU57=ON -DOFS_REQUIRE_PRODUCTION_ASSETS=ON -DOFS_ASSET_KEY_FILE=${{ github.workspace }}/build/content.ofskey -DOFS_PROTECTED_SU57_ROOT=${{ github.workspace }}
+      # No shipped aircraft is encrypted, so player binaries carry no content key.
+      - name: Configure player registry with all four aircraft
+        run: cmake -S . -B build/release -DOFS_INCLUDE_SU57=ON -DOFS_REQUIRE_PRODUCTION_ASSETS=ON -DOFS_ASSET_KEY_FILE=
       - name: Rebuild the player binaries and catalogue
         run: cmake --build build/release --config Release --parallel 3
       - name: Provision approved release assets

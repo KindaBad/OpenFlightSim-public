@@ -1,4 +1,10 @@
-OpenFlightSim 0.4.2 Launcher
+OpenFlightSim 0.4.3 Launcher
+
+- New Su-57 model: bohmerang's Su-57 Felon in Russian Aerospace Forces "051"
+  camouflage, with moving LEVCONs, leading-edge flaps, flaperons, ailerons,
+  all-moving tails, vectoring nozzles and retracting gear. It is Creative Commons
+  artwork (CC BY-NC-SA 4.0) and is installed unencrypted; the earlier encrypted
+  Su-57 model is removed by the update.
 
 - Redesigned launcher: a wide flight banner, blue Play button, selectable aircraft
   cards, quick graphics controls, and a persistent download/status bar.
@@ -62,11 +68,9 @@ The game and Qt/Python runtime are installed for your user account; no compiler
 or separately installed Python is required. Enable automatic updates in the
 launcher's Updates page once to install subsequent published versions when idle.
 
-This release includes A320, Typhoon, SR-71 and Su-57. The Su-57 uses protected
-game content and retains its existing controls, articulated landing gear,
-independent vectored nozzles and authored LODs. Original Su-57 model by lullabie
-(CGTrader); Typhoon model by bohmerang (Sketchfab, CC BY-NC-SA 4.0). Both
-artworks are separately licensed. Existing installations receive the
+This release includes A320, Typhoon, SR-71 and Su-57. The Su-57 and
+Typhoon models are by bohmerang (Sketchfab, CC BY-NC-SA 4.0) and are licensed
+separately from the game; see `licenses/assets`. Existing installations receive the
 new aircraft through the normal launcher update.
 
 The launcher uses dynamically linked Qt/PySide/shiboken 6.10.2. License notices

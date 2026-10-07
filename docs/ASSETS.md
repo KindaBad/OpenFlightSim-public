@@ -85,6 +85,15 @@ The generic Falcon and its authoring script were removed. Armed regression fixtu
 use production engineering aircraft. The NASA/public F-16 reference remains separate
 and is loaded only by the optional scientific validation target.
 
+## Sukhoi Su-57
+
+The runtime Su-57 is `assets/aircraft/su57/su57_lod0.glb` through
+`su57_lod3.glb`, adapted from bohmerang's CC BY-NC-SA 4.0 Sketchfab model by
+`scripts/su57_donor_import.py`. Source, license, import steps and measured
+dimensions are in `assets/aircraft/su57/README.md`. The earlier CGTrader donor
+and its `scripts/su57_{normalize,rig,cockpit,correction,geometry_detail,export}.py`
+stages are retired from the runtime.
+
 ## Eurofighter Typhoon
 
 The runtime Typhoon is `assets/aircraft/typhoon/typhoon_lod0.glb` through
@@ -129,7 +138,7 @@ sources, scripts, definitions, manifests and documentation only:
 
 | Content | Rule | Regenerate with |
 |---|---|---|
-| Runtime models (`*.glb`) | `*.glb` | `scripts/typhoon_donor_import.py`, `scripts/{sr71,su57}_export.py`; the A320 original come from the author's Blender scenes |
+| Runtime models (`*.glb`) | `*.glb` | `scripts/{typhoon,su57}_donor_import.py`, `scripts/sr71_export.py`; the A320 original come from the author's Blender scenes |
 | Blender sources (`*.blend`) | `*.blend` | Authored stages in `scripts/*.py` through live Blender MCP |
 | Large textures (>= 1 MiB) | explicit paths in `.gitignore` | Exported from the models; runtime ships them embedded in LOD0 |
 | Screenshots and contact sheets | `docs/images/` | `scripts/capture_*.py` |
@@ -144,6 +153,3 @@ Consequences for a fresh clone:
   `AircraftDefinition::modelAsset` in `core/src/aircraft_definition.cpp`.
 - Validation documents cite evidence by name and location in prose; they do not
   link to files, because those files are regenerated locally.
-
-The Su-57 additionally carries an unresolved redistribution question; see
-`assets/aircraft/su57/README.md` before publishing anything derived from it.

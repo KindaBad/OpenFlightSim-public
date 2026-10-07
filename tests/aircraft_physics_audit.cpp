@@ -108,11 +108,21 @@ void geometry(const std::filesystem::path& root) {
     for(double span:{.25*g.span,.4*g.span}) {
       double leading=1e9,trailing=-1e9;
       for(const auto& primitive:mesh.primitives)
-        if(primitive.name.find("wing")!=std::string::npos||primitive.name.find("Wing")!=std::string::npos||primitive.name.find("Main_Body")!=std::string::npos)
+        if(primitive.name.find("wing")!=std::string::npos||primitive.name.find("Wing")!=std::string::npos||primitive.name.find("Main_Body")!=std::string::npos||
+           primitive.name=="Su57 | airframe") // The donor welds its wing into the airframe shell.
           for(std::size_t k=0;k<primitive.vertices.size();k+=ofs::client::kGltfVertexFloats)
             if(std::abs(std::abs(primitive.vertices[k+2])-span)<.12) {
               leading=std::min(leading,double(primitive.vertices[k]));trailing=std::max(trailing,double(primitive.vertices[k]));
             }
+      // A low-polygon wing has no vertex near the station; cut its triangle edges instead.
+      if(!(leading<trailing))for(const auto& primitive:mesh.primitives)if(primitive.name=="Su57 | airframe")
+        for(std::size_t t=0;t+2<primitive.indices.size();t+=3)for(unsigned e=0;e<3;++e) {
+          const float* a=&primitive.vertices[primitive.indices[t+e]*ofs::client::kGltfVertexFloats];
+          const float* b=&primitive.vertices[primitive.indices[t+(e+1)%3]*ofs::client::kGltfVertexFloats];
+          if((a[2]-span)*(b[2]-span)>=0)continue;
+          const double x=a[0]+(b[0]-a[0])*(span-a[2])/(b[2]-a[2]);
+          leading=std::min(leading,x);trailing=std::max(trailing,x);
+        }
       check(leading<trailing,"wing station mesh measurement exists");
       std::printf("  wing slice y=%.3f asset leading/trailing=%.3f/%.3f m (if absent, inspect supplied mesh names; no OEM planform validation)\n",span,leading,trailing);
     }

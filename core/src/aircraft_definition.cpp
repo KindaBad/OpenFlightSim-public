@@ -107,11 +107,12 @@ std::span<const AircraftDefinition> aircraftDefinitions() {
           20.8,7,2,.34925,.3175,.020,true,1.9,1.6,-10*kDeg2Rad}, {1,1,1},std::nullopt,
         {"assets/aircraft/sr71/sr71_lod1.glb","assets/aircraft/sr71/sr71_lod2.glb","assets/aircraft/sr71/sr71_lod3.glb"},sr71Boxes},
 #if OFS_INCLUDE_SU57
+      // Anchors measured from the donor rig; see assets/aircraft/su57/README.md.
       AircraftDefinition{AircraftType::Su57,"su57","Sukhoi Su-57 | AL-41F1 approximation",
         "assets/aircraft/su57/su57_lod0.glb",su57Config(),
-        {{10.95,2.45,0},{6.70,0,-.98},{-37,6,-10},{-26,0,-6},{-.5,0,0},{-.5,0,0},
-          {{-7.85,-1.34,.16},{-7.85,1.34,.16}},{{-3.2,-6.95,.10},{-3.2,6.95,.10}},
-          13,5,2,.515,.33,.030,true,1.35,1.1}, {1,1,1},su57Gun,
+        {{10.95,2.45,0},{6.44,0,-1.12},{-37,6,-10},{-26,0,-6},{-.5,0,0},{-.5,0,0},
+          {{-7.85,-1.34,.16},{-7.85,1.34,.16}},{{-3.80,-7.05,.15},{-3.80,7.05,.15}},
+          13,5,2,.501,.312,.030,true,1.35,1.1}, {1,1,1},su57Gun,
         {"assets/aircraft/su57/su57_lod1.glb","assets/aircraft/su57/su57_lod2.glb","assets/aircraft/su57/su57_lod3.glb"},su57Boxes}
 #endif
     };

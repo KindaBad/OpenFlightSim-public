@@ -1,0 +1,130 @@
+{
+  "source": "https://sketchfab.com/3d-models/sukhoi-su-57-felon-fighter-jet-free-59995d6f34ba4bb7990195be3a745fc5",
+  "author": "bohmerang",
+  "license": "CC BY-NC-SA 4.0",
+  "scale_m_per_unit": 0.10260532231086181,
+  "span_correction": 0.9697611728763269,
+  "main_gear_lift_m": 0.08070281380854018,
+  "nose_oleo_extension_m": 0.2280208288383049,
+  "door_fit_rms_m": {
+    "main_L": 0.03432948563733163,
+    "main_R": 0.034278631515329595
+  },
+  "door_hinge_deg": {
+    "main_L": -77.3,
+    "main_R": 77.3
+  },
+  "dimensions_m": {
+    "length": 20.099998474121094,
+    "span": 14.09999942779541,
+    "height": 4.605612516403198,
+    "ground": 2.384185791015625e-07,
+    "nose": 0.0
+  },
+  "body_frd": {
+    "pilot_eye": [
+      6.442,
+      0.0,
+      -1.123
+    ],
+    "nozzle_exit_L": [
+      -7.79,
+      -1.412,
+      0.16
+    ],
+    "nozzle_pivot_L": [
+      -6.466,
+      -1.412,
+      0.16
+    ],
+    "wingtip_L": [
+      -3.799,
+      -7.05,
+      0.151
+    ],
+    "nose_wheel": [
+      4.51,
+      0.0,
+      2.138
+    ],
+    "main_wheel_L": [
+      -1.738,
+      -2.514,
+      1.949
+    ],
+    "fin_tip_L": [
+      -5.943,
+      -3.353,
+      -2.143
+    ],
+    "nose_tip": [
+      10.95,
+      0.0,
+      0.047
+    ]
+  },
+  "wheel_radius_m": {
+    "main": 0.5008112006414733,
+    "nose": 0.31166830470691587
+  },
+  "fuselage_top_bottom_body_z": {
+    "9.2": [
+      -0.421,
+      0.501
+    ],
+    "7.6": [
+      0.548,
+      0.548
+    ],
+    "5.8": [
+      -1.261,
+      -0.249
+    ],
+    "3.8": [
+      -0.954,
+      0.131
+    ],
+    "1.6": [
+      -0.683,
+      0.539
+    ],
+    "-0.6": [
+      -0.433,
+      0.558
+    ],
+    "-2.8": [
+      -0.309,
+      0.567
+    ],
+    "-5.8": [
+      -0.168,
+      0.56
+    ]
+  },
+  "lods": [
+    {
+      "level": 0,
+      "triangles": 31553,
+      "nodes": 68,
+      "bytes": 23335344
+    },
+    {
+      "level": 1,
+      "triangles": 18960,
+      "nodes": 67,
+      "bytes": 952112
+    },
+    {
+      "level": 2,
+      "triangles": 8395,
+      "nodes": 60,
+      "bytes": 460244
+    },
+    {
+      "level": 3,
+      "triangles": 2284,
+      "nodes": 50,
+      "bytes": 153868
+    }
+  ]
+}

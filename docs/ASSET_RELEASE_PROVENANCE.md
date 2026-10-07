@@ -23,7 +23,37 @@ weapons or other outlying geometry, add explicit airframe measurement metadata
 and independently test those anchors rather than relaxing tolerances. Passing
 imposed dimensions proves export scale, not accurate aerodynamic planform.
 
-## Su-57 normalization
+## Su-57 donor
+
+**PUBLIC SOURCE EXCLUDED / UNENCRYPTED GAME RELEASE UNDER CC BY-NC-SA 4.0.**
+The owner supplied `sukhoi-su-57-felon-fighter-jet-free(1).zip` on 2026-10-07 and
+asked for the Su-57 to use it. The archive matches the Sketchfab listing
+[Sukhoi Su-57 Felon - Fighter Jet - Free by bohmerang](https://sketchfab.com/3d-models/sukhoi-su-57-felon-fighter-jet-free-59995d6f34ba4bb7990195be3a745fc5)
+by name, triangle count (31,929) and the `SketchfabUploads\Su-57Felon` texture
+paths stored inside the Blender file. Sketchfab's listing record was read on
+2026-10-07 and shows publication on 2023-07-20 under CC
+Attribution-NonCommercial-ShareAlike. The archive carries no license file; a
+byte comparison against a fresh marketplace download was not performed. The
+supplied archive's SHA-256 is
+`379cb50bd7a85a0b746be8ddacfac96e35b613efebdbcdf41f9e10f9e45a4fef`.
+
+The reasoning recorded for the Typhoon donor below applies unchanged: the
+license permits non-commercial sharing and adaptation with attribution, requires
+adaptations to carry the same license and forbids technical measures that
+restrict those rights. From 0.4.3 the Su-57 therefore ships as ordinary GLBs
+with credit and terms in `licenses/assets/SU57.md`, and the packaging rule that
+required Su-57 content to be encrypted is removed. The approval depends on
+OpenFlightSim staying free of charge and non-commercial. This is the project's
+reading of the license, not a lawyer's review.
+
+Import measurements and known differences from the flight model are recorded in
+`assets/aircraft/su57/README.md` and its generated `lod_stats.json`.
+
+## Retired CGTrader Su-57 donor (0.3.1 to 0.4.2)
+
+The remainder of this section describes the donor shipped encrypted in those
+versions. It is no longer distributed, and its content key is no longer built
+into player binaries.
 
 The original local donor is `/home/kindabad/Downloads/Su57-Felon.blend`, recorded
 in the existing source inventory. Working copy: `output/Su57-Felon.blend`;

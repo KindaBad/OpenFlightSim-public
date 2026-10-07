@@ -195,7 +195,7 @@ class ReleasePipeline(unittest.TestCase):
         with self.assertRaisesRegex(LauncherError, 'loose copy'):
             check_asset_approval(self.simulator, path)
 
-    def test_keys_and_loose_su57_cannot_be_published(self):
+    def test_keys_cannot_be_published(self):
         from launcher.storage import sha256
         path = self.root / 'approval.json'
         write_json(path, {'schema': 1, 'assets': {name: dict(redistributable=True,
@@ -206,11 +206,7 @@ class ReleasePipeline(unittest.TestCase):
         with self.assertRaisesRegex(LauncherError, 'key file'):
             check_public_payload(self.simulator)
         key.unlink()
-        loose = self.simulator / 'assets/aircraft/su57/aircraft.glb'
-        loose.parent.mkdir(parents=True)
-        loose.write_bytes(b'private model')
-        with self.assertRaisesRegex(LauncherError, 'loose files'):
-            check_public_payload(self.simulator)
+        check_public_payload(self.simulator)
 
     def test_approval_is_hash_bound(self):
         records = {name: {'redistributable': True, 'license': 'Original fixture', 'source': 'Unit test fixture', 'sha256': self.metadata['files'][name]['sha256']} for name in ('assets/a320.glb', 'assets/typhoon.glb')}

@@ -289,7 +289,9 @@ The original pipeline baseline is17.1700×12.3671×2.7801m. Applied X/Z scale
 2.6077% narrower than uniform length scaling would produce, and volume scales
 by1.56244. Gear is subsequently authored and vertical origin shifted to fit
 4.6m total height. This is not a measurement establishing real Su-57 shape.
-`data/geometry/su57-normalization.json` preserves this deformation audit.
+That describes the donor retired in 0.4.3. The current donor is scaled uniformly
+by 0.10261 m per unit to 20.1 m and narrowed laterally by 0.9698 to 14.1 m;
+`data/geometry/su57-normalization.json` records those factors.
 
 The local assembled GLB measures20.1000×14.1000×4.6000m. Agreement is imposed
 by normalization. Independent real planform/area/tail/gear geometry error

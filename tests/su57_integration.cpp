@@ -19,7 +19,8 @@ void assets(const std::string& root) {
  check(std::abs(m.boundsMax[0]-m.boundsMin[0]-20.1)<.01 && std::abs(m.boundsMax[2]-m.boundsMin[2]-14.1)<.01 && std::abs(m.boundsMax[1]-m.boundsMin[1]-4.6)<.01,"metre scale length/span/gear height");
  std::set<std::string> channels;for(auto n:m.nodes)if(!n.channel.empty())channels.insert(n.channel);
  for(auto name:{"elevator","rudder","aileron_L","aileron_R","flap","slat","levcon","gear_fold","gear_door","steering","nose_wheel","wheel","compression_L","compression_R","compression_nose","vector_L","vector_R"})check(channels.contains(name),"complete useful rig channels");
- check(m.images.size()>=6,"retained packed PBR maps");
+ // One shared atlas: base colour, metallic/roughness and normal.
+ check(m.images.size()>=3,"retained packed PBR maps");
  std::uint64_t previous=m.triangleCount;
  for(auto path:d.lodAssets) {
   auto lod=loadGltf(root+'/'+std::string(path));check(lod.valid() && lod.images.empty() && lod.triangleCount<previous,"LOD triangle reduction and shared texture table");
