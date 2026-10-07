@@ -332,6 +332,7 @@ bool Renderer::initialize(const Platform& platform) {
   const UnlitVertex triangle[3] = {{-1, -1, 0, 0xffffffff}, {3, -1, 0, 0xffffffff}, {-1, 3, 0, 0xffffffff}};
   screenTriangle_ = bgfx::createVertexBuffer(
       bgfx::copy(triangle, static_cast<std::uint32_t>(sizeof(triangle))), unlitLayout_);
+  createStoreMeshes();
 
   synthesis_ = std::async(std::launch::async, synthesise, settings_);
 
@@ -425,6 +426,9 @@ void Renderer::destroy() {
   const auto* programs = reinterpret_cast<const bgfx::ProgramHandle*>(&programs_);
   for (std::size_t i = 0; i < sizeof(Programs) / sizeof(bgfx::ProgramHandle); ++i)
     if (bgfx::isValid(programs[i])) bgfx::destroy(programs[i]);
+  for (auto& type : storeMeshes_) for (auto& detail : type) for (auto& part : detail)
+    if (bgfx::isValid(part.vertices)) bgfx::destroy(part.vertices);
+  if (bgfx::isValid(pylonMesh_.vertices)) bgfx::destroy(pylonMesh_.vertices);
   if (bgfx::isValid(flameMesh_)) bgfx::destroy(flameMesh_);
   if (bgfx::isValid(screenTriangle_)) bgfx::destroy(screenTriangle_);
   bgfx::shutdown();
@@ -630,6 +634,12 @@ bool Renderer::finishAircraft(AircraftSource source) {
   if (!asset.loaded) {
     log("ASSET", "Aircraft GPU upload failed");
     return false;
+  }
+  asset.pylonHeight = measurePylonHeights(asset.mesh, source.type);
+  if (asset.pylonHeight[0] > 0 || asset.pylonHeight[2] > 0) {
+    std::string heights;
+    for (std::size_t i = 0; i < 4; ++i) heights += " " + std::to_string(asset.pylonHeight[i]);
+    log("ASSET", asset.name + ": pylon heights" + heights + " m");
   }
   std::string tierTriangles;
   for (const auto& level:asset.mesh.levels) {
@@ -963,6 +973,19 @@ void Renderer::drawEffects(const CombatVisuals& combat) {
                0x00c8e8ffu|(faded<<24),3);
       continue;
     }
+    if (effect.kind == EffectKind::Trail) {
+      // One length of a motor trail: a soft tube that swells and thins as it
+      // ages, overlapping its neighbours so the whole reads as one plume.
+      const glm::vec3 axis = glm::normalize(renderDirection(effect.axis));
+      glm::vec3 across = glm::cross(axis, cameraEye_ - centre);
+      if (glm::dot(across, across) < 1e-8f) across = basisUp_;
+      const float radius = effect.size * (.6f + 2.6f * std::sqrt(t));
+      const auto alphaNow = static_cast<std::uint32_t>(alpha * (1.f - t) * (1.f - t));
+      // Each length reaches well into the next, so their soft ends sum to an even column.
+      emitQuad(centre, axis, glm::normalize(across), effect.stretch * 1.15f + radius, radius,
+               (color & 0x00ffffffu) | (alphaNow << 24), 4);
+      continue;
+    }
     if (effect.kind == EffectKind::Debris || effect.kind == EffectKind::Spark) {
       const glm::vec3 velocity = renderDirection(effect.velocity);
       const float speed = glm::length(velocity);
@@ -1264,8 +1287,9 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
   combat_.setEmissions(settings_.contrails, settings_.engineHeat);
   combat_.setCondensation(settings_.wingVapor, settings_.relativeHumidity);
   for (const auto &missile : combat.missiles)
-    combat_.updateMissile(missile.position, missile.attitude, missile.length,
-                          missile.diameter, missile.powered, effectDt);
+    combat_.updateMissile(missile.id, missile.position, missile.velocity, missile.attitude, missile.length,
+                          missile.diameter, missile.age, missile.powered, effectDt);
+  combat_.retireMissiles(combat.missiles.size());
   for (const auto &position : combat.missileDetonations)
     combat_.onDestroyed(position, {});
   flameTime_+=effectDt;
@@ -1341,6 +1365,7 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
   for (const RemoteAircraft& remote : remotes)
     if (remote.alive && (remote.state.pos_ned-camera.eye).norm()<settings_.renderDistance)
       drawAircraft(instances_.at(remote.entity), false, kViewWorld, viewProj_);
+  drawStores(combat, camera, false);
 
   // ---- Atmosphere: clouds, particles, plumes, rain ----
   drawClouds();
@@ -1357,6 +1382,7 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
     bgfx::setViewClear(kViewCockpit, BGFX_CLEAR_DEPTH, 0, 1.0f, 0);
     bgfx::setViewMode(kViewCockpit, bgfx::ViewMode::Sequential);
     drawAircraft(instances_.at(0), false, kViewCockpit, cockpitViewProj_);
+    drawStores(combat, camera, true);
   }
   compositeDisplay();
   bgfx::discard();

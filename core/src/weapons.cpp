@@ -23,7 +23,9 @@ const MissileDefinition &missileDefinition(WeaponType type) {
     d.length = 3;
     d.diameter = .13;
     d.launchMass = 90;
-    d.motor = {24, 12000, 3, 0, 0};
+    // Boost-sustain grain at about 235 s of specific impulse, typical of a
+    // reduced-smoke solid motor.
+    d.motor = {24, 15000, 2.2, 4500, 5};
     d.aero.area = kPi * .13 * .13 / 4;
     d.seeker = {24 * kDeg2Rad, 60 * kDeg2Rad, 120 * kDeg2Rad, 8000, .12, .5, 0};
     return d;
@@ -35,7 +37,7 @@ const MissileDefinition &missileDefinition(WeaponType type) {
     d.length = 3.66;
     d.diameter = .178;
     d.launchMass = 157;
-    d.motor = {55, 18000, 3, 5500, 6};
+    d.motor = {55, 22000, 3.5, 6500, 7.7, .3};
     d.aero.area = kPi * .178 * .178 / 4;
     d.aero.cd0 = .4;
     d.seeker = {16 * kDeg2Rad, 45 * kDeg2Rad, 80 * kDeg2Rad, 18000, .15, .7,
@@ -57,16 +59,18 @@ const MissileDefinition &missileDefinition(WeaponType type) {
 void Inventory::reset(AircraftType type) {
   stations.clear();
   selected = WeaponType::Infrared;
+  // Underwing pylons, measured against each visual model's lower wing skin:
+  // heat seekers outboard, radar missiles inboard and clear of the main gear.
   if (type == AircraftType::Typhoon)
-    stations = {{{0, -4.3, .5}, 6, WeaponType::Infrared},
-                {{0, 4.3, .5}, 6, WeaponType::Infrared},
-                {{-.5, -1.5, .8}, 6, WeaponType::ActiveRadar},
-                {{-.5, 1.5, .8}, 6, WeaponType::ActiveRadar}};
+    stations = {{{-2.8, -4.2, .52}, 6, WeaponType::Infrared},
+                {{-2.8, 4.2, .52}, 6, WeaponType::Infrared},
+                {{-1.8, -2.7, .63}, 6, WeaponType::ActiveRadar},
+                {{-1.8, 2.7, .63}, 6, WeaponType::ActiveRadar}};
   if (type == AircraftType::Su57)
-    stations = {{{.5, -3.5, .4}, 6, WeaponType::Infrared},
-                {{.5, 3.5, .4}, 6, WeaponType::Infrared},
-                {{0, -.6, .7}, 6, WeaponType::ActiveRadar},
-                {{0, .6, .7}, 6, WeaponType::ActiveRadar}};
+    stations = {{{-2.6, -4.8, .40}, 6, WeaponType::Infrared},
+                {{-2.6, 4.8, .40}, 6, WeaponType::Infrared},
+                {{-2.2, -3.4, .46}, 6, WeaponType::ActiveRadar},
+                {{-2.2, 3.4, .46}, 6, WeaponType::ActiveRadar}};
 }
 unsigned Inventory::remaining(WeaponType type) const {
   return std::count_if(stations.begin(), stations.end(),
@@ -113,6 +117,7 @@ void Inventory::applyPayload(const AircraftConfig &cfg, State &state) const {
   state.payload_products_correction = products;
 }
 double motorThrust(const MotorDefinition &d, double age) {
+  age -= d.ignitionDelay;
   if (age < 0)
     return 0;
   if (age < d.boostTime)
@@ -188,7 +193,10 @@ MissileState launchState(const MissileDefinition &d, const State &aircraft,
                          Vec3 station, Measurement target) {
   MissileState s;
   s.position = aircraft.pos_ned + aircraft.att.rotate(station);
-  s.velocity = aircraft.vel_ned + aircraft.att.rotate({0, 0, 4});
+  // A rail launch leaves along the rail; an ejected store is pushed clear and
+  // lights its motor below the aircraft.
+  s.velocity = aircraft.vel_ned +
+               aircraft.att.rotate({0, 0, d.motor.ignitionDelay > 0 ? 6. : 1.});
   s.attitude = aircraft.att;
   s.omega = aircraft.omega_body;
   s.propellant = d.motor.propellant;
@@ -202,30 +210,32 @@ MissileState launchState(const MissileDefinition &d, const State &aircraft,
                                                      : SeekerPhase::Searching;
   return s;
 }
+bool seekerDetects(const MissileDefinition &d, Vec3 position, Vec3 forward,
+                   Vec3 boresight, const SensorTarget &target) {
+  if (!target.alive)
+    return false;
+  const Vec3 los = target.position - position;
+  const double range = los.norm();
+  if (range <= 1e-3)
+    return false;
+  const double snr =
+      d.type == WeaponType::Infrared
+          ? infraredSignal(target, position) *
+                std::pow(d.seeker.signalRange / std::max(range, 1.), 2)
+          : targetRcs(target, position) *
+                std::pow(d.seeker.signalRange / std::max(range, 1.), 4);
+  return range <= d.seeker.signalRange * 3 && snr >= 1 &&
+         angle(forward, los) <= d.seeker.gimbal &&
+         angle(boresight, los) <= d.seeker.fov / 2 &&
+         lineOfSight(position, target.position);
+}
 Measurement updateSeeker(const MissileDefinition &d, MissileState &s,
                          const SensorTarget *target, double dt) {
   auto &seeker = s.seeker;
-  bool detectable = target && target->alive;
-  Vec3 los{};
-  double range = 0;
-  if (detectable) {
-    los = target->position - s.position;
-    range = los.norm();
-    detectable = range > 1e-3;
-  }
   const auto forward = s.attitude.rotate({1, 0, 0});
-  if (detectable) {
-    const double snr =
-        d.type == WeaponType::Infrared
-            ? infraredSignal(*target, s.position) *
-                  std::pow(d.seeker.signalRange / std::max(range, 1.), 2)
-            : targetRcs(*target, s.position) *
-                  std::pow(d.seeker.signalRange / std::max(range, 1.), 4);
-    detectable = range <= d.seeker.signalRange * 3 && snr >= 1 &&
-                 angle(forward, los) <= d.seeker.gimbal &&
-                 angle(seeker.boresight, los) <= d.seeker.fov / 2 &&
-                 lineOfSight(s.position, target->position);
-  }
+  bool detectable = target && seekerDetects(d, s.position, forward,
+                                            seeker.boresight, *target);
+  const Vec3 los = detectable ? target->position - s.position : Vec3{};
   if (detectable) {
     const double separation = angle(seeker.boresight, los);
     const double fraction =
@@ -379,9 +389,12 @@ void advanceMissile(const MissileDefinition &d, MissileState &s,
               .normalized();
     }
     s.age += h;
-    s.motor = thrust <= 0                 ? MotorPhase::Burnout
-              : s.age < d.motor.boostTime ? MotorPhase::Boost
-                                          : MotorPhase::Sustain;
+    s.motor = s.age < d.motor.ignitionDelay && s.propellant > 0
+                  ? MotorPhase::Ignition
+              : thrust <= 0 ? MotorPhase::Burnout
+              : s.age < d.motor.ignitionDelay + d.motor.boostTime
+                  ? MotorPhase::Boost
+                  : MotorPhase::Sustain;
     s.telemetry = {
         speed,
         mach,
@@ -512,6 +525,26 @@ void Radar::cycle(int direction) {
                                                     ? (direction < 0 ? 0 : -1)
                                                     : int(it - tracks_.begin());
   selected = tracks_[(index + (direction < 0 ? -1 : 1) + size) % size].entity;
+}
+bool Radar::lockNearest(const State &own) {
+  const Track *best = nullptr;
+  double bestCosine = -2;
+  const auto nose = own.att.rotate({1, 0, 0});
+  for (const auto &track : tracks_) {
+    if (track.quality < .35)
+      continue;
+    const double cosine =
+        nose.dot((track.position - own.pos_ned).normalized());
+    if (cosine > bestCosine) {
+      bestCosine = cosine;
+      best = &track;
+    }
+  }
+  if (!best)
+    return false;
+  selected = locked = best->entity;
+  mode = RadarMode::Track;
+  return true;
 }
 bool Radar::toggleLock() {
   if (locked.id) {

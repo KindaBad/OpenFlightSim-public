@@ -33,6 +33,7 @@ enum class EffectKind : std::uint8_t {
   Dust,
   Fire,
   Spark,
+  Trail,         // one length of a rocket motor's smoke trail, along `axis`
   Count
 };
 
@@ -107,8 +108,12 @@ class CombatEffects {
   // An aircraft destroyed: fireball, smoke column and debris.
   void onDestroyed(const Vec3& position, const Vec3& velocity);
   void onGroundImpact(const Simulator::GroundImpact& impact);
-  void updateMissile(Vec3 position, Quat attitude, double length,
-                     double diameter, bool powered, double dt);
+  // A missile in flight: motor flame and glow, a smoke trail laid along its
+  // path, and a burst of exhaust the moment the motor lights.
+  void updateMissile(std::uint64_t id, Vec3 position, Vec3 velocity, Quat attitude, double length,
+                     double diameter, double age, bool powered, double dt);
+  // Forgets missiles that were not updated this frame.
+  void retireMissiles(std::size_t active);
   void setCondensation(bool enabled, double humidity) { vapor_ = enabled; humidity_ = humidity; }
   // Exhaust contrails and wing condensation, spawned from simulated airflow.
   void updateAircraft(const State& aircraft, double dt, AircraftType type,
@@ -122,6 +127,8 @@ class CombatEffects {
   double scrapeClock_{};
   struct Emitter { double time{}, groundTime{}; std::uint32_t sequence{}; Vec3 previous{}; bool primed{}; double integrity{1}; };
   std::map<std::uint64_t, Emitter> emitters_; // at most 64 aircraft
+  struct MissileEmitter { Vec3 nozzle{}; double sinceSegment{}; bool primed{}, lit{}, seen{}; };
+  std::map<std::uint64_t, MissileEmitter> missiles_; // at most the server's pool of 128
 };
 
 }  // namespace ofs::client

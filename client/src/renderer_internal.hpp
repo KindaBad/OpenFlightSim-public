@@ -5,6 +5,9 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include "ofs/aircraft_definition.hpp"
+
+#include <array>
 #include <cstdint>
 
 namespace ofs::client {
@@ -22,6 +25,10 @@ struct UnlitVertex {
   float x, y, z;
   std::uint32_t color;
 };
+
+// Gap between each weapon station's store and the airframe skin above it.
+struct GpuMesh;
+std::array<float, 8> measurePylonHeights(const GpuMesh& mesh, AircraftType type);
 
 // Cloud layer constants shared between the frame constants and the passes.
 // The weather map repeats over this distance.

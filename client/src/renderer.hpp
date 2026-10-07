@@ -22,6 +22,7 @@
 #include "atmosphere_model.hpp"
 #include "camera.hpp"
 #include "effects.hpp"
+#include "ofs/weapons.hpp"
 #include "gltf.hpp"
 #include "landscape.hpp"
 #include "map.hpp"
@@ -75,13 +76,34 @@ struct CombatVisuals {
     bool xray{};
     float halfWidth{.13f};
   };
+  // A missile in flight, as the effects need it: where its motor is and what
+  // the motor is doing.
   struct MissileVisual {
-    Vec3 position;
+    std::uint64_t id{};
+    Vec3 position, velocity;
     Quat attitude;
-    double length{}, diameter{};
+    double length{}, diameter{}, age{};
     bool powered{};
   };
+  // One missile airframe to draw, hanging on a pylon or flying.
+  struct Store {
+    Vec3 position;
+    Quat attitude;
+    weapons::WeaponType type{weapons::WeaponType::Infrared};
+    bool onLocalAircraft{}; // drawn with the pilot's own airframe from the flight deck
+  };
+  // The pylon a station hangs from, which stays after its missile has gone.
+  struct Pylon {
+    Vec3 position; // store centreline at mid-length
+    Quat attitude;
+    AircraftType aircraft{AircraftType::Typhoon};
+    std::uint8_t station{};
+    weapons::WeaponType type{weapons::WeaponType::Infrared};
+    bool onLocalAircraft{};
+  };
   std::vector<MissileVisual> missiles;
+  std::vector<Store> stores;
+  std::vector<Pylon> pylons;
   std::vector<Vec3> missileDetonations;
   std::vector<Line> lines;
   std::vector<Shot> shots;
@@ -284,6 +306,8 @@ class Renderer {
     std::string name;
     bool loaded{};
     std::size_t textureBytes{};
+    // Gap between each weapon station's store and the skin above it, metres.
+    std::array<float, 8> pylonHeight{};
   };
   const Model& model(AircraftType type) const { return models_.at(type); }
   Model& model(AircraftType type) {
@@ -346,6 +370,9 @@ class Renderer {
   void drawGrid();
   void drawAircraft(const Instance& instance, bool hide, bgfx::ViewId view, const glm::mat4& viewProj);
   void drawEffects(const CombatVisuals& combat);
+  void createStoreMeshes();
+  // Missiles and pylons; `flightDeck` draws only those on the pilot's own aircraft.
+  void drawStores(const CombatVisuals& combat, const Camera& camera, bool flightDeck);
   void drawAfterburners(bool localDestroyed);
   void applyMaterial(const Material& material, const Model* model = nullptr, float detail = 0);
   std::uint32_t resetFlags() const;
@@ -392,6 +419,13 @@ class Renderer {
   std::map<std::uint64_t, Instance> instances_;
   std::uint64_t auxiliaryTextureBytes_{};
   bgfx::TextureHandle whiteTexture_{BGFX_INVALID_HANDLE};
+  // Missile airframes by weapon type, detail level and part, plus the pylon.
+  struct PartBuffer {
+    bgfx::VertexBufferHandle vertices{BGFX_INVALID_HANDLE};
+    std::uint32_t count{};
+  };
+  std::array<std::array<std::array<PartBuffer, 4>, 2>, 2> storeMeshes_{};
+  PartBuffer pylonMesh_{};
   bgfx::VertexBufferHandle flameMesh_{BGFX_INVALID_HANDLE};
   unsigned flameVertices_{};
   double flameTime_{};

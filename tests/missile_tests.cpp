@@ -32,7 +32,10 @@ void propulsion() {
   for (auto type : {WeaponType::Infrared, WeaponType::ActiveRadar}) {
     const auto &d = missileDefinition(type);
     check(motorThrust(d.motor, -1) == 0 &&
-              motorThrust(d.motor, 0) == d.motor.boostThrust &&
+              motorThrust(d.motor, d.motor.ignitionDelay * .5) ==
+                  (d.motor.ignitionDelay > 0 ? 0 : d.motor.boostThrust) &&
+              motorThrust(d.motor, d.motor.ignitionDelay) ==
+                  d.motor.boostThrust &&
               motorThrust(d.motor, 100) == 0,
           "motor stages");
     auto s = launchState(d, launchAircraft(), {}, {});
@@ -40,7 +43,9 @@ void propulsion() {
     double burnoutSpeed = 0;
     for (unsigned i = 0; i < 120 * 12; ++i) {
       advanceMissile(d, s, nullptr, nullptr, {}, tickSeconds);
-      if (i + 1 == unsigned((d.motor.boostTime + d.motor.sustainTime) * 120))
+      if (i + 1 == unsigned((d.motor.ignitionDelay + d.motor.boostTime +
+                             d.motor.sustainTime) *
+                            120))
         burnoutSpeed = s.velocity.norm();
     }
     check(s.propellant < 1e-5 &&
@@ -329,6 +334,99 @@ void security() {
   world.leave(a);
   check(world.missiles().missiles().empty(), "disconnect missile cleanup");
 }
+void acquisition() {
+  // The mounted seeker finds, holds and releases its own target; the radar
+  // locks whatever the nose points at. Neither needs a target cycled to.
+  World world;
+  const auto a = world.join(AircraftType::Typhoon),
+             b = world.join(AircraftType::Su57),
+             c = world.join(AircraftType::Typhoon);
+  auto &p = fixture(world, a);
+  const auto place = [&] {
+    auto s = launchAircraft();
+    p.sim.setState(s);
+    s.pos_ned = {2500, 60, -3000};
+    fixture(world, b).sim.setState(s);
+    s.pos_ned = {2500, 350, -3000};
+    fixture(world, c).sim.setState(s);
+  };
+  const auto &w = p.weapons;
+  const auto &lock = missileDefinition(WeaponType::Infrared).seeker;
+  place();
+  world.step();
+  check(w.acquisitionTarget.id == b && !w.seekerReady && w.lockProgress < 1 &&
+            !w.radar.selected.id,
+        "seeker takes the target nearest the nose without the radar");
+  unsigned ticks = 1;
+  while (!w.seekerReady && ticks < 600) {
+    place();
+    world.step();
+    ++ticks;
+  }
+  check(ticks >= unsigned(lock.lockTime * 120) && ticks < 600 &&
+            w.lockProgress == 1,
+        "lock builds over the seeker lock time");
+  std::uint64_t sequence = 0;
+  const auto act = [&](WeaponActionKind kind, unsigned station = 0) {
+    check(world.enqueueWeapon(a, {++sequence, world.tick(), p.life.generation,
+                                  kind, std::uint8_t(station)}),
+          "action admitted");
+    place();
+    world.step();
+  };
+  act(WeaponActionKind::Unlock);
+  place();
+  world.step();
+  check(w.acquisitionTarget.id == c && !w.seekerReady,
+        "breaking lock moves the seeker to the next target");
+  while (!w.seekerReady && ticks < 1200) {
+    place();
+    world.step();
+    ++ticks;
+  }
+  act(WeaponActionKind::Launch, 0);
+  check(world.missiles().missiles().size() == 1 &&
+            world.missiles().missiles()[0].target.id == c &&
+            world.missiles().missiles()[0].type == WeaponType::Infrared,
+        "heat seeker launches at its own target");
+  for (unsigned i = 0; i < 300; ++i) {
+    place();
+    world.step();
+  }
+  check(w.radar.tracks().size() == 2, "radar formation");
+  act(WeaponActionKind::SelectRadar);
+  place();
+  world.step();
+  check(!w.acquisitionTarget.id && w.lockProgress == 0,
+        "seeker caged with the radar missile selected");
+  act(WeaponActionKind::Lock);
+  for (unsigned i = 0; i < 15; ++i) { // one radar revisit of the new lock
+    place();
+    world.step();
+  }
+  check(w.radar.locked.id == b && w.radar.selected.id == b && w.seekerReady,
+        "lock takes the track nearest the nose");
+  const auto projected = radarProjection(w, p.life.generation);
+  check(projected.seekerTarget.id == b && projected.lockProgress == 1,
+        "projected lock target");
+  act(WeaponActionKind::Unlock);
+  check(!w.radar.locked.id && !w.radar.selected.id, "unlock clears selection");
+  const auto loadouts = world.loadoutsNear(b);
+  check(loadouts.size() == 2 && loadouts[0].entity.id == c &&
+            loadouts[0].mounted == 0b1111 && loadouts[1].entity.id == a &&
+            loadouts[1].mounted == 0b1110,
+        "nearby stores projected nearest first");
+  auto &motor = missileDefinition(WeaponType::ActiveRadar);
+  auto s = launchState(motor, launchAircraft(), {}, {});
+  advanceMissile(motor, s, nullptr, nullptr, {}, tickSeconds);
+  check(s.motor == MotorPhase::Ignition && s.telemetry.thrust == 0 &&
+            s.velocity.z > 5,
+        "ejected store falls clear before ignition");
+  for (unsigned i = 0; i < 60; ++i)
+    advanceMissile(motor, s, nullptr, nullptr, {}, tickSeconds);
+  check(s.motor == MotorPhase::Boost && s.position.z > -2999,
+        "motor lights below the aircraft");
+}
 void fuse() {
   MissileCombat missiles;
   Combat combat;
@@ -415,10 +513,20 @@ void radarProtocol() {
                               .8,
                               .75,
                               1});
+  m.radar.seekerTarget = {5, 3};
+  m.radar.lockProgress = .6;
+  for (unsigned i = 0; i < maxLoadouts; ++i)
+    m.radar.loadouts.push_back({{i + 2, 3}, std::uint8_t(i)});
   auto bytes = encodeWeapon(m);
   WeaponMessage decoded;
-  check(bytes.size() == 592 && decodeWeapon(bytes, decoded),
+  check(bytes.size() == 814 && decodeWeapon(bytes, decoded),
         "maximum radar packet");
+  check(decoded.radar.seekerTarget == m.radar.seekerTarget &&
+            std::abs(decoded.radar.lockProgress - .6) < .005 &&
+            decoded.radar.loadouts.size() == maxLoadouts &&
+            decoded.radar.loadouts[9].entity == EntityRef{11, 3} &&
+            decoded.radar.loadouts[9].mounted == 9,
+        "seeker and stores round trip");
   check(decoded.radar.locked == m.radar.locked &&
             decoded.radar.generation == 2 &&
             (decoded.radar.tracks[0].position - m.radar.tracks[0].position)
@@ -446,7 +554,7 @@ void radarProtocol() {
     bounded = true;
   }
   check(bounded, "radar track cap");
-  std::printf("maxRadar=592 tracks=16 stations=8\n");
+  std::printf("maxRadar=814 tracks=16 stations=8 loadouts=16\n");
 }
 void presentation() {
   WeaponReplicationReceiver receiver;
@@ -661,6 +769,8 @@ int main(int argc, char **argv) {
       security();
     else if (suite == "fuse")
       fuse();
+    else if (suite == "acquisition")
+      acquisition();
     else if (suite == "protocol")
       protocol();
     else if (suite == "lifecycle")

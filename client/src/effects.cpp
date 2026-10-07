@@ -186,30 +186,110 @@ void CombatEffects::onHit(const Vec3& position, bool ownAircraft, std::uint64_t 
   }
 }
 
-void CombatEffects::updateMissile(Vec3 position, Quat attitude, double length,
-                                  double diameter, bool powered, double dt) {
-  if (!powered || quality_ == EffectsQuality::Off || dt <= 0)
+void CombatEffects::updateMissile(std::uint64_t id, Vec3 position, Vec3 velocity, Quat attitude,
+                                  double length, double diameter, double age, bool powered, double dt) {
+  if (quality_ == EffectsQuality::Off || dt <= 0) return;
+  auto& emitter = missiles_[id];
+  emitter.seen = true;
+  const Vec3 aft = attitude.rotate({-1, 0, 0});
+  const Vec3 nozzle = position + aft * (length * .5);
+  if (!emitter.primed) {
+    emitter.primed = true;
+    emitter.nozzle = nozzle;
+  }
+  if (!powered) {
+    emitter.nozzle = nozzle;
+    emitter.lit = false;
     return;
-  const auto aft = attitude.rotate({-1, 0, 0});
+  }
+  const auto seed = static_cast<std::uint32_t>(id * 2654435761u);
+  if (!emitter.lit && age < 2) {
+    // Ignition: a flash at the nozzle and a ring of exhaust blown back along
+    // the launch line, left behind as the missile pulls away.
+    emitter.lit = true;
+    Effect flash;
+    flash.kind = EffectKind::MuzzleFlash;
+    flash.position = nozzle;
+    flash.velocity = velocity;
+    flash.lifetime = .14f;
+    flash.size = float(diameter * 16);
+    flash.tint = 0xff8ad8ffu;
+    pool_.spawn(flash);
+    for (unsigned i = 0; i < (quality_ == EffectsQuality::High ? 10u : 5u); ++i) {
+      const float a = hashUnit(seed + i * 7919) * 6.2832f, b = hashUnit(seed + i * 3571 + 5);
+      Effect puff;
+      puff.kind = EffectKind::Smoke;
+      puff.position = nozzle + aft * (b * 2.5);
+      puff.velocity = velocity * .35 + aft * (20 + 30 * b) +
+                      attitude.rotate({0, std::cos(a), std::sin(a)}) * (2 + 5 * b);
+      puff.drag = 2.2f;
+      puff.lifetime = 1.4f + b;
+      puff.size = float(diameter * (7 + 6 * b));
+      puff.tint = 0xb0dcdad6u;
+      pool_.spawn(puff);
+    }
+  }
+  emitter.lit = true;
+  // The flame and its glow ride with the missile for one frame each.
   Effect flame;
   flame.kind = EffectKind::Fire;
-  flame.position = position + aft * (length * .5);
-  flame.velocity = aft * 18;
-  flame.lifetime = float(std::min(.06, dt));
-  flame.size = float(diameter * .6);
-  flame.stretch = float(diameter * 8);
-  flame.billboard = false;
-  flame.tint = 0xff70c0ff;
+  flame.position = nozzle + aft * (diameter * 5);
+  flame.velocity = velocity;
+  flame.lifetime = float(std::clamp(dt * 1.5, .02, .08));
+  flame.size = float(diameter * 4.5);
+  flame.tint = 0xff90d0ffu;
   pool_.spawn(flame);
-  Effect smoke;
-  smoke.kind = EffectKind::Smoke;
-  smoke.position = flame.position;
-  smoke.velocity = aft * 3;
-  smoke.size = float(diameter * 1.5);
-  smoke.lifetime = 1.5f;
-  smoke.tint = 0x908e9399;
-  smoke.stretch = 1.5f;
-  pool_.spawn(smoke);
+  // The plume itself: a bright tapered streak several body lengths long.
+  Effect plume;
+  plume.kind = EffectKind::Tracer;
+  plume.position = nozzle;
+  plume.velocity = velocity;
+  plume.billboard = false;
+  plume.lifetime = flame.lifetime;
+  plume.stretch = float(length * 2.2);
+  plume.size = float(diameter * 2.4);
+  plume.tint = 0xff70c4ffu;
+  pool_.spawn(plume);
+  Effect glow;
+  glow.kind = EffectKind::Light;
+  glow.position = nozzle + aft * (diameter * 2);
+  glow.velocity = velocity;
+  glow.lifetime = flame.lifetime;
+  glow.size = float(diameter * 9);
+  glow.tint = 0xffa8e4ffu;
+  pool_.spawn(glow);
+  // Smoke is laid in lengths between successive nozzle positions, so the trail
+  // is unbroken at any speed and frame rate.
+  emitter.sinceSegment += dt;
+  const Vec3 run = nozzle - emitter.nozzle;
+  const double distance = run.norm();
+  const double interval = quality_ == EffectsQuality::High ? 1. / 60 : 1. / 30;
+  if (distance > 400) {
+    emitter.nozzle = nozzle;  // a correction, not flight
+  } else if (emitter.sinceSegment >= interval && distance > .2) {
+    Effect smoke;
+    smoke.kind = EffectKind::Trail;
+    smoke.position = emitter.nozzle + run * .5;
+    smoke.axis = run / distance;
+    smoke.stretch = float(distance);
+    smoke.velocity = aft * 6 + Vec3{0, 0, -.4};
+    smoke.drag = 1.5f;
+    smoke.size = float(diameter * 3.2);
+    smoke.lifetime = quality_ == EffectsQuality::High ? 5.5f : 3.f;
+    smoke.tint = 0x9ce6e4e0u;
+    pool_.spawn(smoke);
+    emitter.nozzle = nozzle;
+    emitter.sinceSegment = 0;
+  }
+}
+
+void CombatEffects::retireMissiles(std::size_t active) {
+  if (missiles_.size() > active)
+    std::erase_if(missiles_, [](const auto& entry) { return !entry.second.seen; });
+  for (auto& [id, emitter] : missiles_) {
+    (void)id;
+    emitter.seen = false;
+  }
 }
 
 void CombatEffects::onDestroyed(const Vec3& position, const Vec3& velocity) {

@@ -113,6 +113,7 @@ void World::spawn(EntityId id, Player &p) {
   p.weapons.readyTick = tick_;
   p.weapons.acquisition = {};
   p.weapons.acquisitionTarget = {};
+  p.weapons.lockProgress = 0;
   p.weapons.inventory.applyPayload(p.sim.config(), s);
   s.time = double(tick_) * tickSeconds;
   if(airborne_ || p.bot) s.vel_ned+=weather_.wind_ned;
@@ -283,6 +284,27 @@ bool World::enqueueFire(EntityId id, const FireCommand &c) {
       std::max(combat_.stats().peakFireQueue, p.fireInputs.size());
   return true;
 }
+std::vector<Loadout> World::loadoutsNear(EntityId viewer) const {
+  std::vector<std::pair<double, Loadout>> near;
+  const auto self = players_.find(viewer);
+  if (self == players_.end())
+    return {};
+  const auto eye = self->second.sim.state().pos_ned;
+  for (const auto &[id, p] : players_) {
+    if (id == viewer || !p.life.alive() || p.weapons.inventory.stations.empty())
+      continue;
+    const double distance = (p.sim.state().pos_ned - eye).norm2();
+    if (distance <= 4000. * 4000.)
+      near.push_back({distance,
+                      {{id, p.life.generation}, mountedMask(p.weapons.inventory)}});
+  }
+  std::sort(near.begin(), near.end(),
+            [](const auto &a, const auto &b) { return a.first < b.first; });
+  std::vector<Loadout> result;
+  for (std::size_t i = 0; i < near.size() && i < maxLoadouts; ++i)
+    result.push_back(near[i].second);
+  return result;
+}
 bool World::enqueueWeapon(EntityId id, const WeaponAction &action) {
   auto it = players_.find(id);
   auto reject = [&] {
@@ -358,6 +380,7 @@ void World::step() {
       p.weapons.seekerReady = false;
       p.weapons.acquisition = {};
       p.weapons.acquisitionTarget = {};
+      p.weapons.lockProgress = 0;
       if (tick_ >= p.life.respawnTick) {
         ++p.life.generation;
         p.life.health = 100;
@@ -380,53 +403,125 @@ void World::step() {
     auto &w = p.weapons;
     w.seekerReady = false;
     w.envelope = {};
-    const auto *selected = w.radar.find(w.radar.selected);
-    if (selected && w.inventory.nextStation() >= 0) {
+    const double now = double(tick_) * tickSeconds;
+    if (w.inventory.selected == WeaponType::ActiveRadar ||
+        w.inventory.nextStation() < 0) {
+      w.acquisition = {};
+      w.acquisitionTarget = {};
+      w.lockProgress = 0;
+    }
+    if (w.inventory.nextStation() >= 0) {
       const auto &definition = weapons::missileDefinition(w.inventory.selected);
-      w.envelope = weapons::estimateEnvelope(
-          definition, p.sim.state(),
-          {selected->position, selected->velocity, true});
-      if (w.inventory.selected == WeaponType::ActiveRadar)
-        w.seekerReady =
-            w.radar.locked == selected->entity &&
-            double(tick_) * tickSeconds - selected->lastDetection <= .5;
-      else {
-        const auto sensor = std::find_if(
-            sensorTargets.begin(), sensorTargets.end(),
-            [&](const auto &t) { return t.entity == selected->entity; });
-        if (sensor != sensorTargets.end()) {
-          if (w.acquisitionTarget != selected->entity) {
-            w.acquisition = {};
-            w.acquisitionTarget = selected->entity;
-            w.acquisition.boresight = p.sim.state().att.rotate({1, 0, 0});
+      const auto &own = p.sim.state();
+      if (w.inventory.selected == WeaponType::ActiveRadar) {
+        const auto *selected = w.radar.find(w.radar.selected);
+        if (selected) {
+          w.envelope = weapons::estimateEnvelope(
+              definition, own, {selected->position, selected->velocity, true});
+          w.seekerReady = w.radar.locked == selected->entity &&
+                          now - selected->lastDetection <= .5;
+          w.lockProgress = w.seekerReady ? 1 : 0;
+        }
+      } else {
+        const auto station =
+            w.inventory.stations[unsigned(w.inventory.nextStation())].position -
+            loadedCg(p.sim.config(), own);
+        auto seeker = weapons::launchState(definition, own, station, {});
+        const auto nose = own.att.rotate({1, 0, 0});
+        const auto sensorOf = [&](EntityRef ref) {
+          return std::find_if(sensorTargets.begin(), sensorTargets.end(),
+                              [&](const auto &t) { return t.entity == ref; });
+        };
+        auto sensor = sensorOf(w.acquisitionTarget);
+        if (sensor == sensorTargets.end()) {
+          // Uncaged search: take the detectable target closest to the nose.
+          w.acquisition = {};
+          w.acquisitionTarget = {};
+          // A target just broken away from is retaken only when it is the
+          // sole one in view.
+          double best = -2;
+          bool bestFresh = false;
+          for (auto t = sensorTargets.begin(); t != sensorTargets.end(); ++t) {
+            if (t->entity.id == id)
+              continue;
+            const bool fresh = !(t->entity == w.seekerRejected &&
+                                 tick_ < w.seekerRejectedUntil);
+            const double cosine =
+                nose.dot((t->position - seeker.position).normalized());
+            if ((fresh && !bestFresh) || (fresh == bestFresh && cosine > best)) {
+              if (!weapons::seekerDetects(definition, seeker.position, nose,
+                                          nose, *t))
+                continue;
+              best = cosine;
+              bestFresh = fresh;
+              sensor = t;
+            }
           }
-          const auto index = unsigned(w.inventory.nextStation());
-          const auto offset = w.inventory.stations[index].position -
-                              loadedCg(p.sim.config(), p.sim.state());
-          auto seeker =
-              weapons::launchState(definition, p.sim.state(), offset, {});
+          if (sensor != sensorTargets.end()) {
+            w.acquisitionTarget = sensor->entity;
+            w.acquisition.boresight = nose;
+          }
+        }
+        if (sensor != sensorTargets.end()) {
           seeker.seeker = w.acquisition;
           weapons::updateSeeker(definition, seeker, &*sensor, tickSeconds);
           w.acquisition = seeker.seeker;
-          w.seekerReady = seeker.seeker.phase == weapons::SeekerPhase::Tracking;
+          if (w.acquisition.phase == weapons::SeekerPhase::Lost) {
+            w.acquisition = {};
+            w.acquisitionTarget = {};
+          } else {
+            w.envelope = weapons::estimateEnvelope(
+                definition, own, {sensor->position, sensor->velocity, true});
+            w.lockProgress = clamp(
+                w.acquisition.acquisition / definition.seeker.lockTime, 0, 1);
+            w.seekerReady =
+                w.acquisition.phase == weapons::SeekerPhase::Tracking &&
+                w.lockProgress >= 1;
+          }
         }
+        if (!w.acquisitionTarget.id)
+          w.lockProgress = 0;
       }
     }
     while (!w.actions.empty() && w.actions.begin()->first <= tick_) {
       const auto action = w.actions.begin()->second;
       w.actions.erase(w.actions.begin());
+      const bool heatSeeker = w.inventory.selected == WeaponType::Infrared;
+      if (heatSeeker && w.acquisitionTarget.id &&
+          (action.kind == WeaponActionKind::Unlock ||
+           action.kind == WeaponActionKind::NextTarget ||
+           action.kind == WeaponActionKind::PreviousTarget)) {
+        // Break lock: the seeker returns to the nose and looks again.
+        w.seekerRejected = w.acquisitionTarget;
+        w.seekerRejectedUntil = tick_ + 180;
+        w.acquisition = {};
+        w.acquisitionTarget = {};
+        w.lockProgress = 0;
+        w.seekerReady = false;
+      }
       switch (action.kind) {
       case WeaponActionKind::NextTarget:
-        w.radar.cycle(1);
+      case WeaponActionKind::PreviousTarget: {
+        // Stepping through targets with a lock held carries the lock along.
+        const bool locked = w.radar.locked.id != 0;
+        w.radar.cycle(action.kind == WeaponActionKind::NextTarget ? 1 : -1);
+        if (locked && w.radar.locked != w.radar.selected) {
+          w.radar.locked = {};
+          w.radar.mode = weapons::RadarMode::Search;
+          w.radar.toggleLock();
+        }
         break;
-      case WeaponActionKind::PreviousTarget:
-        w.radar.cycle(-1);
-        break;
+      }
       case WeaponActionKind::Lock:
-        w.radar.toggleLock();
+        // A target cycled to by hand is honoured; otherwise the radar takes
+        // whatever the nose is pointed at.
+        if (w.radar.locked.id || w.radar.find(w.radar.selected))
+          w.radar.toggleLock();
+        else
+          w.radar.lockNearest(p.sim.state());
         break;
       case WeaponActionKind::Unlock:
-        w.radar.locked = {};
+        w.radar.selected = w.radar.locked = {};
         w.radar.mode = weapons::RadarMode::Search;
         break;
       case WeaponActionKind::SelectIR:
@@ -436,9 +531,26 @@ void World::step() {
         w.inventory.selected = WeaponType::ActiveRadar;
         break;
       case WeaponActionKind::Launch: {
-        const auto *track = w.radar.find(w.radar.selected);
         auto &station = w.inventory.stations[action.station];
-        if (!track || !w.seekerReady ||
+        weapons::Track target;
+        bool tracked = false;
+        if (w.inventory.selected == WeaponType::ActiveRadar) {
+          if (const auto *track = w.radar.find(w.radar.selected)) {
+            target = *track;
+            tracked = true;
+          }
+        } else {
+          const auto sensor = std::find_if(
+              sensorTargets.begin(), sensorTargets.end(), [&](const auto &t) {
+                return t.entity == w.acquisitionTarget;
+              });
+          if (sensor != sensorTargets.end()) {
+            target = {sensor->entity, sensor->position, sensor->velocity,
+                      now, 1, now};
+            tracked = true;
+          }
+        }
+        if (!tracked || !w.seekerReady ||
             station.mounted != w.inventory.selected ||
             w.envelope.targetRange <
                 weapons::missileDefinition(w.inventory.selected).minimumRange ||
@@ -449,7 +561,7 @@ void World::step() {
         const auto offset =
             station.position - loadedCg(p.sim.config(), p.sim.state());
         if (missiles_.launch(tick_, {id, p.life.generation}, p.sim.state(),
-                             offset, station.mounted, *track)) {
+                             offset, station.mounted, target)) {
           w.inventory.consume(action.station, station.mounted);
           w.readyTick = tick_ + 60;
           auto state = p.sim.state();
@@ -528,6 +640,7 @@ void World::step() {
       p.weapons.seekerReady = false;
       p.weapons.acquisition = {};
       p.weapons.acquisitionTarget = {};
+      p.weapons.lockProgress = 0;
     }
   stats_.lastTickUs = std::chrono::duration<double, std::micro>(
                           std::chrono::steady_clock::now() - start)

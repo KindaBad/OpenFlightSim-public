@@ -130,8 +130,8 @@ Windows has not yet produced a passing build; see BUILDING.md for the current CI
 | Throttle | Shift / Ctrl, or debug slider |
 | Fire selected weapon | Hold Space / left mouse / gamepad right trigger for guns; press once to launch a missile online |
 | Select gun / IR / active radar | 1 / 2 / 3 |
-| Next / previous radar target | T / Y |
-| Lock / unlock selected target | L |
+| Radar lock | L locks the contact nearest the nose, L again unlocks; T / Y step the lock to the next or previous contact |
+| Heat seeker | Select 2 and point at a target: the seeker locks on its own; L or T / Y break lock and move to the next target |
 | Gun camera | V toggles flight-deck camera; armed aircraft have a gun sight |
 | Gear / brakes | G toggles simulation gear; B wheel brakes; UI parking brake |
 | Flaps / airbrake | F cycles 0/25/50/75/100%; H toggles airbrake/spoilers |
@@ -205,9 +205,10 @@ and launch radar missiles when their actual radar/seeker is ready. Bots and
 players use the same ammunition, collision, damage and four-second respawn
 rules. Bots ignore each other and patrol when no live player is available.
 
-Hold Space or left mouse to fire the gun. Use **T/Y** to select a target,
-**L** to lock, **2/3** for IR/radar missiles, and press the fire control to
-launch. **1** switches back to the gun. The HUD shows enemy labels, radar,
+Hold Space or left mouse to fire the gun. Press **2** for the heat seeker and
+put the seeker ring over a target; it locks on its own. Press **3** for the
+radar missile and **L** to lock the contact nearest the nose. Press the fire
+control to launch once the marker turns red. **1** switches back to the gun. The HUD shows enemy labels, radar,
 health and ammunition.
 
 Launch directly with a chosen opponent count (1–8):
@@ -229,11 +230,23 @@ connects; rebuilding the server and client is sufficient, with no protocol chang
 ## Radar and missiles
 
 Online Typhoon and Su-57 carry two **Dev IR-90** and two **Dev AR-157** development
-missiles. A320 and SR-71 remain unarmed. Cycle radar contacts with T/Y, use L to
-lock or unlock, choose 2/3, and press the fire control once per launch. The server
-validates seeker/support readiness, inventory, minimum range and cooldown. The
-HUD distinguishes contacts, selected targets and locks and labels its range cue
-**Kinematic estimate**. Being inside that estimate does not guarantee a hit.
+missiles on underwing pylons, drawn on every armed aircraft and seen to leave it.
+A320 and SR-71 remain unarmed.
+
+The heat seeker (2) needs no radar. Its field of view is a ring at the nose; it
+takes the hottest target inside the ring, follows it off the nose within its
+gimbal limits and is ready to fire after about half a second, when the ring and
+the diamond on the target turn red. L, T or Y break the lock and the seeker moves
+on to another target. The radar missile (3) needs a radar lock: L locks the
+contact nearest the nose, T/Y step the lock through the other contacts and L
+again releases it. A lock box closes on the target and turns red when the shot is
+supported. Press the fire control once per launch. The server validates
+seeker/support readiness, inventory, minimum range and cooldown. The bar beside
+the target marks its range against the nearest and furthest shot estimated for
+the selected missile; being inside that estimate does not guarantee a hit.
+
+Heat seekers leave their rail under power. Radar missiles are pushed off the
+pylon and light their motor about a third of a second later, below the aircraft.
 
 Missiles inherit the aircraft's motion; finite rocket motors, drag, actuator
 limits, physical forces/moments and proximity/contact sweeps determine their

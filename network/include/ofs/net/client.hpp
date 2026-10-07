@@ -105,8 +105,9 @@ public:
   const std::map<std::uint64_t, MissileNetState> &missiles() const {
     return weapons_.missiles();
   }
-  std::vector<MissileNetState> missilePresentation() const {
-    return weapons_.sample(renderTime_);
+  std::vector<MissileNetState>
+  missilePresentation(std::vector<double> *sampled = nullptr) const {
+    return weapons_.sample(renderTime_, sampled);
   }
   std::vector<MissileEvent> takeMissileDetonations() {
     return weapons_.takeDetonations();

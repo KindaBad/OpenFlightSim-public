@@ -116,7 +116,8 @@ std::vector<std::uint8_t> encodeWeapon(const WeaponMessage &m) {
     break;
   case Type::RadarState: {
     const auto &n = m.radar;
-    if (n.tracks.size() > 16 || n.stations.size() > 8)
+    if (n.tracks.size() > 16 || n.stations.size() > 8 ||
+        n.loadouts.size() > maxLoadouts)
       throw std::length_error("radar bounds");
     w.u(n.generation, 4);
     w.u(unsigned(n.mode), 1);
@@ -124,6 +125,8 @@ std::vector<std::uint8_t> encodeWeapon(const WeaponMessage &m) {
     w.ref(n.locked);
     w.u(unsigned(n.weapon), 1);
     w.u(n.seekerReady, 1);
+    w.ref(n.seekerTarget);
+    w.u(std::uint8_t(clamp(n.lockProgress * 255, 0, 255)), 1);
     w.u(n.stations.size(), 1);
     for (auto type : n.stations)
       w.u(unsigned(type), 1);
@@ -141,6 +144,11 @@ std::vector<std::uint8_t> encodeWeapon(const WeaponMessage &m) {
       w.u(std::uint8_t(clamp(
               (double(m.tick) * tickSeconds - t.lastDetection) * 50, 0, 255)),
           1);
+    }
+    w.u(n.loadouts.size(), 1);
+    for (const auto &loadout : n.loadouts) {
+      w.ref(loadout.entity);
+      w.u(loadout.mounted, 1);
     }
     break;
   }
@@ -202,6 +210,8 @@ bool decodeWeapon(std::span<const std::uint8_t> bytes, WeaponMessage &out) {
     n.weapon = WeaponType(r.u(1));
     const auto ready = r.u(1);
     n.seekerReady = ready;
+    n.seekerTarget = r.ref();
+    n.lockProgress = double(r.u(1)) / 255;
     const auto stations = r.u(1);
     if (stations > 8)
       return false;
@@ -238,6 +248,21 @@ bool decodeWeapon(std::span<const std::uint8_t> bytes, WeaponMessage &out) {
           }))
         r.ok = false;
       n.tracks.push_back(t);
+    }
+    const auto loadouts = r.u(1);
+    if (loadouts > maxLoadouts)
+      return false;
+    for (unsigned i = 0; i < loadouts; ++i) {
+      Loadout loadout;
+      loadout.entity = r.ref();
+      loadout.mounted = std::uint8_t(r.u(1));
+      if (!loadout.entity.id ||
+          std::any_of(n.loadouts.begin(), n.loadouts.end(),
+                      [&](const auto &other) {
+                        return other.entity.id == loadout.entity.id;
+                      }))
+        r.ok = false;
+      n.loadouts.push_back(loadout);
     }
     break;
   }
@@ -438,20 +463,26 @@ std::vector<MissileEvent> WeaponReplicationReceiver::takeMissileTerminations() {
 
 namespace ofs::net {
 std::vector<MissileNetState>
-WeaponReplicationReceiver::sample(double tick) const {
+WeaponReplicationReceiver::sample(double tick,
+                                  std::vector<double> *sampled) const {
   std::vector<MissileNetState> states;
   states.reserve(history_.size());
+  if (sampled)
+    sampled->clear();
   for (const auto &[id, history] : history_) {
     (void)id;
     if (history.empty())
       continue;
     auto result = history.front().second;
+    // The moment the returned state belongs to, in server ticks.
+    double moment = std::max(tick, double(history.front().first));
     if (tick >= double(history.back().first)) {
       result = history.back().second;
-      result.position +=
-          result.velocity *
-          std::clamp((tick - double(history.back().first)) * tickSeconds, 0.,
-                     .05);
+      const double ahead = std::clamp(
+          (tick - double(history.back().first)) * tickSeconds, 0., .05);
+      result.position += result.velocity * ahead;
+      result.age += ahead;
+      moment = double(history.back().first) + ahead / tickSeconds;
     } else
       for (unsigned i = 1; i < history.size(); ++i)
         if (tick <= double(history[i].first)) {
@@ -471,11 +502,14 @@ WeaponReplicationReceiver::sample(double tick) const {
           result.attitude = Quat{lerp(q.w, r.w, f), lerp(q.x, r.x, f),
                                  lerp(q.y, r.y, f), lerp(q.z, r.z, f)}
                                 .normalized();
+          result.age = lerp(a.second.age, b.second.age, f);
           if (f >= 1)
             result = b.second;
           break;
         }
     states.push_back(result);
+    if (sampled)
+      sampled->push_back(moment);
   }
   return states;
 }

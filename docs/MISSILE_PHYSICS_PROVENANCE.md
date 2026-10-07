@@ -30,11 +30,13 @@ missile flight data. Angles below are degrees for readability; code uses radians
 | Launch mass | 90 / 157 | kg | ESTIMATE | Development mass classes; IR deliberately differs from AIM-9X | low |
 | Propellant | 24 / 55 | kg | ESTIMATE | Development motor sizing | low |
 | Dry mass | 66 / 102 | kg | DERIVED | Launch mass minus propellant | high within model |
-| Boost thrust | 12000 / 18000 | N | ESTIMATE | Development rocket curves | low |
-| Boost duration | 3 / 3 | s | ESTIMATE | Finite boost phase | low |
-| Sustain thrust | 0 / 5500 | N | ESTIMATE | Boost-only / boost-sustain motor | low |
-| Sustain duration | 0 / 6 | s | ESTIMATE | Finite sustain phase | low |
-| Total impulse | 36000 / 87000 | N s | DERIVED | Integral of configured piecewise thrust | high within model |
+| Boost thrust | 15000 / 22000 | N | ESTIMATE | Development rocket curves | low |
+| Boost duration | 2.2 / 3.5 | s | ESTIMATE | Finite boost phase | low |
+| Sustain thrust | 4500 / 6500 | N | ESTIMATE | Boost-sustain motors | low |
+| Sustain duration | 5 / 7.7 | s | ESTIMATE | Finite sustain phase | low |
+| Ignition delay | 0 / 0.3 | s | ESTIMATE | Rail launch / ejected store that lights its motor clear of the aircraft | low |
+| Release velocity | 1 / 6 | m/s down | ESTIMATE | Rail launch / ejector push in aircraft axes | low |
+| Total impulse | 55500 / 127050 | N s | DERIVED | Integral of configured piecewise thrust | high within model |
 | Reference area | 0.01327 / 0.02489 | m2 | DERIVED | pi diameter²/4 | high within model |
 | Axial inertia | mass diameter²/8 | kg m2 | DERIVED | Cylinder approximation at current mass | medium |
 | Pitch/yaw inertia | mass length²/12 | kg m2 | DERIVED | Slender cylinder approximation | medium |
@@ -51,6 +53,7 @@ missile flight data. Angles below are degrees for readability; code uses radians
 | Mechanical gimbal limit | 60 / 45 | deg from body axis | ESTIMATE | Geometry restriction | low |
 | Seeker angular rate | 120 / 80 | deg/s | ESTIMATE | Boresight slewing constraint | low |
 | Signal reference range | 8000 / 18000 | m | ESTIMATE | Unit normalized IR/RCS signal, not guaranteed range | low |
+| Pre-launch lock time | 0.55 / n/a | s | ESTIMATE | Time the mounted heat seeker must hold its target before release is allowed | low |
 | Acquisition dwell | 0.12 / 0.15 | s | ESTIMATE | Persistent detection dwell | low |
 | Measurement coast | 0.5 / 0.7 | s | ESTIMATE | Inertial estimate after missed measurement | low |
 | Active seeker activation | n/a / 12000 | m estimate | ESTIMATE | Trigger uses predicted target range | low |
@@ -69,7 +72,9 @@ missile flight data. Angles below are degrees for readability; code uses radians
 | Maximum lifetime | 45 / 75 | s | ESTIMATE | Expiry bound, not a claimed intercept range | low |
 
 The motor mass-flow approximation distributes propellant in proportion to thrust
-impulse. It implies about 153/161 seconds of specific impulse. No real motor
+impulse. It implies about 236 seconds of specific impulse for both motors, in the
+range of reduced-smoke solid propellants; the earlier 153/161 second curves
+under-delivered for their propellant mass. No real motor
 measurement establishes these curves. Inertia changes with mass, while the
 missile CG remains centered; burn-dependent internal CG shift and fin flutter
 are omitted.

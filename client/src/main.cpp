@@ -5,6 +5,7 @@
 #include "mouse_aim.hpp"
 #include "debug_ui.hpp"
 #include "hud.hpp"
+#include "weapon_visuals.hpp"
 #include "log.hpp"
 #include "camera.hpp"
 #include "settings.hpp"
@@ -15,6 +16,7 @@
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>
 #include <algorithm>
+#include <array>
 #include <cfloat>
 #include <charconv>
 #include <chrono>
@@ -24,7 +26,9 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <map>
 #include <memory>
+#include <set>
 #include <vector>
 #include <filesystem>
 #ifdef OFS_NETWORK_ENABLED
@@ -547,6 +551,10 @@ int main(int argc, char** argv) {
     CombatVisuals combat;
 #ifdef OFS_NETWORK_ENABLED
     bool missileSelected = false, missileFireHeld = false;
+    StoreDisplay storeDisplay;
+    std::vector<HudFrame::Station> hudStations;
+    std::vector<Vec3> hudMissiles;
+    std::set<std::uint64_t> presentedMissiles;
     unsigned dogfightSmokeStage=0, dogfightStarts=0;
     bool dogfightReturnedSolo=false;
     std::uint64_t dogfightSmokeShots=0;
@@ -798,12 +806,12 @@ int main(int argc, char** argv) {
         if (input.pressed(SDL_SCANCODE_Y, captureKeyboard))
           network->weaponAction(WeaponActionKind::PreviousTarget);
         if (input.pressed(SDL_SCANCODE_L, captureKeyboard)) {
-          missileSelected = true;
+          // With the heat seeker up, L breaks its lock so it moves to the next
+          // target; otherwise it locks the radar onto whatever is ahead.
           const auto &radar = network->radar();
-          if (!radar.selected.id && !radar.tracks.empty())
-            network->weaponAction(WeaponActionKind::NextTarget);
-          network->weaponAction(radar.locked.id ? WeaponActionKind::Unlock
-                                                : WeaponActionKind::Lock);
+          const bool heatSeeker = missileSelected && radar.weapon == weapons::WeaponType::Infrared;
+          network->weaponAction(heatSeeker || radar.locked.id ? WeaponActionKind::Unlock
+                                                               : WeaponActionKind::Lock);
         }
         if (input.pressed(SDL_SCANCODE_1, captureKeyboard))
           missileSelected = false;
@@ -1036,40 +1044,64 @@ int main(int argc, char** argv) {
             case ofs::net::CombatKind::Respawn: break;
           }
         }
-        for (const auto &missile : network->missilePresentation()) {
+        // Missiles in flight. The pilot's own are led forward for their first
+        // moments so they leave the pylon they were seen hanging on.
+        const ofs::net::EntityId self = network->entity();
+        std::map<ofs::net::EntityId, std::array<unsigned, 3>> launched;
+        std::set<std::uint64_t> presented;
+        std::vector<double> sampledTicks;
+        const auto flying = network->missilePresentation(&sampledTicks);
+        for (std::size_t i = 0; i < flying.size(); ++i) {
+          const auto &missile = flying[i];
           const auto &d = weapons::missileDefinition(missile.type);
-          const auto forward = missile.attitude.rotate({1, 0, 0});
-          const auto pos = missile.position;
+          presented.insert(missile.id);
+          if (!presentedMissiles.contains(missile.id) && missile.age < 1)
+            ++launched[missile.owner.id][std::size_t(missile.type)];
+          Vec3 position = missile.position;
+          if (missile.owner.id == self)
+            position += launchLead(
+                aircraft.vel_ned,
+                (double(network->prediction().tick()) - sampledTicks[i]) * ofs::net::tickSeconds,
+                missile.age);
           combat.missiles.push_back(
-              {pos, missile.attitude, d.length, d.diameter,
-               missile.motor != weapons::MotorPhase::Burnout});
-          combat.lines.push_back({pos - forward * (d.length * .5),
-                                  pos + forward * (d.length * .5), 0xffeeeeee,
-                                  false, float(d.diameter * .5)});
-          for (const auto axis : {Vec3{0, 1, 0}, Vec3{0, 0, 1}}) {
-            const auto fin = missile.attitude.rotate(axis) * d.diameter * 1.5;
-            combat.lines.push_back({pos - forward * (d.length * .3) - fin,
-                                    pos - forward * (d.length * .3) + fin,
-                                    0xffcccccc, false,
-                                    float(d.diameter * .18)});
-          }
+              {missile.id, position, missile.velocity, missile.attitude, d.length, d.diameter, missile.age,
+               missile.motor == weapons::MotorPhase::Boost || missile.motor == weapons::MotorPhase::Sustain});
+          combat.stores.push_back({position, missile.attitude, missile.type, false});
         }
-        weapons::Inventory mounted;
-        mounted.reset(options.aircraft);
-        const auto &stations = network->radar().stations;
-        for (unsigned i = 0;
-             i < std::min(stations.size(), mounted.stations.size()); ++i)
-          if (stations[i] != weapons::WeaponType::None) {
-            const auto &d = weapons::missileDefinition(stations[i]);
-            const auto center =
-                aircraft.pos_ned +
-                aircraft.att.rotate(mounted.stations[i].position -
-                                    loadedCg(simulation().config(), aircraft));
-            const auto axis = aircraft.att.rotate({1, 0, 0});
-            combat.lines.push_back({center - axis * d.length * .5,
-                                    center + axis * d.length * .5, 0xffdddddd,
-                                    false, float(d.diameter * .5)});
+        presentedMissiles = std::move(presented);
+        // Stores on the pylons of every armed aircraft close enough to see.
+        const auto hang = [&](ofs::net::EntityId entity, std::uint32_t generation, const State &state,
+                              AircraftType type, std::uint8_t mounted, bool local) {
+          weapons::Inventory loadout;
+          loadout.reset(type);
+          if (loadout.stations.empty()) return;
+          const std::uint8_t shown = storeDisplay.update(entity, generation, loadout, mounted,
+                                                         launched[entity], elapsed);
+          for (std::size_t i = 0; i < loadout.stations.size() && i < 8; ++i) {
+            const auto &station = loadout.stations[i];
+            const Vec3 position = stationPosition(state, type, station.position);
+            combat.pylons.push_back({position, state.att, type, std::uint8_t(i), station.mounted, local});
+            if (shown & (1u << i))
+              combat.stores.push_back({position, state.att, station.mounted, local});
           }
+        };
+        if (network->life().alive()) {
+          std::uint8_t mounted = 0;
+          const auto &stations = network->radar().stations;
+          for (std::size_t i = 0; i < stations.size() && i < 8; ++i)
+            if (stations[i] != weapons::WeaponType::None) mounted |= std::uint8_t(1u << i);
+          hang(self, network->life().generation, aircraft, options.aircraft, mounted, true);
+        }
+        for (const auto &remote : remotes) {
+          if (!remote.alive || (remote.state.pos_ned - camera.eye).norm() > 2500) continue;
+          const auto &loadouts = network->radar().loadouts;
+          const auto loadout = std::find_if(loadouts.begin(), loadouts.end(), [&](const auto &entry) {
+            return entry.entity.id == remote.entity;
+          });
+          if (loadout != loadouts.end())
+            hang(remote.entity, loadout->entity.generation, remote.state, remote.type, loadout->mounted, false);
+        }
+        storeDisplay.endFrame();
         for (const auto &event : network->takeMissileTerminations()) {
           if (event.missile.owner.id == network->entity()) {
             const auto hit = std::find(missileHits.begin(), missileHits.end(),
@@ -1250,6 +1282,20 @@ int main(int argc, char** argv) {
         }
         hud.missileWeapon = radar.weapon;
         hud.seekerReady = radar.seekerReady;
+        hud.seekerTarget = radar.seekerTarget;
+        hud.lockProgress = radar.lockProgress;
+        hudStations.clear();
+        weapons::Inventory loadout;
+        loadout.reset(options.aircraft);
+        for (std::size_t i = 0; i < loadout.stations.size(); ++i)
+          hudStations.push_back({loadout.stations[i].mounted,
+                                 i < radar.stations.size() && radar.stations[i] != weapons::WeaponType::None});
+        hud.stations = hudStations;
+        hudMissiles.clear();
+        for (const auto &missile : combat.missiles)
+          if (network->missiles().contains(missile.id) && network->missiles().at(missile.id).owner.id == network->entity())
+            hudMissiles.push_back(missile.position);
+        hud.ownMissiles = hudMissiles;
         hud.envelope = radar.envelope;
         hud.missileSelected = missileSelected;
         if (missileOutcomeSeconds > 0) {

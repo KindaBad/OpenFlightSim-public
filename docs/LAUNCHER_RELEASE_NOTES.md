@@ -1,4 +1,21 @@
-OpenFlightSim 0.4.5 Launcher
+OpenFlightSim 0.4.6 Launcher
+
+- Missiles are now real objects on the aircraft. The Typhoon and Su-57 carry
+  their heat seekers and radar missiles on underwing pylons, on your own jet and
+  on every other armed aircraft, and you see each one leave. Heat seekers fire
+  off the rail; radar missiles drop clear and light their motor below the
+  aircraft. Motors have a bright plume and leave a continuous smoke trail.
+- Simpler locking. Press 2 and point at a target: the heat seeker's ring locks
+  on by itself and turns red when it is ready, with no radar needed. Press 3 and
+  L to lock the radar onto whatever is nearest your nose; T/Y step the lock to
+  other contacts. L breaks a lock. Markers sit on the aircraft itself, show
+  range and closing speed, and a bar beside the target shows whether it is
+  inside the missile's reach.
+- New weapon strip showing the gun and each missile still on its pylon, with a
+  plain status line, and small markers on your own missiles in flight.
+- Missile motors now deliver the impulse their propellant mass should, so both
+  missiles fly faster and further than before.
+- Online play uses network protocol 14: clients and servers must both be 0.4.6.
 
 - Pursuit camera, now the default view: the camera sits behind and above the
   aircraft and looks where you are going, so the aircraft banks and pulls in

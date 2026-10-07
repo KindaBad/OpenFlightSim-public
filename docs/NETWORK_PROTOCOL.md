@@ -1,4 +1,4 @@
-# OpenFlightSim network protocol v13
+# OpenFlightSim network protocol v14
 
 GameNetworkingSockets v1.6.0, pinned revision
 `2cb93a06350bb065db53abdb0d87cf297e0bfd34`, supplies encrypted direct IP
@@ -6,7 +6,9 @@ transport and ordered reliable messages. Physics remains authoritative at 120 Hz
 No networking worker threads, account service, discovery, relay, or lag compensation
 were introduced. Numeric IPv4/IPv6 endpoints are supported.
 
-Protocol 13 retains the v12 Su-57 maneuver-mode input and v10 recovery/AOI
+Protocol 14 extends the owner-only RadarState with the selected weapon's target,
+its lock progress and the stores visible on nearby aircraft; nothing else on the
+wire changed from v13. Protocol 13 retains the v12 Su-57 maneuver-mode input and v10 recovery/AOI
 architecture. It adds weapon actions, private radar tracks, missile lifecycle/state
 and distributed-store inertia. Earlier peers must rebuild with their server.
 
@@ -19,7 +21,7 @@ pointers, renderer handles, particles and debug forces are never copied to packe
 | Offset | Bytes | Meaning |
 |---|---:|---|
 | 0 | 4 | magic `0x4f46534e` (OFSN) |
-| 4 | 2 | version **13**, incompatible versions rejected |
+| 4 | 2 | version **14**, incompatible versions rejected |
 | 6 | 1 | message type |
 | 7 | 1 | reserved zero |
 | 8 | 8 | authoritative tick or newest input target tick |
@@ -307,7 +309,7 @@ M4 radar/missile state, bandwidth prioritization, lag compensation, Earth frame 
 and user/account authentication remain outside this protocol milestone.
 
 
-## M4 weapon messages (v13)
+## M4 weapon messages (v14)
 
 All messages use the same 24-byte header and the 1100-byte application ceiling.
 Weapon messages use a separate explicit codec; they never serialize physics
@@ -317,7 +319,7 @@ client support stream.
 | Message | Reliability / cadence | Body and maximum size including header |
 |---|---|---|
 | WeaponAction | Ordered reliable, ≤30 actions/s | Owner u64, generation u32, action u8, station u8; 38 bytes |
-| RadarState | Unreliable 10 Hz, owner only | Generation u32, mode u8, selected/locked references 2×12, selected weapon/readiness/station count u8, ≤8 station types, 3×u32 range cues, signed16 closure, inside/count u8, ≤16 tracks; 592 bytes (588 for four stations) |
+| RadarState | Unreliable 10 Hz, owner only | Generation u32, mode u8, selected/locked references 2×12, selected weapon/readiness u8, weapon target reference 12 and lock progress u8, station count u8, ≤8 station types, 3×u32 range cues, signed16 closure, inside/count u8, ≤16 tracks, then count u8 and ≤16 nearby loadouts (entity reference 12, mounted-station bits u8); 814 bytes at every bound |
 | MissileSpawn | Ordered reliable, AOI entry | Count u8, ≤16×63-byte records; 1033 bytes |
 | MissileState | Independently applicable unreliable 20 Hz | Same bounded batch, 1033 bytes |
 | MissileRemove | Ordered reliable, AOI exit/expiry/detonation | Count u8, ≤16×(id u64, detonation u8, position 3×signed32); 361 bytes |

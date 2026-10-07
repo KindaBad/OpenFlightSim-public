@@ -185,8 +185,8 @@ void Server::step() {
   for (auto &[connection, session] : sessions_)
     if (session.entity) {
       const auto &player = world_.players().at(session.entity);
-      const auto radar =
-          radarProjection(player.weapons, player.life.generation);
+      auto radar = radarProjection(player.weapons, player.life.generation);
+      radar.loadouts = world_.loadoutsNear(session.entity);
       const auto packets = session.weapons.build(
           world_.tick(), session.entity, player.sim.state().pos_ned, radar,
           world_.missiles().missiles(), weaponEvents);

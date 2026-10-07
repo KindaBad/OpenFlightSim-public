@@ -37,6 +37,8 @@ public:
   bool enqueue(EntityId, const std::vector<Command> &,
                std::uint32_t generation = 0);
   bool enqueueWeapon(EntityId, const WeaponAction &);
+  // Stores on the armed aircraft closest to `viewer`, near enough to be seen.
+  std::vector<Loadout> loadoutsNear(EntityId viewer) const;
   MissileCombat &missiles() { return missiles_; }
   const MissileCombat &missiles() const { return missiles_; }
   bool enqueueFire(EntityId, const FireCommand &);

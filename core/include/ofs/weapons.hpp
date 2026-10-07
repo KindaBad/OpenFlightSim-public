@@ -26,6 +26,8 @@ enum class SeekerPhase : std::uint8_t { Searching, Tracking, Lost, Midcourse };
 struct MotorDefinition {
   double propellant{}, boostThrust{}, boostTime{}, sustainThrust{},
       sustainTime{};
+  // Seconds between release and motor ignition; ejected stores fall clear.
+  double ignitionDelay{};
 };
 struct AeroDefinition {
   double area{}, normalSlope{20}, controlLift{2}, cd0{.45}, induced{.07},
@@ -35,6 +37,8 @@ struct SeekerDefinition {
   double fov{20 * kDeg2Rad}, gimbal{60 * kDeg2Rad}, rate{120 * kDeg2Rad},
       signalRange{8000}, acquireTime{.12}, memoryTime{.5},
       activationRange{12000};
+  // Seconds a mounted seeker holds its target before the launch is released.
+  double lockTime{.55};
 };
 struct MissileDefinition {
   WeaponType type;
@@ -103,6 +107,10 @@ Vec3 proportionalNavigation(Vec3 relativePosition, Vec3 relativeVelocity,
 bool lineOfSight(Vec3, Vec3);
 double targetRcs(const SensorTarget &, Vec3 observer);
 double infraredSignal(const SensorTarget &, Vec3 observer);
+// Whether a seeker at `position`, carried along `forward` and looking along
+// `boresight`, receives enough signal from the target inside its field of view.
+bool seekerDetects(const MissileDefinition &, Vec3 position, Vec3 forward,
+                   Vec3 boresight, const SensorTarget &);
 Measurement updateSeeker(const MissileDefinition &, MissileState &,
                          const SensorTarget *, double dt);
 void advanceMissile(const MissileDefinition &, MissileState &,
@@ -137,6 +145,8 @@ public:
               double time);
   void cycle(int direction);
   bool toggleLock();
+  // Selects and locks the lockable track closest to the nose.
+  bool lockNearest(const State &);
   const Track *find(EntityRef) const;
   const std::vector<Track> &tracks() const { return tracks_; }
   double signal(const State &, const SensorTarget &) const;

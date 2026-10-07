@@ -34,6 +34,14 @@ struct HudFrame {
   weapons::Envelope envelope;
   unsigned irCount{}, radarCount{};
   bool seekerReady{};
+  // What the selected weapon is looking at and how far its lock has built.
+  weapons::EntityRef seekerTarget{};
+  double lockProgress{};
+  // One entry per station: the weapon it was loaded with, and whether it is still there.
+  struct Station { weapons::WeaponType type{weapons::WeaponType::None}; bool mounted{}; };
+  std::span<const Station> stations;
+  // The pilot's own missiles in flight.
+  std::span<const Vec3> ownMissiles;
   bool missileSelected{};
   unsigned activeMissiles{};
   double missileSpeed{}, missileAge{};

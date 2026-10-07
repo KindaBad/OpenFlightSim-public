@@ -3,6 +3,7 @@
 #include "ofs/units.hpp"
 #include <imgui.h>
 #include <algorithm>
+#include <cfloat>
 #include <cmath>
 #include <cstdio>
 #include <string>
@@ -166,6 +167,240 @@ void drawFullMap(ImDrawList* draw, ImVec2 display, const HudFrame& frame, const 
   draw->AddRectFilled({0, 0}, display, IM_COL32(0, 0, 0, 110));
   drawMap(draw, map, frame, renderer, true);
 }
+
+// ---- Weapons ---------------------------------------------------------------
+
+// Four corner ticks of a square: a target marker that leaves the target visible.
+void brackets(ImDrawList* draw, ImVec2 c, float half, ImU32 color, float thickness = 1.5f) {
+  const float tick = std::max(4.f, half * .45f);
+  for (const float sx : {-1.f, 1.f})
+    for (const float sy : {-1.f, 1.f}) {
+      const ImVec2 corner{c.x + sx * half, c.y + sy * half};
+      draw->AddLine(corner, {corner.x - sx * tick, corner.y}, color, thickness);
+      draw->AddLine(corner, {corner.x, corner.y - sy * tick}, color, thickness);
+    }
+}
+void diamond(ImDrawList* draw, ImVec2 c, float half, ImU32 color, float thickness = 1.6f) {
+  const ImVec2 points[4]{{c.x, c.y - half}, {c.x + half, c.y}, {c.x, c.y + half}, {c.x - half, c.y}};
+  draw->AddPolyline(points, 4, color, ImDrawFlags_Closed, thickness);
+}
+// A ring broken into four arcs, the look of a caged seeker's field of view.
+void brokenRing(ImDrawList* draw, ImVec2 c, float radius, ImU32 color, float thickness, float turn) {
+  for (int i = 0; i < 4; ++i) {
+    const float start = turn + float(kPi) * .5f * i + .22f;
+    draw->PathArcTo(c, radius, start, start + float(kPi) * .5f - .44f, 14);
+    draw->PathStroke(color, 0, thickness);
+  }
+}
+void centred(ImDrawList* draw, ImVec2 at, const std::string& value, ImU32 color, float size = 12) {
+  const float width = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0, value.c_str()).x;
+  text(draw, {at.x - width * .5f, at.y}, value, color, size);
+}
+ImU32 faded(ImU32 color, float alpha) {
+  return (color & 0x00ffffffu) | (ImU32(std::clamp(alpha, 0.f, 1.f) * 255) << 24);
+}
+float ease(float t) {
+  t = std::clamp(t, 0.f, 1.f);
+  return t * t * (3 - 2 * t);
+}
+
+// When the current lock began, so its marker can close in on the target.
+struct LockAnimation {
+  weapons::EntityRef target{};
+  double since{};
+} lockAnimation;
+
+void drawWeapons(ImDrawList* draw, ImVec2 display, const HudFrame& frame, const Renderer& renderer) {
+  const State& state = *frame.local;
+  const double now = ImGui::GetTime();
+  const bool infrared = frame.missileWeapon == weapons::WeaponType::Infrared;
+  // With the selected missile type spent there is nothing to aim, so the
+  // radar picture is shown as it is with the gun.
+  const bool missile = frame.missileSelected && (infrared ? frame.irCount : frame.radarCount) > 0;
+  const float pulse = .5f + .5f * float(std::sin(now * 12));
+
+  // Where an entity is drawn this frame. The rendered aircraft is preferred to
+  // the radar's filtered track, so markers sit on the aircraft and not near it.
+  const auto worldOf = [&](weapons::EntityRef entity, Vec3& position) {
+    for (const auto& remote : frame.remotes)
+      if (remote.entity == entity.id && remote.alive) { position = remote.state.pos_ned; return true; }
+    for (const auto& track : frame.radarTracks)
+      if (track.entity == entity) { position = track.position; return true; }
+    return false;
+  };
+  const auto screenOf = [&](weapons::EntityRef entity, ImVec2& point, double& range) {
+    Vec3 position;
+    float depth;
+    if (!worldOf(entity, position)) return false;
+    range = (position - state.pos_ned).norm();
+    return renderer.projectToScreen(position, point.x, point.y, depth);
+  };
+  const weapons::EntityRef target = frame.seekerTarget;
+  if (!(target == lockAnimation.target)) lockAnimation = {target, now};
+  const float lockAge = float(now - lockAnimation.since);
+
+  // ---- Radar scope ----
+  {
+    const float x = display.x - 245, y = frame.dogfight ? 200 : 145;
+    panel(draw, {x, y}, {x + 225, y + 205});
+    text(draw, {x + 12, y + 9}, frame.lockedTarget.id ? "RADAR  TRACK" : "RADAR  SEARCH",
+         frame.lockedTarget.id ? kAmber : kAccent, 12);
+    text(draw, {x + 152, y + 9}, "90 km", kMuted, 11);
+    // A B-scope: azimuth across, range up, with the own aircraft at the bottom.
+    const ImVec2 min{x + 22, y + 32}, max{x + 203, y + 192};
+    draw->AddRect(min, max, kBorder);
+    for (int i = 1; i < 3; ++i) {
+      const float gy = min.y + (max.y - min.y) * i / 3;
+      draw->AddLine({min.x, gy}, {max.x, gy}, IM_COL32(180, 177, 162, 35));
+    }
+    draw->AddLine({(min.x + max.x) * .5f, min.y}, {(min.x + max.x) * .5f, max.y}, IM_COL32(180, 177, 162, 35));
+    // The antenna's sweep, two seconds from edge to edge as the radar scans.
+    const float sweep = float(std::fmod(now, 2.) / 2.);
+    const float sx = min.x + (max.x - min.x) * sweep;
+    draw->AddLine({sx, min.y}, {sx, max.y}, faded(kAccent, .35f), 1.5f);
+    for (const auto& track : frame.radarTracks) {
+      const auto relative = state.att.inverseRotate(track.position - state.pos_ned);
+      const float az = float(std::clamp(std::atan2(relative.y, relative.x) / (60 * kDeg2Rad), -1., 1.));
+      const ImVec2 point{(min.x + max.x) * .5f + az * (max.x - min.x) * .5f,
+                         max.y - float(std::min(relative.norm() / 90000., 1.)) * (max.y - min.y)};
+      const bool locked = track.entity == frame.lockedTarget, selected = track.entity == frame.selectedTarget;
+      const ImU32 color = locked ? kAmber : selected ? kAccent : kMuted;
+      draw->AddRectFilled({point.x - 3, point.y - 1.5f}, {point.x + 3, point.y + 1.5f}, color);
+      if (locked || selected) brackets(draw, point, 7, color, 1.2f);
+    }
+  }
+
+  // ---- Weapon strip ----
+  {
+    const float x = 20, y = 214;
+    panel(draw, {x, y}, {x + 290, y + 84});
+    const auto slot = [&](float sx, const char* key, const char* name, weapons::WeaponType type, bool selected) {
+      const ImU32 color = selected ? kText : kMuted;
+      if (selected) draw->AddRectFilled({sx - 6, y + 6}, {sx + 84, y + 44}, IM_COL32(160, 218, 133, 34), 2);
+      text(draw, {sx, y + 9}, std::string(key) + "  " + name, color, 13);
+      float px = sx;
+      for (const auto& station : frame.stations) {
+        if (station.type != type) continue;
+        // One missile-shaped pip per station, hollow once it has been fired.
+        const ImVec2 a{px, y + 30}, b{px + 22, y + 36};
+        if (station.mounted) draw->AddRectFilled(a, b, selected ? kAccent : kMuted, 2);
+        else draw->AddRect(a, b, faded(kMuted, .55f), 2);
+        px += 28;
+      }
+    };
+    const bool chosen = frame.missileSelected;
+    slot(x + 14, "1", "GUN", weapons::WeaponType::None, !chosen);
+    text(draw, {x + 14, y + 28}, number(frame.ammo), !chosen ? kAccent : kMuted, 12);
+    slot(x + 108, "2", "IR-90", weapons::WeaponType::Infrared, chosen && infrared);
+    slot(x + 202, "3", "AR-157", weapons::WeaponType::ActiveRadar, chosen && !infrared);
+    const unsigned left = infrared ? frame.irCount : frame.radarCount;
+    std::string status = "L RADAR LOCK    SPACE FIRE";
+    ImU32 statusColor = kMuted;
+    if (chosen && !left) { status = "NO MISSILES LEFT"; statusColor = kDanger; }
+    else if (missile) {
+      if (frame.seekerReady && frame.envelope.targetRange < frame.envelope.minimum) {
+        status = "TOO CLOSE"; statusColor = kAmber;
+      } else if (frame.seekerReady) {
+        status = frame.envelope.inside ? "LOCKED    SPACE TO FIRE" : "LOCKED    OUT OF RANGE";
+        statusColor = frame.envelope.inside ? kDanger : kAmber;
+      } else if (infrared) {
+        status = target.id ? "SEEKER ACQUIRING" : "SEEKER SEARCHING    POINT AT A TARGET";
+        statusColor = target.id ? kAmber : kMuted;
+      } else {
+        status = frame.radarTracks.empty() ? "NO RADAR CONTACTS" : "L TO LOCK NEAREST    T/Y TO CYCLE";
+      }
+    }
+    text(draw, {x + 14, y + 55}, status, statusColor, 12);
+    if (frame.activeMissiles)
+      text(draw, {x + 14, y + 68}, "IN FLIGHT " + number(frame.activeMissiles) + "    " +
+           number(frame.missileAge, 1) + " s    " + number(frame.missileSpeed * 3.6) + " km/h", kMuted, 11);
+  }
+  if (frame.fullMap) return;
+
+  // ---- Radar contacts in the world ----
+  for (const auto& track : frame.radarTracks) {
+    if (track.entity == target && missile) continue;  // drawn as the weapon's target below
+    ImVec2 point;
+    double range;
+    if (!screenOf(track.entity, point, range)) continue;
+    const bool locked = track.entity == frame.lockedTarget, selected = track.entity == frame.selectedTarget;
+    const ImU32 color = locked ? kAmber : selected ? kAccent : faded(kAccent, .7f);
+    brackets(draw, point, locked ? 14.f : 10.f, color, locked ? 2.f : 1.3f);
+    if (locked || selected) centred(draw, {point.x, point.y + 18}, number(range / 1000, 1) + " km", color);
+  }
+
+  // ---- The selected weapon's target ----
+  ImVec2 boresight{};
+  float depth;
+  const Vec3 nose = state.att.rotate({1, 0, 0});
+  const bool boresightVisible = renderer.projectToScreen(state.pos_ned + nose * 3000, boresight.x, boresight.y, depth);
+  ImVec2 point;
+  double range = 0;
+  const bool targetVisible = missile && target.id && screenOf(target, point, range);
+  const ImU32 lockColor = frame.seekerReady ? kDanger : kAmber;
+  if (missile && infrared && frame.irCount) {
+    // The seeker's field of view, as a ring the pilot puts over a target. It
+    // leaves the nose and tightens onto the target as the lock builds.
+    const auto& seeker = weapons::missileDefinition(weapons::WeaponType::Infrared).seeker;
+    ImVec2 edge;
+    float ring = 90;
+    const Vec3 up = state.att.rotate({0, 0, -1});
+    if (boresightVisible &&
+        renderer.projectToScreen(state.pos_ned + (nose * std::cos(seeker.fov * .5) + up * std::sin(seeker.fov * .5)) * 3000,
+                                 edge.x, edge.y, depth))
+      ring = std::clamp(std::hypot(edge.x - boresight.x, edge.y - boresight.y), 40.f, display.y * .45f);
+    if (targetVisible) {
+      const float travel = boresightVisible ? ease(lockAge / .25f) : 1;
+      const ImVec2 centre{boresight.x + (point.x - boresight.x) * travel, boresight.y + (point.y - boresight.y) * travel};
+      const float radius = ring + (26 - ring) * ease(float(frame.lockProgress));
+      draw->AddCircle(centre, radius, IM_COL32(0, 0, 0, 120), 48, 3.5f);
+      draw->AddCircle(centre, radius, lockColor, 48, frame.seekerReady ? 2.f + pulse : 1.6f);
+    } else if (boresightVisible) {
+      brokenRing(draw, boresight, ring, faded(kAccent, .85f), 1.5f, float(now) * .6f);
+      draw->AddCircleFilled(boresight, 1.6f, kAccent);
+    }
+  }
+  if (targetVisible) {
+    if (infrared) {
+      diamond(draw, point, 13, IM_COL32(0, 0, 0, 150), 3.5f);
+      diamond(draw, point, 13, lockColor, frame.seekerReady ? 2.2f : 1.6f);
+    } else {
+      // A radar lock closes in on its target, then holds as a solid box.
+      const float half = 16 + 30 * (1 - ease(lockAge / .35f));
+      draw->AddRect({point.x - half, point.y - half}, {point.x + half, point.y + half}, IM_COL32(0, 0, 0, 150), 0, 0, 3.5f);
+      draw->AddRect({point.x - half, point.y - half}, {point.x + half, point.y + half}, lockColor, 0, 0,
+                    frame.seekerReady ? 2.f : 1.5f);
+      if (!frame.seekerReady) brackets(draw, point, half + 6, faded(lockColor, .5f + .5f * pulse));
+    }
+    const char* word = !frame.seekerReady ? "ACQUIRING" :
+        frame.envelope.targetRange < frame.envelope.minimum ? "TOO CLOSE" :
+        frame.envelope.inside ? "LOCK" : "OUT OF RANGE";
+    centred(draw, {point.x, point.y - 38}, word, lockColor, 14);
+    centred(draw, {point.x, point.y + 22},
+            number(range / 1000, 1) + " km    " + (frame.envelope.closure >= 0 ? "+" : "") +
+                number(frame.envelope.closure * 3.6) + " km/h", lockColor);
+    // Launch zone: the target's range between the nearest and furthest shot.
+    if (frame.envelope.kinematicRange > frame.envelope.minimum) {
+      const float left = point.x + 38, top = point.y - 26, bottom = point.y + 26;
+      const double span = frame.envelope.kinematicRange * 1.25;
+      const auto at = [&](double value) { return bottom - float(std::clamp(value / span, 0., 1.)) * (bottom - top); };
+      draw->AddLine({left, top}, {left, bottom}, faded(kText, .45f), 1.2f);
+      draw->AddLine({left, at(frame.envelope.kinematicRange)}, {left, at(frame.envelope.minimum)},
+                    frame.envelope.inside ? kAccent : kMuted, 3.5f);
+      const float mark = at(frame.envelope.targetRange);
+      draw->AddTriangleFilled({left + 3, mark}, {left + 10, mark - 4}, {left + 10, mark + 4}, lockColor);
+    }
+  } else if (missile && target.id) {
+    text(draw, {display.x * .5f - 62, display.y * .5f + 120}, "TARGET OFF SCREEN", lockColor, 13);
+  }
+
+  // The pilot's own missiles, so a shot can be followed to its target.
+  for (const Vec3& position : frame.ownMissiles) {
+    ImVec2 at;
+    if (!renderer.projectToScreen(position, at.x, at.y, depth)) continue;
+    draw->AddTriangle({at.x, at.y - 7}, {at.x - 6, at.y + 5}, {at.x + 6, at.y + 5}, kText, 1.4f);
+  }
+}
 }
 
 void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer& renderer) {
@@ -302,73 +537,7 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
   }
   if (settings.showFps) text(draw,{display.x-94,display.y-26},number(renderer.stats().fps)+" FPS",kMuted,11);
 
-  if (frame.multiplayer && armed && display.x > 760) {
-    const float x = display.x - 245, y = frame.dogfight ? 200 : 145;
-    panel(draw, {x, y}, {x + 225, y + 245});
-    text(draw, {x + 12, y + 10},
-         frame.lockedTarget.id ? "RADAR TRACK" : "RADAR SEARCH", kAccent, 13);
-    const ImVec2 center{x + 112, y + 150};
-    draw->AddCircle(center, 70, kBorder, 48);
-    draw->AddLine({center.x - 70, center.y}, {center.x + 70, center.y},
-                  kBorder);
-    draw->AddLine({center.x, center.y - 70}, {center.x, center.y + 70},
-                  kBorder);
-    text(draw, {x + 12, y + 30}, "90 km / +/-60 deg", kMuted, 11);
-    for (const auto &track : frame.radarTracks) {
-      const auto relative =
-          state.att.inverseRotate(track.position - state.pos_ned);
-      const double range = relative.norm();
-      const float az = float(std::clamp(
-          std::atan2(relative.y, relative.x) / (60 * kDeg2Rad), -1., 1.));
-      const ImVec2 point{center.x + az * 65,
-                         center.y + 65 -
-                             float(std::min(range / 90000., 1.)) * 130};
-      const bool selected = track.entity == frame.selectedTarget,
-                 locked = track.entity == frame.lockedTarget;
-      const auto color = locked ? kAmber : selected ? kAccent : kMuted;
-      draw->AddCircleFilled(point, 3, color);
-      if (selected)
-        draw->AddRect({point.x - 6, point.y - 6}, {point.x + 6, point.y + 6},
-                      color);
-      if (locked)
-        draw->AddCircle(point, 9, color, 16);
-      float px, py, depth;
-      if (renderer.projectToScreen(track.position, px, py, depth)) {
-        draw->AddRect({px - 12, py - 12}, {px + 12, py + 12}, color, 0, 0,
-                      locked ? 2.f : 1.f);
-        if (selected)
-          text(draw, {px + 16, py - 5}, number(range / 1000, 1) + " km", color,
-               12);
-      }
-    }
-    text(draw, {x + 12, y + 225}, "T/Y target  L lock  Space launch", kMuted, 11);
-    panel(draw, {20, 210}, {310, 337});
-    const std::string weapon =
-        frame.missileSelected
-            ? (frame.missileWeapon == weapons::WeaponType::Infrared ? "IR-90"
-                                                                    : "AR-157")
-            : "GUN";
-    text(draw, {34, 220},
-         weapon + "  IR " + number(frame.irCount) + " / AR " +
-             number(frame.radarCount),
-         kAccent, 16);
-    text(draw, {34, 247},
-         frame.seekerReady ? "SEEKER / SUPPORT READY" : "NO MISSILE SOLUTION",
-         frame.seekerReady ? kAccent : kMuted, 12);
-    text(draw, {34, 266},
-         "Kinematic estimate " + number(frame.envelope.minimum / 1000, 1) +
-             " - " + number(frame.envelope.kinematicRange / 1000, 1) + " km",
-         kMuted, 12);
-    text(draw, {34, 308},
-         "Airborne " + number(frame.activeMissiles) + "  " +
-             number(frame.missileAge, 1) + " s / " +
-             number(frame.missileSpeed) + " m/s",
-         kMuted, 12);
-    text(draw, {34, 285},
-         "Range " + number(frame.envelope.targetRange / 1000, 1) +
-             " km   Closure " + number(frame.envelope.closure) + " m/s",
-         frame.envelope.inside ? kAccent : kAmber, 12);
-  }
+  if (frame.multiplayer && armed && display.x > 760) drawWeapons(draw, display, frame, renderer);
   if (!frame.alive) {
     panel(draw,{cx-150,cy-30},{cx+150,cy+34});
     text(draw,{cx-128,cy-17},frame.multiplayer?"AIRCRAFT DESTROYED":"AIRCRAFT CRASHED",kDanger,20);
@@ -377,6 +546,8 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
   if (settings.showLabels) for (const auto& remote:frame.remotes) {
     const double distance=(remote.state.pos_ned-state.pos_ned).norm();
     if (!remote.alive || distance>settings.labelMaxDistance) continue;
+    // The weapon's target carries its own marker and readout.
+    if (frame.missileSelected && frame.seekerTarget.id == remote.entity) continue;
     float x,y,depth;
     if (!renderer.projectToScreen(remote.state.pos_ned,x,y,depth)) continue;
     const std::string label=(remote.name.empty()?"Aircraft":remote.name)+"  "+number(distance/1000,1)+" km";

@@ -31,10 +31,21 @@ RadarNetState radarProjection(const AircraftWeapons &w,
   n.tracks = w.radar.tracks();
   n.weapon = w.inventory.selected;
   n.seekerReady = w.seekerReady;
+  n.seekerTarget = w.inventory.selected == WeaponType::Infrared
+                       ? w.acquisitionTarget
+                       : w.radar.locked;
+  n.lockProgress = w.lockProgress;
   n.envelope = w.envelope;
   for (const auto &s : w.inventory.stations)
     n.stations.push_back(s.mounted);
   return n;
+}
+std::uint8_t mountedMask(const weapons::Inventory &inventory) {
+  std::uint8_t mask = 0;
+  for (std::size_t i = 0; i < inventory.stations.size() && i < 8; ++i)
+    if (inventory.stations[i].mounted != WeaponType::None)
+      mask |= std::uint8_t(1u << i);
+  return mask;
 }
 MissileCombat::MissileCombat() {
   missiles_.reserve(capacity);

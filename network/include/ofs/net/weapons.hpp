@@ -56,10 +56,23 @@ struct AircraftWeapons {
   std::uint64_t lastSequence{};
   Tick readyTick{};
   bool seekerReady{};
+  // The mounted infrared seeker hunts on its own: it takes the hottest target
+  // near the nose and follows it inside its gimbal until launch or loss.
   EntityRef acquisitionTarget;
   weapons::SeekerState acquisition;
+  double lockProgress{}; // 0..1 toward a releasable launch
+  // A target the pilot broke away from is passed over for a moment, so the
+  // seeker moves on to the next one instead of retaking it.
+  EntityRef seekerRejected;
+  Tick seekerRejectedUntil{};
   weapons::Envelope envelope;
 };
+// Stores still hanging on a nearby aircraft, for presentation only.
+struct Loadout {
+  EntityRef entity;
+  std::uint8_t mounted{}; // bit per station of Inventory::reset(type)
+};
+constexpr std::size_t maxLoadouts = 16;
 struct RadarNetState {
   std::uint32_t generation{};
   weapons::RadarMode mode{};
@@ -68,8 +81,14 @@ struct RadarNetState {
   WeaponType weapon{WeaponType::Infrared};
   std::vector<WeaponType> stations;
   bool seekerReady{};
+  // What the selected weapon is looking at: the seeker's own target for an
+  // infrared missile, the radar lock for an active one.
+  EntityRef seekerTarget;
+  double lockProgress{};
   weapons::Envelope envelope;
+  std::vector<Loadout> loadouts;
 };
+std::uint8_t mountedMask(const weapons::Inventory &);
 MissileNetState projectMissile(const Missile &, EntityId viewer);
 bool missileInterest(const Missile &, EntityId viewer, Vec3 observer);
 class MissileCombat {

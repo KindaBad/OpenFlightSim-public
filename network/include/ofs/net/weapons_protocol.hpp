@@ -44,7 +44,10 @@ public:
   const std::map<std::uint64_t, MissileNetState> &missiles() const {
     return missiles_;
   }
-  std::vector<MissileNetState> sample(double tick) const;
+  // Interpolated missiles at `tick`. `sampled` receives, per missile, the tick
+  // its state belongs to, which differs from `tick` at the ends of its history.
+  std::vector<MissileNetState> sample(double tick,
+                                      std::vector<double> *sampled = nullptr) const;
   std::vector<MissileEvent> takeDetonations();
   std::vector<MissileEvent> takeMissileTerminations();
   std::size_t tombstones() const { return retired_.size(); }

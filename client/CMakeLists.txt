@@ -51,7 +51,7 @@ file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/generated/ofs_font.hpp"
 
 add_executable(ofs_client
   src/main.cpp src/platform.cpp src/input.cpp src/renderer.cpp
-  src/renderer_atmosphere.cpp src/renderer_environment.cpp
+  src/renderer_atmosphere.cpp src/renderer_environment.cpp src/renderer_stores.cpp
   src/debug_ui.cpp src/hud.cpp src/camera.cpp src/settings.cpp)
 add_dependencies(ofs_client ofs_shaders)
 target_include_directories(ofs_client PRIVATE src "${CMAKE_CURRENT_BINARY_DIR}/generated")
