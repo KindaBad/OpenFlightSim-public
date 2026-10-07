@@ -2,6 +2,7 @@
 #include "platform.hpp"
 #include "renderer.hpp"
 #include "input.hpp"
+#include "mouse_aim.hpp"
 #include "debug_ui.hpp"
 #include "hud.hpp"
 #include "log.hpp"
@@ -14,6 +15,7 @@
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>
 #include <algorithm>
+#include <cfloat>
 #include <charconv>
 #include <chrono>
 #include <cstdio>
@@ -505,6 +507,13 @@ int main(int argc, char** argv) {
 #endif
     const Vec3 initialCamera = camera.position;
     const double initialYaw = camera.yaw;
+    MouseAim mouseAim;
+    // Scripted runs drive the controls themselves and must not depend on a
+    // saved control preference.
+    const bool automated = options.smoke || options.gunSmoke || options.networkSmoke || options.combatSmoke ||
+        options.missileSmoke || options.dogfightSmoke || options.afterburnerBench || options.visualBench > 0 ||
+        options.frames > 0 || options.seconds > 0 || !options.screenshot.empty() || !options.scenario.empty() ||
+        !options.flightDemo.empty();
     unsigned frame = 0, fullscreenSwitches = 0;
     bool sawFlightInput = false, sawMouseLook = false, sawFocusRelease = false;
     bool sawCameraMove = false, sawCameraTurn = false, sawAirborneReset = false;
@@ -656,7 +665,11 @@ int main(int argc, char** argv) {
         // captures subsequent flight keys.
         const bool cameraKey=(event.type==SDL_EVENT_KEY_DOWN || event.type==SDL_EVENT_KEY_UP) &&
           event.key.scancode==SDL_SCANCODE_TAB && !ImGui::GetIO().WantCaptureKeyboard;
-        if(!cameraKey) ImGui_ImplSDL3_ProcessEvent(&event);
+        // While mouse aim holds the pointer, the hidden cursor must not hover or
+        // click the interface.
+        const bool pointerEvent=event.type==SDL_EVENT_MOUSE_MOTION || event.type==SDL_EVENT_MOUSE_BUTTON_DOWN ||
+          event.type==SDL_EVENT_MOUSE_BUTTON_UP || event.type==SDL_EVENT_MOUSE_WHEEL;
+        if(!cameraKey && !(input.aiming() && pointerEvent)) ImGui_ImplSDL3_ProcessEvent(&event);
         input.event(event, platform.window());
         if (options.smoke && event.type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
             event.button.button == SDL_BUTTON_RIGHT) {
@@ -671,7 +684,12 @@ int main(int argc, char** argv) {
         }
         if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED)
           running = false;
-        if (event.type == SDL_EVENT_MOUSE_MOTION && input.looking()) {
+        if (event.type == SDL_EVENT_MOUSE_MOTION && input.aiming()) {
+          if (input.looking() && cameraMode != CameraMode::FirstPerson)
+            mouseAim.look(event.motion.xrel, event.motion.yrel, graphics.mouseAimSensitivity);
+          else
+            mouseAim.move(event.motion.xrel, event.motion.yrel, graphics.mouseAimSensitivity);
+        } else if (event.type == SDL_EVENT_MOUSE_MOTION && input.looking()) {
           if (cameraMode == CameraMode::Orbit)
             camera.lookOrbit(event.motion.xrel, event.motion.yrel);
           else
@@ -703,6 +721,10 @@ int main(int argc, char** argv) {
             if (event.key.scancode == SDL_SCANCODE_V)
               cameraMode = cameraMode == CameraMode::FirstPerson ? CameraMode::Chase : CameraMode::FirstPerson;
             if (event.key.scancode == SDL_SCANCODE_F4) ui.hud.show = !ui.hud.show;
+            if (event.key.scancode == SDL_SCANCODE_X && !automated) {
+              graphics.mouseAim = !graphics.mouseAim;
+              ui.saveSettings = true;
+            }
             if (event.key.scancode == SDL_SCANCODE_F5 && ui.botsAvailable &&
                 (!ui.multiplayer || ui.dogfight)) ui.toggleDogfight = true;
             if (event.key.scancode == SDL_SCANCODE_F && cameraMode != CameraMode::Free)
@@ -729,12 +751,35 @@ int main(int argc, char** argv) {
         SDL_Delay(10);
         continue;
       }
+      {
+        // Mouse aim flies from the aircraft views only, and hands the pointer
+        // back whenever there is an interface to click or nothing to fly.
+        const bool flightView = cameraMode == CameraMode::Chase || cameraMode == CameraMode::CloseChase ||
+            cameraMode == CameraMode::FirstPerson;
+#ifdef OFS_NETWORK_ENABLED
+        const bool flying = network ? network->ready() && network->life().alive()
+                                    : !aircraftCrashed(simulation().state());
+#else
+        const bool flying = !aircraftCrashed(simulation().state());
+#endif
+        const bool wasAiming = input.aiming();
+        input.setAiming(platform.window(), graphics.mouseAim && !automated && flightView && flying &&
+            !graphics.showDevOverlay && !ui.paused &&
+            (SDL_GetWindowFlags(platform.window()) & SDL_WINDOW_INPUT_FOCUS));
+        if (input.aiming() && !wasAiming) ImGui::GetIO().AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+        mouseAim.sync(input.aiming(), simulation().state());
+        if (!input.looking() || cameraMode == CameraMode::FirstPerson) mouseAim.clearLook();
+        if (mouseAim.active && cameraMode == CameraMode::FirstPerson)
+          mouseAim.confine(simulation().state(), std::min(.45, .4 * graphics.cockpitFov * kDeg2Rad));
+      }
       ImGui_ImplSDL3_NewFrame();
       ImGui::NewFrame();
 
       const bool captureKeyboard = ImGui::GetIO().WantCaptureKeyboard;
       controls.brake01 = ui.parkingBrake ? 1 : 0;
       if (options.scenario.empty() && options.flightDemo.empty()) input.update(controls, std::min(elapsed, .1), captureKeyboard || cameraMode == CameraMode::Free);
+      // The instructor takes only the axes the keys and the gamepad left neutral.
+      if (mouseAim.active) applyMouseAim(controls, mouseAimCommand(simulation(), mouseAim.direction()));
       if (cameraMode == CameraMode::Free) {
         input.freeCamera(camera, std::min(realElapsed, .1), captureKeyboard);
       }
@@ -1142,7 +1187,8 @@ int main(int argc, char** argv) {
       // Resolve the camera, then render and overlay from the same pose.
       const bool firstFrame = frame == 1;
       const double renderDt = !options.scenario.empty() || !options.flightDemo.empty() ? 1.0/60.0 : std::min(realElapsed, .1);
-      camera.update(cameraMode, aircraft, renderDt, firstFrame, options.aircraft);
+      const Vec3 aimView = mouseAim.viewDirection();
+      camera.update(cameraMode, aircraft, renderDt, firstFrame, options.aircraft, mouseAim.active ? &aimView : nullptr);
       if(cameraMode==CameraMode::FirstPerson)camera.fov=graphics.cockpitFov;
       if (simulation().origin().rebaseIfNeeded(camera.eye)) log("RENDER", "Render origin rebased");
       combat.gunPointValid = definition.gun.has_value() && cameraMode == CameraMode::FirstPerson;
@@ -1168,6 +1214,10 @@ int main(int argc, char** argv) {
       hud.remotes = remotes;
       hud.gunPointValid = combat.gunPointValid;
       hud.gunPoint = combat.gunPoint;
+      hud.mouseAimEnabled = graphics.mouseAim;
+      hud.mouseAim = mouseAim.active;
+      hud.mouseAimPoint = camera.eye + mouseAim.direction() * 4000;
+      hud.nosePoint = camera.eye + aircraft.att.rotate({4000, 0, 0});
       hud.alive = !aircraftCrashed(aircraft);
       hud.health = airframeIntegrity(aircraft)*100;
       hud.ammo = localGun.ammo();

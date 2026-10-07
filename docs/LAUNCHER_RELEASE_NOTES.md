@@ -1,4 +1,10 @@
-OpenFlightSim 0.4.3 Launcher
+OpenFlightSim 0.4.4 Launcher
+
+- Mouse aim: press X in flight (or tick Mouse aim in the flight panel or the F1
+  settings) to fly with the mouse. Move the aim ring where you want to go and
+  the aircraft banks, pulls and rolls out onto it; the view follows the ring.
+  W/A/S/D, Q/E and the gamepad still work and take over their own axis while
+  held. Hold the right mouse button to look around. Sensitivity is in F1.
 
 - New Su-57 model: bohmerang's Su-57 Felon in Russian Aerospace Forces "051"
   camouflage, with moving LEVCONs, leading-edge flaps, flaperons, ailerons,

@@ -38,6 +38,10 @@ struct Input {
   bool rightMouse() const { return rightMouse_; }
   // Relative-mouse look is active; used for orbit and the free camera.
   bool looking() const { return looking_; }
+  // Mouse aim keeps the pointer captured for as long as it flies the aircraft.
+  // Holding the right button then looks around instead of moving the aim.
+  void setAiming(SDL_Window* window, bool aiming);
+  bool aiming() const { return aiming_; }
   // Cycles through the camera modes, bound to Tab.
   CameraMode cycleCamera(CameraMode current) const;
   // Mouse-wheel orbit zoom accumulator, consumed by the camera.
@@ -51,6 +55,7 @@ struct Input {
   std::array<bool, SDL_SCANCODE_COUNT> keys_{};
   std::array<bool, SDL_SCANCODE_COUNT> previous_{};
   bool looking_{};
+  bool aiming_{};
   bool leftMouse_{};
   bool rightMouse_{};
   double orbitZoom_{};

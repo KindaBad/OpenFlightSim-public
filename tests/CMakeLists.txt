@@ -2,6 +2,11 @@ add_executable(ofs_local_gun_tests local_gun_tests.cpp)
 target_link_libraries(ofs_local_gun_tests PRIVATE ofs_visual_core)
 ofs_target_defaults(ofs_local_gun_tests)
 add_test(NAME combat.solo_gun COMMAND ofs_local_gun_tests)
+# The mouse-aim instructor flies every aircraft's real flight model.
+add_executable(ofs_mouse_aim_tests mouse_aim_tests.cpp)
+target_link_libraries(ofs_mouse_aim_tests PRIVATE ofs_visual_core)
+ofs_target_defaults(ofs_mouse_aim_tests)
+add_test(NAME client.mouse_aim COMMAND ofs_mouse_aim_tests)
 
 # Apply the required-content policy to every target, including earlier suites.
 if(OFS_REQUIRE_PRODUCTION_ASSETS)

@@ -37,6 +37,7 @@ void Input::release(SDL_Window* window) {
   keys_.fill(false);
   previous_.fill(false);
   looking_ = false;
+  aiming_ = false;
   leftMouse_ = false;
   rightMouse_ = false;
   orbitZoom_ = 0;
@@ -55,7 +56,7 @@ void Input::event(const SDL_Event& e, SDL_Window* window) {
   }
   if (e.type == SDL_EVENT_MOUSE_BUTTON_UP && e.button.button == SDL_BUTTON_RIGHT) {
     looking_ = false;
-    SDL_SetWindowRelativeMouseMode(window, false);
+    SDL_SetWindowRelativeMouseMode(window, aiming_);
   }
   if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN && e.button.button == SDL_BUTTON_LEFT)
     leftMouse_ = !ImGui::GetIO().WantCaptureMouse;
@@ -74,6 +75,13 @@ void Input::event(const SDL_Event& e, SDL_Window* window) {
     if (count > 0) connect(ids[0]);
     SDL_free(ids);
   }
+}
+
+void Input::setAiming(SDL_Window* window, bool aiming) {
+  if (aiming == aiming_) return;
+  // A refused capture leaves mouse aim off; the caller asks again next frame.
+  aiming_ = aiming && SDL_SetWindowRelativeMouseMode(window, true);
+  if (!aiming_ && !looking_) SDL_SetWindowRelativeMouseMode(window, false);
 }
 
 bool Input::pressed(SDL_Scancode code, bool captureKeyboard) {

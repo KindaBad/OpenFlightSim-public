@@ -47,6 +47,10 @@ struct HudFrame {
   // Gun solution in body FRD, projected to screen by the caller when present.
   bool gunPointValid{};
   Vec3 gunPoint{};
+  // Mouse aim: the option is on, and while it flies, where the aim and the
+  // nose point, as distant world positions.
+  bool mouseAimEnabled{}, mouseAim{};
+  Vec3 mouseAimPoint{}, nosePoint{};
 };
 
 struct HudSettings {

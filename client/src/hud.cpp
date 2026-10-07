@@ -111,11 +111,27 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
       draw->AddLine({x+7,y},{x+19,y},kAccent,1.5f);
     }
   }
-  if (armed && settings.showGunsight && frame.gunPointValid) {
+  const bool gunsight = armed && settings.showGunsight && frame.gunPointValid;
+  if (gunsight) {
     float x,y,depth;
     if (renderer.projectToScreen(frame.gunPoint,x,y,depth)) {
       draw->AddCircle({x,y},10,frame.firing?kAmber:kAccent,24,1.5f);
       draw->AddCircleFilled({x,y},2,kAccent);
+    }
+  }
+  if (frame.mouseAim) {
+    // The ring is where the pilot asked to go; the cross is where the nose is.
+    float x,y,depth;
+    if (renderer.projectToScreen(frame.mouseAimPoint,x,y,depth)) {
+      draw->AddCircle({x,y},15,IM_COL32(0,0,0,150),32,3.5f);
+      draw->AddCircle({x,y},15,kText,32,1.6f);
+      draw->AddCircleFilled({x,y},1.6f,kText);
+    }
+    if (!gunsight && renderer.projectToScreen(frame.nosePoint,x,y,depth)) {
+      draw->AddLine({x-8,y},{x-3,y},kAccent,1.6f);
+      draw->AddLine({x+3,y},{x+8,y},kAccent,1.6f);
+      draw->AddLine({x,y-8},{x,y-3},kAccent,1.6f);
+      draw->AddLine({x,y+3},{x,y+8},kAccent,1.6f);
     }
   }
 
@@ -128,7 +144,10 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
     text(draw,{cx+132,bottom},frame.multiplayer && armed ? "HP "+number(frame.health)+"%" :
          frame.paused ? "PAUSED" : frame.parkingBrake ? "PARKED" : "IN FLIGHT",kAmber,13);
   }
-  text(draw,{24,display.y-24},"F1 SETTINGS   F4 HUD   TAB CAMERA",kMuted,11);
+  text(draw,{24,display.y-24},frame.mouseAimEnabled ? "F1 SETTINGS   F4 HUD   TAB CAMERA   X MOUSE AIM ON"
+       : "F1 SETTINGS   F4 HUD   TAB CAMERA   X MOUSE AIM",kMuted,11);
+  if (frame.mouseAim)
+    text(draw,{24,display.y-40},"MOUSE AIM   WASD/QE OVERRIDE   HOLD RIGHT MOUSE TO LOOK",kMuted,11);
   if (settings.showStall && flight.stall_warn)
     text(draw,{cx-68,cy-100},"STALL WARNING",kDanger,20);
   if (!frame.missileOutcome.empty()) {

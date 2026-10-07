@@ -124,6 +124,7 @@ Windows has not yet produced a passing build; see BUILDING.md for the current CI
 | Look | Hold right mouse and move |
 | Frame aircraft | Home or debug UI button |
 | Aircraft pitch / roll | W pushes down, S pulls up; A/D bank left/right |
+| Mouse aim | X toggles; move the mouse to place the aim ring, hold right mouse to look around |
 | Rudder / nosewheel | Q left, E right |
 | Throttle | Shift / Ctrl, or debug slider |
 | Fire selected weapon | Hold Space / left mouse / gamepad right trigger for guns; press once to launch a missile online |
@@ -146,6 +147,19 @@ left X/Y to roll/pitch and right X to rudder with a deadzone. Physical controlle
 are not yet tested. Gear retracts visually over five seconds on the A320 and
 five seconds on the Su-57. Flaps, spoilers, control surfaces, wheels and A320
 fans follow aircraft state; visual interpolation never changes physics.
+
+**Mouse aim** (X, the flight panel checkbox, or F1 > Controls) is pointer flying
+in the style of War Thunder. The mouse moves an aim ring that is fixed in the
+world, the chase cameras look along it, and an instructor flies the ordinary
+flight model until the nose (the small cross) reaches the ring: wings level
+with elevator and rudder for small corrections, banking into the turn and
+pulling for large ones, within the stall margin and g limit of the aircraft.
+It only fills axes left neutral, so W/S, A/D, Q/E and the gamepad sticks
+override pitch, roll and yaw individually while held. In the flight deck the
+view stays fixed to the airframe and the ring is kept within sight of the
+nose. The pointer is released while the game is paused, F1 is open or the
+aircraft is destroyed. The setting and its sensitivity are saved in
+`graphics.cfg` (`mouseAim`, `mouseAimSensitivity`).
 
 The Su-57 **maneuver mode** sharply increases pitch and roll response and relaxes the
 AoA protection for high-incidence maneuvers while retaining G limits, rate feedback,

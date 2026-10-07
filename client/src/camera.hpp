@@ -58,6 +58,7 @@ struct Camera {
   Vec3 smoothedPosition{};
   Quat smoothedAtt{};
   bool smoothingPrimed{false};
+  bool aimViewActive{false};
 
   // Last resolved eye/target, used by the renderer for view-dependent effects.
   Vec3 eye{};
@@ -111,8 +112,11 @@ struct Camera {
   //
   // `dt` is the frame time; smoothing is exponential and framerate independent.
   // `velocity` is the aircraft's world velocity, used only for look-ahead.
+  // `aimView`, when given, is the world direction mouse aim looks along: the
+  // chase cameras then sit behind the aircraft on that line instead of behind
+  // its tail, so the aim point holds the centre of the screen.
   void update(CameraMode next, const State& aircraft, double dt, bool firstFrame,
-              AircraftType type = AircraftType::A320);
+              AircraftType type = AircraftType::A320, const Vec3* aimView = nullptr);
 
   // True when the aircraft this camera belongs to should be skipped, because
   // the eye is inside its own model.

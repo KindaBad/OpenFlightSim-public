@@ -94,6 +94,11 @@ struct GraphicsSettings {
   bool engineHeat{true};
   bool wireframeAircraft{false};
 
+  // Pointer flying: the mouse places an aim point and the aircraft is flown to
+  // it. Keyboard and gamepad deflections still override their own axes.
+  bool mouseAim{false};
+  float mouseAimSensitivity{1.f};
+
   SkySettings sky;
   WeatherSettings weather;
 

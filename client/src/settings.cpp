@@ -217,6 +217,8 @@ void GraphicsSettings::load(const std::string& path) {
   read(table, "relativeHumidity", relativeHumidity);
   read(table, "engineHeat", engineHeat);
   read(table, "wireframeAircraft", wireframeAircraft);
+  read(table, "mouseAim", mouseAim);
+  read(table, "mouseAimSensitivity", mouseAimSensitivity);
 
   read(table, "sunElevation", sky.sunElevationDeg);
   read(table, "sunAzimuth", sky.sunAzimuthDeg);
@@ -251,6 +253,7 @@ void GraphicsSettings::load(const std::string& path) {
   shadowStrength = clampSetting(shadowStrength, 0.0f, 1.0f);
   playerLabelMaxDistance = clampSetting(playerLabelMaxDistance, 100.0f, 100000.0f);
   relativeHumidity = clampSetting(relativeHumidity, 0.f, 1.f);
+  mouseAimSensitivity = clampSetting(mouseAimSensitivity, .2f, 3.f);
   sky.sunElevationDeg = clampSetting(sky.sunElevationDeg, -10.0f, 89.0f);
   sky.exposureCompensation = clampSetting(sky.exposureCompensation, -4.0f, 4.0f);
   weather.visibilityKm = clampSetting(weather.visibilityKm, 2.0f, 300.0f);
@@ -312,6 +315,8 @@ bool GraphicsSettings::save() const {
   write(file, "relativeHumidity", relativeHumidity);
   write(file, "engineHeat", engineHeat);
   write(file, "wireframeAircraft", wireframeAircraft);
+  write(file, "mouseAim", mouseAim);
+  write(file, "mouseAimSensitivity", mouseAimSensitivity);
 
   write(file, "sunElevation", sky.sunElevationDeg);
   write(file, "sunAzimuth", sky.sunAzimuthDeg);

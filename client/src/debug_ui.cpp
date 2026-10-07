@@ -90,6 +90,7 @@ void debugUi(const Simulator& sim, Controls& controls, const Camera& camera,
     }
     if (hasManeuverMode(sim.config().control_law))
       ImGui::Checkbox("Maneuver mode [M]", &controls.maneuver_mode);
+    if (ImGui::Checkbox("Mouse aim [X]", &settings.mouseAim)) ui.saveSettings = true;
     if (!renderer.hasAircraft()) ImGui::TextColored({1,.5f,.3f,1}, "Aircraft asset unavailable - open F1");
     ImGui::End();
   }
@@ -218,6 +219,12 @@ void debugUi(const Simulator& sim, Controls& controls, const Camera& camera,
     int preset = static_cast<int>(settings.preset);
     if (ImGui::Combo("Quality preset", &preset, "Low\0Medium\0High\0Ultra\0Custom\0"))
       settings.applyPreset(static_cast<GraphicsPreset>(preset));
+    if (ImGui::CollapsingHeader("Controls", ImGuiTreeNodeFlags_DefaultOpen)) {
+      ImGui::Checkbox("Mouse aim [X]", &settings.mouseAim);
+      ImGui::SliderFloat("Mouse aim sensitivity", &settings.mouseAimSensitivity, .2f, 3.f, "%.2f");
+      ImGui::TextWrapped("The mouse places an aim point and the aircraft flies to it. Flight keys and "
+                         "the gamepad still override their own axes. Hold the right mouse button to look around.");
+    }
     if (ImGui::CollapsingHeader("Display", ImGuiTreeNodeFlags_DefaultOpen)) {
       ImGui::Checkbox("VSync", &settings.vsync);
       static const int kSamples[] = {1, 2, 4, 8};

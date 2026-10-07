@@ -99,9 +99,12 @@ Quat attitudeLookAt(const Vec3& forward, const Vec3& up) {
 
 }  // namespace
 
-void Camera::update(CameraMode next, const State& aircraft, double dt, bool firstFrame, AircraftType type) {
-  const bool changed = mode != next;
+void Camera::update(CameraMode next, const State& aircraft, double dt, bool firstFrame, AircraftType type,
+                    const Vec3* aimView) {
+  const bool aimed = aimView && (next == CameraMode::Chase || next == CameraMode::CloseChase);
+  const bool changed = mode != next || aimed != aimViewActive;
   mode = next;
+  aimViewActive = aimed;
   const CameraSettings& settings = cameraSettings(mode);
   const auto& visual = aircraftDefinition(type).visual;
   const Vec3 referencePosition=aircraft.pos_ned-aircraft.att.rotate(loadedCg(aircraftDefinition(type).flight,aircraft));
@@ -138,8 +141,14 @@ void Camera::update(CameraMode next, const State& aircraft, double dt, bool firs
   Vec3 desired = referencePosition + offsetAtt.rotate(offsetBody);
   if (!settings.rigid) desired.z = std::min(desired.z, groundHeightNed(desired.x, desired.y) - .8);
   const Vec3 lookTarget = referencePosition + aircraft.att.rotate(visual.chaseTarget) + aircraft.vel_ned * settings.velocityLookAhead;
-  const Quat desiredAtt = settings.rigid ? aircraft.att*quatFromEuler(0,visual.cockpitPitch,0)
+  Quat desiredAtt = settings.rigid ? aircraft.att*quatFromEuler(0,visual.cockpitPitch,0)
       : attitudeLookAt(lookTarget - desired, Vec3{0, 0, -1});
+  if (aimed) {
+    // Behind and above the aircraft along the aim line, horizon level.
+    desiredAtt = attitudeLookAt(*aimView, Vec3{0, 0, -1});
+    desired = referencePosition + desiredAtt.rotate({offsetBody.x, 0, offsetBody.z});
+    desired.z = std::min(desired.z, groundHeightNed(desired.x, desired.y) - .8);
+  }
 
   if (firstFrame || changed || !smoothingPrimed) {
     smoothedPosition = desired;
@@ -166,7 +175,7 @@ void Camera::update(CameraMode next, const State& aircraft, double dt, bool firs
   eye = smoothedPosition;
   // Look-ahead biases the look target along the velocity vector so a fast
   // aircraft sits slightly low in frame instead of drifting off-centre.
-  target = settings.rigid ? eye + smoothedAtt.rotate({1000, 0, 0}) : lookTarget;
+  target = settings.rigid || aimed ? eye + smoothedAtt.rotate({1000, 0, 0}) : lookTarget;
   fov = settings.fov;
   // A rigid camera inherits the airframe attitude so the horizon rolls with the
   // aircraft; the other modes keep a world-level horizon.
