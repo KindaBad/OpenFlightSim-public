@@ -68,6 +68,7 @@ assets/aircraft/sr71/textures/sr71_wing_4k_basecolor.png
 
 # Generated screenshots. Canonical validation captures are produced locally by
 # scripts/capture_*.py and scripts/benchmark_*.py.
+/data/launcher/previews/
 docs/images/
 output/**/*.png
 output/**/*.jpg

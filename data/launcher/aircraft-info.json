@@ -1,6 +1,6 @@
 {
-  "a320": {"manufacturer": "Airbus", "type": "Airliner", "role": "Passenger transport", "engine_type": "CFM56 turbofan"},
-  "typhoon": {"manufacturer": "Eurofighter", "type": "Fighter", "role": "Multirole / air superiority", "engine_type": "EJ200 afterburning turbofan"},
-  "sr71": {"manufacturer": "Lockheed", "type": "Reconnaissance", "role": "High altitude reconnaissance", "engine_type": "J58 afterburning turbojet"},
-  "su57": {"manufacturer": "Sukhoi", "type": "Fighter", "role": "Multirole / air superiority", "engine_type": "AL-41F1 approximation"}
+  "a320": {"manufacturer": "Airbus", "type": "Airliner", "role": "Passenger transport", "engine_type": "CFM56 turbofan", "thumbnail": "data/launcher/previews/a320.jpg"},
+  "typhoon": {"manufacturer": "Eurofighter", "type": "Fighter", "role": "Multirole / air superiority", "engine_type": "EJ200 afterburning turbofan", "thumbnail": "data/launcher/previews/typhoon.jpg"},
+  "sr71": {"manufacturer": "Lockheed", "type": "Reconnaissance", "role": "High altitude reconnaissance", "engine_type": "J58 afterburning turbojet", "thumbnail": "data/launcher/previews/sr71.jpg"},
+  "su57": {"manufacturer": "Sukhoi", "type": "Fighter", "role": "Multirole / air superiority", "engine_type": "AL-41F1 approximation", "thumbnail": "data/launcher/previews/su57.jpg"}
 }

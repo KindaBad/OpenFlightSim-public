@@ -61,7 +61,7 @@ checkout are not needed. The first start adds OpenFlightSim to the application
 menu (a `.desktop` entry on Linux, a Start Menu shortcut on Windows) and
 refreshes it if the folder is moved. The publisher's update address is built into
 the package; when a newer version exists, an **Update to …** button appears on
-the Play page. Linux packages carry their own protobuf runtime in `lib/`, so a
+the persistent status bar. Linux packages carry their own protobuf runtime in `lib/`, so a
 package built on the Ubuntu release runner also starts on Fedora. The simulator
 and server can still be started directly with their existing arguments.
 
@@ -73,17 +73,35 @@ folder selection available; Play performs a full registry-asset preflight.
 
 ## UI and connected options
 
-The dark blue flight-operations UI has cyan accents, a persistent navigation
-rail, aircraft artwork, a departure summary card and a large Play button. The
-summary shows installed version, aircraft, flight mode, preset, resolution,
-window state, VSync, camera and update status. Aircraft thumbnails are supported
-through optional metadata; absent thumbnails show a small procedural aircraft
-silhouette explicitly identified as illustrative. No large bitmap assets are
-added to the repository.
+The dark launcher has blue accents, a branded header, a persistent navigation
+rail, a wide flight banner and a large Play button. Home includes selectable
+aircraft cards and quick controls for preset, window resolution, MSAA and VSync.
+These controls share the same saved settings as the detailed pages. Settings
+groups flight mode, graphics, display, controls, multiplayer and advanced options
+into tabs. The bottom bar remains visible on every page and shows operation
+status, download percentage, speed, remaining time and safe cancellation.
+
+Aircraft previews are actual native simulator captures. Release builds run
+`scripts/capture_launcher_previews.py` against the installed game and approved
+content, then include the resulting JPEGs in the verified update payload. The
+images stay out of source Git history. Source checkouts can generate their own
+previews after building the game:
+
+```sh
+.cache/launcher-venv/bin/python scripts/capture_launcher_previews.py \
+  --client build/release/client/ofs_client --catalog build/release/launcher-catalog.json \
+  --asset-root . --output data/launcher/previews
+```
+
+Captures use an isolated graphics configuration and do not change the player's
+settings. Missing optional previews use the launcher's aircraft icon. Cards are
+derived from the compiled registry, and layouts scroll/stack on smaller windows.
+The header's pilot name opens multiplayer settings; local flight requires no
+account. Support opens the public project's issue page.
 
 | Section | Working controls / information |
 | --- | --- |
-| Play | Start simulator, flight status, end flight, summary and startup errors |
+| Home | Start simulator, end flight, flight summary, aircraft cards, quick graphics controls |
 | Aircraft | Generated registry, name, optional manufacturer/type/role/engine metadata, engine count, configuration span/mass, thumbnail |
 | Flight Mode | Free Flight, direct-connect Multiplayer, Local Dogfight (only in network-enabled builds), airborne start, 1–8 bots |
 | Graphics | Low/Medium/High/Ultra/Custom/Auto presets, MSAA, texture cap, shadows, effects/particles, clouds, anisotropic sampling, bloom, cloud shadows, vegetation |
@@ -91,7 +109,7 @@ added to the repository.
 | Controls / Input | Current built-in keyboard/mouse/gamepad bindings; automatic SDL gamepad detection in the simulator |
 | Multiplayer | Numeric IPv4/IPv6, UDP port, 1–64 printable ASCII pilot name, locally managed loopback dedicated server |
 | Advanced | Starting camera, draw/scenery distance, model LOD bias, shadow resolution/extent, bloom strength, fog, contrails, wing vapour, exhaust bands, HUD/player labels, hardware report |
-| Updates | Stable/development channel, HTTPS publisher endpoint, startup check, opt-in automatic installation, release notes, progress/speed/cancel/retry/resume, rollback |
+| Downloads | Stable/development channel, HTTPS publisher endpoint, startup check, opt-in automatic installation, release notes, progress/speed/cancel/retry/resume, rollback |
 | Installation / Repair | Location, version/commit/channel, active release size/free disk, folder links, file verification, staged selective repair |
 
 Local Dogfight requires an armed registry aircraft. The launcher rejects an
@@ -159,7 +177,7 @@ the UI labels it reported and policy never promotes based on it alone.
 
 | Module | Responsibility |
 | --- | --- |
-| `ui.py`, `app.py` | Native interface, background jobs, guarded operation states |
+| `ui.py`, `presentation.py`, `app.py` | Native interface, responsive cards/banner, icons, background jobs, guarded operation states |
 | `config.py` | Preferences, renderer schema, presets, user paths |
 | `game.py`, `catalog.cpp` | Discovery, capability validation, safe argument arrays, managed processes |
 | `hardware.py` | Platform probes and independent recommendation policy |
@@ -172,6 +190,7 @@ the UI labels it reported and policy never promotes based on it alone.
 | `diagnostics.py` | Rotating launcher/updater logs and secret/URL redaction |
 | `shortcuts.py` | Per-user application-menu entry, created by the bootstrap |
 | `scripts/play.py` | One-command source-checkout setup, build and start |
+| `scripts/capture_launcher_previews.py` | Real game captures for release banner and aircraft cards |
 
 A managed installation looks like:
 
@@ -194,6 +213,12 @@ releases/0.4.0-<unique-id>/      separately verified replacement
 .installation.lock             OS lease; stale files do not imply stale locks
 .transaction.json              pending pointer transaction / crash recovery
 ```
+
+The 0.4.2 interface refresh retains preference schema 1, update manifest schema 1,
+bootstrap protocol 1 and minimum launcher version 0.3.0. An existing launcher
+downloads a complete replacement release, closes, and lets its existing stable
+bootstrap activate and open the new interface. The stable helper and user-data
+directory are preserved; no reinstall or shortcut replacement is required.
 
 1. The bootstrap resolves the pointer and starts that release's launcher. The
    launcher holds the installation OS lease throughout its own/game lifetime.

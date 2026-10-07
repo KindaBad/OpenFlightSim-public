@@ -182,6 +182,12 @@ jobs:
         run: ctest --test-dir build/release -C Release --output-on-failure --parallel 3 -R "^(player.registry|assets.production|client.asset_pipeline|sr71.assets|sr71.registry|typhoon.assets|typhoon.registry|su57.assets|su57.replay|su57.multiplayer|assets.protected_pack|combat.solo_gun|bots.guidance|bots.connection|launcher.security_config)$"
       - name: Install simulator and runtime DLLs
         run: cmake --install build/release --config Release --prefix build/stage
+      - name: Capture launcher artwork from the installed game
+        shell: bash
+        run: |
+          python scripts/capture_launcher_previews.py --client build/stage/ofs_client.exe \
+            --catalog build/stage/launcher-catalog.json --asset-root build/stage \
+            --output build/stage/data/launcher/previews
       - name: Collect build dependency notices
         run: python scripts/collect_release_notices.py --build build/release --output build/stage
       - name: Add asset license notices

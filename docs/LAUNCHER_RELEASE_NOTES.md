@@ -1,4 +1,15 @@
-OpenFlightSim 0.4.1 Launcher
+OpenFlightSim 0.4.2 Launcher
+
+- Redesigned launcher: a wide flight banner, blue Play button, selectable aircraft
+  cards, quick graphics controls, and a persistent download/status bar.
+- Aircraft previews are captured from the simulator. The aircraft cards show the
+  aircraft included in your installed build.
+- Settings now share one section with tabs for flight mode, graphics, display,
+  controls, multiplayer, and advanced options. Changes on Home and in Settings
+  stay in sync and save automatically.
+- Existing launchers can install this update through their normal update button.
+  Your aircraft selection, graphics settings, pilot name, and installation folder
+  are preserved, with the previous version available for rollback.
 
 - Faster start. Aircraft now load on several processor cores at once, which cuts
   the wait before the first frame to well under half, and the window shows a

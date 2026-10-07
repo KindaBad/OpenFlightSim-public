@@ -87,6 +87,49 @@ class ReleasePipeline(unittest.TestCase):
                          {state['active'].split('/')[1], '0.3.0-initial'})
         self.assertEqual(list((distribution / '.staging').iterdir()), [])
 
+    def test_refresh_updates_original_install_and_restarts_new_launcher(self):
+        fixture(self.simulator, '0.4.2')
+        shutil.rmtree(self.simulator / 'launcher')
+        (self.simulator / 'release.json').unlink()
+        preview = self.simulator / 'data/launcher/previews/a320.jpg'
+        preview.parent.mkdir(parents=True)
+        preview.write_bytes(b'preview fixture')
+        output = self.root / 'refresh'
+        descriptor = package(self.simulator, self.bundles, output,
+                             'https://updates.example.org', local=True, flat_downloads=True)
+        self.assertEqual(descriptor['minimum_launcher_version'], '0.3.0')
+        self.assertEqual(descriptor['minimum_bootstrap_protocol'], 1)
+        existing = self.root / 'existing game'
+        fixture(existing / 'releases/old', '0.3.0')
+        write_json(existing / 'current.json', {'schema': 1, 'active': 'releases/old', 'previous': None})
+        suffix = '.exe' if os.name == 'nt' else ''
+        helper = existing / ('OpenFlightSim' + suffix)
+        helper.write_bytes(b'original stable bootstrap')
+        user = self.root / 'existing user'
+        write_json(user / 'launcher.json', {'schema': 1, 'aircraft': 'typhoon', 'preset': 'High'})
+        (user / 'graphics.cfg').write_text('width=1712\nheight=964\nfutureSetting=keep\n')
+        settings = {name: (user / name).read_bytes() for name in ('launcher.json', 'graphics.cfg')}
+        cache = existing / '.downloads'
+        cache.mkdir()
+        shutil.copy2(next(output.glob('*-update.zip')), cache / 'refresh.zip')
+        request = existing / '.pending-update.json'
+        write_json(request, {'kind': 'update', 'release': descriptor, 'package': '.downloads/refresh.zip'})
+        with patch('launcher.bootstrap.spawn') as restart:
+            run(existing, 'apply', request, user_data=user)
+        state = pointer(existing)
+        active = existing / state['active']
+        self.assertEqual(read_json(active / 'build-info.json')['version'], '0.4.2')
+        self.assertEqual(verify(active), {})
+        self.assertTrue((active / 'data/launcher/previews/a320.jpg').is_file())
+        self.assertEqual(restart.call_args.args[0], [str(active / ('launcher/ofs_launcher' + suffix)),
+                         '--installation', str(existing), '--user-data', str(user)])
+        self.assertEqual(helper.read_bytes(), b'original stable bootstrap')
+        self.assertEqual({name: (user / name).read_bytes() for name in settings}, settings)
+        self.assertEqual(state['previous'], 'releases/old')
+        run(existing, 'rollback', restart=False)
+        self.assertEqual(pointer(existing)['active'], 'releases/old')
+        self.assertEqual({name: (user / name).read_bytes() for name in settings}, settings)
+
     @unittest.skipIf(os.name == 'nt', 'Linux runtime libraries are installed as soname links')
     def test_bundled_library_links_become_regular_files(self):
         library = self.simulator / 'lib'

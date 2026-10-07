@@ -17,6 +17,7 @@ except ImportError:
 from test_engine import fixture, release_for
 from launcher.hardware import Hardware
 from launcher.storage import read_json, write_json
+from launcher.config import Preferences
 from launcher.setup import bootstrap_name
 from launcher.manifest import platform_id
 
@@ -47,11 +48,111 @@ class UI(unittest.TestCase):
     def test_all_sections_render_and_aircraft_discovered(self):
         self.assertEqual(self.window.stack.count(), 10)
         self.assertEqual(self.window.aircraft_combo.count(), 2)
-        for index in range(10):
-            self.window.navigation.setCurrentRow(index)
+        for row, index in enumerate((0, 1, 2, 8, 9)):
+            self.window.navigation.setCurrentRow(row)
             self.app.processEvents()
             self.assertEqual(self.window.stack.currentIndex(), index)
+        for index, tab in self.window.tab_buttons.items():
+            self.window.show_page(2)
+            tab.click()
+            self.app.processEvents()
+            self.assertEqual(self.window.stack.currentIndex(), index)
+            self.assertEqual(self.window.navigation.currentRow(), 2)
+        self.window.show_page(0)
         self.assertTrue(self.window.play_button.isEnabled())
+
+    def test_home_cards_select_and_persist_actual_catalogue_aircraft(self):
+        self.assertEqual(set(self.window.home_aircraft.cards), {'a320', 'typhoon'})
+        self.window.home_aircraft.cards['typhoon'].click()
+        self.assertEqual(self.window.prefs.aircraft, 'typhoon')
+        self.assertEqual(self.window.aircraft_combo.currentData(), 'typhoon')
+        self.assertTrue(self.window.hangar_aircraft.cards['typhoon'].isChecked())
+        self.assertFalse(self.window.home_aircraft.cards['a320'].isChecked())
+        self.assertEqual(read_json(self.data / 'launcher.json')['aircraft'], 'typhoon')
+        self.window.show_page(1)
+        self.window.hangar_aircraft.cards['a320'].click()
+        self.assertEqual(self.window.prefs.aircraft, 'a320')
+        self.assertTrue(self.window.home_aircraft.cards['a320'].isChecked())
+
+    def test_home_graphics_and_detail_pages_stay_in_sync(self):
+        self.window.home_preset.setCurrentText('Ultra')
+        self.assertEqual(self.window.preset_combo.currentText(), 'Ultra')
+        self.assertEqual(self.window.home_graphics['msaa'].currentData(), 8)
+        self.window.home_preset.setCurrentText('Custom')
+        self.assertEqual(self.window.preset_combo.currentText(), 'Custom')
+        self.assertEqual(read_json(self.data / 'launcher.json')['preset'], 'Custom')
+        self.window.home_graphics['msaa'].setCurrentIndex(1)
+        self.assertEqual(self.window.graphic_widgets['msaa'].currentData(), 2)
+        self.assertEqual(self.window.preset_combo.currentText(), 'Custom')
+        self.assertEqual(self.window.home_preset.currentText(), 'Custom')
+        self.window.graphic_widgets['width'].setValue(1600)
+        self.window.graphic_widgets['height'].setValue(900)
+        self.assertEqual(self.window.home_resolution.currentData(), (1600, 900))
+        self.window.home_graphics['vsync'].setCurrentIndex(1)
+        self.assertFalse(self.window.graphic_widgets['vsync'].isChecked())
+        config = (self.data / 'graphics.cfg').read_text()
+        for expected in ('width=1600', 'height=900', 'msaa=2', 'vsync=0'):
+            self.assertIn(expected, config)
+
+    def test_existing_settings_load_without_migration_or_reset(self):
+        self.window.close()
+        Preferences(installation=str(self.directory), aircraft='typhoon', mode='dogfight',
+                    camera='orbit', name='Returning pilot', preset='High',
+                    manifest_url='https://updates.example.org/manifest.json',
+                    auto_check=False, auto_install=True).save(self.data / 'launcher.json')
+        (self.data / 'graphics.cfg').write_text('width=1712\nheight=964\nmsaa=8\nvsync=0\nfutureSetting=keep\n')
+        with patch.object(Window, 'start_background', lambda self: None):
+            self.window = Window(None, self.data, self.data / 'logs', {'version': '0.4.2'})
+            self.window.show()
+            self.app.processEvents()
+        self.assertEqual(self.window.prefs.aircraft, 'typhoon')
+        self.assertEqual(self.window.prefs.mode, 'dogfight')
+        self.assertEqual(self.window.prefs.name, 'Returning pilot')
+        self.assertTrue(self.window.prefs.auto_install)
+        self.assertEqual(self.window.home_preset.currentText(), 'High')
+        self.assertEqual(self.window.home_resolution.currentData(), (1712, 964))
+        self.assertEqual(self.window.home_graphics['msaa'].currentData(), 8)
+        self.window.home_graphics['vsync'].setCurrentIndex(0)
+        self.assertIn('futureSetting=keep', (self.data / 'graphics.cfg').read_text())
+
+    def test_busy_home_controls_cannot_change_the_active_flight(self):
+        with patch.object(self.window.session, 'running', return_value=True):
+            self.window.refresh_summary()
+            self.assertFalse(self.window.home_aircraft.isEnabled())
+            self.assertFalse(self.window.quick_settings.isEnabled())
+            self.assertFalse(self.window.play_button.isEnabled())
+            self.window.select_card('typhoon')
+            self.assertEqual(self.window.prefs.aircraft, 'a320')
+        self.window.refresh_summary()
+        self.assertTrue(self.window.home_aircraft.isEnabled())
+        self.assertTrue(self.window.quick_settings.isEnabled())
+
+    def test_download_bar_reports_progress_and_safe_cancellation(self):
+        import threading
+        finished = threading.Event()
+        def work(cancel, progress):
+            progress(1024**2, 4 * 1024**2, 1024**2)
+            cancel.wait(2)
+            finished.set()
+        self.window.start_job('Downloading update', work, lambda result: None)
+        deadline = time.monotonic() + 1
+        while self.window.progress.value() != 25 and time.monotonic() < deadline:
+            self.app.processEvents()
+            time.sleep(.01)
+        self.assertEqual(self.window.operation_label.text(), 'Downloading update')
+        self.assertEqual(self.window.progress.value(), 25)
+        self.assertIn('(25%)', self.window.transfer_label.text())
+        self.assertIn('remaining', self.window.status.text())
+        self.assertFalse(self.window.quick_settings.isEnabled())
+        self.window.cancel_button.click()
+        deadline = time.monotonic() + 2
+        while self.window.job and time.monotonic() < deadline:
+            self.app.processEvents()
+            time.sleep(.01)
+        self.assertTrue(finished.is_set())
+        self.assertIsNone(self.window.job)
+        self.assertFalse(self.window.progress.isVisible())
+        self.assertTrue(self.window.quick_settings.isEnabled())
 
     def test_available_update_is_offered_on_play_page(self):
         self.assertFalse(self.window.update_button.isVisible())

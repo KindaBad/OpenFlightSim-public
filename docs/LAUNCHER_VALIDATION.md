@@ -1,4 +1,39 @@
-# Launcher validation — 6 October 2026
+# Launcher interface refresh — 7 October 2026
+
+Version 0.4.2 was verified locally on Linux:
+
+- All **91 launcher tests pass** with pinned PySide6 Essentials. Tests cover the
+  five navigation destinations, all six settings tabs, registry-driven cards,
+  saved aircraft selection, synchronization of Home and detailed graphics
+  controls, loading existing schema-1 preferences/custom resolutions, unknown
+  graphics-key preservation, active-flight guards and progress/cancellation.
+- CTest `launcher.security_config` passes in the freshly configured
+  `build/setup-ctest` tree using the launcher environment. An initial check in
+  `build/release` used its cached Python without certifi and failed at import;
+  the configured launcher environment supplies the required dependencies.
+- The native client and compiled launcher catalogue build successfully at
+  version 0.4.2. The capture script rendered A320, Typhoon, SR-71 and Su-57 from
+  the game into optional previews using an isolated graphics configuration.
+  Generated JPEGs and capture logs remain local/under ignored build paths.
+- Home, aircraft, graphics and download pages were inspected at 1440 × 900;
+  Home was also checked at 1280 × 800 and 1020 × 720. Smaller windows scroll and
+  stack the home panels, keeping the status bar and navigation accessible.
+- New launcher, bootstrap and standalone setup freeze successfully. The original
+  **0.3.0 frozen bootstrap** from the earlier local build activated a newly
+  packaged 0.4.2 launcher, whose frozen executable rendered successfully from
+  the managed release slot. The old helper's bytes were unchanged, selected
+  aircraft/preset/camera and custom graphics values survived, and the old helper
+  rolled back to the retained 0.3.0 slot. The local test package uses synthetic
+  simulator/model fixtures; the updater and new GUI are actual frozen binaries.
+- Preference and release schemas, bootstrap protocol and minimum launcher
+  version remain compatible with 0.3.0. New preview files are included in the
+  normal hashed package/repair indexes rather than downloaded separately.
+
+Generated verification artifacts are under `build/launcher-refresh-*`. No AI
+artwork is included. Windows release/runtime verification is performed by the
+public release workflow after source delivery and is reported separately.
+
+# Earlier launcher validation — 6 October 2026
 
 Implementation was tested locally on Linux. Windows runners are configured in
 the release workflow but no Windows runtime/CI success is claimed.
