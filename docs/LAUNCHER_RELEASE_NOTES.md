@@ -1,4 +1,9 @@
-OpenFlightSim 0.3.2 Launcher
+OpenFlightSim 0.3.3 Launcher
+
+- Typhoon maneuver mode: press M for sharper pitch and roll below 300 m/s, with
+  the gear up. G limits and control-surface limits still apply.
+- New Typhoon model in Luftwaffe markings with a detailed cockpit and a working
+  airbrake. Model by bohmerang, CC BY-NC-SA 4.0; see `licenses/assets/TYPHOON.md`.
 
 - Fixed installation and update downloads on PCs missing GitHub's certificate
   issuer in their local trust store. Setup and launcher now bundle Mozilla's
@@ -30,7 +35,8 @@ launcher's Updates page once to install subsequent published versions when idle.
 This release includes A320, Typhoon, SR-71 and Su-57. The Su-57 uses protected
 game content and retains its existing controls, articulated landing gear,
 independent vectored nozzles and authored LODs. Original Su-57 model by lullabie
-(CGTrader); artwork is separately licensed. Existing installations receive the
+(CGTrader); Typhoon model by bohmerang (Sketchfab, CC BY-NC-SA 4.0). Both
+artworks are separately licensed. Existing installations receive the
 new aircraft through the normal launcher update.
 
 The launcher uses dynamically linked Qt/PySide/shiboken 6.10.2. License notices

@@ -132,7 +132,7 @@ Windows has not yet produced a passing build; see BUILDING.md for the current CI
 | Gun camera | V toggles flight-deck camera; armed aircraft have a gun sight |
 | Gear / brakes | G toggles simulation gear; B wheel brakes; UI parking brake |
 | Flaps / airbrake | F cycles 0/25/50/75/100%; H toggles airbrake/spoilers |
-| Su-57 maneuver mode | M toggles; also available in the flight controls panel |
+| Su-57 / Typhoon maneuver mode | M toggles; also available in the flight controls panel |
 | Fullscreen / quit | F11 / Escape, or window close |
 | Simulation tooling | UI pause, reset on runway, reset airborne |
 
@@ -161,6 +161,10 @@ layer, soft edges and short lifetimes to keep the aircraft visible. Adjust
 or High effect quality is required. Vapor dissipates after unloading, with no
 emissions while stationary. Cold-altitude exhaust contrails remain a separate effect.
 See [maneuver and condensation validation](docs/SU57_MANEUVER_MODE.md).
+
+The Typhoon has the same M-key **maneuver mode** on its canard control law, with
+smaller gains because it has no vectoring nozzles. See
+[Typhoon maneuver mode and model](docs/TYPHOON_MANEUVER_MODE.md).
 Both network peers now require protocol **13**; rebuild client and server together.
 
 The elevator-trim slider keeps a persistent pitch offset when the stick is released.
@@ -325,10 +329,11 @@ launch instructions, bandwidth costs and remaining limitations are documented in
 [docs/M2_MULTIPLAYER_VALIDATION.md](docs/M2_MULTIPLAYER_VALIDATION.md) and
 [docs/M3_COMBAT_VALIDATION.md](docs/M3_COMBAT_VALIDATION.md).
 
-The Austrian Eurofighter Typhoon (7L-WA) is available with `--aircraft typhoon`.
+The Eurofighter Typhoon is available with `--aircraft typhoon`.
 It has an independently configured twin-engine flight model, reheat above 85%
-throttle, articulated foreplanes/elevons/gear/nozzles, Austrian markings and four
-authored LODs. M3.6 originally introduced protocol v5; current client/server builds require v13. Rebuild both together. See the inspected Blender
+throttle, articulated foreplanes/elevons/airbrake/gear/nozzles, Luftwaffe markings
+and four LODs. Its model is by bohmerang (CC BY-NC-SA 4.0); the original
+Austrian 7L-WA model described in the M3.65 report is retired from the runtime. M3.6 originally introduced protocol v5; current client/server builds require v13. Rebuild both together. See the inspected Blender
 and native captures, measurements and approximations in
 [docs/M3_65_TYPHOON_VALIDATION.md](docs/M3_65_TYPHOON_VALIDATION.md).
 

@@ -276,10 +276,11 @@ void hierarchy(const std::string& root) {
     }
     check(parents>10,"hierarchy not flattened");
     if (definition.type==AircraftType::Typhoon) {
-      for(const char* name:{"canard","elevon_L","elevon_R","rudder","gear_fold","gear_door","wheel","nose_wheel","steering","nozzle_L","nozzle_R"})
+      for(const char* name:{"canard","elevon_L","elevon_R","rudder","spoiler","gear_fold","gear_door","wheel","nose_wheel","steering","nozzle_L","nozzle_R","compression_nose","compression_L","compression_R"})
         check(channels.contains(name),"Typhoon articulated channel present");
-      check(mesh.images.size()>=7 && !mesh.textures.empty(),"Typhoon original embedded maps");
-      check(std::count_if(mesh.materials.begin(),mesh.materials.end(),[](const auto&m){return m.normalTexture>=0;})>=4,"Typhoon normal maps decoded");
+      // One shared atlas: base colour, metallic/roughness and normal.
+      check(mesh.images.size()>=3 && !mesh.textures.empty(),"Typhoon embedded atlas maps");
+      check(std::count_if(mesh.materials.begin(),mesh.materials.end(),[](const auto&m){return m.normalTexture>=0;})>=1,"Typhoon normal map decoded");
     } else if(definition.type==AircraftType::SR71) {
       for(const char* name:{"elevon_L","elevon_R","rudder","gear_fold","gear_door","wheel","nose_wheel","steering","inlet_L","inlet_R","nozzle_L","nozzle_R"})
         check(channels.contains(name),"SR71 delta and inlet articulated channels");

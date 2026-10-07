@@ -470,7 +470,7 @@ int main(int argc, char** argv) {
       if(options.scenario=="condensation") {
         fixture.pos_ned.z=-1500;fixture.vel_ned={180,0,0};
         fixture.att=quatFromEuler(25*kDeg2Rad,25*kDeg2Rad,0);
-        controls.maneuver_mode=options.aircraft==AircraftType::Su57;
+        controls.maneuver_mode=hasManeuverMode(simulation().config().control_law);
       }
       simulation().setState(fixture); simulation().setControls(controls); previous = fixture;
       ui.parkingBrake = fixture.pos_ned.z > -10;
@@ -686,7 +686,7 @@ int main(int argc, char** argv) {
                 (!ui.multiplayer || ui.dogfight)) ui.toggleDogfight = true;
             if (event.key.scancode == SDL_SCANCODE_F && cameraMode != CameraMode::Free)
               controls.flap01 = controls.flap01 >= .99 ? 0 : std::min(1., controls.flap01 + .25);
-            if (event.key.scancode == SDL_SCANCODE_M && options.aircraft == AircraftType::Su57)
+            if (event.key.scancode == SDL_SCANCODE_M && hasManeuverMode(simulation().config().control_law))
               controls.maneuver_mode = !controls.maneuver_mode;
             if (event.key.scancode == SDL_SCANCODE_H)
               controls.spoiler01 = controls.spoiler01 > .5 ? 0 : 1;

@@ -36,7 +36,7 @@ endforeach()
 add_executable(ofs_typhoon_scenarios typhoon_scenarios.cpp)
 target_link_libraries(ofs_typhoon_scenarios PRIVATE ofs_core)
 ofs_target_defaults(ofs_typhoon_scenarios)
-foreach(scenario engines cruise taxi takeoff controls stall landing robustness)
+foreach(scenario engines cruise taxi takeoff controls maneuver stall landing robustness)
   add_test(NAME typhoon.${scenario} COMMAND ofs_typhoon_scenarios ${scenario})
 endforeach()
 

@@ -4,7 +4,8 @@ Press **M** in the Su-57, or select **Maneuver mode [M]** in the flight controls
 panel. The HUD shows NORMAL, MANEUVER, or MANEUVER / STANDBY. Runway/airborne
 reset restores normal mode. Mode selection is sent to the authoritative server
 and retained through owner prediction, snapshot replay and remote presentation.
-Client and server must both use protocol 13.
+Client and server must both use protocol 13. The Typhoon shares the key and
+flag with its own control law; see [TYPHOON_MANEUVER_MODE.md](TYPHOON_MANEUVER_MODE.md).
 
 This is an OpenFlightSim engineering/gameplay control law, not a reconstruction
 of the real Su-57 system. The existing feedback controller and independent

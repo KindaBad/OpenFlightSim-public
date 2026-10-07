@@ -85,7 +85,17 @@ The generic Falcon and its authoring script were removed. Armed regression fixtu
 use production engineering aircraft. The NASA/public F-16 reference remains separate
 and is loaded only by the optional scientific validation target.
 
-## Austrian Eurofighter Typhoon
+## Eurofighter Typhoon
+
+The runtime Typhoon is `assets/aircraft/typhoon/typhoon_lod0.glb` through
+`typhoon_lod3.glb`, adapted from bohmerang's CC BY-NC-SA 4.0 Sketchfab model by
+`scripts/typhoon_donor_import.py`. Source, license, import steps and measured
+dimensions are in `assets/aircraft/typhoon/README.md`.
+
+### Retired original Austrian model
+
+The remainder of this section describes the project's earlier original model,
+which the runtime no longer loads. Its sources stay in the repository.
 
 `assets/typhoon/typhoon_lod0.glb` through `typhoon_lod3.glb` are original aircraft
 meshes authored and exported in live Blender MCP. The editable, packed source is
@@ -119,7 +129,7 @@ sources, scripts, definitions, manifests and documentation only:
 
 | Content | Rule | Regenerate with |
 |---|---|---|
-| Runtime models (`*.glb`) | `*.glb` | `scripts/{typhoon,sr71,su57}_export.py`; the A320 original come from the author's Blender scenes |
+| Runtime models (`*.glb`) | `*.glb` | `scripts/typhoon_donor_import.py`, `scripts/{sr71,su57}_export.py`; the A320 original come from the author's Blender scenes |
 | Blender sources (`*.blend`) | `*.blend` | Authored stages in `scripts/*.py` through live Blender MCP |
 | Large textures (>= 1 MiB) | explicit paths in `.gitignore` | Exported from the models; runtime ships them embedded in LOD0 |
 | Screenshots and contact sheets | `docs/images/` | `scripts/capture_*.py` |

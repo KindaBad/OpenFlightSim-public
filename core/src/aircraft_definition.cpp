@@ -63,14 +63,14 @@ std::span<const AircraftDefinition> aircraftDefinitions() {
   static const auto definitions = [] {
     GunConfig typhoonGun;
     typhoonGun.rpm=1700; typhoonGun.muzzleVelocity=1000; typhoonGun.ammo=150;
-    typhoonGun.muzzle={4.0,.82,.29}; // Starboard intake shoulder, body FRD.
+    typhoonGun.muzzle={4.1,.82,-.30}; // Starboard intake shoulder, body FRD.
     typhoonGun.damage=34; // Gameplay damage, not a ballistic lethality claim.
     const std::array<AircraftDefinition::CollisionSphere,17> typhoonBoxes{{
-      {{7.85,0,-.52},.40},{{6.35,0,-.62},.68},{{4.85,0,-.54},.74},{{3.35,0,-.47},.85},
-      {{1.35,0,-.30},1.02},{{-.65,0,-.20},1.13},{{-2.65,0,-.13},1.16},{{-4.65,0,.05},.90},
-      {{.85,-1.8,.05},1.02},{{-.95,-3.0,.05},.90},{{-2.55,-4.1,.05},.76},{{-2.9,-5.0,.05},.52},
-      {{.85,1.8,.05},1.02},{{-.95,3.0,.05},.90},{{-2.55,4.1,.05},.76},{{-2.9,5.0,.05},.52},
-      {{-4.25,0,-1.95},.90}}};
+      {{7.75,0,-.09},.35},{{6.40,0,-.20},.60},{{5.00,0,-.45},.80},{{3.50,0,-.20},.95},
+      {{1.50,0,-.10},1.05},{{-.60,0,-.05},1.15},{{-2.80,0,-.05},1.15},{{-5.00,0,0},.90},
+      {{-.60,-1.9,.30},1.05},{{-2.00,-3.0,.30},.90},{{-3.00,-4.1,.30},.75},{{-3.60,-5.0,.28},.52},
+      {{-.60,1.9,.30},1.05},{{-2.00,3.0,.30},.90},{{-3.00,4.1,.30},.75},{{-3.60,5.0,.28},.52},
+      {{-5.60,0,-2.00},.95}}};
     const std::array<AircraftDefinition::CollisionSphere,17> sr71Boxes{{
       {{19,0,.2},.5},{{16,0,.1},.9},{{12,0,0},1.3},{{8,0,0},1.5},
       {{4,0,0},1.7},{{0,0,0},1.9},{{-4,0,0},1.7},{{-9,0,0},1.3},
@@ -94,11 +94,12 @@ std::span<const AircraftDefinition> aircraftDefinitions() {
        {{15.51, 3.55, 0}, {13.6, 0, -.55}, {-68, 16, -19}, {-60, 0, -13}, {}, {},
         {{-.2, -5.75, 1.71}, {-.2, 5.75, 1.71}}, {{-6.0, -17.6, -.5}, {-6.0, 17.6, -.5}},
         26, 5, 4, .61, .39, .025}, {1, 1, 1}, std::nullopt},
-      AircraftDefinition{AircraftType::Typhoon, "typhoon", "Eurofighter Typhoon | Austria 7L-WA", "assets/typhoon/typhoon_lod0.glb", typhoonConfig(),
-       {{9.35,2.05,0}, {5.12,0,-1.40}, {-29,5,-8}, {-20,0,-5}, {-1,0,0}, {-1,0,0},
-        {{-5.46,-.63,.05},{-5.46,.63,.05}}, {{-2.92,-5.40,.04},{-2.92,5.40,.04}},
-        9.5,4,2,.46,.31,.045,true}, {.46,.33,.55}, typhoonGun,
-        {"assets/typhoon/typhoon_lod1.glb","assets/typhoon/typhoon_lod2.glb","assets/typhoon/typhoon_lod3.glb"},typhoonBoxes},
+      // Anchors measured from the Luftwaffe donor rig; see assets/aircraft/typhoon/README.md.
+      AircraftDefinition{AircraftType::Typhoon, "typhoon", "Eurofighter Typhoon | Luftwaffe", "assets/aircraft/typhoon/typhoon_lod0.glb", typhoonConfig(),
+       {{8.55,2.05,0}, {4.53,0,-1.19}, {-29,5,-8}, {-20,0,-5}, {-1,0,0}, {-1,0,0},
+        {{-6.33,-.49,0},{-6.33,.49,0}}, {{-4.60,-5.33,.25},{-4.60,5.33,.25}},
+        9.5,4,2,.385,.247,.045,true}, {.46,.33,.55}, typhoonGun,
+        {"assets/aircraft/typhoon/typhoon_lod1.glb","assets/aircraft/typhoon/typhoon_lod2.glb","assets/aircraft/typhoon/typhoon_lod3.glb"},typhoonBoxes},
       AircraftDefinition{AircraftType::SR71,"sr71","Lockheed SR-71A | USAF 61-7972",
         "assets/aircraft/sr71/sr71_lod0.glb",sr71Config(),
         {{20.62,2.55,0},{14.68,0,-.92},{-68,11,-18},{-42,0,-8},{-1.5,0,0},{3.5,0,0},

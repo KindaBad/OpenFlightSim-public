@@ -88,7 +88,7 @@ void debugUi(const Simulator& sim, Controls& controls, const Camera& camera,
         ui.toggleDogfight = true;
       if (ui.dogfight) ImGui::TextUnformatted("L lock / Space launch   T/Y target");
     }
-    if (sim.config().control_law == FlightControlLaw::VectorFighter)
+    if (hasManeuverMode(sim.config().control_law))
       ImGui::Checkbox("Maneuver mode [M]", &controls.maneuver_mode);
     if (!renderer.hasAircraft()) ImGui::TextColored({1,.5f,.3f,1}, "Aircraft asset unavailable - open F1");
     ImGui::End();
@@ -171,7 +171,7 @@ void debugUi(const Simulator& sim, Controls& controls, const Camera& camera,
       ImGui::SliderScalar("Flaps", ImGuiDataType_Double, &controls.flap01, &zero, &one, "%.2f");
       ImGui::SliderScalar("Spoilers", ImGuiDataType_Double, &controls.spoiler01, &zero, &one, "%.2f");
       ImGui::Text("Gear %.0f | brakes %.1f", controls.gear01, controls.brake01);
-      if (sim.config().control_law == FlightControlLaw::VectorFighter)
+      if (hasManeuverMode(sim.config().control_law))
         ImGui::Checkbox("Maneuver mode [M]", &controls.maneuver_mode);
       ImGui::Text("Gamepad: %s", gamepad ? "connected" : "none");
       ImGui::Separator();

@@ -24,7 +24,9 @@ int main(int argc,char** argv){try {
     const auto path=root/d.modelAsset;
     const PhysicalGeometry* geometry=d.type==AircraftType::A320?&a320Geometry():d.type==AircraftType::Su57?&su57Geometry():nullptr;
     const double length=geometry?geometry->length:d.type==AircraftType::Typhoon?15.96:32.7406;
-    const double height=geometry?geometry->height:d.type==AircraftType::Typhoon?5.28:5.6388;
+    // The Typhoon donor's fin stands 0.34 m above the published 5.28 m overall
+    // height at the configured static stance; the airframe is not rescaled.
+    const double height=geometry?geometry->height:d.type==AircraftType::Typhoon?5.62:5.6388;
     if(!(std::filesystem::is_regular_file(path)||std::filesystem::is_regular_file(path.string()+".ofspack"))) {
       require(!mandatory,"Required production model absent: "+path.string());
       ++missing;

@@ -88,6 +88,35 @@ export all LODs consistently. Preserve donor provenance and compare local
 cross-sections/hinges as well as bounds; dimension-fitting alone cannot establish
 OEM fidelity. No artwork was changed by this milestone.
 
+## Typhoon donor
+
+**PUBLIC SOURCE EXCLUDED / UNENCRYPTED GAME RELEASE UNDER CC BY-NC-SA 4.0.**
+The owner supplied `eurofighter-typhoon-fighter-jet-free.zip` on 2026-10-07 and
+asked for it to replace the original Typhoon in player builds, stating that the
+game will always be free and open source. The archive matches the Sketchfab
+listing [Eurofighter Typhoon - Fighter Jet - Free by bohmerang](https://sketchfab.com/3d-models/eurofighter-typhoon-fighter-jet-free-992bcc8987964ca09d55410330aa8579)
+by name, publication date (2024-06-14), triangle count (28.8k) and the upload
+path stored inside the Blender file. The listing was read on 2026-10-07 and shows
+CC Attribution-NonCommercial-ShareAlike, with the author's note that the model
+cannot be used in commercial work. The archive carries no license file; a byte
+comparison against a fresh marketplace download was not performed.
+
+The license permits sharing and adapting for non-commercial purposes with
+attribution, requires adaptations to carry the same license, and forbids
+technical measures that restrict those rights. The Typhoon therefore ships as
+ordinary GLBs, not OFSPACK1, with credit and terms in `licenses/assets/TYPHOON.md`.
+This differs deliberately from the Su-57, whose marketplace terms require
+safeguarding. The approval depends on OpenFlightSim staying free of charge and
+non-commercial; selling the game, or bundling it into a paid product, would
+need the Typhoon removed or the author's separate permission. Whether the
+ShareAlike term reaches beyond the model files themselves has not been reviewed
+by a lawyer; the source repository does not include the model.
+
+Import measurements and the differences from published dimensions are recorded
+in `assets/aircraft/typhoon/README.md` and its generated `lod_stats.json`.
+The earlier original Austrian Typhoon is retired from the runtime and from the
+content pack; its authoring sources remain in the repository.
+
 ## Texture costs and renderer terminology
 
 Every uploaded aircraft texture now logs its source/embedded image identifier,

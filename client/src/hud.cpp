@@ -67,7 +67,7 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
   readout(112,"MACH",number(flight.mach,2));
   if (armed) readout(134,"MG",number(frame.ammo),frame.ammo ? kText : kDanger);
   if (settings.showGLoad) readout(156,"LOAD",number(flight.g_load,1)+" G");
-  if (frame.type == AircraftType::Su57 && controls.maneuver_mode)
+  if (hasManeuverMode(definition.flight.control_law) && controls.maneuver_mode)
     text(draw,{24,180},controls.gear01 >= .5 || flight.tas >= 300 || !state.fcs_enabled
          ? "MANEUVER STANDBY [M]" : "MANEUVER MODE [M]",kAmber,12);
 

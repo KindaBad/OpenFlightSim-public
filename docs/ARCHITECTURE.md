@@ -304,7 +304,7 @@ captured evidence are in `M3_6_VISUAL_AIRCRAFT_VALIDATION.md`.
 
 ## M3.65 registry, authored LODs and engine extension
 
-Aircraft ID 3 is the Austrian Eurofighter Typhoon. Type-keyed maps replace the
+Aircraft ID 3 is the Eurofighter Typhoon. Type-keyed maps replace the
 two-aircraft spawn/model arrays. Legacy configuration history is superseded by the current aircraft audit; production configurations use
 their thrust curves, gun capabilities and generated three-tier LODs; authored
 four-tier assets are optional definition data. Per-type collision spheres and

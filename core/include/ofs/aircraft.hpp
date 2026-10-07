@@ -22,6 +22,10 @@ struct AeroSurface {
 };
 inline constexpr std::size_t surfaceCount = 6;
 enum class FlightControlLaw { Direct, Transport, Fighter, Canard, Delta, VectorFighter };
+// Laws that honour Controls::maneuver_mode; others ignore the replicated flag.
+constexpr bool hasManeuverMode(FlightControlLaw law) {
+  return law == FlightControlLaw::VectorFighter || law == FlightControlLaw::Canard;
+}
 
 struct EngineComponent {
   Vec3 position{}, direction{1, 0, 0};
@@ -169,7 +173,7 @@ struct Controls {
   double steering{
       -0.0}; // -1..1 nosewheel (used at low speed); default straight
   double elevator_trim{0.0}; // persistent normalized offset, added to stick
-  bool maneuver_mode{}; // Su-57 low-speed high-AoA command; retains FCS/G limits
+  bool maneuver_mode{}; // Su-57/Typhoon low-speed high-AoA command; retains FCS/G limits
 };
 
 struct Weather {

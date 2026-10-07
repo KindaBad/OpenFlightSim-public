@@ -77,11 +77,20 @@ Controls Simulator::controlTargets() const {
     const double loadFeedback =
         (cfg_.control_law == FlightControlLaw::Transport ? .12 : .08) *
         (state_.att.inverseRotate({0, 0, 1}).z - load);
+    // Typhoon gameplay engineering law, sharing the Su-57 airspeed schedule
+    // and gear-down inhibit. Without vectoring nozzles it only asks more of
+    // the foreplanes and elevons, so its gains and AoA extension are smaller.
+    const double maneuver = cfg_.control_law == FlightControlLaw::Canard &&
+                            controls_.maneuver_mode && controls_.gear01 < .5
+                                ? clamp((300. - V) / 90., 0., 1.) : 0.;
+    const double responseTime = cfg_.response_time * (1. - .30 * maneuver);
+    const double alphaLimit = cfg_.alpha_limit +
+        maneuver * std::max(0., 50 * kDeg2Rad - cfg_.alpha_limit);
     double pitchCommand =
         (state_.pilot_pitch + controls_.elevator_trim - state_.trim_reference) *
-            cfg_.max_pitch_rate +
+            cfg_.max_pitch_rate * (1. + 1.2 * maneuver) +
         loadFeedback;
-    double rollCommand=state_.pilot_roll*cfg_.max_roll_rate;
+    double rollCommand=state_.pilot_roll*cfg_.max_roll_rate*(1.+.25*maneuver);
     if(cfg_.aero_kind==AeroModelKind::AirlinerEngineering) {
       // OpenFlightSim reconstruction, not the Airbus ELAC algorithm. Load
       // factor command, alpha command transition, bank and speed protections
@@ -110,15 +119,15 @@ Controls Simulator::controlTargets() const {
     target.elevator_stick = equilibriumElevator() +
                             (pitchCommand - state_.omega_body.y) *
                                 mass.inertia.y /
-                                (cfg_.response_time * pitchAuthority) -
+                                (responseTime * pitchAuthority) -
                             target.elevator_trim;
     target.aileron_stick =
         (rollCommand - state_.omega_body.x) *
-        mass.inertia.x / (cfg_.response_time * rollAuthority);
+        mass.inertia.x / (responseTime * rollAuthority);
     // AoA protection and load command soft limits through surfaces, never rate
     // clamps.
-    if (alpha > cfg_.alpha_limit && target.elevator_stick > 0)
-      target.elevator_stick -= 3 * (alpha - cfg_.alpha_limit);
+    if (alpha > alphaLimit && target.elevator_stick > 0)
+      target.elevator_stick -= 3 * (alpha - alphaLimit);
     if (load > cfg_.g_positive && target.elevator_stick > 0)
       target.elevator_stick -= .25 * (load - cfg_.g_positive);
     if (load < cfg_.g_negative && target.elevator_stick < 0)

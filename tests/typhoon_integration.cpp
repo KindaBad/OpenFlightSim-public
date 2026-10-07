@@ -50,7 +50,7 @@ void assets(const std::string&root) {
   AircraftPose pose;State state;Controls controls;pose.update(state,controls,d,0);std::vector<AssetMatrix> off,on;
   evaluatePose(base.nodes,pose,off);state.afterburner[0]=1;pose.update(state,controls,d,1);evaluatePose(base.nodes,pose,on);
   unsigned left=0,right=0;for(std::size_t i=0;i<base.nodes.size();++i){if(base.nodes[i].channel=="nozzle_L" && off[i]!=on[i])++left;if(base.nodes[i].channel=="nozzle_R" && off[i]!=on[i])++right;}
-  check(left==16 && right==0,"sixteen articulated petals per engine react independently");
+  check(left==12 && right==0,"twelve articulated petals per engine react independently");
   check(stableAircraftLod(d.visual.radius,3000,2,4)==3,"fourth LOD selection");
   std::printf("Typhoon authored LOD0=%llu distant=%llu; textures shared; independent petals PASS\n",(unsigned long long)gpu.levels[0].triangleCount,(unsigned long long)previous);
 }

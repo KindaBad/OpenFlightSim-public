@@ -58,10 +58,10 @@ target_compile_definitions(ofs_client PRIVATE OFS_BUILD_TYPE="$<CONFIG>" SDL_MAI
 target_compile_definitions(ofs_client PRIVATE OFS_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
 install(TARGETS ofs_client RUNTIME_DEPENDENCY_SET ofs_runtime RUNTIME DESTINATION .)
 install(FILES "${CMAKE_SOURCE_DIR}/output/Airbus_A320.glb" DESTINATION output)
-install(FILES "${CMAKE_SOURCE_DIR}/assets/typhoon/typhoon_lod0.glb"
-  "${CMAKE_SOURCE_DIR}/assets/typhoon/typhoon_lod1.glb"
-  "${CMAKE_SOURCE_DIR}/assets/typhoon/typhoon_lod2.glb"
-  "${CMAKE_SOURCE_DIR}/assets/typhoon/typhoon_lod3.glb" DESTINATION assets/typhoon)
+install(FILES "${CMAKE_SOURCE_DIR}/assets/aircraft/typhoon/typhoon_lod0.glb"
+  "${CMAKE_SOURCE_DIR}/assets/aircraft/typhoon/typhoon_lod1.glb"
+  "${CMAKE_SOURCE_DIR}/assets/aircraft/typhoon/typhoon_lod2.glb"
+  "${CMAKE_SOURCE_DIR}/assets/aircraft/typhoon/typhoon_lod3.glb" DESTINATION assets/aircraft/typhoon)
 install(FILES "${CMAKE_SOURCE_DIR}/assets/aircraft/sr71/sr71_lod0.glb"
   "${CMAKE_SOURCE_DIR}/assets/aircraft/sr71/sr71_lod1.glb"
   "${CMAKE_SOURCE_DIR}/assets/aircraft/sr71/sr71_lod2.glb"

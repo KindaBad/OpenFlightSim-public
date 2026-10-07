@@ -94,6 +94,47 @@ void landing() {
   check(touched && speed>65 && speed<110 && sink>0 && sink<2,"normal landing touchdown");
   check(sim.instruments().tas<1e-5 && m.min_alt>1.5 && m.peak_contact<3*sim.config().mass*kG0,"stable landing stop");
 }
+void maneuver() {
+  const auto cfg=referenceConfig();
+  // Integrated response from the same trim and pilot input in both modes.
+  auto response=[&](bool enabled,double speed,bool roll,double gear=0) {
+    TrimRequest r;r.tas=speed;r.altitude=3000;r.gear01=gear;
+    const auto trim=solveTrim(cfg,r);check(trim.converged,"mode comparison trim");
+    Simulator s(cfg);s.setState(trim.state);auto controls=trim.controls;controls.maneuver_mode=enabled;
+    controls.elevator_stick=roll?0:.65;controls.aileron_stick=roll?.3:0;
+    controls.throttle[0]=controls.throttle[1]=1;s.setControls(controls);
+    double peak=0;
+    for(unsigned tick=0;tick<180;++tick) {
+      s.step(FixedStepClock::tick);check(finite(s.state()),"mode comparison finite");
+      peak=std::max(peak,std::abs(roll?s.state().omega_body.x:s.state().omega_body.y));
+    }
+    return peak;
+  };
+  for(double speed:{140.,180.,210.}) {
+    const double normalPitch=response(false,speed,false),maneuverPitch=response(true,speed,false);
+    const double normalRoll=response(false,speed,true),maneuverRoll=response(true,speed,true);
+    std::printf("Typhoon mode response V=%.0f pitch=%.3f/%.3f roll=%.3f/%.3f rad/s\n",speed,normalPitch,maneuverPitch,normalRoll,maneuverRoll);
+    check(maneuverPitch>normalPitch*1.3,"maneuver mode delivers distinctly faster combat-speed pitch");
+    check(maneuverRoll>normalRoll*1.1,"maneuver mode delivers faster bank changes");
+  }
+  check(response(true,320,false)==response(false,320,false) && response(true,320,true)==response(false,320,true),"normal law above the airspeed schedule");
+  check(response(true,110,false,1)==response(false,110,false,1),"gear down inhibits maneuver mode");
+  Simulator sim(cfg);TrimRequest r;r.tas=140;r.altitude=3000;const auto t=solveTrim(cfg,r);
+  check(t.converged,"maneuver entry trim");sim.setState(t.state);auto c=t.controls;
+  c.elevator_stick=1;c.throttle[0]=c.throttle[1]=1;c.maneuver_mode=true;sim.setControls(c);
+  double peak=0,peakLoad=0,normalPeak=0;
+  {Simulator n(cfg);n.setState(t.state);auto k=c;k.maneuver_mode=false;n.setControls(k);
+   for(unsigned tick=0;tick<300;++tick){n.step(FixedStepClock::tick);normalPeak=std::max(normalPeak,n.instruments().alpha_deg);}}
+  for(unsigned tick=0;tick<720;++tick) {
+    if(tick==300){c.maneuver_mode=false;c.elevator_stick=-.25;sim.setControls(c);}
+    sim.step(FixedStepClock::tick);check(finite(sim.state()),"mode entry/recovery finite");
+    for(double surface:{sim.state().canard,sim.state().elevon_l,sim.state().elevon_r})check(std::abs(surface)<=1+1e-10,"maneuver physical surface bound");
+    peak=std::max(peak,sim.instruments().alpha_deg);peakLoad=std::max(peakLoad,sim.instruments().g_load);
+  }
+  std::printf("Typhoon maneuver peakAoA=%.3f normalPeakAoA=%.3f peakLoad=%.3f recoveryAoA=%.3f speed=%.3f\n",peak,normalPeak,peakLoad,sim.instruments().alpha_deg,sim.instruments().tas);
+  check(peak>normalPeak+2 && peak>cfg.alpha_limit*kRad2Deg && sim.instruments().alpha_deg<peak-10,"high AoA entry and normal-mode recovery");
+  check(peakLoad<cfg.g_positive+1,"positive load protection retained");
+}
 void robustness() {
   for(double v:{0.,.5,20.,90.,250.,600.})for(double angle:{-180.,-90.,-30.,0.,30.,90.,180.}){
     Simulator sim(referenceConfig());State s;s.pos_ned.z=-10000;s.vel_ned={v*std::cos(angle*kDeg2Rad),0,v*std::sin(angle*kDeg2Rad)};sim.setState(s);
@@ -104,5 +145,5 @@ void robustness() {
 }
 }
 int main(int argc,char**argv){try{check(argc==2,"expected scenario");std::string n=argv[1];
-  if(n=="engines")engines();else if(n=="cruise")cruise();else if(n=="taxi")taxi();else if(n=="takeoff")takeoff();else if(n=="controls")controls();else if(n=="stall")stall();else if(n=="landing")landing();else if(n=="robustness")robustness();else throw std::invalid_argument("unknown scenario");
+  if(n=="engines")engines();else if(n=="cruise")cruise();else if(n=="taxi")taxi();else if(n=="takeoff")takeoff();else if(n=="controls")controls();else if(n=="stall")stall();else if(n=="landing")landing();else if(n=="maneuver")maneuver();else if(n=="robustness")robustness();else throw std::invalid_argument("unknown scenario");
   return 0;}catch(const std::exception&e){std::fprintf(stderr,"TYPHOON FAIL: %s\n",e.what());return 1;}}
