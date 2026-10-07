@@ -187,7 +187,8 @@ jobs:
         run: |
           python scripts/capture_launcher_previews.py --client build/stage/ofs_client.exe \
             --catalog build/stage/launcher-catalog.json --asset-root build/stage \
-            --output build/stage/data/launcher/previews
+            --output build/stage/data/launcher/previews --preset Medium --frames 6 \
+            --width 1280 --height 720
       - name: Collect build dependency notices
         run: python scripts/collect_release_notices.py --build build/release --output build/stage
       - name: Add asset license notices

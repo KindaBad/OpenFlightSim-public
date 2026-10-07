@@ -38,6 +38,12 @@ when removing the in-process updater test's still-open log file. The test now
 closes its fixture-owned logging handlers before temporary-directory cleanup.
 Production update helpers already release those handles when their process exits.
 
+Windows passed the source and protected-player suites, then the first full-quality
+preview capture exceeded the runner's two-minute limit. CI now captures six frames
+at 1280 × 720 with Medium settings. The native screenshot readback completes before
+exit; fixed exposure keeps a short capture consistent. Local captures retain the
+45-frame, 1600 × 900 High default. The images still come from the game itself.
+
 # Earlier launcher validation — 6 October 2026
 
 Implementation was tested locally on Linux. Windows runners are configured in

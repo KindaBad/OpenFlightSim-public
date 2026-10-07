@@ -14,9 +14,11 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from launcher.storage import LauncherError, read_json
+from launcher.config import PRESETS
 
 
-def capture(client, catalog, asset_root, output, frames=45, logs=None):
+def capture(client, catalog, asset_root, output, frames=45, logs=None,
+            width=1600, height=900, preset='High'):
     from PySide6.QtCore import Qt
     from PySide6.QtGui import QImage
 
@@ -28,8 +30,10 @@ def capture(client, catalog, asset_root, output, frames=45, logs=None):
     with tempfile.TemporaryDirectory(prefix='launcher-previews-', dir=output.parent) as temporary:
         temporary = Path(temporary)
         config = temporary / 'capture.cfg'
-        config.write_text('preset=2\nvsync=0\nmsaa=4\nfullscreen=0\ndevOverlay=0\n'
-                          'hud=0\nplayerLabels=0\nclouds=2\nsunElevation=28\nsunAzimuth=125\n')
+        settings = {**PRESETS[preset], 'vsync': 0, 'fullscreen': 0, 'devOverlay': 0,
+                    'hud': 0, 'playerLabels': 0, 'clouds': 2, 'sunElevation': 28,
+                    'sunAzimuth': 125, 'autoExposure': 0}
+        config.write_text(''.join(f'{key}={value}\n' for key, value in settings.items()))
         for entry in entries:
             key = entry['id']
             if not isinstance(key, str) or not key.isascii() or not key.isalnum():
@@ -39,7 +43,7 @@ def capture(client, catalog, asset_root, output, frames=45, logs=None):
             command = [str(client), '--aircraft', key, '--visual-scenario', 'flight',
                        '--camera', 'orbit', '--orbit-yaw', '2.3', '--orbit-pitch', '.12',
                        '--orbit-distance', str(distance), '--frames', str(frames),
-                       '--width', '1600', '--height', '900', '--config', str(config),
+                       '--width', str(width), '--height', str(height), '--config', str(config),
                        '--screenshot', str(ppm)]
             log_path = logs / (key + '.log')
             with log_path.open('w') as log:
@@ -50,11 +54,12 @@ def capture(client, catalog, asset_root, output, frames=45, logs=None):
                     print(log_path.read_text(errors='replace')[-6000:], file=sys.stderr)
                     raise
             image = QImage(str(ppm))
-            if image.isNull() or image.width() != 1600 or image.height() != 900:
+            if image.isNull() or image.width() != width or image.height() != height:
                 raise LauncherError(f'The simulator did not capture a valid {key} preview')
             # The normal flight controls occupy the top right. Use the unobstructed
             # scene below them, leaving the aircraft and scenery intact.
-            image = image.copy(0, 180, 1600, 720)
+            top = image.height() // 5
+            image = image.copy(0, top, image.width(), image.height() - top)
             thumbnail = image.scaled(640, 360, Qt.AspectRatioMode.KeepAspectRatio,
                                      Qt.TransformationMode.SmoothTransformation)
             if not thumbnail.save(str(output / (key + '.jpg')), 'JPG', 90):
@@ -73,8 +78,15 @@ def main():
     parser.add_argument('--asset-root', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--logs', type=Path, help='Native capture logs (defaults to build/launcher-preview-logs)')
+    parser.add_argument('--frames', type=int, default=45, help='Frames to render; CI uses six to flush readback')
+    parser.add_argument('--width', type=int, default=1600)
+    parser.add_argument('--height', type=int, default=900)
+    parser.add_argument('--preset', choices=tuple(PRESETS), default='High')
     args = parser.parse_args()
-    capture(args.client, args.catalog, args.asset_root, args.output, logs=args.logs)
+    if args.frames < 6 or not 640 <= args.width <= 3840 or not 360 <= args.height <= 2160:
+        parser.error('Captures require at least six frames and dimensions within 640–3840 × 360–2160')
+    capture(args.client, args.catalog, args.asset_root, args.output, frames=args.frames,
+            logs=args.logs, width=args.width, height=args.height, preset=args.preset)
 
 
 if __name__ == '__main__':
