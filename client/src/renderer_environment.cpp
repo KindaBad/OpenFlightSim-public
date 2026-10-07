@@ -98,9 +98,14 @@ void Renderer::createEnvironmentTextures(Synthesis& data) {
   const auto waterChain = textureMipChain(data.waterNormal, kWaterTileSize, kWaterTileSize, TextureRole::Linear);
   waterNormal_ = bgfx::createTexture2D(kWaterTileSize, kWaterTileSize, true, 1, bgfx::TextureFormat::RGBA8, filtered,
                                        bgfx::copy(waterChain.data(), static_cast<std::uint32_t>(waterChain.size())));
-  if (!bgfx::isValid(landMap_) || !bgfx::isValid(lakeMap_) || !bgfx::isValid(waterNormal_))
+  // The navigation map the HUD draws. Clamped: the HUD only shows the part of
+  // its frame that the picture covers.
+  mapTexture_ = bgfx::createTexture2D(static_cast<std::uint16_t>(data.map.size), static_cast<std::uint16_t>(data.map.size),
+                                      false, 1, bgfx::TextureFormat::RGBA8, BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP,
+                                      bgfx::copy(data.map.rgba.data(), static_cast<std::uint32_t>(data.map.rgba.size())));
+  if (!bgfx::isValid(landMap_) || !bgfx::isValid(lakeMap_) || !bgfx::isValid(waterNormal_) || !bgfx::isValid(mapTexture_))
     throw std::runtime_error("Land cover texture creation failed");
-  auxiliaryTextureBytes_ += landChain.size() + lake.size() * sizeof(float) + waterChain.size();
+  auxiliaryTextureBytes_ += landChain.size() + lake.size() * sizeof(float) + waterChain.size() + data.map.rgba.size();
   stats_.lakes = landscape_->lakeCount();
   log("RENDER", "Land cover: " + std::to_string(landscape_->lakeCount()) + " lakes, " +
                     std::to_string(static_cast<int>(landscape_->lakeAreaKm2())) + " km2 of water; terrain layers " +
@@ -363,7 +368,7 @@ void Renderer::destroyEnvironment() {
     if (bgfx::isValid(chunk.instances)) bgfx::destroy(chunk.instances);
   }
   treeChunks_.clear();
-  for (auto* texture : {&terrainAlbedo_, &terrainNormal_, &landMap_, &lakeMap_, &waterNormal_}) {
+  for (auto* texture : {&terrainAlbedo_, &terrainNormal_, &landMap_, &lakeMap_, &waterNormal_, &mapTexture_}) {
     if (bgfx::isValid(*texture)) bgfx::destroy(*texture);
     texture->idx = bgfx::kInvalidHandle;
   }

@@ -38,6 +38,9 @@ PRESETS = {
                   water=1, vegetation=1, treeDensity=900, sceneryDistance=10000, drawDistance=220000),
 }
 CUSTOM_PRESET = 4
+CAMERAS = ('pursuit', 'chase', 'close-chase', 'cockpit', 'orbit', 'free')
+# The first simulator version that accepts --camera pursuit.
+PURSUIT_CAMERA_VERSION = '0.4.5'
 
 
 def user_directory():
@@ -51,7 +54,9 @@ class Preferences:
     installation: str = ''
     aircraft: str = 'a320'
     mode: str = 'free'
-    camera: str = 'chase'
+    camera: str = 'pursuit'
+    # 1 once a saved 'chase' has been moved to the pursuit default it predates.
+    camera_default: int = 1
     airborne: bool = True
     server: str = '127.0.0.1'
     port: int = 27020
@@ -72,11 +77,15 @@ class Preferences:
         if not isinstance(data, dict) or data.get('schema') != 1:
             raise LauncherError('Unsupported launcher settings schema')
         prefs = cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+        if 'camera_default' not in data and data.get('camera') == 'chase':
+            # Chase was the default before the pursuit camera existed, so a saved
+            # 'chase' from then is the old default rather than a choice.
+            prefs.camera = 'pursuit'
         defaults = cls()
         for key, value in asdict(prefs).items():
             if type(value) is not type(getattr(defaults, key)):
                 raise LauncherError(f'Invalid launcher setting: {key}')
-        if prefs.channel not in ('stable', 'development') or prefs.camera not in ('chase', 'close-chase', 'cockpit', 'orbit', 'free'):
+        if prefs.channel not in ('stable', 'development') or prefs.camera not in CAMERAS:
             raise LauncherError('Invalid channel or camera')
         if not 1 <= prefs.port <= 65535 or not 1 <= prefs.bots <= 8:
             raise LauncherError('Invalid port or bot count')

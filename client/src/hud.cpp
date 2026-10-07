@@ -1,4 +1,5 @@
 #include "hud.hpp"
+#include "map.hpp"
 #include "ofs/units.hpp"
 #include <imgui.h>
 #include <algorithm>
@@ -36,16 +37,147 @@ const char* cameraName(CameraMode mode) {
     case CameraMode::CloseChase: return "CLOSE CHASE";
     case CameraMode::Orbit: return "ORBIT";
     case CameraMode::FirstPerson: return "FLIGHT DECK";
+    case CameraMode::Pursuit: return "PURSUIT";
     default: return "FREE CAMERA";
   }
+}
+
+constexpr ImU32 kFriendly = IM_COL32(110, 185, 255, 255);
+constexpr double kRunwayHalfLength = 1300;  // the airfield's runway lies north-south through the origin
+
+double headingOf(const State& state) {
+  const Vec3 nose = state.att.rotate({1, 0, 0});
+  return std::atan2(nose.y, nose.x);
+}
+// Aircraft marker: a dart pointing along `heading`, radians clockwise from north (screen up).
+void dart(ImDrawList* draw, ImVec2 centre, double heading, float length, ImU32 color) {
+  const ImVec2 along{float(std::sin(heading)), float(-std::cos(heading))}, across{-along.y, along.x};
+  const auto at = [&](float forward, float side) {
+    return ImVec2{centre.x + (along.x * forward + across.x * side) * length,
+                  centre.y + (along.y * forward + across.y * side) * length};
+  };
+  const ImVec2 outline[4]{at(1, 0), at(-.75f, .62f), at(-.3f, 0), at(-.75f, -.62f)};
+  draw->AddTriangleFilled(outline[0], outline[1], outline[2], color);
+  draw->AddTriangleFilled(outline[0], outline[2], outline[3], color);
+  draw->AddPolyline(outline, 4, IM_COL32(0, 0, 0, 230), ImDrawFlags_Closed, 1.2f);
+}
+
+// Draws the ground and everything on it into `map`. The minimap and the full
+// map differ only in their frame and in how much they label.
+void drawMap(ImDrawList* draw, const MapFrame& map, const HudFrame& frame, const Renderer& renderer, bool full) {
+  const ImVec2 min{map.x, map.y}, max{map.x + map.size, map.y + map.size};
+  draw->AddRectFilled(min, max, IM_COL32(18, 22, 26, full ? 245 : 215));
+  draw->PushClipRect(min, max, true);
+  float left, top, right, bottom, u0, v0, u1, v1;
+  if (renderer.mapTexture() && map.picture(left, top, right, bottom, u0, v0, u1, v1))
+    draw->AddImage(static_cast<ImTextureID>(renderer.mapTexture()), {left, top}, {right, bottom}, {u0, v0}, {u1, v1},
+                   IM_COL32(255, 255, 255, full ? 255 : 235));
+
+  const double spacing = map.halfSpan <= 8000 ? 2000 : map.halfSpan <= 20000 ? 5000 : 10000;
+  for (double line = std::ceil((map.east - map.halfSpan) / spacing) * spacing; line <= map.east + map.halfSpan; line += spacing) {
+    float x, y;
+    map.project(map.north, line, x, y);
+    draw->AddLine({x, min.y}, {x, max.y}, IM_COL32(255, 255, 255, 30));
+    if (full && line != 0) text(draw, {x + 3, min.y + 3}, (line > 0 ? "E " : "W ") + number(std::abs(line) / 1000), kMuted, 11);
+  }
+  for (double line = std::ceil((map.north - map.halfSpan) / spacing) * spacing; line <= map.north + map.halfSpan; line += spacing) {
+    float x, y;
+    map.project(line, map.east, x, y);
+    draw->AddLine({min.x, y}, {max.x, y}, IM_COL32(255, 255, 255, 30));
+    if (full && line != 0) text(draw, {min.x + 3, y + 2}, (line > 0 ? "N " : "S ") + number(std::abs(line) / 1000), kMuted, 11);
+  }
+
+  // Marks that fall outside the minimap are held on its edge, so the way back
+  // to the airfield and to other aircraft is always shown.
+  const auto place = [&](const Vec3& position, ImVec2& point) {
+    const bool inside = map.project(position.x, position.y, point.x, point.y);
+    point.x = std::clamp(point.x, min.x + 7, max.x - 7);
+    point.y = std::clamp(point.y, min.y + 7, max.y - 7);
+    return inside;
+  };
+
+  ImVec2 runwayStart, runwayEnd, airfield;
+  map.project(-kRunwayHalfLength, 0, runwayStart.x, runwayStart.y);
+  map.project(kRunwayHalfLength, 0, runwayEnd.x, runwayEnd.y);
+  draw->AddLine(runwayStart, runwayEnd, IM_COL32(0, 0, 0, 200), 5);
+  draw->AddLine(runwayStart, runwayEnd, IM_COL32(232, 232, 226, 255), 2.5f);
+  const bool airfieldInside = place({}, airfield);
+  if (!airfieldInside) draw->AddRectFilled({airfield.x - 4, airfield.y - 4}, {airfield.x + 4, airfield.y + 4}, IM_COL32(0, 0, 0, 200));
+  if (!airfieldInside || full)
+    draw->AddRect({airfield.x - 4, airfield.y - 4}, {airfield.x + 4, airfield.y + 4}, kText, 0, 0, 1.5f);
+  if (full && airfieldInside) text(draw, {airfield.x + 9, airfield.y - 7}, "AIRFIELD", kText, 12);
+
+  const ImU32 otherColor = frame.dogfight ? kDanger : kFriendly;
+  for (const auto& remote : frame.remotes) {
+    if (!remote.alive) continue;
+    ImVec2 point;
+    if (place(remote.state.pos_ned, point)) {
+      dart(draw, point, headingOf(remote.state), full ? 8.f : 7.f, otherColor);
+      if (full) text(draw, {point.x + 10, point.y - 6}, remote.name.empty() ? "Aircraft" : remote.name, otherColor, 12);
+    } else {
+      draw->AddCircleFilled(point, 3.5f, otherColor);
+      draw->AddCircle(point, 3.5f, IM_COL32(0, 0, 0, 230), 12, 1.2f);
+    }
+  }
+  for (const auto& track : frame.radarTracks) {
+    if (!(track.entity == frame.lockedTarget) && !(track.entity == frame.selectedTarget)) continue;
+    ImVec2 point;
+    place(track.position, point);
+    draw->AddCircle(point, 10, track.entity == frame.lockedTarget ? kAmber : kAccent, 20, 1.6f);
+  }
+
+  // Own aircraft, with the ground it covers in the next half minute.
+  const State& own = *frame.local;
+  ImVec2 self, ahead;
+  place(own.pos_ned, self);
+  map.project(own.pos_ned.x + own.vel_ned.x * 30, own.pos_ned.y + own.vel_ned.y * 30, ahead.x, ahead.y);
+  draw->AddLine(self, ahead, IM_COL32(255, 255, 255, 120), 1.2f);
+  dart(draw, self, headingOf(own), full ? 10.f : 9.f, kText);
+  draw->PopClipRect();
+  draw->AddRect(min, max, kBorder, 1);
+
+  if (full) {
+    const double range = std::hypot(own.pos_ned.x, own.pos_ned.y);
+    const double bearing = std::fmod(std::atan2(-own.pos_ned.y, -own.pos_ned.x) / kDeg2Rad + 360, 360);
+    text(draw, {min.x, min.y - 24}, "MAP", kText, 18);
+    text(draw, {max.x - 86, min.y - 19}, "N TO CLOSE", kMuted, 12);
+    text(draw, {min.x, max.y + 7},
+         "Airfield " + number(range / 1000, 1) + " km, bearing " + number(bearing) + "     Grid " +
+             number(spacing / 1000) + " km     North is up",
+         kMuted, 12);
+  } else {
+    text(draw, {min.x + 6, max.y - 18}, "GRID " + number(spacing / 1000) + " km", kText, 11);
+    text(draw, {max.x - 46, max.y - 18}, "N MAP", kMuted, 11);
+    text(draw, {(min.x + max.x) * .5f - 4, min.y + 3}, "N", kText, 11);
+  }
+}
+
+// The whole landscape square, or the same area about an aircraft that has left it.
+void drawFullMap(ImDrawList* draw, ImVec2 display, const HudFrame& frame, const Renderer& renderer) {
+  const Vec3& position = frame.local->pos_ned;
+  const bool away = std::max(std::abs(position.x), std::abs(position.y)) > Landscape::kExtent * .97;
+  MapFrame map;
+  map.size = std::floor(std::min(display.x, display.y) * .78f);
+  map.x = std::floor((display.x - map.size) * .5f);
+  map.y = std::floor((display.y - map.size) * .5f);
+  map.north = away ? position.x : 0;
+  map.east = away ? position.y : 0;
+  map.halfSpan = Landscape::kExtent;
+  draw->AddRectFilled({0, 0}, display, IM_COL32(0, 0, 0, 110));
+  drawMap(draw, map, frame, renderer, true);
 }
 }
 
 void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer& renderer) {
-  if (!settings.show || !frame.local || !frame.controls) return;
+  if (!frame.local || !frame.controls) return;
   auto* draw = ImGui::GetBackgroundDrawList();
   const ImVec2 display = ImGui::GetIO().DisplaySize;
   if (display.x < 320 || display.y < 240) return;
+  if (!settings.show) {
+    // The map is asked for by name, so it opens even with the HUD hidden.
+    if (frame.fullMap) drawFullMap(draw, display, frame, renderer);
+    return;
+  }
   const auto& state = *frame.local;
   const auto& controls = *frame.controls;
   const auto& flight = frame.instruments;
@@ -135,6 +267,17 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
     }
   }
 
+  if (settings.showMinimap && !frame.fullMap && display.x > 760 && display.y > 480) {
+    MapFrame map;
+    map.size = std::clamp(display.y * .24f, 150.f, 240.f);
+    map.x = display.x - map.size - 20;
+    map.y = display.y - map.size - 40;
+    map.north = state.pos_ned.x;
+    map.east = state.pos_ned.y;
+    map.halfSpan = minimapHalfSpan(std::hypot(state.vel_ned.x, state.vel_ned.y));
+    drawMap(draw, map, frame, renderer, false);
+  }
+
   const float bottom=display.y-48;
   if (display.x>640) {
     panel(draw,{cx-230,bottom-10},{cx+230,bottom+26});
@@ -144,8 +287,8 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
     text(draw,{cx+132,bottom},frame.multiplayer && armed ? "HP "+number(frame.health)+"%" :
          frame.paused ? "PAUSED" : frame.parkingBrake ? "PARKED" : "IN FLIGHT",kAmber,13);
   }
-  text(draw,{24,display.y-24},frame.mouseAimEnabled ? "F1 SETTINGS   F4 HUD   TAB CAMERA   X MOUSE AIM ON"
-       : "F1 SETTINGS   F4 HUD   TAB CAMERA   X MOUSE AIM",kMuted,11);
+  text(draw,{24,display.y-24},frame.mouseAimEnabled ? "F1 SETTINGS   F4 HUD   TAB CAMERA   N MAP   X MOUSE AIM ON"
+       : "F1 SETTINGS   F4 HUD   TAB CAMERA   N MAP   X MOUSE AIM",kMuted,11);
   if (frame.mouseAim)
     text(draw,{24,display.y-40},"MOUSE AIM   WASD/QE OVERRIDE   HOLD RIGHT MOUSE TO LOOK",kMuted,11);
   if (settings.showStall && flight.stall_warn)
@@ -242,6 +385,7 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
     draw->AddTriangle({x,y-8},{x-4,y-15},{x+4,y-15},color,1.5f);
     text(draw,{x-width*.5f,y-34},label,color,14);
   }
+  if (frame.fullMap) drawFullMap(draw, display, frame, renderer);
 }
 void shutdownHud() {}
 }  // namespace ofs::client

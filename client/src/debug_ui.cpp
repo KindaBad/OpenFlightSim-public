@@ -178,7 +178,7 @@ void debugUi(const Simulator& sim, Controls& controls, const Camera& camera,
       ImGui::Separator();
       ImGui::Text("Camera N/E/D: %.1f  %.1f  %.1f", camera.eye.x, camera.eye.y, camera.eye.z);
       ImGui::TextWrapped(
-          "Tab cycles camera (free/chase/close/orbit/cockpit). Free camera: WASD, R/F "
+          "Tab cycles camera (free/pursuit/chase/close/orbit/cockpit). N opens the map. Free camera: WASD, R/F "
           "up/down, Shift fast, hold right mouse to look. Orbit: right mouse to orbit, "
           "wheel to zoom. Home frames the aircraft.");
       ImGui::TextWrapped(
@@ -222,6 +222,7 @@ void debugUi(const Simulator& sim, Controls& controls, const Camera& camera,
     if (ImGui::CollapsingHeader("Controls", ImGuiTreeNodeFlags_DefaultOpen)) {
       ImGui::Checkbox("Mouse aim [X]", &settings.mouseAim);
       ImGui::SliderFloat("Mouse aim sensitivity", &settings.mouseAimSensitivity, .2f, 3.f, "%.2f");
+      ImGui::Checkbox("Pursuit camera: speed changes the field of view", &settings.dynamicFov);
       ImGui::TextWrapped("The mouse places an aim point and the aircraft flies to it. Flight keys and "
                          "the gamepad still override their own axes. Hold the right mouse button to look around.");
     }
@@ -301,6 +302,7 @@ void debugUi(const Simulator& sim, Controls& controls, const Camera& camera,
       ImGui::Checkbox("Heading tape", &ui.hud.showHeading);
       ImGui::Checkbox("Flight-path marker", &ui.hud.showFlightPathMarker);
       ImGui::Checkbox("Gunsight", &ui.hud.showGunsight);
+      ImGui::Checkbox("Minimap", &ui.hud.showMinimap);
       ImGui::Checkbox("Player labels", &ui.hud.showLabels);
       ImGui::SliderFloat("Label range (m)", &ui.hud.labelMaxDistance, 500.0f, 20000.0f, "%.0f");
       ImGui::Separator();

@@ -219,6 +219,8 @@ void GraphicsSettings::load(const std::string& path) {
   read(table, "wireframeAircraft", wireframeAircraft);
   read(table, "mouseAim", mouseAim);
   read(table, "mouseAimSensitivity", mouseAimSensitivity);
+  read(table, "dynamicFov", dynamicFov);
+  read(table, "minimap", showMinimap);
 
   read(table, "sunElevation", sky.sunElevationDeg);
   read(table, "sunAzimuth", sky.sunAzimuthDeg);
@@ -317,6 +319,8 @@ bool GraphicsSettings::save() const {
   write(file, "wireframeAircraft", wireframeAircraft);
   write(file, "mouseAim", mouseAim);
   write(file, "mouseAimSensitivity", mouseAimSensitivity);
+  write(file, "dynamicFov", dynamicFov);
+  write(file, "minimap", showMinimap);
 
   write(file, "sunElevation", sky.sunElevationDeg);
   write(file, "sunAzimuth", sky.sunAzimuthDeg);

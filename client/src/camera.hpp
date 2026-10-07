@@ -19,6 +19,7 @@ enum class CameraMode : std::uint8_t {
   CloseChase,     // tight follow for dogfighting
   Orbit,          // circles the aircraft, mouse-driven
   FirstPerson,    // flight-deck position
+  Pursuit,        // behind the aircraft along the view line; the default
   Count
 };
 
@@ -59,6 +60,16 @@ struct Camera {
   Quat smoothedAtt{};
   bool smoothingPrimed{false};
   bool aimViewActive{false};
+
+  // Pursuit field of view: widens while the aircraft gains speed and narrows
+  // while it loses it. `fovOffset` is the smoothed change in degrees.
+  // Pursuit up reference, carried between frames so a loop does not flip the view.
+  Vec3 pursuitUp{0, 0, -1};
+  bool dynamicFov{true};
+  double fovOffset{0};
+  double acceleration{0};  // filtered rate of change of speed, m/s^2
+  double lastSpeed{0}, lastStateTime{0};
+  bool speedPrimed{false};
 
   // Last resolved eye/target, used by the renderer for view-dependent effects.
   Vec3 eye{};
@@ -113,8 +124,8 @@ struct Camera {
   // `dt` is the frame time; smoothing is exponential and framerate independent.
   // `velocity` is the aircraft's world velocity, used only for look-ahead.
   // `aimView`, when given, is the world direction mouse aim looks along: the
-  // chase cameras then sit behind the aircraft on that line instead of behind
-  // its tail, so the aim point holds the centre of the screen.
+  // chase and pursuit cameras then sit behind the aircraft on that line instead
+  // of behind its tail, so the aim point holds the centre of the screen.
   void update(CameraMode next, const State& aircraft, double dt, bool firstFrame,
               AircraftType type = AircraftType::A320, const Vec3* aimView = nullptr);
 
@@ -128,5 +139,9 @@ struct Camera {
 inline Vec3 firstPersonEye(AircraftType type = AircraftType::A320) {
   return aircraftDefinition(type).visual.cockpit;
 }
+
+// Field-of-view change, in degrees, the pursuit camera settles on for a given
+// rate of change of speed in m/s^2. Positive (wider) when accelerating.
+double pursuitFovOffset(double acceleration);
 
 }  // namespace ofs::client

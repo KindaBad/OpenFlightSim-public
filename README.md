@@ -115,7 +115,8 @@ Windows has not yet produced a passing build; see BUILDING.md for the current CI
 
 | Action | Controls |
 |---|---|
-| Camera mode | Tab cycles free / chase / close chase / orbit / flight deck |
+| Camera mode | Tab cycles free / pursuit / chase / close chase / orbit / flight deck |
+| Map | N opens and closes the full map; the minimap is in the lower right corner |
 | Start flying / park | F2 for trimmed airborne flight; F3 to reset on runway |
 | Pause / parking brake | P pauses offline flight; Backspace toggles parking brake |
 | Settings / HUD | F1 shows diagnostics and graphics; F4 toggles HUD |
@@ -138,7 +139,12 @@ Windows has not yet produced a passing build; see BUILDING.md for the current CI
 | Fullscreen / quit | F11 / Escape, or window close |
 | Simulation tooling | UI pause, reset on runway, reset airborne |
 
-The default chase view follows the aircraft. Use **Fly now** or F2 for a trimmed
+The default **pursuit** view sits behind and above the aircraft and looks along
+its nose with a level horizon, or along the aim ring under mouse aim, so the
+aircraft manoeuvres in front of a steady view. Its field of view widens while
+the aircraft gains speed and narrows while it slows (F1 > Controls turns this
+off). The minimap shows terrain, lakes, the runway and other aircraft around
+you, north up, and covers more ground the faster you fly. Use **Fly now** or F2 for a trimmed
 airborne start (1,000 m, 110 m/s), or release the parking brake with Backspace
 and increase throttle with Shift. You can launch directly in flight with
 `./build/release/client/ofs_client --airborne`. The free camera moves independently; its WASD/R/F/Shift keys control the camera.
@@ -150,7 +156,7 @@ fans follow aircraft state; visual interpolation never changes physics.
 
 **Mouse aim** (X, the flight panel checkbox, or F1 > Controls) is pointer flying
 in the style of War Thunder. The mouse moves an aim ring that is fixed in the
-world, the chase cameras look along it, and an instructor flies the ordinary
+world, the pursuit and chase cameras look along it, and an instructor flies the ordinary
 flight model until the nose (the small cross) reaches the ring: wings level
 with elevator and rudder for small corrections, banking into the turn and
 pulling for large ones, within the stall margin and g limit of the aircraft.

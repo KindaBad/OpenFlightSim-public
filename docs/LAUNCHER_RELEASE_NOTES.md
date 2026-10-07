@@ -1,4 +1,15 @@
-OpenFlightSim 0.4.4 Launcher
+OpenFlightSim 0.4.5 Launcher
+
+- Pursuit camera, now the default view: the camera sits behind and above the
+  aircraft and looks where you are going, so the aircraft banks and pulls in
+  front of you instead of the world rolling with it. With mouse aim it looks
+  along the aim ring. The view widens as you gain speed and narrows as you
+  slow down; that can be turned off in F1 > Controls. Tab still cycles to the
+  earlier chase, close chase, orbit and flight-deck views, and the launcher's
+  starting camera now defaults to Pursuit.
+- Minimap in the lower right corner showing the terrain, lakes, the runway,
+  other aircraft and your heading. It opens out as you fly faster. Press N for
+  the full map with a distance and bearing back to the airfield.
 
 - Mouse aim: press X in flight (or tick Mouse aim in the flight panel or the F1
   settings) to fly with the mouse. Move the aim ring where you want to go and

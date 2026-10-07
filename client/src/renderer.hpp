@@ -24,6 +24,7 @@
 #include "effects.hpp"
 #include "gltf.hpp"
 #include "landscape.hpp"
+#include "map.hpp"
 #include "mesh.hpp"
 #include "procedural.hpp"
 #include "ofs/simulator.hpp"
@@ -211,6 +212,10 @@ class Renderer {
     bgfx::requestScreenShot(BGFX_INVALID_HANDLE, path.c_str());
   }
 
+  // The navigation map picture as an ImGui texture id, or 0 before it exists.
+  // ui() reads ids as a bgfx texture index plus one.
+  std::uintptr_t mapTexture() const { return bgfx::isValid(mapTexture_) ? std::uintptr_t(mapTexture_.idx) + 1 : 0; }
+
   // Projects a world point to pixels for HUD labels. False when behind the
   // camera or off screen.
   bool projectToScreen(const Vec3& world, float& outX, float& outY, float& outDepth) const;
@@ -319,6 +324,7 @@ class Renderer {
   struct Synthesis {
     std::unique_ptr<AtmosphereModel> atmosphere;
     std::unique_ptr<Landscape> landscape;
+    MapImage map;
     std::vector<std::uint8_t> cloudShape, cloudDetail, weatherMap, noiseTile, waterNormal;
     procedural::TerrainLayers layers;
     WeatherSettings weather;
@@ -442,6 +448,7 @@ class Renderer {
   std::uint32_t terrainIndexCount_{};
   bgfx::TextureHandle terrainAlbedo_{BGFX_INVALID_HANDLE}, terrainNormal_{BGFX_INVALID_HANDLE};
   bgfx::TextureHandle landMap_{BGFX_INVALID_HANDLE}, lakeMap_{BGFX_INVALID_HANDLE}, waterNormal_{BGFX_INVALID_HANDLE};
+  bgfx::TextureHandle mapTexture_{BGFX_INVALID_HANDLE};
   bgfx::VertexBufferHandle runway_{BGFX_INVALID_HANDLE}, runwayPaint_{BGFX_INVALID_HANDLE};
   bgfx::VertexBufferHandle apron_{BGFX_INVALID_HANDLE}, taxiPaint_{BGFX_INVALID_HANDLE};
   bgfx::VertexBufferHandle roads_{BGFX_INVALID_HANDLE};

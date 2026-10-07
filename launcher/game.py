@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import subprocess
 import time
+from .config import PURSUIT_CAMERA_VERSION
 from .installation import active_directory
 from .platform_process import spawn
 from .storage import LauncherError, read_json, safe_path, relative_name
@@ -95,7 +96,10 @@ def arguments(installation, preferences, graphics):
     if preferences.mode not in installation.catalog['modes']:
         raise LauncherError('This simulator build does not support the selected mode')
     graphics.validate()
-    args = ['--aircraft', preferences.aircraft, '--config', str(graphics.path.resolve()), '--camera', preferences.camera]
+    camera = preferences.camera
+    if camera == 'pursuit' and Version(installation.catalog['version']) < Version(PURSUIT_CAMERA_VERSION):
+        camera = 'chase'  # an older build, kept or rolled back to, has no pursuit camera
+    args = ['--aircraft', preferences.aircraft, '--config', str(graphics.path.resolve()), '--camera', camera]
     if preferences.airborne:
         args += ['--airborne']
     if preferences.mode == 'dogfight':

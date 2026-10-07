@@ -96,7 +96,8 @@ bool Input::pressed(SDL_Scancode code, bool captureKeyboard) {
 
 CameraMode Input::cycleCamera(CameraMode current) const {
   switch (current) {
-    case CameraMode::Free: return CameraMode::Chase;
+    case CameraMode::Free: return CameraMode::Pursuit;
+    case CameraMode::Pursuit: return CameraMode::Chase;
     case CameraMode::Chase: return CameraMode::CloseChase;
     case CameraMode::CloseChase: return CameraMode::Orbit;
     case CameraMode::Orbit: return CameraMode::FirstPerson;

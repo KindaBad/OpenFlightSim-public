@@ -654,6 +654,7 @@ class Window(QMainWindow):
         form = self.form(box)
         for title, text in [('Pitch / roll', 'W / S · A / D'), ('Rudder', 'Q / E'), ('Throttle', 'Shift / Ctrl'),
                             ('Camera', 'Tab cycles camera · right mouse looks · wheel zooms'),
+                            ('Map', 'N opens and closes the full map'),
                             ('Weapons', 'Space / left mouse / gamepad right trigger'),
                             ('Missiles', 'Use the in-flight combat HUD controls'), ('Gamepad', 'SDL compatible gamepads are discovered in flight')]:
             form.addRow(title, label(text, 'muted'))
@@ -687,7 +688,7 @@ class Window(QMainWindow):
     def make_advanced(self):
         box = self.page('Fine tuning', 'Advanced', 'Adjust renderer settings with clear units. Longer distances and denser forest increase GPU cost.')
         form = self.form(box)
-        cameras = [(v, t) for v, t in [('chase', 'Chase'), ('close-chase', 'Close chase'), ('cockpit', 'Cockpit'), ('orbit', 'Orbit'), ('free', 'Free camera')]]
+        cameras = [(v, t) for v, t in [('pursuit', 'Pursuit'), ('chase', 'Chase'), ('close-chase', 'Close chase'), ('cockpit', 'Cockpit'), ('orbit', 'Orbit'), ('free', 'Free camera')]]
         form.addRow('Starting camera', self.combo(cameras, self.prefs.camera, lambda v: self.set_pref('camera', v)))
         for key, title, tip in [('drawDistance', 'Draw distance (m)', 'How far terrain and haze are drawn, 40–250 km.'),
                                 ('sceneryDistance', 'Tree distance (m)', 'Individual trees are drawn to this range, 1–15 km. Forest beyond it is shaded into the terrain.'),

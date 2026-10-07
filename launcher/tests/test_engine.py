@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 import zipfile
 
-from launcher.config import Graphics, Preferences
+from launcher.config import Graphics, Preferences, PURSUIT_CAMERA_VERSION
 from launcher.download import download, fetch_manifest, Cancelled, SecureRedirect
 from launcher.game import Installation, arguments, Session
 from launcher.hardware import Hardware, recommendation
@@ -356,6 +356,17 @@ class Engine(unittest.TestCase):
         prefs.save(path)
         self.assertEqual(Preferences.load(path), prefs)
 
+    def test_saved_default_chase_becomes_pursuit(self):
+        path = self.root / 'prefs.json'
+        self.assertEqual(Preferences().camera, 'pursuit')
+        write_json(path, {'schema': 1, 'camera': 'chase'})
+        self.assertEqual(Preferences.load(path).camera, 'pursuit')
+        write_json(path, {'schema': 1, 'camera': 'orbit'})
+        self.assertEqual(Preferences.load(path).camera, 'orbit')
+        chosen = Preferences(camera='chase')
+        chosen.save(path)
+        self.assertEqual(Preferences.load(path).camera, 'chase')
+
     def test_bad_preferences_rejected(self):
         path = self.root / 'prefs.json'
         for data in ({'schema': 2}, {'schema': 1, 'port': 0}, {'schema': 1, 'auto_check': 'false'}):
@@ -439,6 +450,15 @@ class Engine(unittest.TestCase):
         graphics = Graphics(self.root / 'graphics.cfg')
         prefs = Preferences(aircraft='typhoon', mode='dogfight')
         self.assertIn('--bots', arguments(installation, prefs, graphics))
+        args = arguments(installation, prefs, graphics)
+        supported = Version(installation.catalog['version']) >= Version(PURSUIT_CAMERA_VERSION)
+        self.assertEqual(args[args.index('--camera') + 1], 'pursuit' if supported else 'chase')
+        installation.catalog['version'] = '0.4.4'
+        args = arguments(installation, prefs, graphics)
+        self.assertEqual(args[args.index('--camera') + 1], 'chase')
+        installation.catalog['version'] = PURSUIT_CAMERA_VERSION
+        args = arguments(installation, prefs, graphics)
+        self.assertEqual(args[args.index('--camera') + 1], 'pursuit')
         prefs.aircraft = 'a320'
         with self.assertRaises(LauncherError):
             arguments(installation, prefs, graphics)

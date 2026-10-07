@@ -74,5 +74,48 @@ int main() {
   const double zoomBefore=camera.orbitDistance;
   camera.zoomOrbit(-1);
   if (camera.orbitDistance>=zoomBefore*.95) return 21;
+  // Pursuit: behind and above the aircraft on the view line, horizon level,
+  // and the field of view follows the rate of change of speed.
+  {
+    State flying; flying.pos_ned={0,0,-2000}; flying.vel_ned={200,0,0};
+    flying.att=quatFromEuler(60*kDeg2Rad,0,0);
+    Camera pursuit;
+    pursuit.update(CameraMode::Pursuit,flying,.016,true);
+    const Vec3 back=pursuit.eye-flying.pos_ned;
+    if (back.x>-10 || back.z>-2 || std::abs(back.y)>1e-6) return 22;
+    if (std::abs(pursuit.renderOrientation().rotate({0,1,0}).z)>1e-6 || std::abs(pursuit.fov-cameraSettings(CameraMode::Pursuit).fov)>1e-9) return 23;
+    // With mouse aim the eye swings behind the aircraft on the aim line.
+    const Vec3 aim=Vec3{1,1,0}.normalized();
+    for (int i=0;i<200;++i) pursuit.update(CameraMode::Pursuit,flying,.016,false,AircraftType::A320,&aim);
+    if (((pursuit.target-pursuit.eye).normalized()-aim).norm()>1e-3 || (pursuit.eye-flying.pos_ned).dot(aim)>-10) return 24;
+    const auto settle=[&](double acceleration) {
+      for (int i=0;i<600;++i) {
+        flying.time+=1./120; flying.vel_ned.x+=acceleration/120;
+        pursuit.update(CameraMode::Pursuit,flying,1./120,false);
+      }
+      return pursuit.fov-cameraSettings(CameraMode::Pursuit).fov;
+    };
+    const double wide=settle(8), steady=settle(0), narrow=settle(-8);
+    if (wide<5 || wide>13 || std::abs(steady)>.2 || narrow>-3 || narrow<-8) return 25;
+    if (std::abs(wide-pursuitFovOffset(8))>.2 || pursuitFovOffset(0)!=0) return 26;
+    pursuit.dynamicFov=false;
+    if (std::abs(settle(8))>.05) return 27;
+    // The other views keep their fixed field of view.
+    pursuit.dynamicFov=true; settle(8);
+    pursuit.update(CameraMode::Chase,flying,.016,false);
+    if (pursuit.fov!=cameraSettings(CameraMode::Chase).fov) return 28;
+    // Through the vertical the view carries on round instead of flipping.
+    Camera loop; State climbing=flying; Vec3 lastUp{};
+    for (int i=0;i<=360;++i) {
+      climbing.att=quatFromEuler(0,i*kDeg2Rad,0); climbing.time+=1./60;
+      loop.update(CameraMode::Pursuit,climbing,1./60,i==0);
+      const Vec3 up=loop.renderOrientation().rotate({0,0,-1});
+      if (i && (up-lastUp).norm()>.25) return 29;
+      lastUp=up;
+    }
+    climbing.att=quatFromEuler(0,0,0);
+    for (int i=0;i<300;++i) loop.update(CameraMode::Pursuit,climbing,1./60,false);
+    if (loop.renderOrientation().rotate({0,0,-1}).z>-.999) return 30;
+  }
   std::cout << "PASS render coordinates, hemisphere interpolation, asset/CG mapping\n";
 }

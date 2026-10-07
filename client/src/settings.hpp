@@ -98,6 +98,9 @@ struct GraphicsSettings {
   // it. Keyboard and gamepad deflections still override their own axes.
   bool mouseAim{false};
   float mouseAimSensitivity{1.f};
+  // The pursuit camera widens its view while gaining speed and narrows it while slowing.
+  bool dynamicFov{true};
+  bool showMinimap{true};
 
   SkySettings sky;
   WeatherSettings weather;

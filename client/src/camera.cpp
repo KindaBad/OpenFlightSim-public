@@ -36,7 +36,26 @@ constexpr CameraSettings kFirstPerson{
     /*velocityLookAhead*/ 0.0, /*fov*/ 70,
     /*rigid*/ true, /*hideOwnAircraft*/ true};
 
+// Pursuit holds its place behind the aircraft rigidly and only its direction is
+// smoothed, so the body offset comes from the aircraft's size at run time and
+// positionSmoothing is unused. rotationSmoothing applies without mouse aim.
+constexpr CameraSettings kPursuit{
+    /*distance*/ 0.0, /*height*/ 0.0, /*lateral*/ 0.0,
+    /*positionSmoothing*/ 0.0, /*rotationSmoothing*/ 0.20,
+    /*velocityLookAhead*/ 0.0, /*fov*/ 62,
+    /*rigid*/ false, /*hideOwnAircraft*/ false};
+// Under mouse aim the view follows the pointer almost directly.
+constexpr double kPursuitAimSmoothing = 0.045;
+// Eye position behind and above the aircraft, in visual radii.
+constexpr double kPursuitBack = 2.5, kPursuitUp = 0.44;
+// Rate, per second, at which the horizon returns to level in level flight.
+constexpr double kPursuitLevelRate = 2.5;
+
 }  // namespace
+
+double pursuitFovOffset(double acceleration) {
+  return acceleration >= 0 ? 13.0 * std::tanh(acceleration / 7.0) : 8.0 * std::tanh(acceleration / 9.0);
+}
 
 const CameraSettings& cameraSettings(CameraMode mode) {
   switch (mode) {
@@ -44,6 +63,7 @@ const CameraSettings& cameraSettings(CameraMode mode) {
     case CameraMode::CloseChase: return kCloseChase;
     case CameraMode::Orbit: return kOrbit;
     case CameraMode::FirstPerson: return kFirstPerson;
+    case CameraMode::Pursuit: return kPursuit;
     case CameraMode::Free:
     case CameraMode::Count: break;
   }
@@ -101,13 +121,33 @@ Quat attitudeLookAt(const Vec3& forward, const Vec3& up) {
 
 void Camera::update(CameraMode next, const State& aircraft, double dt, bool firstFrame, AircraftType type,
                     const Vec3* aimView) {
-  const bool aimed = aimView && (next == CameraMode::Chase || next == CameraMode::CloseChase);
-  const bool changed = mode != next || aimed != aimViewActive;
+  const bool aimed = aimView && (next == CameraMode::Chase || next == CameraMode::CloseChase ||
+                                 next == CameraMode::Pursuit);
+  // Pursuit turns smoothly onto the aim line, so engaging mouse aim does not cut.
+  const bool changed = mode != next || (aimed != aimViewActive && next != CameraMode::Pursuit);
   mode = next;
   aimViewActive = aimed;
   const CameraSettings& settings = cameraSettings(mode);
   const auto& visual = aircraftDefinition(type).visual;
   const Vec3 referencePosition=aircraft.pos_ned-aircraft.att.rotate(loadedCg(aircraftDefinition(type).flight,aircraft));
+
+  // Rate of change of speed, taken across simulation steps so it is exact
+  // whatever the frame rate. A reset or respawn restarts the estimate.
+  const double speed = aircraft.vel_ned.norm();
+  const double stateDt = aircraft.time - lastStateTime;
+  if (!speedPrimed || firstFrame || stateDt < 0 || stateDt > .5) {
+    acceleration = 0;
+    speedPrimed = true;
+    lastSpeed = speed;
+    lastStateTime = aircraft.time;
+  } else if (stateDt > 1e-6) {
+    const double measured = clamp((speed - lastSpeed) / stateDt, -40.0, 40.0);
+    acceleration += (measured - acceleration) * (1.0 - std::exp(-stateDt / .35));
+    lastSpeed = speed;
+    lastStateTime = aircraft.time;
+  }
+  const double fovTarget = dynamicFov && mode == CameraMode::Pursuit ? pursuitFovOffset(acceleration) : 0.0;
+  fovOffset = firstFrame ? fovTarget : fovOffset + (fovTarget - fovOffset) * (1.0 - std::exp(-dt / .45));
 
   if (mode == CameraMode::Free) {
     // The free camera keeps its own position and orientation exactly as in M0.
@@ -115,6 +155,49 @@ void Camera::update(CameraMode next, const State& aircraft, double dt, bool firs
     eye = position;
     target = eye + orientation().rotate({1, 0, 0});
     fov = 60;
+    return;
+  }
+
+  if (mode == CameraMode::Pursuit) {
+    // Looks along the aim line, or along the nose without mouse aim, from a
+    // fixed place behind and above the aircraft on that line. The aircraft is
+    // therefore free to swing about in the frame while the view stays steady.
+    const Vec3 forward = aimed ? *aimView : aircraft.att.rotate({1, 0, 0});
+    const bool carry = smoothingPrimed && !firstFrame && !changed;
+    const Vec3 worldUp{0, 0, -1};
+    if (aimed || !carry) {
+      pursuitUp = worldUp;
+    } else {
+      // Carrying the previous up through a loop keeps the view from flipping at
+      // the vertical; it then eases back to a level horizon, faster the nearer
+      // the view is to level.
+      const Vec3 levelUp = worldUp - forward * worldUp.dot(forward);
+      Vec3 carried = pursuitUp - forward * pursuitUp.dot(forward);
+      if (carried.norm2() < 1e-6) carried = smoothedAtt.rotate({0, 0, -1});
+      carried = carried.normalized();
+      if (levelUp.norm2() > 1e-6) {
+        const Vec3 level = levelUp.normalized();
+        if (carried.dot(level) < -.98) carried += forward.cross(carried) * .05;  // inverted: pick a way round
+        const double weight = 1.0 - std::exp(-dt * kPursuitLevelRate * levelUp.norm2());
+        carried = carried * (1 - weight) + level * weight;
+      }
+      pursuitUp = carried.normalized();
+    }
+    const Quat desiredAtt = attitudeLookAt(forward, pursuitUp);
+    if (carry) {
+      const double smoothing = aimed ? kPursuitAimSmoothing : settings.rotationSmoothing;
+      smoothedAtt = slerpAttitude(smoothedAtt, desiredAtt, 1.0 - std::exp(-dt / smoothing));
+    } else {
+      smoothedAtt = desiredAtt;
+      smoothingPrimed = true;
+    }
+    smoothedPosition = referencePosition + aircraft.att.rotate(visual.chaseTarget) +
+        smoothedAtt.rotate({-kPursuitBack * visual.radius, 0, -kPursuitUp * visual.radius});
+    smoothedPosition.z = std::min(smoothedPosition.z, groundHeightNed(smoothedPosition.x, smoothedPosition.y) - .8);
+    eye = smoothedPosition;
+    target = eye + smoothedAtt.rotate({1000, 0, 0});
+    fov = settings.fov + fovOffset;
+    rigidAttitude = false;
     return;
   }
 

@@ -5,6 +5,7 @@
 #include "scenery.hpp"
 #include "atmosphere_model.hpp"
 #include "landscape.hpp"
+#include "map.hpp"
 #include "procedural.hpp"
 #include "ofs/terrain.hpp"
 #include "texture_mips.hpp"
@@ -482,6 +483,33 @@ void landscape() {
   check(wet>10,"lakes are found by sampling");
   check(land.forestDensity(0,0)==0 && land.farmland(0,0)==0,"nothing grows or is farmed on the runway");
   check(insideAirfieldClearway(0,0) && insideAirfieldClearway(300,-200) && !insideAirfieldClearway(0,3000),"the paved footprint is kept clear");
+  // Navigation map: the picture shows the lakes, and frames place ground points on it.
+  {
+    const MapImage map=buildMapImage(land,128);
+    check(map.size==128 && map.rgba.size()==128u*128*4,"the map picture has the requested size");
+    unsigned water=0;
+    for(int row=0;row<128;++row) for(int column=0;column<128;++column) {
+      const double cell=2.*Landscape::kExtent/128,north=Landscape::kExtent-(row+.5)*cell,east=(column+.5)*cell-Landscape::kExtent;
+      const std::uint8_t* texel=&map.rgba[(std::size_t(row)*128+column)*4];
+      check(texel[3]==255,"the map picture is opaque");
+      if(land.underWater(north,east)) {++water;check(texel[2]>texel[0]+40,"lakes are painted blue");}
+      else check(texel[2]<=texel[0]+25,"dry land is not painted as water");
+    }
+    check(water>0,"the map picture shows lakes");
+    const MapFrame frame{100,50,200,1000,-2000,5000};
+    float x,y;
+    check(frame.project(1000,-2000,x,y) && std::abs(x-200)<1e-3f && std::abs(y-150)<1e-3f,"the frame centre is the ground centre");
+    check(frame.project(6000,3000,x,y) && std::abs(x-300)<1e-3f && std::abs(y-50)<1e-3f,"north is up and east is right");
+    check(!frame.project(1000,3100,x,y) && x>300,"points beyond the edge are reported outside");
+    float l,t,r,b,u0,v0,u1,v1;
+    check(frame.picture(l,t,r,b,u0,v0,u1,v1) && l==100 && t==50 && std::abs(r-300)<1e-3f && std::abs(b-250)<1e-3f,"a frame inside the picture is filled");
+    check(std::abs((u0+u1)*.5f-(-2000+Landscape::kExtent)/(2*Landscape::kExtent))<1e-5f &&
+          std::abs((v0+v1)*.5f-(Landscape::kExtent-1000)/(2*Landscape::kExtent))<1e-5f,"texture coordinates follow the ground");
+    const MapFrame edge{0,0,100,0,Landscape::kExtent,10000};
+    check(edge.picture(l,t,r,b,u0,v0,u1,v1) && std::abs(r-50)<1e-3f && u1==1,"a frame over the edge shows only the picture's part");
+    check(!MapFrame{0,0,100,0,Landscape::kExtent*2,10000}.picture(l,t,r,b,u0,v0,u1,v1),"a frame beyond the picture shows none");
+    check(minimapHalfSpan(0)==6000 && minimapHalfSpan(300)>minimapHalfSpan(100) && minimapHalfSpan(5000)==30000,"the minimap opens out with speed");
+  }
   // Trees: deterministic, on the ground, out of the water and off the pavement.
   std::size_t total=0,conifers=0;
   for(int cz=-9;cz<9;++cz) for(int cx=-9;cx<9;++cx) {

@@ -37,7 +37,7 @@ namespace {
 using ofs::client::CameraMode;
 struct Options {
   bool smoke{}, gunSmoke{}, networkSmoke{}, combatSmoke{}, missileSmoke{}, dogfightSmoke{},
-      airborne{}, afterburnerBench{};
+      airborne{}, afterburnerBench{}, map{};
   unsigned frames{}, seconds{};
   std::string screenshot, server, name{"pilot"}, asset, config{"graphics.cfg"};
   unsigned port{27020}, bots{};
@@ -46,7 +46,7 @@ struct Options {
   std::string scenario;
   std::string flightDemo;
   double orbitYaw{}, orbitPitch{.25}, orbitDistance{};
-  ofs::client::CameraMode camera{ofs::client::CameraMode::Chase};
+  ofs::client::CameraMode camera{ofs::client::CameraMode::Pursuit};
   int width{0}, height{0};
 };
 
@@ -71,13 +71,16 @@ Options parse(int argc, char** argv) {
     else if (arg == "--camera" && i + 1 < argc) {
       const std::string_view name = argv[++i];
       if (name == "free") result.camera = CameraMode::Free;
+      else if (name == "pursuit") result.camera = CameraMode::Pursuit;
       else if (name == "chase") result.camera = CameraMode::Chase;
       else if (name == "close-chase") result.camera = CameraMode::CloseChase;
       else if (name == "orbit") result.camera = CameraMode::Orbit;
       else if (name == "cockpit") result.camera = CameraMode::FirstPerson;
-      else throw std::runtime_error("--camera expects free, chase, close-chase, orbit or cockpit");
+      else throw std::runtime_error("--camera expects free, pursuit, chase, close-chase, orbit or cockpit");
     }
     else if (arg == "--free-camera") result.camera = CameraMode::Free;
+    else if (arg == "--pursuit") result.camera = CameraMode::Pursuit;
+    else if (arg == "--map") result.map = true;
     else if (arg == "--chase") result.camera = CameraMode::Chase;
     else if (arg == "--close-chase") result.camera = CameraMode::CloseChase;
     else if (arg == "--orbit") result.camera = CameraMode::Orbit;
@@ -114,7 +117,7 @@ Options parse(int argc, char** argv) {
       throw std::runtime_error(
           "Usage: ofs_client [--smoke-test|--gun-smoke] [--frames N] [--screenshot path.ppm] "
           "[--aircraft a320|su57|typhoon|sr71] [--asset path.glb] [--config path.cfg] [--airborne] [--width N] [--height N] "
-          "[--free-camera|--chase|--close-chase|--orbit|--cockpit] [--visual-bench N] "
+          "[--map] [--free-camera|--pursuit|--chase|--close-chase|--orbit|--cockpit] [--visual-bench N] "
           "[--bots 0..8] [--server host --name name]");
     }
   }
@@ -384,6 +387,7 @@ int main(int argc, char** argv) {
     ui.hud.show = graphics.showHud;
     ui.hud.showLabels = graphics.showPlayerLabels;
     ui.hud.labelMaxDistance = graphics.playerLabelMaxDistance;
+    ui.hud.showMinimap = graphics.showMinimap;
 
     // Resolve the canonical per-type paths beside the executable, in the
     // checkout or at the configured source root. Required asset failures are
@@ -518,6 +522,7 @@ int main(int argc, char** argv) {
     bool sawFlightInput = false, sawMouseLook = false, sawFocusRelease = false;
     bool sawCameraMove = false, sawCameraTurn = false, sawAirborneReset = false;
     bool sawCameraCycle = false;
+    bool fullMap = options.map;  // N toggles; --map starts with it open
     std::uint64_t totalTicks = 0, rateTicks = 0;
     double rateElapsed = 0, measuredTicks = 0;
     auto last = std::chrono::steady_clock::now();
@@ -612,7 +617,7 @@ int main(int argc, char** argv) {
           network->connect("127.0.0.1", dogfight->port());
           options.bots = config.bots;
           camera.orbitDistance = definition.visual.radius * 2.3;
-          cameraMode = CameraMode::Chase;
+          cameraMode = CameraMode::Pursuit;
         }
         ui.multiplayer = bool(network);
         ui.dogfight = bool(dogfight);
@@ -719,7 +724,8 @@ int main(int argc, char** argv) {
             if (event.key.scancode == SDL_SCANCODE_F3 && !ui.multiplayer) ui.resetParked = true;
             if (event.key.scancode == SDL_SCANCODE_BACKSPACE) ui.parkingBrake = !ui.parkingBrake;
             if (event.key.scancode == SDL_SCANCODE_V)
-              cameraMode = cameraMode == CameraMode::FirstPerson ? CameraMode::Chase : CameraMode::FirstPerson;
+              cameraMode = cameraMode == CameraMode::FirstPerson ? CameraMode::Pursuit : CameraMode::FirstPerson;
+            if (event.key.scancode == SDL_SCANCODE_N) fullMap = !fullMap;
             if (event.key.scancode == SDL_SCANCODE_F4) ui.hud.show = !ui.hud.show;
             if (event.key.scancode == SDL_SCANCODE_X && !automated) {
               graphics.mouseAim = !graphics.mouseAim;
@@ -754,8 +760,8 @@ int main(int argc, char** argv) {
       {
         // Mouse aim flies from the aircraft views only, and hands the pointer
         // back whenever there is an interface to click or nothing to fly.
-        const bool flightView = cameraMode == CameraMode::Chase || cameraMode == CameraMode::CloseChase ||
-            cameraMode == CameraMode::FirstPerson;
+        const bool flightView = cameraMode == CameraMode::Pursuit || cameraMode == CameraMode::Chase ||
+            cameraMode == CameraMode::CloseChase || cameraMode == CameraMode::FirstPerson;
 #ifdef OFS_NETWORK_ENABLED
         const bool flying = network ? network->ready() && network->life().alive()
                                     : !aircraftCrashed(simulation().state());
@@ -875,6 +881,7 @@ int main(int argc, char** argv) {
         graphics.showHud = ui.hud.show;
         graphics.showPlayerLabels = ui.hud.showLabels;
         graphics.playerLabelMaxDistance = ui.hud.labelMaxDistance;
+        graphics.showMinimap = ui.hud.showMinimap;
         graphics.save();
       }
       if (ui.resetSettings) {
@@ -1188,6 +1195,7 @@ int main(int argc, char** argv) {
       const bool firstFrame = frame == 1;
       const double renderDt = !options.scenario.empty() || !options.flightDemo.empty() ? 1.0/60.0 : std::min(realElapsed, .1);
       const Vec3 aimView = mouseAim.viewDirection();
+      camera.dynamicFov = graphics.dynamicFov;
       camera.update(cameraMode, aircraft, renderDt, firstFrame, options.aircraft, mouseAim.active ? &aimView : nullptr);
       if(cameraMode==CameraMode::FirstPerson)camera.fov=graphics.cockpitFov;
       if (simulation().origin().rebaseIfNeeded(camera.eye)) log("RENDER", "Render origin rebased");
@@ -1218,6 +1226,7 @@ int main(int argc, char** argv) {
       hud.mouseAim = mouseAim.active;
       hud.mouseAimPoint = camera.eye + mouseAim.direction() * 4000;
       hud.nosePoint = camera.eye + aircraft.att.rotate({4000, 0, 0});
+      hud.fullMap = fullMap;
       hud.alive = !aircraftCrashed(aircraft);
       hud.health = airframeIntegrity(aircraft)*100;
       hud.ammo = localGun.ammo();

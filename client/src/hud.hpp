@@ -51,6 +51,8 @@ struct HudFrame {
   // nose point, as distant world positions.
   bool mouseAimEnabled{}, mouseAim{};
   Vec3 mouseAimPoint{}, nosePoint{};
+  // The full map is open, in place of the minimap.
+  bool fullMap{};
 };
 
 struct HudSettings {
@@ -64,6 +66,7 @@ struct HudSettings {
   bool showGLoad{true};
   bool showStall{true};
   bool showFps{false};
+  bool showMinimap{true};
 };
 
 // Draws the HUD using the renderer's projection for world-space markers.
