@@ -41,6 +41,20 @@ class ReleasePipeline(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
+    def test_empty_typing_marker_is_omitted_but_ca_bundle_is_preserved(self):
+        import zipfile
+        certificates = self.bundles / 'ofs_launcher/_internal/certifi'
+        certificates.mkdir(parents=True)
+        (certificates / 'py.typed').write_bytes(b'')
+        (certificates / 'cacert.pem').write_bytes(b'certificate data')
+        descriptor = package(self.simulator, self.bundles, self.root / 'typing',
+            'https://updates.example.org', local=True, flat_downloads=True)
+        self.assertNotIn('launcher/_internal/certifi/py.typed', descriptor['files'])
+        self.assertIn('launcher/_internal/certifi/cacert.pem', descriptor['files'])
+        with zipfile.ZipFile(next((self.root / 'typing').glob('*-update.zip'))) as archive:
+            self.assertNotIn('launcher/_internal/certifi/py.typed', archive.namelist())
+            self.assertEqual(archive.read('launcher/_internal/certifi/cacert.pem'), b'certificate data')
+
     def test_local_package_helper_update_and_rollback(self):
         output = self.root / 'publish'
         descriptor = package(self.simulator, self.bundles, output, 'https://updates.example.org', local=True)

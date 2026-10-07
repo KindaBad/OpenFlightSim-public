@@ -127,6 +127,11 @@ def package(simulator, bundles, output, base_url, approval=None, local=False, no
     stage = work / 'payload'
     shutil.copytree(simulator, stage)
     shutil.copytree(bundles / 'ofs_launcher', stage / 'launcher')
+    # PEP 561 markers serve source type checkers, not the frozen runtime.
+    # GitHub rejects zero-byte repair assets; retain the CA data itself.
+    for marker in (stage / 'launcher').rglob('py.typed'):
+        if marker.stat().st_size == 0:
+            marker.unlink()
     if not local:
         if not approval:
             raise LauncherError('Public packaging requires --asset-approval; --local-development does not permit publishing')
