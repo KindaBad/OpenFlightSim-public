@@ -77,11 +77,19 @@ if(OFS_BUILD_CLIENT)
   add_subdirectory(client)
 endif()
 if(WIN32 AND (OFS_BUILD_CLIENT OR OFS_BUILD_NETWORK))
-  install(RUNTIME_DEPENDENCY_SET ofs_runtime
-    DIRECTORIES "${CMAKE_BINARY_DIR}/client/Release" "${CMAKE_BINARY_DIR}/network/Release"
-    PRE_EXCLUDE_REGEXES "api-ms-.*" "ext-ms-.*"
-    POST_EXCLUDE_REGEXES ".*[Ww][Ii][Nn][Dd][Oo][Ww][Ss][/\\\\].*"
-    RUNTIME DESTINATION .)
+  set(ofs_runtime_executables)
+  set(ofs_runtime_directories)
+  foreach(target ofs_client ofs_server)
+    if(TARGET ${target})
+      list(APPEND ofs_runtime_executables "$<TARGET_FILE:${target}>")
+      list(APPEND ofs_runtime_directories "$<TARGET_FILE_DIR:${target}>")
+    endif()
+  endforeach()
+  configure_file(cmake/InstallWindowsRuntime.cmake.in
+    "${CMAKE_BINARY_DIR}/InstallWindowsRuntime.cmake.in" @ONLY)
+  file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/InstallWindowsRuntime-$<CONFIG>.cmake"
+    INPUT "${CMAKE_BINARY_DIR}/InstallWindowsRuntime.cmake.in")
+  install(SCRIPT "${CMAKE_BINARY_DIR}/InstallWindowsRuntime-$<CONFIG>.cmake")
   set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION .)
   include(InstallRequiredSystemLibraries)
 endif()

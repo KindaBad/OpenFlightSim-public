@@ -1,0 +1,16 @@
+set(executables "@ofs_runtime_executables@")
+set(directories "@ofs_runtime_directories@")
+file(GET_RUNTIME_DEPENDENCIES
+  EXECUTABLES ${executables}
+  DIRECTORIES ${directories}
+  RESOLVED_DEPENDENCIES_VAR dependencies
+  UNRESOLVED_DEPENDENCIES_VAR unresolved
+  CONFLICTING_DEPENDENCIES_PREFIX conflicts
+  PRE_EXCLUDE_REGEXES "api-ms-.*" "ext-ms-.*"
+  POST_EXCLUDE_REGEXES ".*[Ww][Ii][Nn][Dd][Oo][Ww][Ss][/\\\\].*")
+if(unresolved)
+  message(FATAL_ERROR "Unresolved runtime DLLs: ${unresolved}")
+endif()
+include("@CMAKE_SOURCE_DIR@/cmake/ResolveRuntimeConflicts.cmake")
+ofs_resolve_runtime_conflicts(dependencies conflicts)
+file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}" TYPE FILE FILES ${dependencies})

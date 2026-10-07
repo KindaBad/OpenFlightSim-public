@@ -52,12 +52,26 @@ jobs:
         with:
           path: .vcpkg-cache
           key: vcpkg-x64-windows-openssl-protobuf-${{ runner.os }}-v2-${{ steps.vcpkg-environment.outputs.version }}
+      - name: Restore compiled Windows dependencies
+        uses: actions/cache/restore@v4
+        id: native-cache
+        continue-on-error: true
+        with:
+          path: build/release
+          key: windows-native-build-${{ steps.vcpkg-environment.outputs.version }}-${{ hashFiles('cmake/Dependencies.cmake', 'network/CMakeLists.txt') }}-v1
       - name: Configure
         shell: pwsh
-        run: cmake -S . -B build/msvc -G "Visual Studio 17 2022" -A x64 "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+        run: cmake -S . -B build/release -G "Visual Studio 17 2022" -A x64 "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" -DOFS_INCLUDE_SU57=ON -DOFS_REQUIRE_PRODUCTION_ASSETS=OFF
       - name: Build Including DXBC Shaders
-        run: cmake --build build/msvc --config Release --parallel 3
+        run: cmake --build build/release --config Release --parallel 3
+      - name: Preserve compiled Windows dependencies
+        uses: actions/cache/save@v4
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        with:
+          path: build/release
+          key: windows-native-build-${{ steps.vcpkg-environment.outputs.version }}-${{ hashFiles('cmake/Dependencies.cmake', 'network/CMakeLists.txt') }}-v1
       - name: Check source provenance first
-        run: ctest --test-dir build/msvc -C Release --output-on-failure -R "^regression.provenance"
+        run: ctest --test-dir build/release -C Release --output-on-failure -R "^regression.provenance"
       - name: Headless Regressions
-        run: ctest --test-dir build/msvc -C Release --output-on-failure --parallel 3
+        run: ctest --test-dir build/release -C Release --output-on-failure --parallel 3

@@ -134,13 +134,20 @@ jobs:
         with:
           path: .vcpkg-cache
           key: vcpkg-x64-windows-openssl-protobuf-${{ runner.os }}-v2-${{ steps.vcpkg-environment.outputs.version }}
+      - name: Restore compiled Windows dependencies
+        uses: actions/cache/restore@v4
+        id: native-cache
+        continue-on-error: true
+        with:
+          path: build/release
+          key: windows-native-build-${{ steps.vcpkg-environment.outputs.version }}-${{ hashFiles('cmake/Dependencies.cmake', 'network/CMakeLists.txt') }}-v1
       - name: Configure Linux
         if: runner.os == 'Linux'
         run: cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DOFS_RELEASE_CHANNEL=${{ env.OFS_CHANNEL }}
       - name: Configure Windows
         if: runner.os == 'Windows'
         shell: pwsh
-        run: cmake -S . -B build/release -G "Visual Studio 17 2022" -A x64 "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" "-DOFS_RELEASE_CHANNEL=$env:OFS_CHANNEL"
+        run: cmake -S . -B build/release -G "Visual Studio 17 2022" -A x64 "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" "-DOFS_RELEASE_CHANNEL=$env:OFS_CHANNEL" -DOFS_INCLUDE_SU57=ON -DOFS_REQUIRE_PRODUCTION_ASSETS=OFF
       - name: Build simulator, server and compiled catalogue
         run: cmake --build build/release --config Release --parallel 3
       - name: Check source provenance first
@@ -151,6 +158,13 @@ jobs:
         run: cmake -S . -B build/release -DOFS_INCLUDE_SU57=OFF -DOFS_REQUIRE_PRODUCTION_ASSETS=ON
       - name: Rebuild the player binaries and catalogue
         run: cmake --build build/release --config Release --parallel 3
+      - name: Preserve compiled Windows dependencies
+        uses: actions/cache/save@v4
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        with:
+          path: build/release
+          key: windows-native-build-${{ steps.vcpkg-environment.outputs.version }}-${{ hashFiles('cmake/Dependencies.cmake', 'network/CMakeLists.txt') }}-v1
       - name: Provision approved release assets
         run: python scripts/provision_release_assets.py --catalog build/release/launcher-catalog.json --cache build/approved-assets.zip
       - name: Require all player aircraft and authored LODs
