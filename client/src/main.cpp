@@ -397,9 +397,27 @@ int main(int argc, char** argv) {
         return (root / relative).string();
       return relative.string();
     };
-    for (const auto& d : aircraftDefinitions()) {
-      const auto path = d.type == options.aircraft && !options.asset.empty() ? options.asset : assetPathFor(d);
-      if (!renderer.loadAircraft(path, d.type)) throw std::runtime_error("Required aircraft asset failed: " + path);
+    // Decoding runs on worker threads while this thread keeps answering the
+    // window system; a window silent for a few seconds is reported as hung.
+    {
+      std::vector<std::future<Renderer::AircraftSource>> pending;
+      for (const auto& d : aircraftDefinitions())
+        pending.push_back(renderer.prepareAircraft(
+            d.type == options.aircraft && !options.asset.empty() ? options.asset : assetPathFor(d), d.type));
+      for (std::size_t i = 0; i < pending.size(); ++i) {
+        const auto status = "Loading aircraft " + std::to_string(i + 1) + " of " + std::to_string(pending.size());
+        do {
+          SDL_PumpEvents();
+          if (SDL_HasEvent(SDL_EVENT_QUIT)) {
+            log("CORE", "Closed while loading");
+            return 0;
+          }
+          renderer.loadingFrame(status);
+        } while (pending[i].wait_for(std::chrono::milliseconds(15)) != std::future_status::ready);
+        auto source = pending[i].get();
+        const auto path = source.path;
+        if (!renderer.finishAircraft(std::move(source))) throw std::runtime_error("Required aircraft asset failed: " + path);
+      }
     }
     std::string assetName = "(no model)";
     assetName = renderer.aircraftName();

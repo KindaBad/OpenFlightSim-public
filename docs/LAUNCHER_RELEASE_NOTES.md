@@ -1,5 +1,9 @@
-OpenFlightSim 0.4.0 Launcher
+OpenFlightSim 0.4.1 Launcher
 
+- Faster start. Aircraft now load on several processor cores at once, which cuts
+  the wait before the first frame to well under half, and the window shows a
+  loading message and stays responsive instead of being reported as not
+  responding.
 - New renderer. Sunlight, sky colour, haze and exposure now come from one
   physically based atmosphere, so the time of day and the visibility you set are
   what light the scene. Volumetric clouds with a cirrus layer cast shadows on

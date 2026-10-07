@@ -26,6 +26,8 @@
 #include <stdexcept>
 #include <chrono>
 #include <filesystem>
+#include <map>
+#include <future>
 
 namespace ofs::client {
 
@@ -433,18 +435,20 @@ void Renderer::destroy() {
 // Aircraft asset
 // ---------------------------------------------------------------------------
 
-bool Renderer::loadAircraft(const std::string& path, AircraftType type) {
-  Model& asset = model(type);
-  if (asset.loaded) return true;
-  Mesh mesh;
-  GpuMesh gpu;
+namespace {
+Renderer::AircraftSource prepareAircraftSource(const std::string& path, AircraftType type,
+                                               unsigned maximum, bool anisotropic) {
+  Renderer::AircraftSource source;
+  source.type = type;
+  source.path = path;
+  Mesh& mesh = source.mesh;
   try {
     mesh = loadGltf(path);
     // Cell sizes tuned against the measured A320 primitive histogram: 0.15 m
     // keeps the silhouette within 0.02 m, 0.45 m is a distant-aircraft proxy.
     const float cells[kLodCount - 1] = {0.15f, 0.45f};
     const auto& lodAssets=aircraftDefinition(type).lodAssets;
-    gpu = buildGpuMesh(mesh, cells, lodAssets[0].empty() ? kLodCount : 1);
+    source.gpu = buildGpuMesh(mesh, cells, lodAssets[0].empty() ? kLodCount : 1);
     if (!lodAssets[0].empty()) {
       for (const auto lodPath : lodAssets) {
         if (lodPath.empty()) throw std::runtime_error("incomplete authored LOD chain");
@@ -463,25 +467,20 @@ bool Renderer::loadAircraft(const std::string& path, AircraftType type) {
         }
         reduced.materials=mesh.materials;
         auto built=buildGpuMesh(reduced,nullptr,1);
-        if (built.levels[0].triangleCount>=gpu.levels.back().triangleCount)
+        if (built.levels[0].triangleCount>=source.gpu.levels.back().triangleCount)
           throw std::runtime_error("authored LOD chain must strictly reduce triangles");
-        gpu.levels.push_back(std::move(built.levels[0]));
+        source.gpu.levels.push_back(std::move(built.levels[0]));
       }
     }
   } catch (const std::exception& error) {
-    log("ASSET", std::string("Failed to load aircraft model: ") + error.what());
-    asset.loaded = false;
-    return false;
+    source.error = error.what();
+    return source;
   }
-  asset.report = mesh.report;
-  asset.name = std::string(aircraftDefinition(type).displayName);
-  asset.materials = mesh.materials;
-  asset.nodes = std::move(mesh.nodes);
-  asset.mesh = std::move(gpu);
 
-  std::map<std::tuple<int, std::uint64_t, TextureRole, bool>, bgfx::TextureHandle> cache;
+  std::map<std::tuple<int, std::uint64_t, TextureRole, bool>, int> cache;
+  std::vector<std::future<std::vector<std::uint8_t>>> chains;
   for (const auto& texture : mesh.textures) {
-    bgfx::TextureHandle handle = BGFX_INVALID_HANDLE;
+    int upload = -1;
     if (texture.image >= 0 && texture.image < static_cast<int>(mesh.images.size())) {
       const auto& image = mesh.images[texture.image];
       std::uint64_t flags = 0;
@@ -493,36 +492,107 @@ bool Renderer::loadAircraft(const std::string& path, AircraftType type) {
       if (texture.minFilter==9728 || texture.minFilter==9984 || texture.minFilter==9986) flags|=BGFX_SAMPLER_MIN_POINT;
       const auto role=textureRole(mesh,texture.image);
       const bool mipmaps=texture.minFilter>=9984 && texture.minFilter<=9987;
-      if(settings_.anisotropic && mipmaps && !(flags&BGFX_SAMPLER_MIN_POINT)) flags|=BGFX_SAMPLER_MIN_ANISOTROPIC;
+      if(anisotropic && mipmaps && !(flags&BGFX_SAMPLER_MIN_POINT)) flags|=BGFX_SAMPLER_MIN_ANISOTROPIC;
       if(texture.minFilter==9984 || texture.minFilter==9985) flags|=BGFX_SAMPLER_MIP_POINT;
       const auto key = std::tuple{texture.image,flags,role,mipmaps};
-      if (cache.contains(key)) handle=cache.at(key);
+      if (cache.contains(key)) upload=cache.at(key);
       else if (!image.rgba.empty()) {
-        unsigned uploadWidth=image.width,uploadHeight=image.height;
-        const unsigned maximum=std::min<unsigned>(unsigned(std::clamp(settings_.textureMaxSize,512,8192)),bgfx::getCaps()->limits.maxTextureSize);
-        auto pixels=(mipmaps || uploadWidth>maximum || uploadHeight>maximum)?textureMipChain(image.rgba,uploadWidth,uploadHeight,role):image.rgba;
-        std::size_t skip=0;
-        while(uploadWidth>maximum || uploadHeight>maximum) {
-          skip+=std::size_t(uploadWidth)*uploadHeight*4;
-          uploadWidth=std::max(1u,uploadWidth/2);uploadHeight=std::max(1u,uploadHeight/2);
+        Renderer::AircraftSource::Upload entry;
+        entry.width=image.width;entry.height=image.height;
+        while(entry.width>maximum || entry.height>maximum) {
+          entry.width=std::max(1u,entry.width/2);entry.height=std::max(1u,entry.height/2);
         }
-        if(skip)pixels.erase(pixels.begin(),pixels.begin()+skip);
-        if(!mipmaps)pixels.resize(std::size_t(uploadWidth)*uploadHeight*4);
-        handle=bgfx::createTexture2D(static_cast<std::uint16_t>(uploadWidth),static_cast<std::uint16_t>(uploadHeight),
-            mipmaps,1,bgfx::TextureFormat::RGBA8,flags,
-            bgfx::copy(pixels.data(),static_cast<std::uint32_t>(pixels.size())));
-        if(bgfx::isValid(handle)) {
-          asset.textureBytes+=pixels.size();
-          const auto cost=textureAllocation(image.width,image.height,mipmaps,maximum);
-          log("TEXTURE",path+" | "+image.source+" source="+std::to_string(image.width)+"x"+std::to_string(image.height)+
-            " upload="+std::to_string(cost.width)+"x"+std::to_string(cost.height)+" format=RGBA8 mips="+std::to_string(cost.mips)+
-            " estimated_gpu_bytes="+std::to_string(cost.bytes));
-        }
-        cache.emplace(key,handle);
+        entry.mipmaps=mipmaps;entry.flags=flags;
+        const auto cost=textureAllocation(image.width,image.height,mipmaps,maximum);
+        entry.report=path+" | "+image.source+" source="+std::to_string(image.width)+"x"+std::to_string(image.height)+
+          " upload="+std::to_string(cost.width)+"x"+std::to_string(cost.height)+" format=RGBA8 mips="+std::to_string(cost.mips)+
+          " estimated_gpu_bytes="+std::to_string(cost.bytes);
+        // Mip filtering is as costly as decoding, so each chain gets a thread too.
+        chains.push_back(std::async(std::launch::async,[&image,role,mipmaps,maximum] {
+          unsigned uploadWidth=image.width,uploadHeight=image.height;
+          auto pixels=(mipmaps || uploadWidth>maximum || uploadHeight>maximum)?textureMipChain(image.rgba,uploadWidth,uploadHeight,role):image.rgba;
+          std::size_t skip=0;
+          while(uploadWidth>maximum || uploadHeight>maximum) {
+            skip+=std::size_t(uploadWidth)*uploadHeight*4;
+            uploadWidth=std::max(1u,uploadWidth/2);uploadHeight=std::max(1u,uploadHeight/2);
+          }
+          if(skip)pixels.erase(pixels.begin(),pixels.begin()+skip);
+          if(!mipmaps)pixels.resize(std::size_t(uploadWidth)*uploadHeight*4);
+          pixels.shrink_to_fit();
+          return pixels;
+        }));
+        upload=static_cast<int>(source.uploads.size());
+        source.uploads.push_back(std::move(entry));
+        cache.emplace(key,upload);
       }
     }
-    asset.textures.push_back(handle);
+    source.textureUpload.push_back(upload);
   }
+  auto sorted=aircraftTextureCosts(mesh,maximum);
+  std::sort(sorted.begin(),sorted.end(),[](const auto& a,const auto& b){return a.allocation.bytes>b.allocation.bytes;});
+  for(std::size_t i=0;i<std::min(std::size_t(5),sorted.size());++i)
+    source.largest.push_back("largest "+path+" | "+sorted[i].source+" bytes="+std::to_string(sorted[i].allocation.bytes));
+  // Wait for every chain before any can throw: the workers read mesh.images.
+  for(auto& chain:chains) chain.wait();
+  for(std::size_t i=0;i<chains.size();++i) source.uploads[i].pixels=chains[i].get();
+  for(auto& image:mesh.images) std::vector<std::uint8_t>().swap(image.rgba);
+  return source;
+}
+}  // namespace
+
+std::future<Renderer::AircraftSource> Renderer::prepareAircraft(const std::string& path, AircraftType type) const {
+  const unsigned maximum=std::min<unsigned>(unsigned(std::clamp(settings_.textureMaxSize,512,8192)),bgfx::getCaps()->limits.maxTextureSize);
+  return std::async(std::launch::async, prepareAircraftSource, path, type, maximum, settings_.anisotropic);
+}
+
+bool Renderer::loadAircraft(const std::string& path, AircraftType type) {
+  if (model(type).loaded) return true;
+  return finishAircraft(prepareAircraft(path, type).get());
+}
+
+void Renderer::loadingFrame(std::string_view status) {
+  bgfx::setViewRect(0, 0, 0, width_, height_);
+  bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x0b1016ffu, 1.0f, 0);
+  bgfx::touch(0);
+  bgfx::setDebug(BGFX_DEBUG_TEXT);
+  bgfx::dbgTextClear();
+  // The debug text grid uses 8x16 pixel cells.
+  const int column = std::max(0, (width_ / 8 - static_cast<int>(status.size())) / 2);
+  bgfx::dbgTextPrintf(static_cast<std::uint16_t>(column), static_cast<std::uint16_t>(height_ / 32), 0x0f,
+                      "%.*s", static_cast<int>(status.size()), status.data());
+  bgfx::frame();
+  bgfx::setDebug(BGFX_DEBUG_NONE);
+  bgfx::resetView(0);
+}
+
+bool Renderer::finishAircraft(AircraftSource source) {
+  Model& asset = model(source.type);
+  if (asset.loaded) return true;
+  if (!source.error.empty()) {
+    log("ASSET", std::string("Failed to load aircraft model: ") + source.error);
+    asset.loaded = false;
+    return false;
+  }
+  Mesh& mesh = source.mesh;
+  asset.report = mesh.report;
+  asset.name = std::string(aircraftDefinition(source.type).displayName);
+  asset.materials = mesh.materials;
+  asset.nodes = std::move(mesh.nodes);
+  asset.mesh = std::move(source.gpu);
+
+  std::vector<bgfx::TextureHandle> handles;
+  for (const auto& upload : source.uploads) {
+    const auto handle=bgfx::createTexture2D(static_cast<std::uint16_t>(upload.width),static_cast<std::uint16_t>(upload.height),
+        upload.mipmaps,1,bgfx::TextureFormat::RGBA8,upload.flags,
+        bgfx::copy(upload.pixels.data(),static_cast<std::uint32_t>(upload.pixels.size())));
+    if(bgfx::isValid(handle)) {
+      asset.textureBytes+=upload.pixels.size();
+      log("TEXTURE",upload.report);
+    }
+    handles.push_back(handle);
+  }
+  for (const int upload : source.textureUpload)
+    asset.textures.push_back(upload<0 ? bgfx::TextureHandle(BGFX_INVALID_HANDLE) : handles[upload]);
 
   {
     std::uint64_t aircraftBytes=0;
@@ -530,10 +600,7 @@ bool Renderer::loadAircraft(const std::string& path, AircraftType type) {
     log("TEXTURE", "aircraft_texture_gpu_bytes="+std::to_string(aircraftBytes)+
       " total_texture_gpu_bytes="+std::to_string(aircraftBytes+auxiliaryTextureBytes_)+
       " (includes white/font/cloud-noise; excludes framebuffer attachments/driver allocation)");
-    const auto costs=aircraftTextureCosts(mesh,std::min<unsigned>(std::clamp(settings_.textureMaxSize,512,8192),bgfx::getCaps()->limits.maxTextureSize));
-    auto sorted=costs;std::sort(sorted.begin(),sorted.end(),[](const auto& a,const auto& b){return a.allocation.bytes>b.allocation.bytes;});
-    for(std::size_t i=0;i<std::min(std::size_t(5),sorted.size());++i)
-      log("TEXTURE", "largest "+path+" | "+sorted[i].source+" bytes="+std::to_string(sorted[i].allocation.bytes));
+    for(const auto& line:source.largest) log("TEXTURE", line);
   }
   for (GpuLevel& level : asset.levels) {
     if (bgfx::isValid(level.indexBuffer)) bgfx::destroy(level.indexBuffer);

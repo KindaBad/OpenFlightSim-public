@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <future>
 #include <limits>
 #include <memory>
 #include <stdexcept>
@@ -520,6 +521,8 @@ struct Loader {
   void loadTextures() {
     const auto& list = (*root)["images"];
     mesh.images.resize(list.count());
+    // Decoding dominates load time, so every image decodes on its own thread.
+    std::vector<std::future<Image>> decoded(list.count());
     for (std::size_t i = 0; i < list.count(); ++i) {
       const auto& entry = list[i];
       std::vector<std::uint8_t> encoded;
@@ -541,8 +544,14 @@ struct Loader {
           }
         }
       }
+      decoded[i] = std::async(std::launch::async,
+                              [encoded = std::move(encoded)] { return decodeImage(encoded); });
+    }
+    for (std::size_t i = 0; i < list.count(); ++i) {
+      const auto& entry = list[i];
+      const auto uri = entry["uri"].text();
       try {
-        mesh.images[i] = decodeImage(encoded);
+        mesh.images[i] = decoded[i].get();
         mesh.images[i].name = std::string(entry["name"].text());
         mesh.images[i].source = !uri.empty() && !uri.starts_with("data:") ? basePath+std::string(uri)
           : "embedded["+std::to_string(i)+"]:"+mesh.images[i].name;

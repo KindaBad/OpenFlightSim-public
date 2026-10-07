@@ -43,6 +43,7 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace ofs::client {
@@ -132,6 +133,29 @@ class Renderer {
   // Loads the aircraft model. Returns false and logs on failure; the renderer
   // stays usable so the developer grid and HUD still run.
   bool loadAircraft(const std::string& path, AircraftType type);
+  // The same load split in two, so startup can decode every aircraft on worker
+  // threads while the window keeps responding. prepareAircraft touches no GPU
+  // state; finishAircraft uploads on the render thread.
+  struct AircraftSource {
+    struct Upload {
+      std::vector<std::uint8_t> pixels;
+      unsigned width{}, height{};
+      bool mipmaps{};
+      std::uint64_t flags{};
+      std::string report;
+    };
+    AircraftType type{AircraftType::A320};
+    std::string path, error;
+    Mesh mesh;  // image pixels are released once their mip chains exist
+    GpuMesh gpu;
+    std::vector<Upload> uploads;
+    std::vector<int> textureUpload;  // per glTF texture; -1 without an image
+    std::vector<std::string> largest;
+  };
+  std::future<AircraftSource> prepareAircraft(const std::string& path, AircraftType type) const;
+  bool finishAircraft(AircraftSource source);
+  // Presents a plain status frame while assets are still being prepared.
+  void loadingFrame(std::string_view status);
   void setAircraftType(AircraftType type) { localType_ = type; }
   bool hasAircraft() const { return model(localType_).loaded; }
   const GpuMesh& aircraftMesh() const { return model(localType_).mesh; }
