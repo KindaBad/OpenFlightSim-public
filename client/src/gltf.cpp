@@ -2,6 +2,9 @@
 
 #include "json.hpp"
 #include "texture.hpp"
+#include "protected_asset.hpp"
+#include "monocypher.h"
+#include <filesystem>
 
 #include <algorithm>
 #include <cmath>
@@ -847,14 +850,25 @@ Mesh parseGltf(std::string_view document, const std::vector<std::uint8_t>& binar
 }
 
 Mesh loadGltf(const std::string& path) {
-  std::ifstream file(path, std::ios::binary);
-  if (!file) throw std::runtime_error("glTF: cannot open " + path);
-  std::vector<std::uint8_t> data((std::istreambuf_iterator<char>(file)),
-                                 std::istreambuf_iterator<char>());
+  const auto packedPath = path.ends_with(".ofspack") ? path : path + ".ofspack";
+  const bool protectedInput = std::filesystem::is_regular_file(packedPath);
+  std::vector<std::uint8_t> data;
+  if (protectedInput) data = readProtectedAsset(packedPath);
+  else {
+    std::ifstream file(path, std::ios::binary);
+    if (!file) throw std::runtime_error("glTF: cannot open " + path);
+    data.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+  }
+  struct Wipe {
+    std::vector<std::uint8_t>& bytes;
+    bool enabled;
+    ~Wipe() { if (enabled) crypto_wipe(bytes.data(), bytes.size()); }
+  } wipe{data, protectedInput};
   if (data.size() < 12) throw std::runtime_error("glTF: file is too small: " + path);
 
   std::string_view json;
   std::vector<std::uint8_t> binary;
+  Wipe wipeBinary{binary, protectedInput};
   bool isGlb = data.size() >= 4 && data[0] == 'g' && data[1] == 'l' && data[2] == 'T' && data[3] == 'F';
   if (isGlb) {
     std::uint32_t version = 0, length = 0;
@@ -890,6 +904,12 @@ Mesh loadGltf(const std::string& path) {
   loader.root = &parser.root();
   loader.binary = &binary;
   loader.basePath = directoryOf(path);
+  if (protectedInput) {
+    if (!isGlb) throw std::runtime_error("Protected asset: expected GLB");
+    for (const auto* section : {"buffers", "images"})
+      for (const auto& item : parser.root()[section].items())
+        if (item.has("uri")) throw std::runtime_error("Protected asset: external resources prohibited");
+  }
   validateDocument(loader);
   loader.run();
   return std::move(loader.mesh);

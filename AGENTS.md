@@ -24,13 +24,18 @@ stay local unless the user explicitly requests otherwise.
 
 ## Public source delivery
 
-This is the independent public source repository. Push completed source tasks to
-its public origin normally. The original OpenFlightSim repository and its older
-asset-bearing history remain private. Preserve this public repository's existing
-commits; never merge, mirror-push or copy the private Git history into it.
+The source-only public repository is `KindaBad/OpenFlightSim-public` at
+`https://github.com/KindaBad/OpenFlightSim-public.git`. The original repository
+and its older asset-bearing history remain private. After delivering completed
+source changes to the private `origin`, also update the public source repository
+through an independent checkout, normal commit and normal push. Preserve its
+existing public commits; do not merge, mirror-push or copy the private Git history.
 
-Exclude reference/, generated models/Blender files, restricted imported data,
-caches, generated test/build output and unrelated archives. See docs/PUBLIC_SOURCE.md.
+Use only the reviewed tracked source snapshot. Exclude `reference/`, generated
+models/Blender files, restricted imported data, caches, generated test/build output
+and unrelated archives. The initial independent public checkout is under the
+ignored `build/public-source-candidate/` directory. Adjust its AGENTS.md origin
+URL for that checkout. Verify both pushes and report public-delivery blockers.
 
 ## Player update delivery
 
@@ -41,8 +46,8 @@ committing and delivering both source snapshots. Published versions are immutabl
 Documentation-only and local-only artwork work does not require a version bump.
 Do not increment again merely to retry an unpublished or draft version.
 
-Player builds currently exclude the Su-57 with `OFS_INCLUDE_SU57=OFF`; local
-development retains it. Rebuild and verify the approved aircraft content pack
+Player builds from 0.3.1 include the Su-57 only as reviewed protected content;
+local development may retain loose authoring exports. Rebuild and verify the approved aircraft content pack
 and refresh its CI hash/size/URL when shipping changes to its original aircraft.
 Do not publish the current Su-57 model files without resolving their distribution
 rights. Verify release workflow results and the public launcher manifest before

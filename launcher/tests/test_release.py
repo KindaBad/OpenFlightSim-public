@@ -1,5 +1,6 @@
 """Real packaging, helper activation and publication-index consistency."""
 import os
+import struct
 from pathlib import Path
 import shutil
 import tempfile
@@ -11,7 +12,7 @@ from launcher.bootstrap import run
 from launcher.installation import pointer, verify
 from launcher.storage import LauncherError, read_json, write_json
 from launcher.platform_process import child_environment
-from scripts.package_release import package, check_asset_approval
+from scripts.package_release import package, check_asset_approval, check_public_payload
 from scripts.merge_update_manifests import merge
 from scripts.publish_github_release import publication_files, publish
 
@@ -90,6 +91,59 @@ class ReleasePipeline(unittest.TestCase):
             **read_json(self.bundles / 'setup-config.json'), 'manifest_url': 'https://updates.example.org/manifest.json'})
         with self.assertRaisesRegex(LauncherError, 'approval'):
             package(self.simulator, self.bundles, self.root / 'bad', 'https://updates.example.org')
+
+    def test_protected_asset_approval_and_no_loose_repair_files(self):
+        from launcher.game import Installation
+        from scripts.package_release import records_for
+        from launcher.storage import sha256
+        names = ('assets/a320.glb', 'assets/typhoon.glb')
+        approval = {'schema': 1, 'assets': {}}
+        for name in names:
+            original = self.simulator / name
+            payload = original.read_bytes()
+            packed = self.simulator / (name + '.ofspack')
+            packed.write_bytes(b'OFSPACK1' + bytes(24) + struct.pack('<Q', len(payload)) + payload + bytes(16))
+            original.unlink()
+            approval['assets'][name + '.ofspack'] = dict(redistributable=True,
+                license='Fixture', source='Fixture', credit='Fixture author',
+                rights_evidence='Reviewed fixture permission', protection='OFSPACK1', sha256=sha256(packed))
+        path = self.root / 'protected-approval.json'
+        write_json(path, approval)
+        check_asset_approval(self.simulator, path)
+        self.assertEqual(Installation.discover(self.simulator).missing_assets(), [])
+        records = records_for(self.simulator)
+        self.assertTrue(all(name not in records and name + '.ofspack' in records for name in names))
+        descriptor = package(self.simulator, self.bundles, self.root / 'protected-public',
+            'https://updates.example.org/game', approval=path, flat_downloads=True)
+        self.assertTrue(all(name not in descriptor['files'] and name + '.ofspack' in descriptor['files'] for name in names))
+        import zipfile
+        archive = next((self.root / 'protected-public').glob('*-update.zip'))
+        with zipfile.ZipFile(archive) as zipped:
+            self.assertTrue(all(name not in zipped.namelist() for name in names))
+        approval['assets'][names[0] + '.ofspack'].pop('rights_evidence')
+        write_json(path, approval)
+        with self.assertRaisesRegex(LauncherError, 'rights evidence'):
+            check_asset_approval(self.simulator, path)
+        (self.simulator / names[0]).write_bytes(b'exposed')
+        with self.assertRaisesRegex(LauncherError, 'loose copy'):
+            check_asset_approval(self.simulator, path)
+
+    def test_keys_and_loose_su57_cannot_be_published(self):
+        from launcher.storage import sha256
+        path = self.root / 'approval.json'
+        write_json(path, {'schema': 1, 'assets': {name: dict(redistributable=True,
+            license='Fixture', source='Fixture', sha256=sha256(self.simulator / name))
+            for name in ('assets/a320.glb', 'assets/typhoon.glb')}})
+        key = self.simulator / 'content.ofskey'
+        key.write_text('private')
+        with self.assertRaisesRegex(LauncherError, 'key file'):
+            check_public_payload(self.simulator)
+        key.unlink()
+        loose = self.simulator / 'assets/aircraft/su57/aircraft.glb'
+        loose.parent.mkdir(parents=True)
+        loose.write_bytes(b'private model')
+        with self.assertRaisesRegex(LauncherError, 'loose files'):
+            check_public_payload(self.simulator)
 
     def test_approval_is_hash_bound(self):
         records = {name: {'redistributable': True, 'license': 'Original fixture', 'source': 'Unit test fixture', 'sha256': self.metadata['files'][name]['sha256']} for name in ('assets/a320.glb', 'assets/typhoon.glb')}

@@ -28,13 +28,47 @@ def check_asset_approval(stage, approval_path):
     catalog = read_json(stage / 'launcher-catalog.json')
     for aircraft in catalog['aircraft']:
         for name in [aircraft['model'], *aircraft['lods']]:
-            record = approval['assets'].get(name, {})
+            packed = stage / (name + '.ofspack')
+            if packed.is_file():
+                if (stage / name).exists():
+                    raise LauncherError(f'Protected asset has an exposed loose copy: {name}')
+                name += '.ofspack'
+                record = approval['assets'].get(name, {})
+                if record.get('protection') != 'OFSPACK1' or not all(
+                    isinstance(record.get(key), str) and record[key].strip()
+                    for key in ('credit', 'rights_evidence')):
+                    raise LauncherError(f'Protected asset requires credit and reviewed rights evidence: {name}')
+                with packed.open('rb') as file:
+                    header = file.read(40)
+                if (len(header) != 40 or header[:8] != b'OFSPACK1' or
+                    int.from_bytes(header[32:40], 'little') != packed.stat().st_size - 56):
+                    raise LauncherError(f'Invalid protected asset envelope: {name}')
+            else:
+                record = approval['assets'].get(name, {})
             if record.get('redistributable') is not True or any(not isinstance(record.get(key), str) or not record[key].strip() for key in ('license', 'source')):
                 raise LauncherError(f'Public release asset lacks explicit redistribution approval: {name}')
             if sha256(stage / name) != record.get('sha256'):
                 raise LauncherError(f'Approved asset digest does not match: {name}')
     if Path(approval_path).resolve() != (stage / 'asset-approval.json').resolve():
         shutil.copy2(approval_path, stage / 'asset-approval.json')
+
+
+def check_public_payload(stage):
+    # Neither authoring files nor content keys belong in a public payload.
+    for path in stage.rglob('*'):
+        if path.suffix.lower() in ('.blend', '.ofskey') or path.name == 'ofs_asset_key.hpp':
+            raise LauncherError(f'Private authoring/key file cannot be published: {path.name}')
+    catalog = read_json(stage / 'launcher-catalog.json')
+    registered = {name + '.ofspack' for aircraft in catalog['aircraft']
+                  for name in (aircraft['model'], *aircraft['lods'])}
+    for path in stage.rglob('*.ofspack'):
+        if path.relative_to(stage).as_posix() not in registered:
+            raise LauncherError('Unregistered protected asset cannot be published')
+    su57 = stage / 'assets/aircraft/su57'
+    if su57.exists():
+        for path in su57.rglob('*'):
+            if path.is_file() and path.suffix.lower() not in ('.ofspack', '.md'):
+                raise LauncherError('Public Su-57 content must be protected; loose files prohibited')
 
 
 def records_for(directory):
@@ -96,6 +130,7 @@ def package(simulator, bundles, output, base_url, approval=None, local=False, no
     if not local:
         if not approval:
             raise LauncherError('Public packaging requires --asset-approval; --local-development does not permit publishing')
+        check_public_payload(stage)
         check_asset_approval(stage, approval)
     else:
         (stage / 'LOCAL-DEVELOPMENT-ONLY.txt').write_text('Local use only. Assets have not been approved for redistribution.\n')

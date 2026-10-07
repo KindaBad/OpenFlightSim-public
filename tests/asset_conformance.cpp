@@ -25,7 +25,7 @@ int main(int argc,char** argv){try {
     const PhysicalGeometry* geometry=d.type==AircraftType::A320?&a320Geometry():d.type==AircraftType::Su57?&su57Geometry():nullptr;
     const double length=geometry?geometry->length:d.type==AircraftType::Typhoon?15.96:32.7406;
     const double height=geometry?geometry->height:d.type==AircraftType::Typhoon?5.28:5.6388;
-    if(!std::filesystem::exists(path)) {
+    if(!(std::filesystem::is_regular_file(path)||std::filesystem::is_regular_file(path.string()+".ofspack"))) {
       require(!mandatory,"Required production model absent: "+path.string());
       ++missing;
       std::printf("[NOT RUN asset-conformance] %s\n",path.c_str());continue;
@@ -64,7 +64,7 @@ int main(int argc,char** argv){try {
     if(d.type==AircraftType::Su57)for(auto name:{"vector_L","vector_R","levcon","slat","compression_L","compression_R","compression_nose"})require(channels.contains(name),"Missing Su-57 rig channel");
     std::uint64_t previous=mesh.triangleCount;unsigned lods=0;
     for(const auto lod:d.lodAssets)if(!lod.empty()) {
-      const auto lodPath=root/lod;require(std::filesystem::exists(lodPath),"Required authored LOD missing");
+      const auto lodPath=root/lod;require((std::filesystem::is_regular_file(lodPath)||std::filesystem::is_regular_file(lodPath.string()+".ofspack")),"Required authored LOD missing");
       const auto reduced=loadGltf(lodPath.string());complete(reduced);require(reduced.triangleCount<previous,"Invalid LOD reduction");
       for(const auto& p:reduced.primitives)require(materials.contains(reduced.materials.at(p.material).name),"LOD material identity");
       for(const auto& node:reduced.nodes)if(!node.channel.empty())require(nodeNames.contains(node.name)&&channels.contains(node.channel),"LOD control-node identity");

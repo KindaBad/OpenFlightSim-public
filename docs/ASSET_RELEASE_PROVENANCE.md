@@ -40,12 +40,28 @@ game do not remove that distinction. The user-supplied listing identifies the
 intended donor; the source has not been re-downloaded and byte-matched against
 the local original.
 
-**PUBLIC SOURCE EXCLUDED / CURRENT LOOSE-GLB RELEASE NOT APPROVED.** The runtime
-and release packager currently store ordinary derivative GLBs, so they need a
-protected asset packaging/loading path before approving this donor for game
-distribution. Keep Blender sources and loose GLBs out of the public repository
-and public repair/download file indexes. Preserve the license/provenance evidence
-and review the incorporated package format when completing asset approval.
+**PUBLIC SOURCE EXCLUDED / PROTECTED INCORPORATED GAME RELEASE REVIEWED.**
+On 2026-10-07 the live listing again displayed model 5684228, creator lullabie,
+and Royalty Free License (no AI). The existing owner-supplied identification and
+license screenshot establish the recorded donor source; a fresh byte comparison
+with a marketplace download has not been performed. This provenance limitation
+is retained rather than claiming a verified marketplace-file checksum.
+
+CGTrader sections 21A.2, 21A.3, 21B.1 and 24 permit incorporated game use under
+the selected license, require commercially reasonable safeguards, and exclude
+machine-learning/neural-network training. No separate author email is necessary
+for the licensed incorporated use described here. This review approves only the
+encrypted runtime derivatives identified by the content pack's exact hashes,
+with attribution in `licenses/assets/SU57.md`. It does not approve loose GLB,
+texture or Blender-source distribution.
+
+The OFSPACK1 path encrypts every Su-57 LOD and its embedded exterior images,
+authenticates before parsing, loads in memory, prohibits external resource URIs,
+and installs/distributes only protected files. Public packaging rejects exposed
+copies and authoring/key files. Content keys remain outside the repository and
+are passed to release builds as an Actions secret. This is a reasonable-safeguard
+implementation, not a guarantee against reverse engineering. See
+[protected aircraft packaging](PROTECTED_AIRCRAFT.md) for the format and limits.
 Original cockpit artwork with F-14 names is preserved locally but is not used in
 runtime exports. Other pack assets and library notices still require review.
 

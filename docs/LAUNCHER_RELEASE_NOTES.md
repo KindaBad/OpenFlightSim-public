@@ -1,4 +1,4 @@
-OpenFlightSim 0.3.0 Launcher
+OpenFlightSim 0.3.1 Launcher
 
 - Native launcher with aircraft discovery, flight planning and renderer settings.
 - Persistent presets, display selection, hardware recommendations and diagnostics.
@@ -23,8 +23,11 @@ The game and Qt/Python runtime are installed for your user account; no compiler
 or separately installed Python is required. Enable automatic updates in the
 launcher's Updates page once to install subsequent published versions when idle.
 
-This release includes the original A320, Typhoon and SR-71. The current Su-57
-is temporarily omitted while its model distribution requirements are resolved.
+This release includes A320, Typhoon, SR-71 and Su-57. The Su-57 uses protected
+game content and retains its existing controls, articulated landing gear,
+independent vectored nozzles and authored LODs. Original Su-57 model by lullabie
+(CGTrader); artwork is separately licensed. Existing installations receive the
+new aircraft through the normal launcher update.
 
 The launcher uses dynamically linked Qt/PySide/shiboken 6.10.2. License notices
 are included in the installed `licenses/` folder. Matching library sources:

@@ -39,9 +39,9 @@ Player releases use the separate release workflow and GitHub Releases as their H
 runtime/dependency notices and an approved aircraft pack. Public source publication
 does not permit publishing the CGTrader Su-57 as loose model/source files. Its
 user-supplied listing permits incorporated game use with asset safeguards; the
-current loose-GLB runtime/package needs permission or a reviewed protected content path.
-The first player release uses `OFS_INCLUDE_SU57=OFF` and includes only the original
-A320, Typhoon and SR-71. Local development retains the Su-57. Record
+reviewed protected-content path is documented in [protected aircraft packaging](PROTECTED_AIRCRAFT.md).
+The first player release (0.3.0) omitted the Su-57. Version 0.3.1 enables it
+through an encrypted game-content pack; source artwork remains excluded. Record
 the original author, source and applicable license when preparing the pack; see
 [asset provenance](ASSET_RELEASE_PROVENANCE.md) and [release packaging](LAUNCHER.md).
 

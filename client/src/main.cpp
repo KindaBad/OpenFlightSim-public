@@ -392,7 +392,8 @@ int main(int argc, char** argv) {
       const std::filesystem::path roots[]{std::filesystem::path(base ? base : ""),
         std::filesystem::path(base ? base : "").parent_path().parent_path(),
         std::filesystem::current_path(), std::filesystem::path(OFS_SOURCE_ROOT)};
-      for (const auto& root : roots) if (std::filesystem::is_regular_file(root / relative))
+      for (const auto& root : roots) if (std::filesystem::is_regular_file(root / relative) ||
+          std::filesystem::is_regular_file((root / relative).string() + ".ofspack"))
         return (root / relative).string();
       return relative.string();
     };

@@ -128,3 +128,7 @@ output/m4/
 
 # Replacement aircraft authoring reports and native-renderer previews.
 output/su57-sketchfab/
+
+# Protected content and encryption keys stay local.
+*.ofspack
+*.ofskey

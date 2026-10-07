@@ -348,3 +348,11 @@ target_link_libraries(ofs_player_registry PRIVATE ofs_core)
 target_compile_definitions(ofs_player_registry PRIVATE OFS_INCLUDE_SU57=$<BOOL:${OFS_INCLUDE_SU57}>)
 ofs_target_defaults(ofs_player_registry)
 add_test(NAME player.registry COMMAND ofs_player_registry)
+
+set(ofs_protected_test_args)
+if(OFS_ASSET_KEY_FILE)
+  list(APPEND ofs_protected_test_args --keyed)
+endif()
+add_test(NAME assets.protected_pack COMMAND "${Python3_EXECUTABLE}"
+  "${CMAKE_SOURCE_DIR}/tests/protected_asset_tests.py"
+  "$<TARGET_FILE:ofs_protected_asset_tool>" ${ofs_protected_test_args})

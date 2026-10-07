@@ -77,7 +77,7 @@ class Installation:
         return cls(root, directory, executable, catalog, aircraft, build, managed)
 
     def missing_assets(self):
-        return [name for a in self.aircraft for name in (a['model'], *a['lods']) if not safe_path(self.directory, name).is_file()]
+        return [name for a in self.aircraft for name in (a['model'], *a['lods']) if not (safe_path(self.directory, name).is_file() or safe_path(self.directory, name + '.ofspack').is_file())]
 
     def server_executable(self):
         suffix = '.exe' if os.name == 'nt' else ''

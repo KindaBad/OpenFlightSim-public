@@ -19,7 +19,8 @@ inline void check(bool ok, const char* message) { if(!ok) throw std::runtime_err
 // registry and protocol suites never touch these files and always run.
 inline bool assetPresent(const std::string& root, std::string_view relative) {
   std::error_code ec;
-  return std::filesystem::exists(std::filesystem::path(root)/relative, ec);
+  return std::filesystem::is_regular_file(std::filesystem::path(root)/relative, ec) ||
+    std::filesystem::is_regular_file((std::filesystem::path(root)/relative).string()+".ofspack", ec);
 }
 inline unsigned unavailableAssets=0;
 inline int assetResult() { return unavailableAssets ? 77 : 0; }

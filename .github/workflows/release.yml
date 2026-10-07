@@ -69,6 +69,7 @@ jobs:
       OFS_ASSET_PACK_URL: ${{ secrets.OFS_ASSET_PACK_URL }}
       OFS_ASSET_PACK_SHA256: ${{ secrets.OFS_ASSET_PACK_SHA256 }}
       OFS_ASSET_PACK_SIZE: ${{ secrets.OFS_ASSET_PACK_SIZE }}
+      OFS_ASSET_KEY_HEX: ${{ secrets.OFS_ASSET_KEY_HEX }}
       OFS_UPDATE_BASE_URL: ${{ vars.OFS_UPDATE_BASE_URL }}
       OFS_CHANNEL: ${{ inputs.channel || (endsWith(github.ref_name, '-development') && 'development' || 'stable') }}
       QT_QPA_PLATFORM: offscreen
@@ -89,7 +90,7 @@ jobs:
           tag = 'v' + version + ('-development' if os.environ['OFS_CHANNEL'] == 'development' else '')
           if ref.startswith('refs/tags/') and ref != 'refs/tags/' + tag:
               raise SystemExit('Tag must match the CMake project version')
-          for key in ('OFS_ASSET_PACK_URL', 'OFS_ASSET_PACK_SHA256', 'OFS_ASSET_PACK_SIZE', 'OFS_UPDATE_BASE_URL'):
+          for key in ('OFS_ASSET_PACK_URL', 'OFS_ASSET_PACK_SHA256', 'OFS_ASSET_PACK_SIZE', 'OFS_UPDATE_BASE_URL', 'OFS_ASSET_KEY_HEX'):
               if not os.environ.get(key):
                   raise SystemExit(f'{key} must be configured before release packaging')
           expected = f'https://github.com/{os.environ["GITHUB_REPOSITORY"]}/releases/download/launcher-updates'
@@ -147,15 +148,25 @@ jobs:
       - name: Configure Windows
         if: runner.os == 'Windows'
         shell: pwsh
-        run: cmake -S . -B build/release -G "Visual Studio 17 2022" -A x64 "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" "-DOFS_RELEASE_CHANNEL=$env:OFS_CHANNEL" -DOFS_INCLUDE_SU57=ON -DOFS_REQUIRE_PRODUCTION_ASSETS=OFF
+        run: cmake -S . -B build/release -G "Visual Studio 17 2022" -A x64 "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" "-DOFS_RELEASE_CHANNEL=$env:OFS_CHANNEL" -DOFS_INCLUDE_SU57=ON -DOFS_REQUIRE_PRODUCTION_ASSETS=OFF -DOFS_ASSET_KEY_FILE= -DOFS_PROTECTED_SU57_ROOT=
       - name: Build simulator, server and compiled catalogue
         run: cmake --build build/release --config Release --parallel 3
       - name: Check source provenance first
         run: ctest --test-dir build/release -C Release --output-on-failure -R "^regression.provenance"
       - name: Full source regressions with the development aircraft registry
         run: ctest --test-dir build/release -C Release --output-on-failure --parallel 3
-      - name: Configure player registry without the restricted Su-57
-        run: cmake -S . -B build/release -DOFS_INCLUDE_SU57=OFF -DOFS_REQUIRE_PRODUCTION_ASSETS=ON
+      - name: Prepare protected content key
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os, pathlib, re
+          key = os.environ['OFS_ASSET_KEY_HEX'].strip()
+          if not re.fullmatch('[0-9a-f]{64}', key):
+              raise SystemExit('Invalid protected content key secret')
+          pathlib.Path('build/content.ofskey').write_text(key + '\n')
+          PY
+      - name: Configure player registry with protected Su-57
+        run: cmake -S . -B build/release -DOFS_INCLUDE_SU57=ON -DOFS_REQUIRE_PRODUCTION_ASSETS=ON -DOFS_ASSET_KEY_FILE=${{ github.workspace }}/build/content.ofskey -DOFS_PROTECTED_SU57_ROOT=${{ github.workspace }}
       - name: Rebuild the player binaries and catalogue
         run: cmake --build build/release --config Release --parallel 3
       - name: Preserve compiled Windows dependencies
@@ -168,7 +179,7 @@ jobs:
       - name: Provision approved release assets
         run: python scripts/provision_release_assets.py --catalog build/release/launcher-catalog.json --cache build/approved-assets.zip
       - name: Require all player aircraft and authored LODs
-        run: ctest --test-dir build/release -C Release --output-on-failure --parallel 3 -R "^(player.registry|assets.production|client.asset_pipeline|sr71.assets|sr71.registry|typhoon.assets|typhoon.registry|combat.solo_gun|bots.guidance|bots.connection|launcher.security_config)$"
+        run: ctest --test-dir build/release -C Release --output-on-failure --parallel 3 -R "^(player.registry|assets.production|client.asset_pipeline|sr71.assets|sr71.registry|typhoon.assets|typhoon.registry|su57.assets|su57.replay|su57.multiplayer|assets.protected_pack|combat.solo_gun|bots.guidance|bots.connection|launcher.security_config)$"
       - name: Install simulator and runtime DLLs
         run: cmake --install build/release --config Release --prefix build/stage
       - name: Collect build dependency notices

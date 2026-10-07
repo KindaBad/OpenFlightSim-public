@@ -24,7 +24,8 @@ def main():
     args = parser.parse_args()
     record = {'url': os.environ['OFS_ASSET_PACK_URL'], 'sha256': os.environ['OFS_ASSET_PACK_SHA256'], 'size': int(os.environ['OFS_ASSET_PACK_SIZE'])}
     catalog = read_json(args.catalog)
-    allowed = {name for a in catalog['aircraft'] for name in (a['model'], *a['lods'])}
+    required = {name for a in catalog['aircraft'] for name in (a['model'], *a['lods'])}
+    allowed = required | {name + '.ofspack' for name in required}
     package = download(record, args.cache)
     seen = set()
     with zipfile.ZipFile(package) as archive:
@@ -39,15 +40,15 @@ def main():
             if name not in allowed and name != 'asset-approval.json' and not name.startswith('licenses/assets/'):
                 raise LauncherError('Asset pack contains an unexpected file')
             if stat.S_IFMT(entry.external_attr >> 16) not in (0, stat.S_IFREG) or entry.is_dir() or entry.flag_bits & 1:
-                raise LauncherError('Asset pack requires regular unencrypted files')
+                raise LauncherError('Asset archive requires regular files without ZIP-level encryption')
             target = safe_path(args.root, name)
             target.parent.mkdir(parents=True, exist_ok=True)
             with archive.open(entry) as source, target.open('wb') as destination:
                 shutil.copyfileobj(source, destination, 1024 * 1024)
-    if not {name.casefold() for name in allowed}.issubset(seen):
+    if any(name.casefold() not in seen and (name + '.ofspack').casefold() not in seen for name in required):
         raise LauncherError('Asset pack is incomplete')
-    # Approval is verified against extracted files. Reject the known unapproved
-    # donor by requiring publisher-controlled, hash-bound redistribution records.
+    # Approval covers exact delivered bytes; encrypted assets also require
+    # documented credit, reviewed rights evidence and the protected format.
     shutil.copy2(args.catalog, args.root / 'launcher-catalog.json')
     check_asset_approval(args.root, args.root / 'asset-approval.json')
 

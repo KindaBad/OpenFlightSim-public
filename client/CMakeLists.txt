@@ -67,11 +67,18 @@ install(FILES "${CMAKE_SOURCE_DIR}/assets/aircraft/sr71/sr71_lod0.glb"
   "${CMAKE_SOURCE_DIR}/assets/aircraft/sr71/sr71_lod2.glb"
   "${CMAKE_SOURCE_DIR}/assets/aircraft/sr71/sr71_lod3.glb" DESTINATION assets/aircraft/sr71)
 if(OFS_INCLUDE_SU57)
-  install(FILES "${CMAKE_SOURCE_DIR}/assets/aircraft/su57/su57_lod0.glb"
-  "${CMAKE_SOURCE_DIR}/assets/aircraft/su57/su57_lod1.glb"
-  "${CMAKE_SOURCE_DIR}/assets/aircraft/su57/su57_lod2.glb"
-  "${CMAKE_SOURCE_DIR}/assets/aircraft/su57/su57_lod3.glb"
-  "${CMAKE_SOURCE_DIR}/assets/aircraft/su57/README.md" DESTINATION assets/aircraft/su57)
+  if(OFS_PROTECTED_SU57_ROOT)
+    foreach(lod RANGE 0 3)
+      install(FILES "${OFS_PROTECTED_SU57_ROOT}/assets/aircraft/su57/su57_lod${lod}.glb.ofspack"
+        DESTINATION assets/aircraft/su57)
+    endforeach()
+  else()
+    install(FILES "${CMAKE_SOURCE_DIR}/assets/aircraft/su57/su57_lod0.glb"
+      "${CMAKE_SOURCE_DIR}/assets/aircraft/su57/su57_lod1.glb"
+      "${CMAKE_SOURCE_DIR}/assets/aircraft/su57/su57_lod2.glb"
+      "${CMAKE_SOURCE_DIR}/assets/aircraft/su57/su57_lod3.glb"
+      "${CMAKE_SOURCE_DIR}/assets/aircraft/su57/README.md" DESTINATION assets/aircraft/su57)
+  endif()
 endif()
 if(OFS_BUILD_NETWORK)
   target_link_libraries(ofs_client PRIVATE ofs_net)
