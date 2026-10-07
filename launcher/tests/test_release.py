@@ -1,5 +1,6 @@
 """Real packaging, helper activation and publication-index consistency."""
 import os
+import logging
 import struct
 from pathlib import Path
 import shutil
@@ -39,6 +40,15 @@ class ReleasePipeline(unittest.TestCase):
             'platform': self.metadata['platform'], 'manifest_url': 'https://updates.example.org/game/manifest.json'})
 
     def tearDown(self):
+        # The production helper normally exits and releases its file handles.
+        # In-process update tests must close their own logs before deleting the
+        # fixture, especially on Windows where an open file cannot be removed.
+        logger = logging.getLogger('ofs')
+        for handler in list(logger.handlers):
+            filename = getattr(handler, 'baseFilename', None)
+            if filename and Path(filename).resolve().is_relative_to(self.root):
+                logger.removeHandler(handler)
+                handler.close()
         self.temporary.cleanup()
 
     def test_empty_typing_marker_is_omitted_but_ca_bundle_is_preserved(self):

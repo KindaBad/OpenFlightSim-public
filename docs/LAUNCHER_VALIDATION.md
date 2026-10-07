@@ -33,6 +33,11 @@ Generated verification artifacts are under `build/launcher-refresh-*`. No AI
 artwork is included. Windows release/runtime verification is performed by the
 public release workflow after source delivery and is reported separately.
 
+The first Windows workflow run passed the new UI/update assertions but failed
+when removing the in-process updater test's still-open log file. The test now
+closes its fixture-owned logging handlers before temporary-directory cleanup.
+Production update helpers already release those handles when their process exits.
+
 # Earlier launcher validation — 6 October 2026
 
 Implementation was tested locally on Linux. Windows runners are configured in
