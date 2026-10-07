@@ -209,6 +209,21 @@ jobs:
           if not pathlib.Path('build/setup-smoke/setup.png').is_file():
               raise SystemExit('Standalone setup did not render')
           PY
+        # The public update feed exists from the first player release onward.
+        # Run TLS from the actual frozen setup, without the PC's system CA roots.
+      - name: Verify frozen setup HTTPS downloads with bundled certificates
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, pathlib, subprocess
+          executable = pathlib.Path('build/bundles/OpenFlightSim-Setup.exe').resolve()
+          report = pathlib.Path('build/setup-smoke/https.json').resolve()
+          subprocess.run([str(executable), '--check-downloads', str(report)], check=True, timeout=120)
+          result = json.loads(report.read_text())
+          if not result['certificate_verification'] or not result['hostname_verification'] or result['bundled_ca_count'] < 100:
+              raise SystemExit('Frozen setup lacks verified bundled certificate roots')
+          print(f"Verified public manifest and release file using {result['bundled_ca_count']} bundled certificate roots")
+          PY
       - name: Build install/update archives and repair file index
         run: python scripts/package_release.py --simulator build/stage --bundles build/bundles --output build/publish --base-url "${{ env.OFS_UPDATE_BASE_URL }}" --download-base-url "${{ env.OFS_DOWNLOAD_BASE_URL }}" --flat-downloads --asset-approval asset-approval.json --notes docs/LAUNCHER_RELEASE_NOTES.md
       - name: Combine platform descriptors

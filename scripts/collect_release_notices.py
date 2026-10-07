@@ -27,7 +27,7 @@ def main():
                 destination = output / f'build-{index}' / path.relative_to(root)
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(path, destination)
-    for package in ('PySide6-Essentials', 'shiboken6', 'PyInstaller'):
+    for package in ('PySide6-Essentials', 'shiboken6', 'PyInstaller', 'certifi'):
         dist = importlib.metadata.distribution(package)
         (output / (package + '-metadata.txt')).write_text(dist.read_text('METADATA') or '', encoding='utf-8')
         for name in dist.files or []:

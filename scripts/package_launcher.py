@@ -30,6 +30,7 @@ def main():
     ]:
         subprocess.run([sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--noupx',
                         '--name', name, '--paths', str(ROOT), '--distpath', str(output),
+                        '--collect-data', 'certifi',
                         '--workpath', str(build / 'freeze' / name), '--specpath', str(build / 'freeze'),
                         *extra, str(ROOT / entry)], cwd=ROOT, check=True)
     if args.base_url:
@@ -44,7 +45,7 @@ def main():
         subprocess.run([sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--noupx',
                         '--onefile', '--name', 'OpenFlightSim-Setup', '--paths', str(ROOT),
                         '--distpath', str(output), '--workpath', str(build / 'freeze/setup'),
-                        '--specpath', str(build / 'freeze'), *qt_options,
+                        '--specpath', str(build / 'freeze'), *qt_options, '--collect-data', 'certifi',
                         '--add-data', str(config) + ':.',
                         '--add-data', str(output / ('OpenFlightSim' + suffix)) + ':bootstrap',
                         str(ROOT / 'launcher/setup_entry.py')], cwd=ROOT, check=True)

@@ -7,6 +7,7 @@ import time
 from urllib.error import HTTPError
 from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
 import ssl
+import certifi
 from .manifest import https_url, digest, integer, MAX_PACKAGE
 from .storage import LauncherError, parse_json, sha256
 
@@ -23,14 +24,23 @@ class SecureRedirect(HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
-def open_https(url, headers=None):
+def https_context():
+    # Frozen Python has no portable CA bundle of its own. Seed trust with
+    # Mozilla's roots, then retain OS roots (including managed Windows roots).
+    # Passing cafile keeps hostname and certificate verification enabled.
+    context = ssl.create_default_context(cafile=certifi.where())
+    context.load_default_certs()
+    return context
+
+
+def open_https(url, headers=None, *, context=None):
     https_url(url)
-    opener = build_opener(HTTPSHandler(context=ssl.create_default_context()), SecureRedirect())
+    opener = build_opener(HTTPSHandler(context=context or https_context()), SecureRedirect())
     return opener.open(Request(url, headers={'User-Agent': 'OpenFlightSim-Launcher/1', 'Accept-Encoding': 'identity', **(headers or {})}), timeout=20)
 
 
-def fetch_manifest(url):
-    with open_https(url) as response:
+def fetch_manifest(url, *, opener=None):
+    with (opener or open_https)(url) as response:
         data = response.read(4 * 1024 * 1024 + 1)
     if len(data) > 4 * 1024 * 1024:
         raise LauncherError('Update manifest exceeds 4 MiB')

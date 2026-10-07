@@ -1,4 +1,8 @@
-OpenFlightSim 0.3.1 Launcher
+OpenFlightSim 0.3.2 Launcher
+
+- Fixed installation and update downloads on PCs missing GitHub's certificate
+  issuer in their local trust store. Setup and launcher now bundle Mozilla's
+  certificate authorities while retaining certificate and hostname verification.
 
 - Native launcher with aircraft discovery, flight planning and renderer settings.
 - Persistent presets, display selection, hardware recommendations and diagnostics.

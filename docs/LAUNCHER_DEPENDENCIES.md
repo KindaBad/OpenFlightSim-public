@@ -8,6 +8,10 @@ reproducible packaging procedure is in `scripts/package_launcher.py`.
 The separate standalone setup is a PyInstaller one-file application: it extracts
 its Python/Qt runtime and embedded stable bootstrap to a temporary directory.
 The downloaded game still carries the full launcher in the one-directory bundle.
+Setup and launcher include certifi 2026.7.22's unmodified Mozilla certificate
+bundle (MPL-2.0). HTTPS uses these roots together with the operating system's
+trusted certificates; certificate and hostname verification remain required.
+The pinned package's metadata and license are included in installed notices.
 Include setup's dependencies in the same notices, matching source publication
 and selected license review as the main launcher before distributing it.
 
