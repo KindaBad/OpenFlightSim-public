@@ -17,14 +17,18 @@ def publish(repo, commit, directory):
     existing = release_info(repo, settings['tag'])
     if json.loads(gh('api', f'repos/{repo}')).get('private'):
         raise LauncherError('Library sources must be publicly accessible')
-    if existing and not existing['draft']:
+    if existing:
         assets = {a['name']: a for a in existing['assets']}
-        for record in settings['sources']:
-            asset = assets.get(record['name'], {})
-            if asset.get('size') != record['size'] or asset.get('digest') != 'sha256:' + record['sha256']:
-                raise LauncherError('Published source archive differs from the pinned dependency')
-        print('Matching library source archives already published')
-        return
+        complete = all(assets.get(record['name'], {}).get('size') == record['size']
+                       and assets.get(record['name'], {}).get('digest') == 'sha256:' + record['sha256']
+                       for record in settings['sources'])
+        if complete:
+            if existing['draft']:
+                gh('release', 'edit', settings['tag'], '--repo', repo, '--draft=false', '--latest=false')
+            print('Matching library source archives verified and published')
+            return
+        if not existing['draft']:
+            raise LauncherError('Published source archive differs from the pinned dependency')
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     paths = [download(record, directory / record['name']) for record in settings['sources']]

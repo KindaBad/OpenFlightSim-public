@@ -38,7 +38,13 @@ def release_info(repo, tag):
                             capture_output=True, text=True)
     if result.returncode:
         if '(HTTP 404)' in result.stderr:
-            return None
+            # The tag endpoint only returns published releases. Draft uploads
+            # are visible to the authenticated releases-list endpoint instead.
+            pages = json.loads(gh('api', '--paginate', '--slurp', f'repos/{repo}/releases?per_page=100'))
+            matches = [release for page in pages for release in page if release['tag_name'] == tag]
+            if len(matches) > 1:
+                raise LauncherError('Multiple release drafts share this tag; review them before publishing')
+            return matches[0] if matches else None
         raise LauncherError(result.stderr.strip() or 'Cannot read GitHub release')
     return json.loads(result.stdout)
 
