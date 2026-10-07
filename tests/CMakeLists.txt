@@ -69,7 +69,7 @@ if(OFS_BUILD_NETWORK)
   add_executable(ofs_visual_tests visual_system_tests.cpp)
   target_link_libraries(ofs_visual_tests PRIVATE ofs_visual_core ofs_net)
   ofs_target_defaults(ofs_visual_tests)
-  foreach(suite materials definitions animation particles hierarchy mixed scenery)
+  foreach(suite materials definitions animation particles hierarchy mixed scenery atmosphere procedural landscape)
     add_test(NAME visual.${suite} COMMAND ofs_visual_tests ${suite} "${OFS_PRODUCTION_ASSET_ROOT}")
   endforeach()
   add_executable(ofs_replication_tests replication_tests.cpp)
@@ -218,6 +218,10 @@ add_test(NAME regression.provenance_comparison COMMAND "${Python3_EXECUTABLE}"
   "${CMAKE_SOURCE_DIR}/tests/provenance_tests.py")
 add_test(NAME packaging.runtime_dependencies COMMAND "${Python3_EXECUTABLE}"
   "${CMAKE_SOURCE_DIR}/tests/runtime_dependency_tests.py")
+# Shader sources against the C++ they mirror. The client build registers a
+# second run that also compiles every shader through the HLSL front end.
+add_test(NAME regression.shader_sources COMMAND "${Python3_EXECUTABLE}"
+  "${CMAKE_SOURCE_DIR}/tests/shader_source_tests.py" "${CMAKE_SOURCE_DIR}")
 add_test(NAME packaging.github_publication COMMAND "${Python3_EXECUTABLE}"
   "${CMAKE_SOURCE_DIR}/tests/github_publication_tests.py")
 add_test(NAME assets.missing_policy COMMAND "${Python3_EXECUTABLE}"

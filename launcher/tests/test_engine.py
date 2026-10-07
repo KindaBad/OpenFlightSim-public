@@ -375,6 +375,19 @@ class Engine(unittest.TestCase):
         self.assertEqual(result.values['width'], '1920')
         self.assertEqual(result.values['shadows'], '0')
 
+    def test_graphics_keys_and_presets_match_simulator(self):
+        from launcher.config import GRAPHICS, PRESETS
+        settings = (Path(__file__).resolve().parents[2] / 'client/src/settings.cpp').read_text(encoding='utf-8')
+        for key in GRAPHICS:
+            self.assertIn(f'read(table, "{key}"', settings, f'{key} is not a simulator setting')
+        for name, values in PRESETS.items():
+            for key, value in values.items():
+                low, high = GRAPHICS[key][1:]
+                self.assertTrue(low <= value <= high, f'{name}.{key}')
+        # Every preset sets the same options, so switching presets leaves nothing behind.
+        self.assertEqual(len({frozenset(values) for values in PRESETS.values()}), 1)
+        self.assertEqual([values['preset'] for values in PRESETS.values()], [0, 1, 2, 3])
+
     def test_bad_graphics_not_overwritten(self):
         path = self.root / 'graphics.cfg'
         for text in ('width=-1', 'msaa=3', 'lodBias=nan', 'height=800.5'):

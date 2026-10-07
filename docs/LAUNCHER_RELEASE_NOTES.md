@@ -1,4 +1,19 @@
-OpenFlightSim 0.3.3 Launcher
+OpenFlightSim 0.4.0 Launcher
+
+- New renderer. Sunlight, sky colour, haze and exposure now come from one
+  physically based atmosphere, so the time of day and the visibility you set are
+  what light the scene. Volumetric clouds with a cirrus layer cast shadows on
+  the ground; terrain is drawn to 160 km with textured land cover, lakes, relief
+  shadows and forest that follows the aircraft.
+- Sharper, steadier image: cascaded sun shadows, a separate depth range for the
+  cockpit, anisotropic filtering that now takes effect, and an edge filter on
+  top of multisampling.
+- Rain, ground fog and visibility are new weather options. Exhaust heat refracts
+  the scene behind it, and particles are lit and fade into geometry and cloud.
+- Graphics presets (Low to Ultra) now cover terrain detail, tree density, draw
+  distance and shadow range. Open the launcher's Graphics page, or press F1 in
+  flight. Settings saved by earlier versions are kept where they still apply.
+
 
 - Typhoon maneuver mode: press M for sharper pitch and roll below 300 m/s, with
   the gear up. G limits and control-surface limits still apply.

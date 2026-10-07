@@ -32,9 +32,10 @@ server-owned seekers/guidance/damage and bounded compact replication. No game en
 
 The preserved headless core implements configurable A320-style 6-DoF dynamics,
 ISA atmosphere, flight controls, engines, flat-runway landing gear, instruments
-and a C API. The native client uses SDL3, bgfx, Dear ImGui and GLM. It renders a basic
-sky with procedural clouds, textured airfield, taxiways, airport buildings and
-the delivered detailed A320, with chase, orbit, free and flight-deck cameras.
+and a C API. The native client uses SDL3, bgfx, Dear ImGui and GLM. It renders a
+physically based atmosphere, volumetric clouds, terrain with lakes and forest to
+the horizon, the airfield and the aircraft, with chase, orbit, free and
+flight-deck cameras; see [docs/RENDERER.md](docs/RENDERER.md).
 Physics uses a bounded fixed 120 Hz simulation clock and interpolated rendering.
 
 The existing detailed A320 Blender scene, delivery renders, validation tools
@@ -291,9 +292,11 @@ Run individual scenarios or emit every measurement without a renderer:
 ./build/headless/tests/ofs_flight_scenarios cycle
 ```
 
-The graphics refresh fixes corrupt mesh submissions, camera directions,
-shadow ordering and missing combat visuals, and adds a compact flight display.
-See [graphics validation and screenshots](docs/GRAPHICS_REFRESH.md).
+The 0.4.0 renderer derives sunlight, skylight, haze and exposure from one
+atmosphere model in real units, and adds volumetric clouds, cascaded shadows,
+instanced forest, lakes and a 160 km draw distance. Its design, settings, cost
+and verification are in [docs/RENDERER.md](docs/RENDERER.md). The earlier
+[graphics refresh notes](docs/GRAPHICS_REFRESH.md) record the fixes it built on.
 
 M3.6 stops at multi-aircraft flight and repeatable gun combat. Missiles, radar,
 terrain collision, Jolt and audio remain outside this milestone.

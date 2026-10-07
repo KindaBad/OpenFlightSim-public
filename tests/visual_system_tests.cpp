@@ -3,12 +3,19 @@
 #include "gltf.hpp"
 #include "mesh.hpp"
 #include "scenery.hpp"
+#include "atmosphere_model.hpp"
+#include "landscape.hpp"
+#include "procedural.hpp"
+#include "ofs/terrain.hpp"
 #include "texture_mips.hpp"
 #include "ofs/aircraft_definition.hpp"
 #include "ofs/net/client.hpp"
 #include "ofs/net/world.hpp"
 #include "ofs/net/server.hpp"
 #include "scenario.hpp"
+#include <algorithm>
+#include <array>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <limits>
@@ -351,31 +358,156 @@ void mixed() {
   check(server.world().players().empty() && server.world().combat().projectiles().empty(),"mixed session cleanup");
 }
 void scenery() {
-  for(bool pine:{false,true}) {
-    std::vector<SurfaceVertex> leaves,distant,wood;
-    appendTree(leaves,distant,wood,{400,12,700},15,4,pine,31);
-    check(!leaves.empty() && !wood.empty() && distant.size()<leaves.size(),"both species retain a cheaper distant silhouette");
-    check(leaves.size()/3<350 && distant.size()/3<100,"bounded per-tree geometry budget");
-    for(const auto* mesh:{&leaves,&distant,&wood}) for(std::size_t i=0;i<mesh->size();i+=3) {
+  for(bool conifer:{false,true}) {
+    const auto full=unitTree(conifer,false),distant=unitTree(conifer,true);
+    check(!full.empty() && distant.size()<full.size()/2,"both species keep a much cheaper distant mesh");
+    check(full.size()/3<450 && distant.size()/3<80,"bounded per-tree geometry budget");
+    bool wood=false,foliage=false;
+    for(const auto* mesh:{&full,&distant}) for(std::size_t i=0;i<mesh->size();i+=3) {
       const auto& a=(*mesh)[i];const auto& b=(*mesh)[i+1];const auto& c=(*mesh)[i+2];
       const Vec3 p{a.x,a.y,a.z},q{b.x,b.y,b.z},r{c.x,c.y,c.z};
       const Vec3 n{a.nx+b.nx+c.nx,a.ny+b.ny+c.ny,a.nz+b.nz+c.nz};
       check(std::isfinite(p.norm2()) && std::isfinite(n.norm2()),"finite vegetation vertices/normals");
       check((q-p).cross(r-p).dot(n)>0,"foliage and branches face outward without degenerate triangles");
-      check(a.y>=11.99 && a.y<29,"tree remains rooted with a bounded crown height");
+      // Instances scale this mesh by the tree's height and crown spread.
+      check(a.y>=-1e-6 && a.y<=1.02 && std::hypot(a.x,a.z)<.40,"unit tree is rooted at the origin and one unit tall");
+      check((a.u==0 || a.u==1) && a.u==b.u && a.u==c.u && std::abs(a.v-a.y)<1e-6,"vertices carry the wood/foliage flag and their height");
+      (a.u>.5f?foliage:wood)=true;
     }
-    std::vector<SurfaceVertex> repeat,farRepeat,woodRepeat;
-    appendTree(repeat,farRepeat,woodRepeat,{400,12,700},15,4,pine,31);
-    check(repeat.size()==leaves.size() && !std::memcmp(repeat.data(),leaves.data(),leaves.size()*sizeof(SurfaceVertex)),"deterministic vegetation generation");
+    check(wood && foliage,"each tree has a trunk and a crown");
+    const auto repeat=unitTree(conifer,false);
+    check(repeat.size()==full.size() && !std::memcmp(repeat.data(),full.data(),full.size()*sizeof(SurfaceVertex)),"deterministic vegetation generation");
   }
-  check(std::abs(sceneryNoise(1.25,2.75)-sceneryNoise(4.25,7.75))>.01,"groves vary across the landscape");
-  check(std::abs(sceneryNoise(1.99999,2.5)-sceneryNoise(2.00001,2.5))<.0001,"grove density continuous across patch boundaries");
-  std::puts("PASS scenery: outward geometry, roots/crowns, deterministic species and bounded LODs");
+  std::puts("PASS scenery: outward geometry, unit scale, deterministic species and bounded LODs");
+}
+
+void atmosphere() {
+  const AtmosphereModel clear(AtmosphereParameters::fromWeather(70,0,150));
+  const auto sunAt=[](float degrees){const float e=degrees*float(kDeg2Rad);return std::array<float,3>{std::cos(e),std::sin(e),0};};
+  // Koschmieder: contrast falls to 2 % at the stated visual range, so the
+  // optical depth of that path at sea level is ln(50).
+  for(float visibility:{5.f,20.f,70.f,150.f}) {
+    const AtmosphereModel air(AtmosphereParameters::fromWeather(visibility,0,150));
+    check(std::abs(air.medium(0).extinction.g*visibility*1000-3.912)<.05,"aerosol load reproduces the requested visual range");
+  }
+  // Direct sunlight: about 100 klx under a high sun, redder and dimmer as it sets.
+  const Rgb noon=clear.sunIrradiance(0,std::sin(60*float(kDeg2Rad)));
+  const Rgb low=clear.sunIrradiance(0,std::sin(4*float(kDeg2Rad)));
+  check(noon.luminance()>8.5f && noon.luminance()<12.f,"clear high sun delivers about 100 klx at sea level");
+  check(low.luminance()<noon.luminance()*.45f && low.r/low.b>noon.r/noon.b*2,"a low sun is dimmer and redder");
+  check(clear.sunIrradiance(0,-.05f).luminance()==0,"no direct sun below the horizon");
+  check(clear.sunIrradiance(10000,std::sin(4*float(kDeg2Rad))).luminance()>low.luminance()*1.5f,"sunlight is stronger above the haze layer");
+  // Transmittance falls with path length and rises with altitude.
+  float previous=2;
+  for(float cosine:{1.f,.7f,.4f,.15f,.03f}) {
+    const float t=clear.transmittanceToSpace(0,cosine).g;
+    check(t>0 && t<previous,"transmittance decreases toward the horizon");previous=t;
+  }
+  check(clear.transmittanceToSpace(8000,.2f).b>clear.transmittanceToSpace(0,.2f).b,"thinner air above transmits more");
+  check(clear.transmittanceToSpace(0,-.2f).luminance()==0,"the planet blocks rays below the horizon");
+  // Sky: blue overhead, brighter and paler at the horizon, a few thousand cd/m2.
+  const auto sun=sunAt(45);
+  const Rgb zenith=clear.skyRadiance(2,{0,1,0},sun),horizon=clear.skyRadiance(2,{-.9998f,.02f,0},sun);
+  check(zenith.b>zenith.r*2 && zenith.luminance()>.1f && zenith.luminance()<.6f,"zenith is blue at a few thousand cd/m2");
+  check(horizon.luminance()>zenith.luminance()*1.5f && horizon.b/horizon.r<zenith.b/zenith.r,"the horizon is brighter and paler than the zenith");
+  check(clear.skyRadiance(12000,{0,1,0},sun).luminance()<zenith.luminance()*.5f,"the sky darkens with altitude");
+  const AtmosphereLighting lighting=clear.lighting(2,sun);
+  check(lighting.skyIrradianceUp.luminance()>.8f && lighting.skyIrradianceUp.luminance()<2.5f,"clear sky supplies roughly 8-25 klx of diffuse light");
+  check(lighting.skyIrradianceUp.b>lighting.skyIrradianceUp.r,"skylight is blue");
+  // The L1 ambient reproduces the hemisphere integral: more light from above than below.
+  const float up=lighting.ambientConstant.g+lighting.ambientY.g,down=lighting.ambientConstant.g-lighting.ambientY.g;
+  check(up>down && down>0 && std::abs(up-lighting.skyIrradianceUp.g)<lighting.skyIrradianceUp.g*.35f,"ambient irradiance matches the sky above and a dimmer ground below");
+  // Fog and haze only ever remove direct light.
+  const AtmosphereModel foggy(AtmosphereParameters::fromWeather(70,.6f,150));
+  check(foggy.sunIrradiance(0,sun[1]).luminance()<clear.sunIrradiance(0,sun[1]).luminance()*.6f,"ground fog attenuates the sun at the surface");
+  check(std::abs(foggy.sunIrradiance(3000,sun[1]).luminance()-clear.sunIrradiance(3000,sun[1]).luminance())<.05f,"fog is confined to its shallow layer");
+  for(const auto* table:{&clear.transmittanceTable(),&clear.multiScatterTable()}) for(float value:*table)
+    check(std::isfinite(value) && value>=0,"atmosphere tables are finite and non-negative");
+  // Exposure: brighter scenes meter down, dusk meters up, both within limits.
+  const float day=exposureFromIrradiance(lighting.meteredIrradiance,0);
+  const float dusk=exposureFromIrradiance(clear.lighting(2,sunAt(-3)).meteredIrradiance,0);
+  check(day>.2f && day<.7f && dusk>day*8 && dusk<=36.f,"exposure adapts from daylight to dusk within its limits");
+  check(std::abs(exposureFromIrradiance(lighting.meteredIrradiance,1)/day-2)<1e-4f,"one stop of compensation doubles the exposure");
+  std::printf("PASS atmosphere: sun %.0f klx, sky %.0f klx, zenith %.0f cd/m2, exposure day/dusk %.2f/%.1f\n",
+    noon.luminance()*10,lighting.skyIrradianceUp.luminance()*10,zenith.luminance()*10000,day,dusk);
+}
+
+void proceduralTextures() {
+  using namespace procedural;
+  // Every primitive repeats exactly at its period, or tiles would show seams.
+  for(float offset:{.13f,.5f,.87f}) {
+    check(std::abs(perlin(offset,2.3f,1.7f,8,5)-perlin(offset+8,2.3f,1.7f,8,5))<1e-4f,"gradient noise repeats at its period");
+    check(std::abs(perlinFbm(1.1f,offset,3.3f,4,4,9)-perlinFbm(1.1f,offset+4,3.3f,4,4,9))<1e-4f,"fractal noise repeats at its period");
+    const Cell a=worley(offset,1.2f,2.4f,6,3),b=worley(offset+6,1.2f,2.4f,6,3);
+    check(std::abs(a.f1-b.f1)<1e-4f && a.id==b.id && a.f1<=a.f2,"cellular noise repeats at its period");
+  }
+  const auto shape=cloudShapeVolume(32),again=cloudShapeVolume(32);
+  check(shape==again,"cloud volumes are deterministic");
+  check(*std::min_element(shape.begin(),shape.end())==0 && *std::max_element(shape.begin(),shape.end())==255,"cloud shape uses the full density range");
+  check(cloudDetailVolume(16).size()==16u*16*16,"detail volume has the requested size");
+  // Coverage is equalised: a threshold selects that fraction of the sky.
+  const auto weather=weatherMap(128);
+  for(int threshold:{64,128,191}) {
+    std::size_t above=0;
+    for(std::size_t i=0;i<weather.size();i+=4) above+=weather[i]>=threshold;
+    check(std::abs(double(above)/(weather.size()/4)-(1-threshold/255.))<.02,"weather-map coverage is uniform in rank");
+  }
+  const auto layers=terrainLayers(64);
+  check(layers.size==64 && layers.albedoHeight.size()==kTerrainLayerCount && layers.normalRoughness.size()==kTerrainLayerCount,"one albedo and one detail image per terrain layer");
+  const auto mean=[&](int layer,int channel){double sum=0;const auto& d=layers.albedoHeight[layer];for(std::size_t i=channel;i<d.size();i+=4)sum+=d[i];return sum/(d.size()/4);};
+  check(mean(kLayerGrass,1)>mean(kLayerGrass,0) && mean(kLayerGrass,1)>mean(kLayerGrass,2),"grass is green");
+  check(mean(kLayerSnow,1)>200 && mean(kLayerAsphalt,1)<90 && mean(kLayerForest,1)<mean(kLayerGrass,1),"snow is bright, asphalt dark and forest darker than grass");
+  for(int layer=0;layer<kTerrainLayerCount;++layer) for(std::size_t i=0;i<layers.normalRoughness[layer].size();i+=4) {
+    // The two stored components of a unit normal that points out of the surface.
+    const double x=layers.normalRoughness[layer][i]/127.5-1,y=layers.normalRoughness[layer][i+1]/127.5-1;
+    check(x*x+y*y<1.02,"terrain detail normals are unit vectors in the upper hemisphere");
+  }
+  const auto water=waterNormalTile(64);
+  check(water.size()==64u*64*4 && noiseTile(64).size()==64u*64*4,"water and noise tiles have the requested size");
+  std::puts("PASS procedural: tiling noise, deterministic volumes, equalised weather and plausible material layers");
+}
+
+void landscape() {
+  const Landscape land(256,256);
+  check(land.landTexels().size()==256u*256*4 && land.lakeTexels().size()==256u*256,"land-cover maps have the requested size");
+  // Lakes: only in closed basins, never on the airfield, always above their bed.
+  check(land.lakeCount()>5 && land.lakeAreaKm2()>5 && land.lakeAreaKm2()<400,"a plausible number and area of lakes");
+  check(land.lakeSurface(0,0)==Landscape::kNoLake && !land.underWater(0,0) && !land.underWater(1200,0),"the airfield drains and stays dry");
+  unsigned wet=0;
+  for(double north=-40000;north<=40000;north+=400) for(double east=-40000;east<=40000;east+=400) {
+    const float level=land.lakeSurface(north,east);
+    if(land.underWater(north,east)) {++wet;check(terrainElevation(north,east)<level && level-terrainElevation(north,east)<60,"water stands above its bed, at a bounded depth");}
+    check(land.forestDensity(north,east)>=0 && land.forestDensity(north,east)<=1,"forest density is a fraction");
+  }
+  check(wet>10,"lakes are found by sampling");
+  check(land.forestDensity(0,0)==0 && land.farmland(0,0)==0,"nothing grows or is farmed on the runway");
+  check(insideAirfieldClearway(0,0) && insideAirfieldClearway(300,-200) && !insideAirfieldClearway(0,3000),"the paved footprint is kept clear");
+  // Trees: deterministic, on the ground, out of the water and off the pavement.
+  std::size_t total=0,conifers=0;
+  for(int cz=-9;cz<9;++cz) for(int cx=-9;cx<9;++cx) {
+    std::vector<TreeInstance> trees,repeat;
+    land.treesInChunk(cx,cz,400,trees);land.treesInChunk(cx,cz,400,repeat);
+    check(trees.size()==repeat.size() && (trees.empty() || !std::memcmp(trees.data(),repeat.data(),trees.size()*sizeof(TreeInstance))),"tree placement is deterministic");
+    for(const TreeInstance& tree:trees) {
+      const double north=-tree.south,east=tree.east;
+      check(east>=cx*1000. && east<(cx+1)*1000. && tree.south>=cz*1000. && tree.south<(cz+1)*1000.,"trees stay inside their chunk");
+      check(std::abs(tree.up+groundHeightNed(north,east))<.01,"trees stand on the collision surface");
+      check(!insideAirfieldClearway(north,east) && !land.underWater(north,east) && tree.up<1750,"no trees on pavement, in lakes or above the treeline");
+      check(tree.height>4 && tree.height<28 && tree.spread>.7f && tree.spread<1.3f,"tree dimensions are in metres and bounded");
+      conifers+=tree.conifer>.5f;
+    }
+    total+=trees.size();
+  }
+  check(total>5000 && conifers>total/20 && conifers<total,"a mixed forest of both species");
+  std::printf("PASS landscape: %d lakes over %.0f km2, %zu trees in 324 km2 (%zu conifers)\n",land.lakeCount(),land.lakeAreaKm2(),total,conifers);
 }
 int main(int argc,char** argv) {
   try {
     check(argc>=2,"expected suite"); const std::string suite=argv[1];
     if(suite=="scenery") scenery();
+    else if(suite=="atmosphere") atmosphere();
+    else if(suite=="procedural") proceduralTextures();
+    else if(suite=="landscape") landscape();
     else if(suite=="materials") materials();
     else if(suite=="definitions") definitions();
     else if(suite=="animation") animations();

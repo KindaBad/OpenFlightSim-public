@@ -1,6 +1,7 @@
 $input a_position, a_color0, a_texcoord0
 $output v_color, v_uv, v_surfacePos
 #include <bgfx_shader.sh>
+#include "frame.glsl"
 uniform mat4 u_ofsModel;
 uniform mat4 u_ofsViewProj;
 uniform vec4 u_flame; // intensity, visual time, layer (core/middle/outer), seed
@@ -27,6 +28,8 @@ void main()
     }
     v_uv=a_texcoord0;
     v_color=a_color0;
-    v_surfacePos=p;
-    gl_Position=mul(u_ofsViewProj,mul(u_ofsModel,vec4(p,1)));
+    vec4 world=mul(u_ofsModel,vec4(p,1.0));
+    // x carries the eye distance for the refraction layer's range test.
+    v_surfacePos=vec3(length(world.xyz-u_cameraPos.xyz),p.y,p.z);
+    gl_Position=mul(u_ofsViewProj,world);
 }

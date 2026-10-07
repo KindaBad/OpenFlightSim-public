@@ -1,7 +1,7 @@
 #include "texture_cost.hpp"
 #include "screenshot_pixels.hpp"
 #include "renderer.hpp"
-#include "scenery.hpp"
+#include "renderer_internal.hpp"
 
 #include "coordinates.hpp"
 #include "log.hpp"
@@ -32,29 +32,6 @@ namespace ofs::client {
 // ---------------------------------------------------------------------------
 // bgfx callbacks
 // ---------------------------------------------------------------------------
-
-namespace {
-
-constexpr std::uint64_t kOpaqueState =
-    BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z |
-    BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_CULL_CCW | BGFX_STATE_FRONT_CCW;
-
-constexpr std::uint64_t kBlendState =
-    BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_DEPTH_TEST_LEQUAL |
-    BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA, BGFX_STATE_BLEND_INV_SRC_ALPHA);
-
-// Maps a requested sample count to the reset flag. bgfx exposes MSAA as a mask
-// of exclusive bits rather than a count on the swap chain.
-std::uint32_t msaaFlag(int samples) {
-  switch (samples) {
-    case 2: return BGFX_SWAP_CHAIN_MSAA_X2;
-    case 4: return BGFX_SWAP_CHAIN_MSAA_X4;
-    case 8: return BGFX_SWAP_CHAIN_MSAA_X8;
-    default: return 16 <= samples ? BGFX_SWAP_CHAIN_MSAA_X16 : BGFX_SWAP_CHAIN_NONE;
-  }
-}
-
-}  // namespace
 
 void RenderCallbacks::fatal(const char* file, std::uint16_t line, bgfx::Fatal::Enum, const char* message) {
   std::fprintf(stderr, "[RENDER] Fatal %s:%u: %s\n", file, line, message);
@@ -107,47 +84,31 @@ namespace {
 // glTF asset space (X aft, Y up, Z port) to body FRD (X fwd, Y right, Z down).
 // Columns: body +X = asset -X (forward), body +Y = asset -Z (right),
 // body +Z = asset -Y (down). Determinant +1, so handedness is preserved. The
-// origin anchor is derived in docs/COORDINATES.md.
+// origin anchor is derived in docs/COORDINATES.md; the translation is replaced
+// per aircraft in modelTransform().
 const glm::mat4 kAssetToBody = [] {
   glm::mat4 m(1.0f);
   m[0] = glm::vec4(-1, 0, 0, 0);
   m[1] = glm::vec4(0, 0, -1, 0);
   m[2] = glm::vec4(0, -1, 0, 0);
-  // The rotation alone leaves the model in asset space, where the nose is at
-  // X = 0 and the tail at X = 37.57. Applying it to the asset origin therefore
-  // lands the model roughly 19.91 m ahead of the CG, which puts the body origin
-  // inside the forward fuselage and hides the airframe. The CG anchor (see
-  // coordinates.hpp for how it was measured) moves the model so the CG sits at
-  // the body origin:
-  //
-  //   body.x = -(asset.x - cg.x)  =>  body.x = -asset.x + cg.x
-  //   body.y = -(asset.z - cg.z)  =>  body.y = -asset.z + cg.z
-  //   body.z = -(asset.y - cg.y)  =>  body.z = -asset.y + cg.y
-  //
-  // glm's column 3 is a plain translation applied after the rotation, so it is
-  // the constant term of those three expressions. Note that render-space up is
-  // body +Y, and body +Y comes from the model's lateral axis, which is why
-  // cg.y lands the wheels on the ground plane via the body-Z axis instead.
   m[3] = glm::vec4(static_cast<float>(ModelAnchor::cgX), static_cast<float>(ModelAnchor::cgZ),
                    static_cast<float>(ModelAnchor::cgY), 1);
   return m;
 }();
 
-// Interleaved position(3) + colour(4) for the effect pool, which matches the
-// effect vertex layout declared in Renderer.
+// Interleaved position(3) + colour(4) + uv(2) for the effect pool, which
+// matches the effect vertex layout declared in Renderer.
 inline constexpr std::size_t kEffectVertexFloats = 9;
 
-// Position(3) + packed colour, used by the sky triangle and the developer grid.
-struct UnlitVertex {
-  float x, y, z;
-  std::uint32_t color;
-};
+// Radiance of an emissive material with unit emissive factor, in scene units.
+// Navigation lights and afterburners were authored against the previous
+// renderer's exposure; this keeps them equally bright in daylight.
+inline constexpr float kEmissiveRadiance = 2.6f;
 
-template <std::size_t N, std::size_t M>
-bgfx::ProgramHandle makeProgram(const char* name, const std::uint8_t (&vs)[N], const std::uint8_t (&fs)[M]) {
+bgfx::ProgramHandle makeProgram(const char* name, std::span<const std::uint8_t> vs, std::span<const std::uint8_t> fs) {
   const std::string diagnostic = std::string(name) + " on " + bgfx::getRendererName(bgfx::getRendererType());
-  const auto vertex = bgfx::createShader(bgfx::copy(vs, static_cast<std::uint32_t>(N)));
-  const auto fragment = bgfx::createShader(bgfx::copy(fs, static_cast<std::uint32_t>(M)));
+  const auto vertex = bgfx::createShader(bgfx::copy(vs.data(), static_cast<std::uint32_t>(vs.size())));
+  const auto fragment = bgfx::createShader(bgfx::copy(fs.data(), static_cast<std::uint32_t>(fs.size())));
   if (!bgfx::isValid(vertex) || !bgfx::isValid(fragment)) {
     if (bgfx::isValid(vertex)) bgfx::destroy(vertex);
     if (bgfx::isValid(fragment)) bgfx::destroy(fragment);
@@ -165,29 +126,6 @@ glm::mat4 makeProjection(float fovDegrees, float aspect, float nearPlane, float 
              : glm::perspectiveRH_ZO(fov, aspect, nearPlane, farPlane);
 }
 
-glm::mat4 makeOrtho(float l, float r, float b, float t, float n, float f) {
-  return bgfx::getCaps()->homogeneousDepth ? glm::orthoRH_NO(l, r, b, t, n, f)
-                                           : glm::orthoRH_ZO(l, r, b, t, n, f);
-}
-
-// Test airfield in render axes (+X east, +Y up, +Z south), metres. This is a
-// landing field for takeoff and landing, not the Earth terrain milestone.
-constexpr double kRunwayHalfWidth = 22.5;
-constexpr double kRunwayLength = 2600.0;
-
-// Emits a triangle list, orienting both triangles toward the supplied normal.
-void addQuad(std::vector<SurfaceVertex>& out, const glm::vec3& a, const glm::vec3& b,
-             const glm::vec3& c, const glm::vec3& d, const glm::vec3& normal) {
-  const glm::vec2 uv[4] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
-  const glm::vec3* corners[4] = {&a, &b, &c, &d};
-  const bool reverse = glm::dot(glm::cross(b - a, c - a), normal) < 0;
-  const int forward[] = {0, 1, 2, 0, 2, 3};
-  const int backward[] = {0, 2, 1, 0, 3, 2};
-  for (const int i : (reverse ? backward : forward))
-    out.push_back({corners[i]->x, corners[i]->y, corners[i]->z, normal.x, normal.y, normal.z,
-                   uv[i].x, uv[i].y});
-}
-
 }  // namespace
 
 // ---------------------------------------------------------------------------
@@ -196,6 +134,8 @@ void addQuad(std::vector<SurfaceVertex>& out, const glm::vec3& a, const glm::vec
 
 Renderer::Renderer(const Platform& platform, const GraphicsSettings& settings)
     : settings_(settings) {
+  glareDown_.fill(bgfx::FrameBufferHandle{bgfx::kInvalidHandle});
+  glareUp_.fill(bgfx::FrameBufferHandle{bgfx::kInvalidHandle});
   combat_.setQuality(settings_.effects);
   try {
     if (!initialize(platform)) throw std::runtime_error("bgfx initialization failed");
@@ -206,6 +146,100 @@ Renderer::Renderer(const Platform& platform, const GraphicsSettings& settings)
 }
 
 Renderer::~Renderer() { destroy(); }
+
+void Renderer::createPrograms() {
+  const bool direct3d = bgfx::getRendererType() == bgfx::RendererType::Direct3D11;
+  if (!direct3d && bgfx::getRendererType() != bgfx::RendererType::OpenGL)
+    throw std::runtime_error(std::string("No compiled shader set for active backend: ") + backend());
+#ifdef _WIN32
+#define OFS_SHADER(name) (direct3d ? std::span<const std::uint8_t>(name##_dx11) : std::span<const std::uint8_t>(name##_glsl))
+  const auto imguiVs = direct3d ? std::span<const std::uint8_t>(vs_ocornut_imgui_dxbc) : std::span<const std::uint8_t>(vs_ocornut_imgui_glsl);
+  const auto imguiFs = direct3d ? std::span<const std::uint8_t>(fs_ocornut_imgui_dxbc) : std::span<const std::uint8_t>(fs_ocornut_imgui_glsl);
+#else
+#define OFS_SHADER(name) std::span<const std::uint8_t>(name##_glsl)
+  const auto imguiVs = std::span<const std::uint8_t>(vs_ocornut_imgui_glsl);
+  const auto imguiFs = std::span<const std::uint8_t>(fs_ocornut_imgui_glsl);
+#endif
+  programs_.pbr = makeProgram("pbr", OFS_SHADER(pbr_vs), OFS_SHADER(pbr_fs));
+  programs_.terrain = makeProgram("terrain", OFS_SHADER(terrain_vs), OFS_SHADER(terrain_fs));
+  programs_.tree = makeProgram("tree", OFS_SHADER(tree_vs), OFS_SHADER(tree_fs));
+  programs_.sky = makeProgram("sky", OFS_SHADER(sky_vs), OFS_SHADER(sky_fs));
+  programs_.skyTable = makeProgram("skyview", OFS_SHADER(fullscreen_vs), OFS_SHADER(skyview_fs));
+  programs_.aerial = makeProgram("aerial", OFS_SHADER(fullscreen_vs), OFS_SHADER(aerial_fs));
+  programs_.clouds = makeProgram("cloud", OFS_SHADER(fullscreen_vs), OFS_SHADER(cloud_fs));
+  programs_.cloudResolve = makeProgram("cloud_resolve", OFS_SHADER(fullscreen_vs), OFS_SHADER(cloud_resolve_fs));
+  programs_.cloudComposite = makeProgram("cloud_composite", OFS_SHADER(fullscreen_vs), OFS_SHADER(cloud_composite_fs));
+  programs_.unlit = makeProgram("unlit", OFS_SHADER(unlit_vs), OFS_SHADER(unlit_fs));
+  programs_.effect = makeProgram("effect", OFS_SHADER(effect_vs), OFS_SHADER(effect_fs));
+  programs_.flame = makeProgram("flame", OFS_SHADER(flame_vs), OFS_SHADER(flame_fs));
+  programs_.rain = makeProgram("rain", OFS_SHADER(fullscreen_vs), OFS_SHADER(rain_fs));
+  programs_.shadow = makeProgram("shadow", OFS_SHADER(shadow_vs), OFS_SHADER(shadow_fs));
+  programs_.shadowTree = makeProgram("shadow_tree", OFS_SHADER(shadow_tree_vs), OFS_SHADER(shadow_tree_fs));
+  programs_.glare = makeProgram("bloom", OFS_SHADER(fullscreen_vs), OFS_SHADER(bloom_fs));
+  programs_.display = makeProgram("post", OFS_SHADER(fullscreen_vs), OFS_SHADER(post_fs));
+  programs_.edgeFilter = makeProgram("fxaa", OFS_SHADER(fullscreen_vs), OFS_SHADER(fxaa_fs));
+  programs_.imgui = makeProgram("imgui", imguiVs, imguiFs);
+#undef OFS_SHADER
+}
+
+void Renderer::createUniforms() {
+  const auto vec4 = bgfx::UniformType::Vec4;
+  const auto mat4 = bgfx::UniformType::Mat4;
+  const auto sampler = bgfx::UniformType::Sampler;
+  uniforms_.frame = bgfx::createUniform("u_frame", vec4, sizeof(FrameConstants) / sizeof(glm::vec4));
+  uniforms_.model = bgfx::createUniform("u_ofsModel", mat4);
+  uniforms_.viewProj = bgfx::createUniform("u_ofsViewProj", mat4);
+  uniforms_.invViewProj = bgfx::createUniform("u_ofsInvViewProj", mat4);
+  uniforms_.prevViewProj = bgfx::createUniform("u_prevViewProj", mat4);
+  uniforms_.normalMatrix = bgfx::createUniform("u_normalMatrix", bgfx::UniformType::Mat3);
+  uniforms_.lightViewProj = bgfx::createUniform("u_lightViewProj", mat4);
+  uniforms_.shadowMatrix = bgfx::createUniform("u_shadowMatrix", mat4, kMaxCascades);
+  uniforms_.baseColor = bgfx::createUniform("u_baseColor", vec4);
+  uniforms_.metallicRoughness = bgfx::createUniform("u_metallicRoughness", vec4);
+  uniforms_.emissive = bgfx::createUniform("u_emissive", vec4);
+  uniforms_.doubleSided = bgfx::createUniform("u_doubleSided", vec4);
+  uniforms_.normalSettings = bgfx::createUniform("u_normalSettings", vec4);
+  uniforms_.textureFlags = bgfx::createUniform("u_textureFlags", vec4);
+  uniforms_.alphaSettings = bgfx::createUniform("u_alphaSettings", vec4);
+  uniforms_.surface = bgfx::createUniform("u_surface", vec4);
+  uniforms_.flame = bgfx::createUniform("u_flame", vec4);
+  uniforms_.effectParams = bgfx::createUniform("u_effectParams", vec4);
+  uniforms_.cloudRender = bgfx::createUniform("u_cloudRender", vec4);
+  uniforms_.cloudResolve = bgfx::createUniform("u_cloudResolve", vec4);
+  uniforms_.postSettings = bgfx::createUniform("u_postSettings", vec4);
+  uniforms_.postStep = bgfx::createUniform("u_postStep", vec4);
+  uniforms_.rain = bgfx::createUniform("u_rain", vec4);
+  uniforms_.rainSide = bgfx::createUniform("u_rainSide", vec4);
+  uniforms_.shadowAtlas = bgfx::createUniform("s_shadowAtlas", sampler);
+  uniforms_.baseTexture = bgfx::createUniform("s_baseColor", sampler);
+  uniforms_.mrTexture = bgfx::createUniform("s_metallicRoughness", sampler);
+  uniforms_.emissiveTexture = bgfx::createUniform("s_emissive", sampler);
+  uniforms_.normalTexture = bgfx::createUniform("s_normal", sampler);
+  uniforms_.occlusionTexture = bgfx::createUniform("s_occlusion", sampler);
+  uniforms_.transmittance = bgfx::createUniform("s_transmittance", sampler);
+  uniforms_.skyView = bgfx::createUniform("s_skyView", sampler);
+  uniforms_.aerial = bgfx::createUniform("s_aerial", sampler);
+  uniforms_.multiScatter = bgfx::createUniform("s_multiScatter", sampler);
+  uniforms_.weatherMap = bgfx::createUniform("s_weatherMap", sampler);
+  uniforms_.noise = bgfx::createUniform("s_noise", sampler);
+  uniforms_.terrainAlbedo = bgfx::createUniform("s_terrainAlbedo", sampler);
+  uniforms_.terrainNormal = bgfx::createUniform("s_terrainNormal", sampler);
+  uniforms_.landMap = bgfx::createUniform("s_landMap", sampler);
+  uniforms_.lakeMap = bgfx::createUniform("s_lakeMap", sampler);
+  uniforms_.waterNormal = bgfx::createUniform("s_waterNormal", sampler);
+  uniforms_.cloudShape = bgfx::createUniform("s_cloudShape", sampler);
+  uniforms_.cloudDetail = bgfx::createUniform("s_cloudDetail", sampler);
+  uniforms_.sceneRange = bgfx::createUniform("s_sceneRange", sampler);
+  uniforms_.cloudLayer = bgfx::createUniform("s_cloudLayer", sampler);
+  uniforms_.cloudDepth = bgfx::createUniform("s_cloudDepth", sampler);
+  uniforms_.cloudCurrent = bgfx::createUniform("s_cloudCurrent", sampler);
+  uniforms_.cloudHistory = bgfx::createUniform("s_cloudHistory", sampler);
+  uniforms_.cloudHistoryDepth = bgfx::createUniform("s_cloudHistoryDepth", sampler);
+  uniforms_.sceneTexture = bgfx::createUniform("s_scene", sampler);
+  uniforms_.bloomTexture = bgfx::createUniform("s_bloom", sampler);
+  uniforms_.distortion = bgfx::createUniform("s_distortion", sampler);
+  uiSampler_ = bgfx::createUniform("s_tex", sampler);
+}
 
 bool Renderer::initialize(const Platform& platform) {
   int w = 0, h = 0;
@@ -226,11 +260,13 @@ bool Renderer::initialize(const Platform& platform) {
   swapChain_.formatColor = bgfx::TextureFormat::BGRA8;
   swapChain_.formatDepthStencil = bgfx::TextureFormat::D24S8;
   swapChain_.numBackBuffers = 2;
-  swapChain_.flags = msaaFlag(settings_.msaaSamples);
+  // The scene is antialiased in its own multisampled HDR target; the swap
+  // chain only ever receives the finished, resolved image.
+  swapChain_.flags = BGFX_SWAP_CHAIN_NONE;
   init.swapChain = swapChain_;
   init.fallback = false;
   init.callback = &callbacks_;
-  init.reset = resetFlags() & ~BGFX_RESET_MSAA_MASK;
+  init.reset = resetFlags();
   if (!bgfx::init(init)) return false;
   initialized_ = true;
   if (bgfx::getRendererType() != init.type)
@@ -242,43 +278,20 @@ bool Renderer::initialize(const Platform& platform) {
       .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
       .add(bgfx::Attrib::Tangent, 4, bgfx::AttribType::Float)
       .end();
+  terrainLayout_.begin()
+      .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+      .add(bgfx::Attrib::Normal, 3, bgfx::AttribType::Float)
+      .end();
+  // Per-instance data travels in the texture-coordinate slots bgfx reserves
+  // for it (i_data0 = TEXCOORD7, i_data1 = TEXCOORD6).
+  instanceLayout_.begin()
+      .add(bgfx::Attrib::TexCoord7, 4, bgfx::AttribType::Float)
+      .add(bgfx::Attrib::TexCoord6, 4, bgfx::AttribType::Float)
+      .end();
   unlitLayout_.begin()
       .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
       .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true)
       .end();
-
-  switch (bgfx::getRendererType()) {
-    case bgfx::RendererType::OpenGL:
-      programs_.pbr = makeProgram("pbr", pbr_vs_glsl, pbr_fs_glsl);
-      programs_.sky = makeProgram("sky", sky_vs_glsl, sky_fs_glsl);
-      programs_.clouds = makeProgram("cloud", cloud_vs_glsl, cloud_fs_glsl);
-      programs_.cloudComposite = makeProgram("cloud_composite", cloud_composite_vs_glsl, cloud_composite_fs_glsl);
-      programs_.unlit = makeProgram("unlit", unlit_vs_glsl, unlit_fs_glsl);
-      programs_.effect = makeProgram("effect", effect_vs_glsl, effect_fs_glsl);
-      programs_.shadow = makeProgram("shadow", shadow_vs_glsl, shadow_fs_glsl);
-      programs_.flame = makeProgram("flame", flame_vs_glsl, flame_fs_glsl);
-      programs_.post = makeProgram("post", post_vs_glsl, post_fs_glsl);
-      programs_.bloom = makeProgram("bloom", bloom_vs_glsl, bloom_fs_glsl);
-      programs_.imgui = makeProgram("imgui", vs_ocornut_imgui_glsl, fs_ocornut_imgui_glsl);
-      break;
-#ifdef _WIN32
-    case bgfx::RendererType::Direct3D11:
-      programs_.pbr = makeProgram("pbr", pbr_vs_dx11, pbr_fs_dx11);
-      programs_.sky = makeProgram("sky", sky_vs_dx11, sky_fs_dx11);
-      programs_.clouds = makeProgram("cloud", cloud_vs_dx11, cloud_fs_dx11);
-      programs_.cloudComposite = makeProgram("cloud_composite", cloud_composite_vs_dx11, cloud_composite_fs_dx11);
-      programs_.unlit = makeProgram("unlit", unlit_vs_dx11, unlit_fs_dx11);
-      programs_.effect = makeProgram("effect", effect_vs_dx11, effect_fs_dx11);
-      programs_.shadow = makeProgram("shadow", shadow_vs_dx11, shadow_fs_dx11);
-      programs_.flame = makeProgram("flame", flame_vs_dx11, flame_fs_dx11);
-      programs_.post = makeProgram("post", post_vs_dx11, post_fs_dx11);
-      programs_.bloom = makeProgram("bloom", bloom_vs_dx11, bloom_fs_dx11);
-      programs_.imgui = makeProgram("imgui", vs_ocornut_imgui_dxbc, fs_ocornut_imgui_dxbc);
-      break;
-#endif
-    default:
-      throw std::runtime_error(std::string("No compiled shader set for active backend: ") + backend());
-  }
   // Effects share the unlit shape but carry a float colour, which is what the
   // per-quad fade needs.
   effectLayout_.begin()
@@ -293,67 +306,9 @@ bool Renderer::initialize(const Platform& platform) {
       .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true)
       .end();
 
-  const auto vec4 = bgfx::UniformType::Vec4;
-  const auto mat4 = bgfx::UniformType::Mat4;
-  uniforms_.model = bgfx::createUniform("u_ofsModel", mat4);
-  uniforms_.viewProj = bgfx::createUniform("u_ofsViewProj", mat4);
-  uniforms_.invViewProj = bgfx::createUniform("u_ofsInvViewProj", mat4);
-  uniforms_.normalMatrix = bgfx::createUniform("u_normalMatrix", bgfx::UniformType::Mat3);
-  uniforms_.cameraPos = bgfx::createUniform("u_cameraPos", vec4);
-  uniforms_.worldOrigin = bgfx::createUniform("u_worldOrigin", vec4);
-  uniforms_.sunDirection = bgfx::createUniform("u_sunDirection", vec4);
-  uniforms_.sunColor = bgfx::createUniform("u_sunColor", vec4);
-  uniforms_.skyAmbient = bgfx::createUniform("u_skyAmbient", vec4);
-  uniforms_.groundAmbient = bgfx::createUniform("u_groundAmbient", vec4);
-  uniforms_.baseColor = bgfx::createUniform("u_baseColor", vec4);
-  uniforms_.metallicRoughness = bgfx::createUniform("u_metallicRoughness", vec4);
-  uniforms_.emissive = bgfx::createUniform("u_emissive", vec4);
-  uniforms_.doubleSided = bgfx::createUniform("u_doubleSided", vec4);
-  uniforms_.shadowMatrix = bgfx::createUniform("u_shadowMatrix", mat4);
-  uniforms_.shadowMap = bgfx::createUniform("u_shadowMap", bgfx::UniformType::Sampler);
-  uniforms_.shadowTexel = bgfx::createUniform("u_shadowTexel", vec4);
-  uniforms_.shadowBias = bgfx::createUniform("u_shadowBias", vec4);
-  uniforms_.shadowStrength = bgfx::createUniform("u_shadowStrength", vec4);
-  uniforms_.fogColor = bgfx::createUniform("u_fogColor", vec4);
-  uniforms_.fogDensity = bgfx::createUniform("u_fogDensity", vec4);
-  uniforms_.fogHeightFalloff = bgfx::createUniform("u_fogHeightFalloff", vec4);
-  uniforms_.fogGroundFade = bgfx::createUniform("u_fogGroundFade", vec4);
-  uniforms_.fogEnabled = bgfx::createUniform("u_fogEnabled", vec4);
-  uniforms_.exposure = bgfx::createUniform("u_exposure", vec4);
-  uniforms_.zenithColor = bgfx::createUniform("u_zenithColor", vec4);
-  uniforms_.horizonColor = bgfx::createUniform("u_horizonColor", vec4);
-  uniforms_.groundColor = bgfx::createUniform("u_groundColor", vec4);
-  uniforms_.sunIntensity = bgfx::createUniform("u_sunIntensity", vec4);
-  uniforms_.horizonSharpness = bgfx::createUniform("u_horizonSharpness", vec4);
-  uniforms_.groundBlend = bgfx::createUniform("u_groundBlend", vec4);
-  uiSampler_ = bgfx::createUniform("s_tex", bgfx::UniformType::Sampler);
-  uniforms_.baseTexture = bgfx::createUniform("s_baseColor", bgfx::UniformType::Sampler);
-  uniforms_.mrTexture = bgfx::createUniform("s_metallicRoughness", bgfx::UniformType::Sampler);
-  uniforms_.emissiveTexture = bgfx::createUniform("s_emissive", bgfx::UniformType::Sampler);
-  uniforms_.normalTexture = bgfx::createUniform("s_normal", bgfx::UniformType::Sampler);
-  uniforms_.occlusionTexture = bgfx::createUniform("s_occlusion", bgfx::UniformType::Sampler);
-  uniforms_.normalSettings = bgfx::createUniform("u_normalSettings", vec4);
-  uniforms_.flame = bgfx::createUniform("u_flame", vec4);
-  uniforms_.sceneTexture=bgfx::createUniform("s_scene",bgfx::UniformType::Sampler);
-  uniforms_.bloomTexture=bgfx::createUniform("s_bloom",bgfx::UniformType::Sampler);
-  uniforms_.postSettings=bgfx::createUniform("u_postSettings",vec4);
-  uniforms_.postStep=bgfx::createUniform("u_postStep",vec4);
-  uniforms_.cloudParams=bgfx::createUniform("u_cloudParams",vec4);
-  uniforms_.weather=bgfx::createUniform("u_weather",vec4);
-  uniforms_.cloudRender=bgfx::createUniform("u_cloudRender",vec4);
-  uniforms_.cloudNoise=bgfx::createUniform("s_cloudNoise",bgfx::UniformType::Sampler);
-  uniforms_.cloudLayer=bgfx::createUniform("s_cloudLayer",bgfx::UniformType::Sampler);
-  uniforms_.sceneDepth=bgfx::createUniform("s_sceneDepth",bgfx::UniformType::Sampler);
-  std::vector<std::uint8_t> noise(64*64*64);
-  for (unsigned i=0; i<noise.size(); ++i) {
-    std::uint32_t h=i+0x9e3779b9u; h^=h>>16; h*=0x7feb352du; h^=h>>15; h*=0x846ca68bu; h^=h>>16;
-    noise[i]=static_cast<std::uint8_t>(h);
-  }
-  cloudNoise_=bgfx::createTexture3D(64,64,64,false,bgfx::TextureFormat::R8,0,
-      bgfx::copy(noise.data(),static_cast<std::uint32_t>(noise.size())));
-  if (!bgfx::isValid(cloudNoise_)) throw std::runtime_error("Cloud density upload failed");
-  uniforms_.textureFlags = bgfx::createUniform("u_textureFlags", vec4);
-  uniforms_.alphaSettings = bgfx::createUniform("u_alphaSettings", vec4);
+  createPrograms();
+  createUniforms();
+
   const std::uint32_t white = 0xffffffff;
   whiteTexture_ = bgfx::createTexture2D(1,1,false,1,bgfx::TextureFormat::RGBA8,0,bgfx::copy(&white,4));
 
@@ -363,17 +318,20 @@ bool Renderer::initialize(const Platform& platform) {
   font_ = bgfx::createTexture2D(static_cast<std::uint16_t>(fw), static_cast<std::uint16_t>(fh), false, 1,
                                 bgfx::TextureFormat::RGBA8, 0,
                                 bgfx::copy(pixels, static_cast<std::uint32_t>(fw * fh * 4)));
-  if (!bgfx::isValid(font_) || !bgfx::isValid(uiSampler_))
+  if (!bgfx::isValid(font_) || !bgfx::isValid(uiSampler_) || !bgfx::isValid(whiteTexture_))
     throw std::runtime_error("GPU resource creation failed");
-  auxiliaryTextureBytes_=noise.size()+4+std::uint64_t(fw)*fh*4;
-  log("TEXTURE", "builtin cloud-noise source=64x64x64 format=R8 mips=1 estimated_gpu_bytes="+std::to_string(noise.size()));
+  auxiliaryTextureBytes_=4+std::uint64_t(fw)*fh*4;
   log("TEXTURE", "builtin white source=1x1 format=RGBA8 mips=1 estimated_gpu_bytes=4");
   log("TEXTURE", "builtin font source="+std::to_string(fw)+"x"+std::to_string(fh)+" format=RGBA8 mips=1 estimated_gpu_bytes="+std::to_string(std::uint64_t(fw)*fh*4));
   ImGui::GetIO().Fonts->SetTexID(static_cast<ImTextureID>(font_.idx) + 1);
   ImGui::GetIO().BackendRendererName = "OpenFlightSim_bgfx";
   ImGui::GetIO().BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
 
-  buildEnvironment();
+  const UnlitVertex triangle[3] = {{-1, -1, 0, 0xffffffff}, {3, -1, 0, 0xffffffff}, {-1, 3, 0, 0xffffffff}};
+  screenTriangle_ = bgfx::createVertexBuffer(
+      bgfx::copy(triangle, static_cast<std::uint32_t>(sizeof(triangle))), unlitLayout_);
+
+  synthesis_ = std::async(std::launch::async, synthesise, settings_);
 
   const bgfx::Caps* caps = bgfx::getCaps();
   stats_.backend = bgfx::getRendererName(bgfx::getRendererType());
@@ -392,21 +350,51 @@ bool Renderer::initialize(const Platform& platform) {
   return true;
 }
 
+Renderer::Synthesis Renderer::synthesise(const GraphicsSettings& settings) {
+  const auto start = std::chrono::steady_clock::now();
+  Synthesis data;
+  data.weather = settings.weather;
+  // Rain carries its own haze: visibility closes in with intensity.
+  data.weather.visibilityKm = std::min(data.weather.visibilityKm,
+                                       glm::mix(data.weather.visibilityKm, 7.f, data.weather.precipitation));
+  data.atmosphere = std::make_unique<AtmosphereModel>(AtmosphereParameters::fromWeather(
+      data.weather.visibilityKm, data.weather.fogDensity, data.weather.fogHeight));
+  data.landscape = std::make_unique<Landscape>();
+  data.cloudShape = procedural::cloudShapeVolume(kCloudShapeSize);
+  data.cloudDetail = procedural::cloudDetailVolume(kCloudDetailSize);
+  data.weatherMap = procedural::weatherMap(kWeatherMapSize);
+  data.noiseTile = procedural::noiseTile(kNoiseTileSize);
+  data.waterNormal = procedural::waterNormalTile(kWaterTileSize);
+  data.layers = procedural::terrainLayers(settings.terrain == TerrainQuality::Low ? 256 : 512);
+  log("RENDER", "Environment synthesised in " +
+                    std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::steady_clock::now() - start).count()) + " ms");
+  return data;
+}
+
+void Renderer::finishEnvironment() {
+  Synthesis data = synthesis_.get();
+  createAtmosphereResources(data);
+  buildEnvironment(data);
+  stats_.environmentTextureBytes = static_cast<std::size_t>(auxiliaryTextureBytes_);
+  log("RENDER", "Procedural environment textures " + std::to_string(auxiliaryTextureBytes_ / (1024 * 1024)) + " MB");
+}
+
 std::uint32_t Renderer::resetFlags() const {
-  std::uint32_t reset = msaaFlag(settings_.msaaSamples);
+  std::uint32_t reset = BGFX_RESET_NONE;
   if (settings_.vsync) reset |= BGFX_RESET_VSYNC;
+  // Without this flag bgfx leaves the maximum anisotropy at zero, and samplers
+  // that request anisotropic filtering silently fall back to trilinear.
+  if (settings_.anisotropic) reset |= BGFX_RESET_MAXANISOTROPY;
   return reset;
 }
 
 void Renderer::destroy() {
   if (!initialized_) return;
+  // Never leave the synthesis thread running past the renderer.
+  if (synthesis_.valid()) synthesis_.wait();
   destroyEnvironment();
-  if(bgfx::isValid(cloudBuffer_)) bgfx::destroy(cloudBuffer_);
-  if(bgfx::isValid(cloudNoise_)) bgfx::destroy(cloudNoise_);
-  if(bgfx::isValid(atmosphereBuffer_))bgfx::destroy(atmosphereBuffer_);
-  if(bgfx::isValid(hdrBuffer_))bgfx::destroy(hdrBuffer_);
-  for(auto handle:bloomBuffer_)if(bgfx::isValid(handle))bgfx::destroy(handle);
-  if (bgfx::isValid(shadowBuffer_)) bgfx::destroy(shadowBuffer_);
+  destroyAtmosphereResources();
 
   for (auto& [type, asset] : models_) {
     (void)type;
@@ -423,320 +411,22 @@ void Renderer::destroy() {
     }
   }
   if (bgfx::isValid(whiteTexture_)) bgfx::destroy(whiteTexture_);
-  for (const auto handle : {uniforms_.model,uniforms_.viewProj,uniforms_.invViewProj,uniforms_.normalMatrix,
-       uniforms_.cameraPos,uniforms_.worldOrigin,uniforms_.sunDirection,uniforms_.sunColor,uniforms_.skyAmbient,
-       uniforms_.groundAmbient,uniforms_.baseColor,uniforms_.metallicRoughness,uniforms_.emissive,uniforms_.doubleSided,
-       uniforms_.shadowMatrix,uniforms_.shadowMap,uniforms_.shadowTexel,uniforms_.shadowBias,uniforms_.shadowStrength,
-       uniforms_.fogColor,uniforms_.fogDensity,uniforms_.fogHeightFalloff,uniforms_.fogGroundFade,uniforms_.fogEnabled,
-       uniforms_.exposure,uniforms_.zenithColor,uniforms_.horizonColor,uniforms_.groundColor,uniforms_.sunIntensity,
-       uniforms_.horizonSharpness,uniforms_.groundBlend,uniforms_.baseTexture,uniforms_.mrTexture,
-       uniforms_.emissiveTexture,uniforms_.normalTexture,uniforms_.occlusionTexture,uniforms_.normalSettings,uniforms_.flame,uniforms_.sceneTexture,uniforms_.bloomTexture,uniforms_.postSettings,uniforms_.postStep,uniforms_.cloudParams,uniforms_.weather,uniforms_.cloudRender,uniforms_.cloudNoise,uniforms_.cloudLayer,uniforms_.sceneDepth,uniforms_.textureFlags,uniforms_.alphaSettings,uiSampler_})
-    if (bgfx::isValid(handle)) bgfx::destroy(handle);
+  // Uniforms is a plain block of handles, so it can be released as an array.
+  static_assert(sizeof(Uniforms) % sizeof(bgfx::UniformHandle) == 0);
+  const auto* handles = reinterpret_cast<const bgfx::UniformHandle*>(&uniforms_);
+  for (std::size_t i = 0; i < sizeof(Uniforms) / sizeof(bgfx::UniformHandle); ++i)
+    if (bgfx::isValid(handles[i])) bgfx::destroy(handles[i]);
+  if (bgfx::isValid(uiSampler_)) bgfx::destroy(uiSampler_);
   if (bgfx::isValid(font_)) bgfx::destroy(font_);
-  if (bgfx::isValid(programs_.pbr)) bgfx::destroy(programs_.pbr);
-  if (bgfx::isValid(programs_.sky)) bgfx::destroy(programs_.sky);
-  if (bgfx::isValid(programs_.clouds)) bgfx::destroy(programs_.clouds);
-  if (bgfx::isValid(programs_.cloudComposite)) bgfx::destroy(programs_.cloudComposite);
-  if (bgfx::isValid(programs_.unlit)) bgfx::destroy(programs_.unlit);
-  if (bgfx::isValid(programs_.effect)) bgfx::destroy(programs_.effect);
-  if (bgfx::isValid(programs_.imgui)) bgfx::destroy(programs_.imgui);
-  if (bgfx::isValid(programs_.shadow)) bgfx::destroy(programs_.shadow);
-  if (bgfx::isValid(programs_.post))bgfx::destroy(programs_.post);
-  if (bgfx::isValid(programs_.bloom))bgfx::destroy(programs_.bloom);
-  if (bgfx::isValid(programs_.flame)) bgfx::destroy(programs_.flame);
+  static_assert(sizeof(Programs) % sizeof(bgfx::ProgramHandle) == 0);
+  const auto* programs = reinterpret_cast<const bgfx::ProgramHandle*>(&programs_);
+  for (std::size_t i = 0; i < sizeof(Programs) / sizeof(bgfx::ProgramHandle); ++i)
+    if (bgfx::isValid(programs[i])) bgfx::destroy(programs[i]);
   if (bgfx::isValid(flameMesh_)) bgfx::destroy(flameMesh_);
+  if (bgfx::isValid(screenTriangle_)) bgfx::destroy(screenTriangle_);
   bgfx::shutdown();
   initialized_ = false;
   log("RENDER", "bgfx shutdown complete");
-}
-
-// ---------------------------------------------------------------------------
-// Environment geometry
-// ---------------------------------------------------------------------------
-
-void Renderer::buildEnvironment() {
-  std::vector<SurfaceVertex> vertices;
-
-  // Ground: rings with quadratic spacing, so detail concentrates around the
-  // airfield while distant rings cover the horizon in few triangles.
-  for (int ring = 0; ring < kTerrainRings; ++ring) {
-    for (int segment = 0; segment < kTerrainSegments; ++segment) {
-      const glm::vec3 a = renderDirection(terrainVertex(ring,segment));
-      const glm::vec3 b = renderDirection(terrainVertex(ring,segment+1));
-      const glm::vec3 c = renderDirection(terrainVertex(ring+1,segment+1));
-      const glm::vec3 d = renderDirection(terrainVertex(ring+1,segment));
-      const std::size_t start = vertices.size();
-      addQuad(vertices,a,b,c,d,{0,1,0});
-      // Smooth shading normals; the collision surface uses the exact faces.
-      for (std::size_t i=start;i<vertices.size();++i) {
-        auto& v=vertices[i];
-        const double dn=(terrainElevation(-v.z+4,v.x)-terrainElevation(-v.z-4,v.x))/8;
-        const double de=(terrainElevation(-v.z,v.x+4)-terrainElevation(-v.z,v.x-4))/8;
-        const auto n=glm::normalize(glm::vec3(-de,1,dn));
-        v.nx=n.x;v.ny=n.y;v.nz=n.z;
-      }
-    }
-  }
-  ground_ = bgfx::createVertexBuffer(
-      bgfx::copy(vertices.data(), static_cast<std::uint32_t>(vertices.size() * sizeof(SurfaceVertex))),
-      surfaceLayout_);
-
-  // Runway: an asphalt surface plus painted markings, both static. The two are
-  // separate buffers because they use different materials.
-  vertices.clear();
-  // The runway surface, its paint and the grass are all coplanar at y = 0 apart
-  // from these offsets. The gaps have to be large enough to survive the depth
-  // buffer at the far end of the 15000 m view distance: centimetres apart
-  // z-fight into wide shimmering bands once the runway is more than a few
-  // hundred metres away.
-  constexpr float kRunwayLift = 0.05f;
-  const float asphalt = kRunwayLift;
-  // Counter-clockwise seen from above; see addQuad.
-  addQuad(vertices,
-          {static_cast<float>(-kRunwayHalfWidth), asphalt, static_cast<float>(-kRunwayLength / 2)},
-          {static_cast<float>(-kRunwayHalfWidth), asphalt, static_cast<float>(kRunwayLength / 2)},
-          {static_cast<float>(kRunwayHalfWidth), asphalt, static_cast<float>(kRunwayLength / 2)},
-          {static_cast<float>(kRunwayHalfWidth), asphalt, static_cast<float>(-kRunwayLength / 2)},
-          {0, 1, 0});
-  markings_ = bgfx::createVertexBuffer(
-      bgfx::copy(vertices.data(), static_cast<std::uint32_t>(vertices.size() * sizeof(SurfaceVertex))),
-      surfaceLayout_);
-
-  vertices.clear();
-  const float paint = kRunwayLift + 0.05f;
-  // Every quad below is listed counter-clockwise seen from above, matching
-  // addQuad's contract. Listing them the other way round gives the triangles a
-  // -Y geometric normal, which back-face culling then removes: the markings
-  // vanish and leave only the grass and asphalt underneath, which reads as
-  // broad green bands across the runway.
-  // Centreline dashes.
-  for (double z = -kRunwayLength / 2 + 150; z < kRunwayLength / 2 - 150; z += 60.0)
-    addQuad(vertices, {-0.45f, paint, static_cast<float>(z)},
-            {-0.45f, paint, static_cast<float>(z + 30)},
-            {0.45f, paint, static_cast<float>(z + 30)}, {0.45f, paint, static_cast<float>(z)},
-            {0, 1, 0});
-  // Edge lines.
-  for (const double edge : {-kRunwayHalfWidth + 1.2, kRunwayHalfWidth - 1.2})
-    addQuad(vertices, {static_cast<float>(edge - 0.5), paint, static_cast<float>(-kRunwayLength / 2 + 60)},
-            {static_cast<float>(edge - 0.5), paint, static_cast<float>(kRunwayLength / 2 - 60)},
-            {static_cast<float>(edge + 0.5), paint, static_cast<float>(kRunwayLength / 2 - 60)},
-            {static_cast<float>(edge + 0.5), paint, static_cast<float>(-kRunwayLength / 2 + 60)},
-            {0, 1, 0});
-  // Threshold bars and aiming blocks at both ends.
-  for (const int end : {-1, 1}) {
-    const double zBase = end * (kRunwayLength / 2 - 170);
-    for (int i = 0; i < 8; ++i) {
-      const double pitch = (2 * kRunwayHalfWidth - 6.0) / 8.0;
-      const double x = -kRunwayHalfWidth + 3.0 + pitch * (i + 0.5);
-      addQuad(vertices,
-              {static_cast<float>(x - pitch * 0.28), paint, static_cast<float>(zBase - end * 50.0)},
-              {static_cast<float>(x + pitch * 0.28), paint, static_cast<float>(zBase - end * 50.0)},
-              {static_cast<float>(x + pitch * 0.28), paint, static_cast<float>(zBase)},
-              {static_cast<float>(x - pitch * 0.28), paint, static_cast<float>(zBase)},
-              {0, 1, 0});
-    }
-    const double zAim = end * (kRunwayLength / 2 - 420);
-    for (const double x : {-9.0, 9.0})
-      addQuad(vertices, {static_cast<float>(x - 1.4), paint, static_cast<float>(zAim - end * 32.0)},
-              {static_cast<float>(x + 1.4), paint, static_cast<float>(zAim - end * 32.0)},
-              {static_cast<float>(x + 1.4), paint, static_cast<float>(zAim)},
-              {static_cast<float>(x - 1.4), paint, static_cast<float>(zAim)}, {0, 1, 0});
-  }
-  paintBuffer_ = bgfx::createVertexBuffer(
-      bgfx::copy(vertices.data(), static_cast<std::uint32_t>(vertices.size() * sizeof(SurfaceVertex))),
-      surfaceLayout_);
-
-  // Airfield scenery. All surfaces share the same origin transform as the runway.
-  const auto upload = [&](const std::vector<SurfaceVertex>& data) {
-    return bgfx::createVertexBuffer(bgfx::copy(data.data(),
-        static_cast<std::uint32_t>(data.size() * sizeof(SurfaceVertex))), surfaceLayout_);
-  };
-  const auto slab = [&](float x0, float z0, float x1, float z1, float y) {
-    addQuad(vertices, {x0,y,z0}, {x0,y,z1}, {x1,y,z1}, {x1,y,z0}, {0,1,0});
-  };
-  const auto box = [&](float x, float z, float w, float d, float y, float h) {
-    const float l=x-w/2, r=x+w/2, f=z-d/2, b=z+d/2, t=y+h;
-    addQuad(vertices,{l,t,f},{l,t,b},{r,t,b},{r,t,f},{0,1,0});
-    addQuad(vertices,{l,y,f},{r,y,f},{r,t,f},{l,t,f},{0,0,-1});
-    addQuad(vertices,{r,y,b},{l,y,b},{l,t,b},{r,t,b},{0,0,1});
-    addQuad(vertices,{l,y,b},{l,y,f},{l,t,f},{l,t,b},{-1,0,0});
-    addQuad(vertices,{r,y,f},{r,y,b},{r,t,b},{r,t,f},{1,0,0});
-  };
-  vertices.clear();
-  slab(-420,-1100,-65,180,.04f);
-  slab(-95,-1220,-65,1220,.06f);
-  for (const float z : {-850.f,0.f,850.f}) slab(-95,z-14,-22.5f,z+14,.07f);
-  apron_ = upload(vertices);
-  vertices.clear();
-  // Taxiway centrelines and stand lead-in lines.
-  slab(-80.2f,-1200,-79.8f,1200,.12f);
-  for (const float z : {-850.f,0.f,850.f}) slab(-80,z-.2f,-25,z+.2f,.13f);
-  for (int i=0; i<6; ++i) slab(-255,static_cast<float>(i*110-1040)-.2f,-80,static_cast<float>(i*110-1040)+.2f,.13f);
-  taxiPaint_ = upload(vertices);
-  vertices.clear();
-  for (int i=0; i<5; ++i) {
-    const float z=static_cast<float>(i*130-1040);
-    box(-350,z,110,86,0,17);
-    box(-350,z,114,90,17,1.5f);
-  }
-  box(-210,-400,95,150,0,12);  // terminal
-  box(-160,-300,12,12,0,38);   // control tower
-  box(-160,-300,23,23,38,7);
-  box(-160,-300,27,27,45,1.5f);
-  buildings_ = upload(vertices);
-  vertices.clear();
-  for (int i=0; i<5; ++i) {
-    const float z=static_cast<float>(i*130-1040);
-    box(-294.8f,z,0.4f,66,0,12); // recessed hangar doors
-    for (int j=0;j<5;++j) box(-294.5f,z-28+j*14,0.2f,0.25f,0,12);
-  }
-  box(-160,-300,23.4f,23.4f,39,4.5f); // tower glazing
-  box(-161.8f,-400,0.4f,138,3.5f,5);
-  windows_ = upload(vertices);
-  vertices.clear();
-  for (int i=-24;i<=24;++i) {
-    for (float x : {-24.f,24.f}) box(x,static_cast<float>(i*50),.35f,.35f,.15f,.28f);
-    box(-96,static_cast<float>(i*50),.35f,.35f,.15f,.28f);
-  }
-  lights_ = upload(vertices);
-
-  // Service road, fence posts and utility sheds give the field a human scale.
-  vertices.clear();
-  slab(455,-2800,469,2800,.065f);
-  slab(-650,300,462,313,.065f);
-  roadside_=upload(vertices);
-  vertices.clear();
-  for (int i=-44;i<=44;++i) {
-    box(430,float(i*60),.18f,.18f,0,2.2f);
-    box(-480,float(i*60),.18f,.18f,0,2.2f);
-  }
-  for (int i=0;i<3;++i) box(-535,float(i*45+450),22,30,0,5);
-  // Append utility structures to their own scenery patch, batched once.
-  SceneryPatch utilities; utilities.center={-400,4,200};utilities.radius=3100;
-  utilities.wood=upload(vertices);utilities.woodCount=vertices.size();
-  scenery_.push_back(utilities);
-
-  const auto random=[](unsigned seed) {
-    seed^=seed>>16;seed*=0x7feb352du;seed^=seed>>15;seed*=0x846ca68bu;seed^=seed>>16;
-    return float(seed&0xffffff)/float(0xffffff);
-  };
-  // Closed irregular stone silhouettes, shared by scattered roadside rocks.
-  const auto crown=[](std::vector<SurfaceVertex>& out,glm::vec3 center,float width,float height,int sides,bool pine,bool distant) {
-    const int tiers=distant?1:3;
-    for (int tier=0;tier<tiers;++tier) {
-      const float y0=pine?float(tier)*height*.20f:float(tier)*height/tiers;
-      const float y1=pine?height*(.65f+float(tier)*.175f):float(tier+1)*height/tiers;
-      const float r0=pine?width*(1.f-float(tier)*.22f):width*(tier==0?.45f:1.f);
-      const float r1=pine?0.f:width*(tier==tiers-1?.08f:1.f);
-      for (int side=0;side<sides;++side) {
-        const float a0=float(side)*float(2*kPi)/sides,a1=float(side+1)*float(2*kPi)/sides;
-        const glm::vec3 a=center+glm::vec3(std::cos(a0)*r0,y0,std::sin(a0)*r0);
-        const glm::vec3 b=center+glm::vec3(std::cos(a1)*r0,y0,std::sin(a1)*r0);
-        const glm::vec3 c=center+glm::vec3(std::cos(a1)*r1,y1,std::sin(a1)*r1);
-        const glm::vec3 d=center+glm::vec3(std::cos(a0)*r1,y1,std::sin(a0)*r1);
-        const glm::vec3 normal=glm::normalize(glm::vec3(std::cos((a0+a1)*.5f),width/height,std::sin((a0+a1)*.5f)));
-        addQuad(out,a,b,c,d,normal);
-      }
-    }
-    // Close the underside so crowns also cast shadows viewed from below.
-    for(int side=0;side<sides;++side) {
-      const float a0=float(side)*float(2*kPi)/sides,a1=float(side+1)*float(2*kPi)/sides;
-      const float r=pine?width:width*.45f;
-      const auto a=center+glm::vec3(std::cos(a0)*r,0,std::sin(a0)*r);
-      const auto b=center+glm::vec3(std::cos(a1)*r,0,std::sin(a1)*r);
-      addQuad(out,center,a,b,center,{0,-1,0});
-    }
-  };
-  unsigned seed=0;
-  for(int iz=-4;iz<=4;++iz) for(int ix=-4;ix<=4;++ix) {
-    ++seed;
-    const float cx=ix*1750.f+(random(seed*53)-.5f)*400;
-    const float cz=iz*1750.f+(random(seed*71)-.5f)*400;
-    if(std::hypot(cx,cz)>9000) continue;
-    SceneryPatch patch;patch.center={cx,float(-groundHeightNed(-cz,cx)),cz};patch.radius=1280;
-    std::vector<SurfaceVertex> foliage,distant,wood,rocks;
-    for(unsigned tree=0;tree<340;++tree) {
-      const unsigned key=seed*1301+tree*17;
-      const float x=cx+(random(key)-.5f)*1700,z=cz+(random(key+1)-.5f)*1700;
-      // Keep the runway, taxiways, buildings and service roads unobstructed.
-      if ((std::abs(x)<115 && std::abs(z)<1850) ||
-          (x>-610 && x<-40 && z>-1450 && z<650) ||
-          (x>420 && x<490 && std::abs(z)<2850) ||
-          (x>-680 && x<500 && z>260 && z<340)) continue;
-      const float woodland=sceneryNoise(x*.0011,z*.0011)*.7f+sceneryNoise(x*.0031+17,z*.0031)*.3f;
-      if(random(key+8) > std::clamp((woodland-.32f)*2.7f,.03f,.92f)) continue;
-      const float y=float(-groundHeightNed(-z,x));
-      const float height=8.f+random(key+2)*13.f,width=height*(.20f+random(key+3)*.10f);
-      const bool pine=random(key+4)>.46f;
-      appendTree(foliage,distant,wood,{x,y,z},height,width,pine,key);
-      if(tree%9==0) {
-        const glm::vec3 stone{x+width*2,y,z-width};
-        crown(rocks,stone,1.f+random(key+5)*2.5f,1.f+random(key+6)*2.f,5,false,false);
-      }
-    }
-    if ((ix+iz)%3==0 && std::hypot(cx,cz)>2800) {
-      for (int house=0;house<5;++house) {
-        const float x=cx+house*33.f-65.f,z=cz+610.f;
-        const float y=float(-groundHeightNed(-z,x));
-        vertices.clear();box(x,z,18,26,y,6);
-        const glm::vec3 a{x-10,y+6,z-14},b{x-10,y+6,z+14};
-        const glm::vec3 c{x,y+11,z+14},d{x,y+11,z-14};
-        addQuad(vertices,a,b,c,d,glm::normalize(glm::vec3(-.5f,1,0)));
-        addQuad(vertices,d,c,{x+10,y+6,z+14},{x+10,y+6,z-14},glm::normalize(glm::vec3(.5f,1,0)));
-        addQuad(vertices,a,d,{x+10,y+6,z-14},a,{0,0,-1});
-        addQuad(vertices,{x+10,y+6,z+14},c,b,b,{0,0,1});
-        rocks.insert(rocks.end(),vertices.begin(),vertices.end());
-      }
-    }
-    const auto optionalUpload=[&](const auto& data){return data.empty()?bgfx::VertexBufferHandle{bgfx::kInvalidHandle}:upload(data);};
-    patch.foliage=optionalUpload(foliage);patch.distant=optionalUpload(distant);
-    patch.wood=optionalUpload(wood);patch.rocks=optionalUpload(rocks);
-    patch.foliageCount=foliage.size();patch.distantCount=distant.size();
-    patch.woodCount=wood.size();patch.rockCount=rocks.size();
-    patch.radius+=250; // elevation spread and tree height in sloped patches
-    scenery_.push_back(patch);
-  }
-
-  // Optional developer grid, retained from M0 as a toggle.
-  std::vector<UnlitVertex> grid;
-  for (int i = -2000; i <= 2000; i += 50) {
-    const std::uint32_t color = i == 0 ? 0xff96adbf : 0xff708574;
-    grid.push_back({static_cast<float>(i), 0.15f, -2000, color});
-    grid.push_back({static_cast<float>(i), 0.15f, 2000, color});
-    grid.push_back({-2000, 0.15f, static_cast<float>(i), color});
-    grid.push_back({2000, 0.15f, static_cast<float>(i), color});
-  }
-  grid_ = bgfx::createVertexBuffer(
-      bgfx::copy(grid.data(), static_cast<std::uint32_t>(grid.size() * sizeof(UnlitVertex))),
-      unlitLayout_);
-
-  const UnlitVertex sky[3] = {{-1, -1, 0, 0xffffffff}, {3, -1, 0, 0xffffffff}, {-1, 3, 0, 0xffffffff}};
-  skyTriangle_ = bgfx::createVertexBuffer(
-      bgfx::copy(sky, static_cast<std::uint32_t>(sizeof(sky))), unlitLayout_);
-
-  if (!bgfx::isValid(ground_) || !bgfx::isValid(markings_) || !bgfx::isValid(paintBuffer_) ||
-      !bgfx::isValid(grid_) || !bgfx::isValid(skyTriangle_) || !bgfx::isValid(apron_) ||
-      !bgfx::isValid(taxiPaint_) || !bgfx::isValid(buildings_) || !bgfx::isValid(windows_) ||
-      !bgfx::isValid(lights_) || !bgfx::isValid(roadside_))
-    throw std::runtime_error("Environment GPU upload failed");
-}
-
-void Renderer::destroyEnvironment() {
-  if (bgfx::isValid(ground_)) bgfx::destroy(ground_);
-  if (bgfx::isValid(markings_)) bgfx::destroy(markings_);
-  if (bgfx::isValid(paintBuffer_)) bgfx::destroy(paintBuffer_);
-  if (bgfx::isValid(grid_)) bgfx::destroy(grid_);
-  if (bgfx::isValid(skyTriangle_)) bgfx::destroy(skyTriangle_);
-  for (auto& patch : scenery_)
-    for(auto handle:{patch.foliage,patch.distant,patch.wood,patch.rocks})
-      if(bgfx::isValid(handle)) bgfx::destroy(handle);
-  scenery_.clear();
-  if(bgfx::isValid(roadside_)) bgfx::destroy(roadside_);
-  roadside_=BGFX_INVALID_HANDLE;
-  for (const auto handle : {apron_, taxiPaint_, buildings_, windows_, lights_})
-    if (bgfx::isValid(handle)) bgfx::destroy(handle);
-  apron_ = taxiPaint_ = buildings_ = windows_ = lights_ = BGFX_INVALID_HANDLE;
-  ground_ = markings_ = paintBuffer_ = grid_ = skyTriangle_ = BGFX_INVALID_HANDLE;
 }
 
 // ---------------------------------------------------------------------------
@@ -908,8 +598,7 @@ void Renderer::applySettings(const GraphicsSettings& settings, const Platform& p
   height_ = height;
   swapChain_.width = width_;
   swapChain_.height = height_;
-  swapChain_.flags = msaaFlag(settings_.msaaSamples);
-  bgfx::reset(reset & ~BGFX_RESET_MSAA_MASK, &swapChain_);
+  bgfx::reset(reset, &swapChain_);
   log("RENDER", "Framebuffer " + std::to_string(width_) + "x" + std::to_string(height_) +
                     " MSAA x" + std::to_string(settings_.msaaSamples) +
                     (settings_.vsync ? " vsync" : " no-vsync"));
@@ -927,7 +616,7 @@ bool Renderer::resize(SDL_Window* window) {
     height_ = height;
     swapChain_.width = width_;
     swapChain_.height = height_;
-    bgfx::reset(resetFlags() & ~BGFX_RESET_MSAA_MASK, &swapChain_);
+    bgfx::reset(resetFlags(), &swapChain_);
     log("RENDER", "Framebuffer resized");
   }
   return true;
@@ -953,87 +642,123 @@ glm::mat4 Renderer::modelTransform(const State& state, AircraftType type) const 
 }
 
 // ---------------------------------------------------------------------------
-// Frame passes
+// Frame constants
 // ---------------------------------------------------------------------------
 
-void Renderer::setFrameUniforms(const Camera& camera) {
-  setCloudUniforms();
-  cameraEye_ = localPosition(camera.eye, origin_);
-  bgfx::setUniform(uniforms_.worldOrigin, glm::value_ptr(glm::vec4(renderDirection(origin_),0)));
-  bgfx::setUniform(uniforms_.cameraPos, glm::value_ptr(glm::vec4(cameraEye_, 0.0f)));
+void Renderer::updateFrameConstants(const Camera& camera, const State& local, const Weather& weather, double dt) {
+  (void)camera;
+  (void)local;
+  const double step = std::clamp(dt, 0.0, .1);
+  weatherTime_ += step;
 
-  float sunDirection[3];
-  ofs::client::sunDirection(settings_.sky, sunDirection);
-  const glm::vec3 sun(sunDirection[0], sunDirection[1], sunDirection[2]);
-  bgfx::setUniform(uniforms_.sunDirection, glm::value_ptr(glm::vec4(sun, 0.0f)));
+  // ---- Air ----
+  // Rain carries its own haze: visibility closes in with intensity.
+  WeatherSettings air = settings_.weather;
+  air.visibilityKm = std::min(air.visibilityKm, glm::mix(air.visibilityKm, 7.f, air.precipitation));
+  atmosphereRebuildTimer_ += step;
+  const bool airChanged = air.visibilityKm != atmosphereWeather_.visibilityKm ||
+                          air.fogDensity != atmosphereWeather_.fogDensity ||
+                          air.fogHeight != atmosphereWeather_.fogHeight;
+  // The tables take a few milliseconds; while a slider is dragged, rebuild at
+  // most a few times a second.
+  if (airChanged && atmosphereRebuildTimer_ > .2) {
+    atmosphereWeather_ = air;
+    atmosphereRebuildTimer_ = 0;
+    atmosphere_->rebuild(AtmosphereParameters::fromWeather(air.visibilityKm, air.fogDensity, air.fogHeight));
+    uploadAtmosphereTables();
+  }
+  const AtmosphereParameters& p = atmosphere_->parameters();
 
-  const float daylight=std::clamp((settings_.sky.sunElevationDeg+4.f)/19.f,.0f,1.f);
-  const float warmth=std::clamp((settings_.sky.sunElevationDeg-2.f)/24.f,0.f,1.f);
-  const float intensity = settings_.sky.sunIntensity*daylight;
-  bgfx::setUniform(uniforms_.sunColor,
-                   glm::value_ptr(glm::vec4(intensity, intensity * (.56f+.41f*warmth), intensity * (.30f+.61f*warmth), 0.0f)));
-  bgfx::setUniform(uniforms_.skyAmbient,
-                   glm::value_ptr(glm::vec4(settings_.sky.skyAmbientR*(.08f+.92f*daylight), settings_.sky.skyAmbientG*(.08f+.92f*daylight),
-                                             settings_.sky.skyAmbientB*(.08f+.92f*daylight), 0.0f)));
-  bgfx::setUniform(uniforms_.groundAmbient,
-                   glm::value_ptr(glm::vec4(settings_.sky.groundAmbientR*(.08f+.92f*daylight), settings_.sky.groundAmbientG*(.08f+.92f*daylight),
-                                             settings_.sky.groundAmbientB*(.08f+.92f*daylight), 0.0f)));
-  bgfx::setUniform(uniforms_.fogColor,
-                   glm::value_ptr(glm::vec4(settings_.fog.colorR, settings_.fog.colorG,
-                                             settings_.fog.colorB, 0.0f)));
-  bgfx::setUniform(uniforms_.fogDensity,
-                   glm::value_ptr(glm::vec4(settings_.fog.enabled ? settings_.fog.density : 0.0f, 0, 0, 0)));
-  bgfx::setUniform(uniforms_.fogHeightFalloff,
-                   glm::value_ptr(glm::vec4(settings_.fog.heightFalloff, 0, 0, 0)));
-  bgfx::setUniform(uniforms_.fogGroundFade,
-                   glm::value_ptr(glm::vec4(settings_.fog.groundFade, 0, 0, 0)));
-  bgfx::setUniform(uniforms_.fogEnabled,
-                   glm::value_ptr(glm::vec4(settings_.fog.enabled ? 1.0f : 0.0f, 0, 0, 0)));
-  bgfx::setUniform(uniforms_.exposure, glm::value_ptr(glm::vec4(settings_.sky.exposure, 0, 0, 0)));
-  // The surface shaders read u_ofsViewProj themselves instead of using bgfx's
-  // built-in view and projection constants, so it has to be set every frame.
-  // Leaving it unset makes the vertex stage collapse every vertex to the
-  // origin, which hides the whole world while the sky (which reconstructs its
-  // rays from an inverse matrix) keeps drawing, so the failure looks like a
-  // missing terrain rather than a missing uniform.
-  bgfx::setUniform(uniforms_.viewProj, glm::value_ptr(viewProj_));
-  bgfx::setUniform(uniforms_.shadowStrength,
-                   glm::value_ptr(glm::vec4(shadowMapValid_ ? settings_.shadowStrength : 0.0f, 0, 0, 0)));
-  bgfx::setTexture(0, uniforms_.shadowMap, shadowMap_);
-  bgfx::setUniform(uniforms_.shadowMatrix, glm::value_ptr(shadowMatrix_));
-  if (shadowMapSize_ > 0)
-    bgfx::setUniform(uniforms_.shadowTexel,
-                     glm::value_ptr(glm::vec4(1.0f / static_cast<float>(shadowMapSize_), 0, 0, 0)));
-  bgfx::setUniform(uniforms_.shadowBias, glm::value_ptr(glm::vec4(settings_.shadowBias, 0, 0, 0)));
+  float sunVector[3];
+  ofs::client::sunDirection(settings_.sky, sunVector);
+  sun_ = glm::vec3(sunVector[0], sunVector[1], sunVector[2]);
+  const float eyeAltitude = std::max(cameraEye_.y + static_cast<float>(-origin_.z), 1.f);
+  lighting_ = atmosphere_->lighting(eyeAltitude, {sun_.x, sun_.y, sun_.z});
 
-  // Screen basis for billboards, taken from the view-projection rows.
-  const glm::mat3 view = glm::mat3(viewProj_);
-  basisRight_ = glm::normalize(glm::vec3(view[0][0], view[1][0], view[2][0]));
-  basisUp_ = glm::normalize(glm::vec3(view[0][1], view[1][1], view[2][1]));
+  // ---- Exposure ----
+  const bool clouds = cloudsEnabled();
+  // Under a deck of cloud the ground receives far less direct light than the
+  // clear-sky meter reading; expose for what the camera is actually in.
+  const float under = clouds && eyeAltitude < settings_.cloudBase + settings_.cloudThickness * .5f
+                          ? std::clamp((settings_.cloudCoverage - .55f) / .4f, 0.f, 1.f) : 0.f;
+  const float metered = settings_.sky.autoExposure ? lighting_.meteredIrradiance * (1.f - .55f * under) : 9.5f;
+  const float target = exposureFromIrradiance(metered, settings_.sky.exposureCompensation);
+  // The eye and a camera both take a moment to adapt.
+  exposure_ = exposurePrimed_ ? exposure_ + (target - exposure_) * static_cast<float>(1 - std::exp(-step / .45)) : target;
+  exposurePrimed_ = true;
+
+  // ---- Clouds ----
+  glm::dvec2 wind(weather.wind_ned.y, -weather.wind_ned.x);
+  // Still air would freeze the sky; give the layer a gentle default drift.
+  if (glm::dot(wind, wind) < 1.) wind = {8.5, 3.2};
+  cloudDrift_ += wind * step;
+
+  frame_.cameraPos = glm::vec4(cameraEye_, static_cast<float>(std::fmod(weatherTime_, 3600.)));
+  frame_.worldOrigin = glm::vec4(renderDirection(origin_), exposure_);
+  frame_.sunDirection = glm::vec4(sun_, kEmissiveRadiance);
+  frame_.sunIrradiance = glm::vec4(lighting_.sunIrradiance.r, lighting_.sunIrradiance.g, lighting_.sunIrradiance.b,
+                                    settings_.cloudShadows && clouds ? 1.f : 0.f);
+  const auto rgb = [](const Rgb& c) { return glm::vec4(c.r, c.g, c.b, 0); };
+  frame_.ambient[0] = rgb(lighting_.ambientConstant);
+  frame_.ambient[1] = rgb(lighting_.ambientX);
+  frame_.ambient[2] = rgb(lighting_.ambientY);
+  frame_.ambient[3] = rgb(lighting_.ambientZ);
+  frame_.viewport = glm::vec4(width_, height_, 1.f / width_, 1.f / height_);
+  frame_.atmoGeometry = glm::vec4(p.planetRadius, p.atmosphereHeight, p.rayleighScaleHeight, p.mieScaleHeight);
+  frame_.rayleigh = glm::vec4(p.rayleighScattering.r, p.rayleighScattering.g, p.rayleighScattering.b, p.mieAnisotropy);
+  frame_.mie = glm::vec4(p.mieScattering, p.mieExtinction, p.fogExtinction, p.fogScaleHeight);
+  frame_.ozone = glm::vec4(p.ozoneAbsorption.r, p.ozoneAbsorption.g, p.ozoneAbsorption.b, eyeAltitude);
+  frame_.groundAlbedo = glm::vec4(p.groundAlbedo.r, p.groundAlbedo.g, p.groundAlbedo.b, settings_.renderDistance);
+  frame_.solar = glm::vec4(p.solarIrradiance.r, p.solarIrradiance.g, p.solarIrradiance.b,
+                           static_cast<float>(std::fmod(weatherTime_, 3600.)));
+  frame_.cloudLayer = glm::vec4(settings_.cloudCoverage, settings_.cloudBase, settings_.cloudThickness, clouds ? 1.f : 0.f);
+  frame_.cloudWeather = glm::vec4(static_cast<float>(cloudDrift_.x), static_cast<float>(cloudDrift_.y),
+                                  kCloudExtinction, 1.f / kWeatherMapExtent);
+  const float marchRange = settings_.clouds == CloudQuality::Low ? 45000.f
+                         : settings_.clouds == CloudQuality::Medium ? 70000.f : 110000.f;
+  frame_.cloudShape = glm::vec4(clouds ? settings_.cirrusCoverage : 0.f, kCirrusAltitude,
+                                std::min(marchRange, settings_.renderDistance), 0.f);
+  frame_.misc = glm::vec4(static_cast<float>(std::fmod(double(frameIndex_) * 0.6180339887, 1.0)),
+                          bgfx::getCaps()->originBottomLeft ? 1.f : 0.f, settings_.weather.precipitation,
+                          settings_.weather.precipitation);
+  frame_.cameraForward = glm::vec4(cameraForward_, kRangeScale);
+  // Relief shadows only matter, and only cost anything, while the sun is low.
+  const bool relief = settings_.terrainShadows && settings_.terrain == TerrainQuality::High &&
+                      settings_.sky.sunElevationDeg < 42.f && sun_.y > 0;
+  frame_.quality = glm::vec4(static_cast<float>(settings_.terrain), settings_.water ? 1.f : 0.f, 1.f, relief ? 8.f : 0.f);
+  const glm::vec3 windRender = renderDirection(weather.wind_ned);
+  frame_.wind = glm::vec4(glm::dot(windRender, windRender) < 1.f ? glm::vec3(4.f, 0, 1.5f) : windRender,
+                          static_cast<float>(std::fmod(weatherTime_ * .37, 6.2831853)));
+
+  stats_.exposure = exposure_;
+  stats_.sunIlluminanceLux = lighting_.sunIrradiance.luminance() * 10000.f;
+  stats_.skyIlluminanceLux = lighting_.skyIrradianceUp.luminance() * 10000.f;
 }
 
-void Renderer::setSkyUniforms() {
-  // Shared uniforms are submitted once by setFrameUniforms; bgfx debug
-  // rejects setting the same uniform twice before a draw submission.
-  setFrameUniforms(lastCamera_);
-  bgfx::setUniform(uniforms_.postSettings,glm::value_ptr(glm::vec4(0,0,bgfx::getCaps()->originBottomLeft?1.f:0.f,0)));
+void Renderer::bindFrame(const glm::mat4& viewProj) {
+  bgfx::setUniform(uniforms_.frame, &frame_, sizeof(FrameConstants) / sizeof(glm::vec4));
+  bgfx::setUniform(uniforms_.viewProj, glm::value_ptr(viewProj));
+}
 
-  bgfx::setUniform(uniforms_.invViewProj, glm::value_ptr(invViewProj_));
-  bgfx::setUniform(uniforms_.zenithColor,
-                   glm::value_ptr(glm::vec4(settings_.sky.zenithR, settings_.sky.zenithG,
-                                             settings_.sky.zenithB, 0)));
-  bgfx::setUniform(uniforms_.horizonColor,
-                   glm::value_ptr(glm::vec4(settings_.sky.horizonR, settings_.sky.horizonG,
-                                             settings_.sky.horizonB, 0)));
-  bgfx::setUniform(uniforms_.groundColor,
-                   glm::value_ptr(glm::vec4(settings_.sky.groundR, settings_.sky.groundG,
-                                             settings_.sky.groundB, 0)));
-  bgfx::setUniform(uniforms_.sunIntensity,
-                   glm::value_ptr(glm::vec4(settings_.sky.sunIntensity, 0, 0, 0)));
-  bgfx::setUniform(uniforms_.horizonSharpness,
-                   glm::value_ptr(glm::vec4(settings_.sky.horizonSharpness, 0, 0, 0)));
-  bgfx::setUniform(uniforms_.groundBlend,
-                   glm::value_ptr(glm::vec4(settings_.sky.groundBlend, 0, 0, 0)));
+void Renderer::bindLighting() {
+  glm::mat4 atlas[kMaxCascades];
+  for (int i = 0; i < kMaxCascades; ++i) atlas[i] = cascades_[i].atlas;
+  bgfx::setUniform(uniforms_.shadowMatrix, atlas, kMaxCascades);
+  const std::uint32_t clamp = BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP;
+  if (bgfx::isValid(shadowAtlas_)) bgfx::setTexture(0, uniforms_.shadowAtlas, shadowAtlas_);
+  bgfx::setTexture(6, uniforms_.transmittance, transmittanceTexture_, clamp);
+  bgfx::setTexture(7, uniforms_.skyView, bgfx::getTexture(skyTableBuffer_), clamp);
+  bgfx::setTexture(8, uniforms_.aerial, bgfx::getTexture(aerialBuffer_), clamp);
+  bgfx::setTexture(9, uniforms_.weatherMap, weatherMap_);
+  bgfx::setTexture(10, uniforms_.noise, noiseTile_);
+}
+
+void Renderer::fullscreenPass(bgfx::ViewId view, bgfx::ProgramHandle program, std::uint64_t state) {
+  bgfx::setVertexBuffer(0, screenTriangle_);
+  bgfx::setState(state);
+  bgfx::submit(view, program);
+  ++stats_.drawCalls;
+  ++stats_.triangles;
 }
 
 void Renderer::applyMaterial(const Material& material, const Model* asset, float detail) {
@@ -1053,7 +778,8 @@ void Renderer::applyMaterial(const Material& material, const Model* asset, float
       textureFor(material.normalTexture).idx!=whiteTexture_.idx ? 1.f:0.f);
   bgfx::setUniform(uniforms_.textureFlags,glm::value_ptr(flags));
   bgfx::setUniform(uniforms_.alphaSettings,glm::value_ptr(glm::vec4(
-      material.alpha==Material::Alpha::Mask ? 1.f:0.f,material.alphaCutoff,0,0)));
+      material.alpha==Material::Alpha::Mask ? 1.f:0.f,material.alphaCutoff,
+      material.alpha==Material::Alpha::Blend ? 1.f:0.f,0)));
   bgfx::setUniform(uniforms_.baseColor,
                    glm::value_ptr(glm::vec4(material.baseColor[0], material.baseColor[1],
                                             material.baseColor[2], material.baseColor[3])));
@@ -1066,232 +792,17 @@ void Renderer::applyMaterial(const Material& material, const Model* asset, float
                    glm::value_ptr(glm::vec4(material.doubleSided ? 1.0f : 0.0f, 0, 0, 0)));
 }
 
-void Renderer::setCloudUniforms() {
-  const bool enabled=settings_.clouds!=CloudQuality::Off && settings_.cloudCoverage>0;
-  bgfx::setUniform(uniforms_.cloudParams,glm::value_ptr(glm::vec4(settings_.cloudCoverage,
-      settings_.cloudBase,settings_.cloudThickness,enabled?1.f:0.f)));
-  bgfx::setUniform(uniforms_.weather,glm::value_ptr(glm::vec4(float(weatherTime_*12.),.008f,28000.f,
-      settings_.cloudShadows?1.f:0.f)));
-  bgfx::setTexture(6,uniforms_.cloudNoise,cloudNoise_);
-}
-
-void Renderer::drawClouds() {
-  if (settings_.clouds==CloudQuality::Off || settings_.cloudCoverage<=0) return;
-  // Low uses 1/16 of the display pixels; other tiers use 1/4, with a fixed
-  // upper pixel budget so a 4K display cannot make the march four times dearer.
-  const unsigned divisor=settings_.clouds==CloudQuality::Low?4:2;
-  const float scale=std::min({1.f,960.f/std::max(1.f,float(width_)/divisor),
-      540.f/std::max(1.f,float(height_)/divisor)});
-  const unsigned w=std::max(1u,unsigned(width_/divisor*scale));
-  const unsigned h=std::max(1u,unsigned(height_/divisor*scale));
-  if (!bgfx::isValid(cloudBuffer_) || w!=cloudWidth_ || h!=cloudHeight_) {
-    if (bgfx::isValid(cloudBuffer_)) bgfx::destroy(cloudBuffer_);
-    cloudWidth_=w;cloudHeight_=h;
-    cloudBuffer_=bgfx::createFrameBuffer(w,h,bgfx::TextureFormat::RGBA16F,BGFX_SAMPLER_U_CLAMP|BGFX_SAMPLER_V_CLAMP);
-    if (!bgfx::isValid(cloudBuffer_)) throw std::runtime_error("Cloud framebuffer creation failed");
-  }
-  bgfx::setViewName(7,"Volumetric clouds");
-  bgfx::setViewRect(7,0,0,w,h);
-  bgfx::setViewFrameBuffer(7,cloudBuffer_);
-  bgfx::setViewClear(7,BGFX_CLEAR_COLOR,0x00000000);
-  setFrameUniforms(lastCamera_);
-  bgfx::setUniform(uniforms_.invViewProj,glm::value_ptr(invViewProj_));
-  bgfx::setUniform(uniforms_.postSettings,glm::value_ptr(glm::vec4(0,0,bgfx::getCaps()->originBottomLeft?1.f:0.f,0)));
-  bgfx::setTexture(8,uniforms_.sceneDepth,bgfx::getTexture(hdrBuffer_,1),BGFX_SAMPLER_U_CLAMP|BGFX_SAMPLER_V_CLAMP|BGFX_SAMPLER_MIN_POINT|BGFX_SAMPLER_MAG_POINT);
-  const float steps=settings_.clouds==CloudQuality::Low?12.f:settings_.clouds==CloudQuality::High?36.f:24.f;
-  bgfx::setUniform(uniforms_.cloudRender,glm::value_ptr(glm::vec4(steps,w,h,0)));
-  bgfx::setVertexBuffer(0,skyTriangle_);
-  bgfx::setState(BGFX_STATE_WRITE_RGB|BGFX_STATE_WRITE_A);
-  bgfx::submit(7,programs_.clouds);++stats_.drawCalls;++stats_.triangles;
-  bgfx::discard();
-}
-
-void Renderer::compositeClouds() {
-  if(!hdrHasRange_)return;
-  bgfx::setViewName(9,"Clouds and effects");
-  bgfx::setViewRect(9,0,0,width_,height_);
-  bgfx::setViewFrameBuffer(9,atmosphereBuffer_);
-  bgfx::setViewClear(9,BGFX_CLEAR_NONE);
-  bgfx::setViewMode(9,bgfx::ViewMode::Sequential);
-  if (settings_.clouds==CloudQuality::Off || settings_.cloudCoverage<=0) return;
-  bgfx::setUniform(uniforms_.postSettings,glm::value_ptr(glm::vec4(0,0,bgfx::getCaps()->originBottomLeft?1.f:0.f,0)));
-  bgfx::setUniform(uniforms_.cloudRender,glm::value_ptr(glm::vec4(0,cloudWidth_,cloudHeight_,0)));
-  bgfx::setTexture(7,uniforms_.cloudLayer,bgfx::getTexture(cloudBuffer_),BGFX_SAMPLER_U_CLAMP|BGFX_SAMPLER_V_CLAMP|BGFX_SAMPLER_MIN_POINT|BGFX_SAMPLER_MAG_POINT);
-  bgfx::setTexture(8,uniforms_.sceneDepth,bgfx::getTexture(hdrBuffer_,1),BGFX_SAMPLER_U_CLAMP|BGFX_SAMPLER_V_CLAMP|BGFX_SAMPLER_MIN_POINT|BGFX_SAMPLER_MAG_POINT);
-  bgfx::setVertexBuffer(0,skyTriangle_);
-  bgfx::setState(BGFX_STATE_WRITE_RGB|BGFX_STATE_WRITE_A|BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE,BGFX_STATE_BLEND_INV_SRC_ALPHA));
-  bgfx::submit(9,programs_.cloudComposite);++stats_.drawCalls;++stats_.triangles;
-  bgfx::discard();
-}
-
-void Renderer::drawSky() {
-  bgfx::setViewName(0, "World");
-  bgfx::setViewRect(0, 0, 0, width_, height_);
-  bgfx::setViewFrameBuffer(0, hdrBuffer_);
-  bgfx::setViewTransform(0, nullptr, glm::value_ptr(viewProj_));
-  bgfx::setTransform(glm::value_ptr(glm::mat4{1}));
-  bgfx::setVertexBuffer(0, skyTriangle_);
-  // The sky vertex shader emits z = 1 with LEQUAL testing against a cleared
-  // depth of 1, so the dome fills the frame and never occludes world geometry.
-  // No depth write, so it needs no sorting against the scene.
-  bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_DEPTH_TEST_LEQUAL);
-  setSkyUniforms();
-  bgfx::submit(0, programs_.sky);
-  ++stats_.drawCalls;
-}
-
-void Renderer::ensureHdrBuffers() {
-  const bool range=settings_.clouds!=CloudQuality::Off && settings_.cloudCoverage>0;
-  if(bgfx::isValid(hdrBuffer_) && hdrWidth_==width_ && hdrHeight_==height_ && hdrSamples_==settings_.msaaSamples && hdrHasRange_==range)return;
-  if(bgfx::isValid(atmosphereBuffer_))bgfx::destroy(atmosphereBuffer_);
-  if(bgfx::isValid(hdrBuffer_))bgfx::destroy(hdrBuffer_);
-  for(auto handle:bloomBuffer_)if(bgfx::isValid(handle))bgfx::destroy(handle);
-  hdrWidth_=width_;hdrHeight_=height_;hdrSamples_=settings_.msaaSamples;hdrHasRange_=range;
-  atmosphereBuffer_=BGFX_INVALID_HANDLE;
-  bloomWidth_=std::max<unsigned>(1,width_/4);bloomHeight_=std::max<unsigned>(1,height_/4);
-  const std::uint64_t sampleFlags=hdrSamples_>=8?BGFX_TEXTURE_RT_MSAA_X8:
-      hdrSamples_>=4?BGFX_TEXTURE_RT_MSAA_X4:hdrSamples_>=2?BGFX_TEXTURE_RT_MSAA_X2:0;
-  std::uint64_t flags=BGFX_TEXTURE_RT|BGFX_SAMPLER_U_CLAMP|BGFX_SAMPLER_V_CLAMP|sampleFlags;
-  if(!bgfx::isTextureValid(0,false,1,bgfx::TextureFormat::RGBA16F,flags) ||
-      (range && !bgfx::isTextureValid(0,false,1,bgfx::TextureFormat::R16F,flags))) {
-    flags&=~BGFX_TEXTURE_RT_MSAA_MASK;
-    log("RENDER","HDR float MSAA unavailable; HDR target uses one sample");
-  }
-  const auto color=bgfx::createTexture2D(width_,height_,false,1,bgfx::TextureFormat::RGBA16F,flags);
-  const auto depth=bgfx::createTexture2D(width_,height_,false,1,bgfx::TextureFormat::D24S8,flags|BGFX_TEXTURE_RT_WRITE_ONLY);
-  const auto distance=range?bgfx::createTexture2D(width_,height_,false,1,bgfx::TextureFormat::R16F,flags):bgfx::TextureHandle{bgfx::kInvalidHandle};
-  if(!bgfx::isValid(color) || !bgfx::isValid(depth) || (range && !bgfx::isValid(distance))) {
-    for(auto h:{color,depth,distance})if(bgfx::isValid(h))bgfx::destroy(h);
-    throw std::runtime_error("HDR colour/depth target creation failed");
-  }
-  // A compact range attachment resolves like color with MSAA, allowing the
-  // volume to stop at geometry without multisample depth-texture support.
-  if(range) {
-    const bgfx::TextureHandle attachments[]{color,distance,depth};
-    hdrBuffer_=bgfx::createFrameBuffer(3,attachments,true);
-    const bgfx::TextureHandle atmosphereAttachments[]{color,depth};
-    atmosphereBuffer_=bgfx::createFrameBuffer(2,atmosphereAttachments,false);
-  } else {
-    const bgfx::TextureHandle attachments[]{color,depth};
-    hdrBuffer_=bgfx::createFrameBuffer(2,attachments,true);
-  }
-  for(auto& handle:bloomBuffer_)handle=bgfx::createFrameBuffer(bloomWidth_,bloomHeight_,bgfx::TextureFormat::RGBA16F,
-      BGFX_SAMPLER_U_CLAMP|BGFX_SAMPLER_V_CLAMP);
-  if(!bgfx::isValid(hdrBuffer_) || (range && !bgfx::isValid(atmosphereBuffer_)) || !bgfx::isValid(bloomBuffer_[0]) || !bgfx::isValid(bloomBuffer_[1]))
-    throw std::runtime_error("HDR/bloom framebuffer creation failed");
-}
-
-void Renderer::compositeHdr() {
-  const auto scene=bgfx::getTexture(hdrBuffer_);
-  const glm::vec4 settings(settings_.sky.exposure,settings_.bloom?settings_.bloomStrength:0.f,
-      bgfx::getCaps()->originBottomLeft?1.f:0.f,0.f);
-  const auto submit=[&](bgfx::ViewId view,bgfx::FrameBufferHandle target,bgfx::TextureHandle source,const glm::vec4& step){
-    bgfx::setViewName(view,"HDR bloom");bgfx::setViewRect(view,0,0,bloomWidth_,bloomHeight_);
-    bgfx::setViewFrameBuffer(view,target);bgfx::setViewClear(view,BGFX_CLEAR_NONE);
-    bgfx::setUniform(uniforms_.postSettings,glm::value_ptr(settings));
-    bgfx::setUniform(uniforms_.postStep,glm::value_ptr(step));
-    bgfx::setTexture(0,uniforms_.sceneTexture,source);
-    bgfx::setVertexBuffer(0,skyTriangle_);bgfx::setState(BGFX_STATE_WRITE_RGB|BGFX_STATE_WRITE_A);
-    bgfx::submit(view,programs_.bloom);++stats_.drawCalls;++stats_.triangles;
-  };
-  if(settings_.bloom && settings_.bloomStrength>0) {
-    submit(4,bloomBuffer_[0],scene,{1.f/width_,1.f/height_,1,0});
-    submit(5,bloomBuffer_[1],bgfx::getTexture(bloomBuffer_[0]),{1.f/bloomWidth_,0,0,0});
-    submit(6,bloomBuffer_[0],bgfx::getTexture(bloomBuffer_[1]),{0,1.f/bloomHeight_,0,0});
-  }
-  bgfx::setViewName(3,"HDR display transform");bgfx::setViewRect(3,0,0,width_,height_);
-  bgfx::setViewFrameBuffer(3,BGFX_INVALID_HANDLE);bgfx::setViewClear(3,BGFX_CLEAR_NONE);
-  bgfx::setUniform(uniforms_.postSettings,glm::value_ptr(settings));
-  bgfx::setTexture(0,uniforms_.sceneTexture,scene);
-  bgfx::setTexture(1,uniforms_.bloomTexture,settings_.bloom?bgfx::getTexture(bloomBuffer_[0]):whiteTexture_);
-  bgfx::setVertexBuffer(0,skyTriangle_);bgfx::setState(BGFX_STATE_WRITE_RGB|BGFX_STATE_WRITE_A);
-  bgfx::submit(3,programs_.post);++stats_.drawCalls;++stats_.triangles;
-  bgfx::discard();
-}
-
-bool Renderer::visiblePatch(const SceneryPatch& patch,float distance) const {
-  const glm::vec3 center=patch.center+localPosition({},origin_);
-  if (glm::length(center-cameraEye_)-patch.radius>distance) return false;
-  const auto row=[&](int i){return glm::vec4(viewProj_[0][i],viewProj_[1][i],viewProj_[2][i],viewProj_[3][i]);};
-  const auto w=row(3);
-  for (int axis=0;axis<3;++axis) for (float sign:{-1.f,1.f}) {
-    const auto plane=w+row(axis)*sign;
-    if(glm::dot(plane,glm::vec4(center,1)) < -patch.radius*glm::length(glm::vec3(plane))) return false;
-  }
-  return true;
-}
-
-void Renderer::drawEnvironment() {
-  const glm::mat4 environment = glm::translate(glm::mat4{1}, localPosition({}, origin_));
-
-  static const Material kGrass{{}, {0.118f, 0.170f, 0.082f, 1}, 0.0f, 0.96f, {}, Material::Alpha::Opaque,
-                               0.5f, false, 0};
-  static const Material kAsphalt{{}, {0.049f, 0.050f, 0.053f, 1}, 0.0f, 0.80f, {}, Material::Alpha::Opaque,
-                                 0.5f, false, 0};
-  static const Material kPaint{{}, {0.86f, 0.87f, 0.84f, 1}, 0.0f, 0.72f, {}, Material::Alpha::Opaque,
-                               0.5f, false, 0};
-
-  const auto draw = [&](bgfx::VertexBufferHandle buffer, const Material& material, float detail) {
-    setFrameUniforms(lastCamera_);
-    bgfx::setTransform(glm::value_ptr(environment));
-    bgfx::setUniform(uniforms_.model,glm::value_ptr(environment));
-    bgfx::setUniform(uniforms_.normalMatrix,glm::value_ptr(glm::mat3{1}));
-    bgfx::setState(kOpaqueState | BGFX_STATE_MSAA);
-    bgfx::setVertexBuffer(0,buffer);
-    applyMaterial(material,nullptr,detail);
-    bgfx::submit(0,programs_.pbr);
-    ++stats_.drawCalls;
-  };
-  draw(ground_,kGrass,1);
-  stats_.triangles+=kTerrainRings*kTerrainSegments*2;
-  draw(markings_,kAsphalt,2);
-  draw(paintBuffer_,kPaint,0);
-  const auto drawScenery = [&](bgfx::VertexBufferHandle buffer, glm::vec4 color,
-                                float roughness, float detail, glm::vec3 emissive) {
-    Material material;
-    material.baseColor[0]=color.r; material.baseColor[1]=color.g; material.baseColor[2]=color.b;
-    material.baseColor[3]=color.a; material.metallic=0; material.roughness=roughness;
-    material.emissive[0]=emissive.r; material.emissive[1]=emissive.g; material.emissive[2]=emissive.b;
-    draw(buffer,material,detail);
-  };
-  drawScenery(apron_, {.095f,.10f,.105f,1}, .9f, 2, {});
-  drawScenery(taxiPaint_, {.75f,.49f,.035f,1}, .8f, 0, {});
-  drawScenery(buildings_, {.31f,.34f,.35f,1}, .7f, 0, {});
-  drawScenery(windows_, {.025f,.065f,.095f,1}, .15f, 0, {});
-  drawScenery(lights_, {.72f,.82f,.9f,1}, .5f, 0, {1.4f,1.7f,2.2f});
-  drawScenery(roadside_, {.045f,.043f,.04f,1}, .95f, 2, {});
-  if(settings_.vegetation) for(const auto& patch:scenery_) {
-    if(!visiblePatch(patch,std::min(settings_.sceneryDistance,settings_.renderDistance))) continue;
-    const float distance=glm::length(patch.center+localPosition({},origin_)-cameraEye_);
-    const bool nearby=distance<1800.f;
-    const auto leaves=nearby?patch.foliage:patch.distant;
-    if(bgfx::isValid(leaves)) {
-      drawScenery(leaves,{.038f,.105f,.022f,1},.96f,3,{});
-      stats_.triangles+=(nearby?patch.foliageCount:patch.distantCount)/3;
-    }
-    if(distance<3200.f && bgfx::isValid(patch.wood)) {
-      drawScenery(patch.wood,{.15f,.095f,.052f,1},1,4,{});
-      stats_.triangles+=patch.woodCount/3;
-    }
-    if(distance<6000.f && bgfx::isValid(patch.rocks)) {
-      drawScenery(patch.rocks,{.25f,.25f,.22f,1},1,5,{});
-      stats_.triangles+=patch.rockCount/3;
-    }
-  }
-  bgfx::discard();
-}
-
 void Renderer::drawGrid() {
-  bgfx::setTransform(glm::value_ptr(glm::mat4{1}));
+  bindFrame(viewProj_);
+  bindLighting();
   bgfx::setUniform(uniforms_.model, glm::value_ptr(glm::translate(glm::mat4{1}, localPosition({}, origin_))));
-  bgfx::setUniform(uniforms_.viewProj, glm::value_ptr(viewProj_));
   bgfx::setVertexBuffer(0, grid_);
   bgfx::setState(kOpaqueState | BGFX_STATE_PT_LINES);
-  bgfx::submit(0, programs_.unlit);
+  bgfx::submit(kViewWorld, programs_.unlit);
   ++stats_.drawCalls;
 }
 
-void Renderer::drawAircraft(const Instance& instance, bool hide) {
+void Renderer::drawAircraft(const Instance& instance, bool hide, bgfx::ViewId view, const glm::mat4& viewProj) {
   const auto& asset = model(instance.type);
   if (hide || aircraftCrashed(*instance.state) || !asset.loaded) return;
   const std::size_t lod = instance.lod;
@@ -1303,10 +814,10 @@ void Renderer::drawAircraft(const Instance& instance, bool hide) {
   for (const bool translucent : {false,true}) for (const Batch& batch : level.batches) {
     if (batch.material >= asset.materials.size()) continue;
     if ((asset.materials[batch.material].alpha==Material::Alpha::Blend)!=translucent) continue;
-    setFrameUniforms(lastCamera_);
+    bindFrame(viewProj);
+    bindLighting();
     bgfx::setVertexBuffer(0, level.vertexBuffer);
     const auto modelMatrix = batch.transformNode<0 ? base : base*glm::make_mat4(instance.deltas[batch.transformNode].data());
-    bgfx::setTransform(glm::value_ptr(modelMatrix));
     bgfx::setUniform(uniforms_.model, glm::value_ptr(modelMatrix));
     bgfx::setUniform(uniforms_.normalMatrix, glm::value_ptr(glm::inverseTranspose(glm::mat3(modelMatrix))));
     Material material = asset.materials[batch.material];
@@ -1314,11 +825,10 @@ void Renderer::drawAircraft(const Instance& instance, bool hide) {
     const auto renderState = material.alpha==Material::Alpha::Blend ? kBlendState : kOpaqueState;
     bgfx::setState((material.doubleSided ? (renderState & ~BGFX_STATE_CULL_MASK) : renderState) | BGFX_STATE_MSAA | (settings_.wireframeAircraft ? BGFX_STATE_PT_LINES : 0));
     bgfx::setIndexBuffer(level.indexBuffer, batch.firstIndex, batch.indexCount);
-    bgfx::submit(0, programs_.pbr);
+    bgfx::submit(view, programs_.pbr);
     stats_.triangles += batch.indexCount / 3;
     ++stats_.drawCalls;
   }
-  bgfx::discard();
   ++stats_.aircraftDrawn;
   ++stats_.lodCounts[lod];
 }
@@ -1437,16 +947,24 @@ void Renderer::drawEffects(const CombatVisuals& combat) {
   const auto submit = [&](bool xray) {
     const auto vertexCount = static_cast<std::uint32_t>(effectScratch_.size() / kEffectVertexFloats);
     if (vertexCount == 0) return;
-    setFrameUniforms(lastCamera_);
+    bindFrame(viewProj_);
+    bindLighting();
     bgfx::TransientVertexBuffer transient;
     bgfx::allocTransientVertexBuffer(&transient, vertexCount, effectLayout_);
     std::memcpy(transient.data, effectScratch_.data(),
                 static_cast<std::size_t>(vertexCount) * kEffectVertexFloats * sizeof(float));
-    bgfx::setTransform(glm::value_ptr(glm::mat4{1}));
     bgfx::setVertexBuffer(0, &transient);
     bgfx::setUniform(uniforms_.model, glm::value_ptr(glm::mat4{1}));
+    // The resolved scene range softens particles against geometry, and the
+    // accumulated cloud layer hides the ones that lie behind cloud.
+    const std::uint32_t point = BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP | BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT;
+    const bool clouds = cloudsEnabled() && bgfx::isValid(cloudHistory_[cloudHistoryIndex_]);
+    bgfx::setTexture(13, uniforms_.sceneRange, bgfx::getTexture(hdrBuffer_, 1), point);
+    bgfx::setTexture(14, uniforms_.cloudLayer, clouds ? bgfx::getTexture(cloudHistory_[cloudHistoryIndex_], 0) : whiteTexture_, BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP);
+    bgfx::setTexture(15, uniforms_.cloudDepth, clouds ? bgfx::getTexture(cloudHistory_[cloudHistoryIndex_], 1) : whiteTexture_, point);
+    bgfx::setUniform(uniforms_.effectParams, glm::value_ptr(glm::vec4(clouds ? 1.f : 0.f, 0, 0, 0)));
     bgfx::setState((xray?(kBlendState & ~BGFX_STATE_DEPTH_TEST_MASK):kBlendState) | BGFX_STATE_MSAA);
-    bgfx::submit(hdrHasRange_?9:0, programs_.effect);
+    bgfx::submit(kViewAtmosphere, programs_.effect);
     ++stats_.drawCalls;
     stats_.activeParticles += vertexCount / 6;
   };
@@ -1472,6 +990,7 @@ void Renderer::drawAfterburners(bool localDestroyed) {
   if (settings_.effects==EffectsQuality::Off) return;
   // Fixed shared open volumetric shells: no per-frame vertex uploads or network
   // particle stream. Three translucent layers per engine, capped by world count.
+  // Drawn after the clouds, against the world's depth.
   if (!bgfx::isValid(flameMesh_)) {
     std::vector<float> data;
     constexpr unsigned rings=24, sectors=24;
@@ -1515,160 +1034,45 @@ void Renderer::drawAfterburners(bool localDestroyed) {
         glm::translate(glm::mat4{1},glm::vec3(relative.x,relative.y,relative.z))*
         glm::scale(glm::mat4{1},glm::vec3(definition.visual.exhaustLengthScale,
           definition.visual.exhaustRadiusScale,definition.visual.exhaustRadiusScale));
-      if (settings_.effects>=EffectsQuality::Medium && spool>.25f) {
+      if (settings_.heatDistortion && settings_.engineHeat && sceneHasRefraction_ && spool>.25f) {
+        // The hot exhaust column bends light: it is drawn as an image offset
+        // into the refraction buffer, not as colour.
         const float density=static_cast<float>(isaAtAltitude(-instance.state->pos_ned.z).rho/1.225);
         const float heat=(.25f+.75f*intensity)*spool*std::sqrt(std::max(.04f,density));
+        bindFrame(viewProj_);
         bgfx::setUniform(uniforms_.flame,glm::value_ptr(glm::vec4(heat,float(flameTime_),4,float((id%97)*3+e*11))));
         bgfx::setUniform(uniforms_.model,glm::value_ptr(matrix));
-        bgfx::setUniform(uniforms_.viewProj,glm::value_ptr(viewProj_));
-        bgfx::setTransform(glm::value_ptr(matrix));
+        bgfx::setUniform(uniforms_.effectParams,glm::value_ptr(glm::vec4(0,.035f,float(std::max(1,width_/2)),float(std::max(1,height_/2)))));
+        bgfx::setTexture(13,uniforms_.sceneRange,bgfx::getTexture(hdrBuffer_,1),BGFX_SAMPLER_U_CLAMP|BGFX_SAMPLER_V_CLAMP|BGFX_SAMPLER_MIN_POINT|BGFX_SAMPLER_MAG_POINT);
         bgfx::setVertexBuffer(0,flameMesh_,0,flameVertices_);
-        bgfx::setState(kBlendState|BGFX_STATE_MSAA);
-        bgfx::submit(hdrHasRange_?9:0,programs_.flame);++stats_.drawCalls;stats_.triangles+=flameVertices_/3;
+        bgfx::setState(BGFX_STATE_WRITE_RGB|BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE,BGFX_STATE_BLEND_ONE));
+        bgfx::submit(kViewRefraction,programs_.flame);++stats_.drawCalls;stats_.triangles+=flameVertices_/3;
       }
       if (intensity<.005f) continue;
       for(unsigned layer=0;layer<3;++layer) {
+        bindFrame(viewProj_);
         bgfx::setUniform(uniforms_.flame,glm::value_ptr(glm::vec4(intensity,float(flameTime_),float(layer),float((id%97)*3+e*11))));
         bgfx::setUniform(uniforms_.model,glm::value_ptr(matrix));
-        bgfx::setUniform(uniforms_.viewProj,glm::value_ptr(viewProj_));
-        bgfx::setTransform(glm::value_ptr(matrix));
         bgfx::setVertexBuffer(0,flameMesh_,0,flameVertices_);
         bgfx::setState(BGFX_STATE_WRITE_RGB|BGFX_STATE_WRITE_A|BGFX_STATE_DEPTH_TEST_LEQUAL|
           BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,BGFX_STATE_BLEND_ONE)|BGFX_STATE_MSAA);
-        bgfx::submit(hdrHasRange_?9:0,programs_.flame);
+        bgfx::submit(kViewAtmosphere,programs_.flame);
         ++stats_.drawCalls;stats_.triangles+=flameVertices_/3;
       }
       const auto center=localPosition(instance.state->pos_ned+instance.state->att.rotate(point),origin_);
       const float radius=.68f*static_cast<float>(definition.visual.exhaustRadiusScale)*std::sqrt(intensity);
       glm::mat4 glow{1};glow[0]=glm::vec4(basisRight_*radius,0);
       glow[1]=glm::vec4(basisUp_*radius,0);glow[3]=glm::vec4(center,1);
+      bindFrame(viewProj_);
       bgfx::setUniform(uniforms_.flame,glm::value_ptr(glm::vec4(intensity,float(flameTime_),3,float((id%97)*3+e*11))));
       bgfx::setUniform(uniforms_.model,glm::value_ptr(glow));
-      bgfx::setUniform(uniforms_.viewProj,glm::value_ptr(viewProj_));
-      bgfx::setTransform(glm::value_ptr(glow));
       bgfx::setVertexBuffer(0,flameMesh_,flameVertices_,6);
       bgfx::setState(BGFX_STATE_WRITE_RGB|BGFX_STATE_WRITE_A|BGFX_STATE_DEPTH_TEST_LEQUAL|
         BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,BGFX_STATE_BLEND_ONE)|BGFX_STATE_MSAA);
-      bgfx::submit(hdrHasRange_?9:0,programs_.flame);++stats_.drawCalls;stats_.triangles+=2;
+      bgfx::submit(kViewAtmosphere,programs_.flame);++stats_.drawCalls;stats_.triangles+=2;
     }
   }
   bgfx::discard();
-}
-
-void Renderer::drawShadowMap(const std::vector<const Instance*>& casters) {
-  if (settings_.shadows == ShadowQuality::Off || casters.empty()) {
-    shadowMapValid_ = false;
-    return;
-  }
-  const auto size = static_cast<std::uint16_t>(std::clamp(settings_.shadowMapSize, 512, 4096));
-  if (!bgfx::isValid(shadowBuffer_) || shadowMapSize_ != size) {
-    if (bgfx::isValid(shadowBuffer_)) bgfx::destroy(shadowBuffer_);
-
-    // The framebuffer owns the depth texture returned by getTexture().
-    shadowBuffer_ = bgfx::createFrameBuffer(
-        size, size, bgfx::TextureFormat::D32F,
-        BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP | BGFX_SAMPLER_COMPARE_LEQUAL);
-    shadowMapSize_ = size;
-    if (!bgfx::isValid(shadowBuffer_)) {
-      shadowMapValid_ = false;
-      log("RENDER", "Shadow map creation failed; shadows disabled");
-      return;
-    }
-    shadowMap_ = bgfx::getTexture(shadowBuffer_, 0);
-    if (!bgfx::isValid(shadowMap_)) {
-      bgfx::destroy(shadowBuffer_);
-      shadowBuffer_ = BGFX_INVALID_HANDLE;
-      shadowMapValid_ = false;
-      log("RENDER", "Shadow map texture handle unavailable; shadows disabled");
-      return;
-    }
-  }
-
-  // The volume follows the camera, snapped to the texel grid so shadow edges do
-  // not crawl while flying.
-  float sunDirection[3];
-  ofs::client::sunDirection(settings_.sky, sunDirection);
-  const glm::vec3 light(sunDirection[0], sunDirection[1], sunDirection[2]);
-  glm::vec3 focus = localPosition(casters.front()->state->pos_ned, origin_);
-  const float extent = std::max(30.0f, settings_.shadowExtent);
-  const float depth = extent * 4.0f;
-  const float snap = 2.0f * extent / static_cast<float>(size);
-  const glm::vec3 lightRight=glm::normalize(glm::cross(light,glm::vec3(0,1,0)));
-  const glm::vec3 lightUp=glm::normalize(glm::cross(lightRight,light));
-  const glm::dvec3 absolute=glm::dvec3(focus)+glm::dvec3(origin_.y,-origin_.z,-origin_.x);
-  const double horizontal=glm::dot(absolute,glm::dvec3(lightRight));
-  const double vertical=glm::dot(absolute,glm::dvec3(lightUp));
-  focus+=lightRight*float(std::round(horizontal/snap)*snap-horizontal)+
-         lightUp*float(std::round(vertical/snap)*snap-vertical);
-
-  const glm::mat4 lightView = glm::lookAt(focus - light * depth, focus, glm::vec3(0, 1, 0));
-  const glm::mat4 lightProjection = makeOrtho(-extent, extent, -extent, extent, 0.1f, depth * 2.5f);
-  const glm::mat4 lightViewProj = lightProjection * lightView;
-  glm::mat4 bias(1);
-  bias[0][0] = bias[1][1] = 0.5f;
-  bias[3][0] = bias[3][1] = 0.5f;
-  if (!bgfx::getCaps()->originBottomLeft) {
-    bias[1][1] = -.5f; // D3D texture origin is top-left.
-  }
-  if (bgfx::getCaps()->homogeneousDepth) {
-    bias[2][2] = 0.5f;
-    bias[3][2] = 0.5f;
-  }
-  shadowMatrix_ = bias * lightViewProj;
-
-  bgfx::setViewName(1, "ShadowMap");
-  bgfx::setViewRect(1, 0, 0, size, size);
-  // The shadow view must render into the map the surface shader samples, or
-  // the depth pass has no attachment and the map stays empty.
-  bgfx::setViewFrameBuffer(1, shadowBuffer_);
-  bgfx::setViewClear(1, BGFX_CLEAR_DEPTH, 0x000000ffu, 1.0f, 0);
-  bgfx::setViewTransform(1, glm::value_ptr(lightView), glm::value_ptr(lightProjection));
-  // No colour write and no culling: the A320 has open gear doors and a hollow
-  // nacelle, and either would punch holes in the map.
-
-  for (const Instance* instance : casters) {
-    const auto& asset = model(instance->type);
-    if (!asset.loaded) continue;
-    const glm::mat4 base = modelTransform(*instance->state,instance->type);
-    const std::size_t qualityLevel=settings_.shadows==ShadowQuality::High?1:
-        settings_.shadows==ShadowQuality::Medium?2:asset.levels.size()-1;
-    const auto& shadowLevel=asset.levels[std::min({instance->lod,qualityLevel,asset.levels.size()-1})];
-    for (const Batch& batch : shadowLevel.batches) {
-      if(asset.materials.at(batch.material).alpha==Material::Alpha::Blend)continue;
-      applyMaterial(asset.materials.at(batch.material),&asset,0);
-      bgfx::setVertexBuffer(0, shadowLevel.vertexBuffer);
-      bgfx::setState(BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS);
-      bgfx::setUniform(uniforms_.shadowMatrix, glm::value_ptr(lightViewProj));
-      const auto matrix=batch.transformNode<0 ? base : base*glm::make_mat4(instance->deltas[batch.transformNode].data());
-      bgfx::setTransform(glm::value_ptr(matrix));
-      bgfx::setUniform(uniforms_.model,glm::value_ptr(matrix));
-      bgfx::setIndexBuffer(shadowLevel.indexBuffer, batch.firstIndex, batch.indexCount);
-      bgfx::submit(1, programs_.shadow);
-      ++stats_.drawCalls;
-      stats_.triangles+=batch.indexCount/3;
-    }
-  }
-  const glm::mat4 environment=glm::translate(glm::mat4{1},localPosition({},origin_));
-  const auto sceneryShadow=[&](bgfx::VertexBufferHandle buffer,unsigned count) {
-    if(!bgfx::isValid(buffer))return;
-    applyMaterial(Material{},nullptr,0);
-    bgfx::setVertexBuffer(0,buffer);
-    bgfx::setState(BGFX_STATE_WRITE_Z|BGFX_STATE_DEPTH_TEST_LESS);
-    bgfx::setUniform(uniforms_.model,glm::value_ptr(environment));
-    bgfx::setUniform(uniforms_.shadowMatrix,glm::value_ptr(lightViewProj));
-    bgfx::setTransform(glm::value_ptr(environment));
-    bgfx::submit(1,programs_.shadow);++stats_.drawCalls;stats_.triangles+=count/3;
-  };
-  const glm::vec3 worldFocus=focus-localPosition({},origin_);
-  if(glm::length(worldFocus-glm::vec3(-280,20,-600))<extent+1000)
-    sceneryShadow(buildings_,5*60+90);
-  if(settings_.vegetation) for(const auto& patch:scenery_) {
-    if(glm::length(patch.center-worldFocus)>patch.radius+extent*1.5f)continue;
-    sceneryShadow(patch.foliage,patch.foliageCount);
-    sceneryShadow(patch.wood,patch.woodCount);
-  }
-  bgfx::discard();
-  shadowMapValid_ = true;
 }
 
 void Renderer::ui() {
@@ -1679,11 +1083,12 @@ void Renderer::ui() {
                         data->DisplayPos.y + data->DisplaySize.y, data->DisplayPos.y, 0.f, 1.f)
       : glm::orthoRH_ZO(data->DisplayPos.x, data->DisplayPos.x + data->DisplaySize.x,
                         data->DisplayPos.y + data->DisplaySize.y, data->DisplayPos.y, 0.f, 1.f);
-  bgfx::setViewMode(2, bgfx::ViewMode::Sequential);
-  bgfx::setViewName(2, "Dear ImGui");
-  bgfx::setViewMode(2, bgfx::ViewMode::Sequential);
-  bgfx::setViewRect(2, 0, 0, width_, height_);
-  bgfx::setViewTransform(2, nullptr, glm::value_ptr(projection));
+  bgfx::setViewMode(kViewUi, bgfx::ViewMode::Sequential);
+  bgfx::setViewName(kViewUi, "Dear ImGui");
+  bgfx::setViewMode(kViewUi, bgfx::ViewMode::Sequential);
+  bgfx::setViewRect(kViewUi, 0, 0, width_, height_);
+  bgfx::setViewFrameBuffer(kViewUi, BGFX_INVALID_HANDLE);
+  bgfx::setViewTransform(kViewUi, nullptr, glm::value_ptr(projection));
   // Scissor state persists across frames in bgfx, and the loop below narrows it
   // to each ImGui command's clip rectangle. Clearing it here releases the last
   // window's rectangle so the next frame's world passes are not clipped to it.
@@ -1728,7 +1133,7 @@ void Renderer::ui() {
       bgfx::setTexture(0, uiSampler_, texture);
       bgfx::setVertexBuffer(0, &vb, cmd.VtxOffset, nv - cmd.VtxOffset);
       bgfx::setIndexBuffer(&ib, cmd.IdxOffset, cmd.ElemCount);
-      bgfx::submit(2, programs_.imgui);
+      bgfx::submit(kViewUi, programs_.imgui);
     }
   }
 }
@@ -1749,6 +1154,7 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
                       std::span<const RemoteAircraft> remotes, const CombatVisuals& combat,
                       const Vec3& origin, double dt, double load, const Weather& weather) {
   if (!initialized_) return;
+  if (synthesis_.valid()) finishEnvironment();
   const auto preparationStart=std::chrono::steady_clock::now();
   // The simulation rebases its render origin as the aircraft travels, so it is
   // read fresh every frame rather than captured at construction.
@@ -1758,6 +1164,7 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
   stats_.triangles = 0;
   stats_.activeParticles = 0;
   stats_.aircraftDrawn = 0;
+  stats_.treesDrawn = 0;
   stats_.lodCounts = {};
   std::erase_if(instances_,[&](const auto& entry) {
     return entry.first!=0 && std::none_of(remotes.begin(),remotes.end(),[&](const auto& remote){return remote.alive && remote.entity==entry.first;});
@@ -1802,11 +1209,6 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
   // ---- Camera and frame matrices ----
   const float aspect =
       static_cast<float>(width_) / static_cast<float>(std::max<std::uint32_t>(1, height_));
-  const float far = std::max(1000.0f, settings_.renderDistance);
-  // The view matrix is what turns world space into camera space; the
-  // projection alone leaves every vertex in world coordinates, which puts the
-  // world outside the frustum and renders nothing but the sky (the sky builds
-  // its rays from the inverse view-projection, so it keeps looking correct).
   const glm::vec3 eye = localPosition(camera.eye, origin_);
   const glm::vec3 target = localPosition(camera.target, origin_);
   // The camera's own up comes from its orientation, so the horizon rolls with
@@ -1821,54 +1223,80 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
   if (std::abs(glm::dot(glm::normalize(forward), glm::normalize(upAxis))) > 0.999f)
     upAxis = {0.0f, 0.0f, 1.0f};
   view_ = glm::lookAt(eye, target, upAxis);
-  projection_ = makeProjection(static_cast<float>(camera.fov), aspect, camera.hidesOwnAircraft() ? std::min(.08f,settings_.nearPlane) : std::max(2.5f, settings_.nearPlane), far);
+  // Seen from the flight deck, the airframe is centimetres from the eye and
+  // the horizon is a hundred kilometres away. No single depth buffer resolves
+  // both, so the pilot's own aircraft is drawn afterwards in its own depth
+  // range and the world keeps a near plane that leaves it usable precision.
+  const bool cockpit = camera.hidesOwnAircraft();
+  cockpitPass_ = cockpit && aircraftDefinition(localType_).visual.cockpitGeometry && !combat.localDestroyed;
+  cameraNear_ = cockpit ? 1.5f : std::max(2.5f, settings_.nearPlane);
+  cameraFovDeg_ = static_cast<float>(camera.fov);
+  const float far = std::max(40000.0f, settings_.renderDistance) * 1.05f;
+  projection_ = makeProjection(cameraFovDeg_, aspect, cameraNear_, far);
   viewProj_ = projection_ * view_;
   invViewProj_ = glm::inverse(viewProj_);
-
+  cockpitViewProj_ = makeProjection(cameraFovDeg_, aspect, .05f, 150.f) * view_;
   cameraEye_ = eye;
-  bgfx::setViewTransform(0, nullptr, glm::value_ptr(viewProj_));
+  cameraForward_ = glm::normalize(forward);
+  // Screen basis for billboards, taken from the view matrix rows.
+  basisRight_ = glm::normalize(glm::vec3(view_[0][0], view_[1][0], view_[2][0]));
+  basisUp_ = glm::normalize(glm::vec3(view_[0][1], view_[1][1], view_[2][1]));
+
+  updateFrameConstants(camera, local, weather, dt);
+  ensureSceneBuffers();
+  computeCascades(camera, cockpit);
+  bgfx::setUniform(uniforms_.invViewProj, glm::value_ptr(invViewProj_));
+  drawAtmosphereTables();
 
   // ---- Shadow pass ----
   std::vector<const Instance*> casters;
-  casters.reserve(8);
+  casters.reserve(9);
   if (!combat.localDestroyed && !aircraftCrashed(local)) casters.push_back(&instances_.at(0));
   for (const auto& remote:remotes) {
-    if (casters.size()>=8) break;
-    if (remote.alive && !aircraftCrashed(remote.state) && (remote.state.pos_ned-local.pos_ned).norm()<settings_.shadowExtent*3)
+    if (casters.size()>=9) break;
+    if (remote.alive && !aircraftCrashed(remote.state) && (remote.state.pos_ned-camera.eye).norm()<settings_.shadowDistance*1.5)
       casters.push_back(&instances_.at(remote.entity));
   }
-  drawShadowMap(casters);
-  ensureHdrBuffers();
-  const bgfx::ViewId order[] = {1,0,7,9,4,5,6,3,2,8};
-  bgfx::setViewOrder(0,10,order);
-  weatherTime_ += std::clamp(dt,0.0,.1);
+  updateTreeChunks();
+  drawShadowAtlas(casters);
 
-  // ---- Main pass ----
-  // The clear colour matches the fog so a resize never flashes a different
-  // background before the sky covers it.
-  // bgfx takes the clear colour as 0xRRGGBBAA, so red occupies the high byte.
-  // Packing it as 0xAABBGGRR swaps red and blue, which tints the whole
-  // background sky-blue and was the cause of a channel-swapped-looking image.
-  const auto to8 = [](float value) {
-    return static_cast<std::uint32_t>(std::clamp(value, 0.0f, 1.0f) * 255.0f + 0.5f);
-  };
-  const auto fogRgba = (to8(settings_.fog.colorR) << 24) |
-                       (to8(settings_.fog.colorG) << 16) | (to8(settings_.fog.colorB) << 8) | 0xffu;
-  bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, fogRgba, 1.0f, 0);
-  bgfx::setViewMode(0, bgfx::ViewMode::Sequential);
+  // ---- World ----
+  bgfx::setViewName(kViewWorld, "World");
+  bgfx::setViewRect(kViewWorld, 0, 0, width_, height_);
+  bgfx::setViewFrameBuffer(kViewWorld, hdrBuffer_);
+  bgfx::setViewClear(kViewWorld, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x000000ffu, 1.0f, 0);
+  bgfx::setViewMode(kViewWorld, bgfx::ViewMode::Sequential);
   drawSky();
   drawEnvironment();
   if (settings_.showDebugGrid) drawGrid();
-  drawAircraft(instances_.at(0), (camera.hidesOwnAircraft() && !aircraftDefinition(localType_).visual.cockpitGeometry) || combat.localDestroyed);
+  if (!cockpit) drawAircraft(instances_.at(0), combat.localDestroyed, kViewWorld, viewProj_);
   for (const RemoteAircraft& remote : remotes)
     if (remote.alive && (remote.state.pos_ned-camera.eye).norm()<settings_.renderDistance)
-      drawAircraft(instances_.at(remote.entity), false);
+      drawAircraft(instances_.at(remote.entity), false, kViewWorld, viewProj_);
+
+  // ---- Atmosphere: clouds, particles, plumes, rain ----
   drawClouds();
   compositeClouds();
   drawEffects(combat);
   drawAfterburners(combat.localDestroyed);
-  compositeHdr();
+  drawRain(local, weather);
+
+  // ---- Flight deck ----
+  if (cockpitPass_) {
+    bgfx::setViewName(kViewCockpit, "Flight deck");
+    bgfx::setViewRect(kViewCockpit, 0, 0, width_, height_);
+    bgfx::setViewFrameBuffer(kViewCockpit, hdrBuffer_);
+    bgfx::setViewClear(kViewCockpit, BGFX_CLEAR_DEPTH, 0, 1.0f, 0);
+    bgfx::setViewMode(kViewCockpit, bgfx::ViewMode::Sequential);
+    drawAircraft(instances_.at(0), false, kViewCockpit, cockpitViewProj_);
+  }
+  compositeDisplay();
+  bgfx::discard();
   stats_.preparationMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-preparationStart).count();
+
+  previousViewProj_ = viewProj_;
+  previousOrigin_ = origin_;
+  ++frameIndex_;
 
   // ---- Statistics ----
   const bgfx::Stats* bgfxStats = bgfx::getStats();
@@ -1886,7 +1314,10 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
     fpsTimer_ = 0;
     fpsFrames_ = 0;
   }
-  stats_.shadowMapSize = shadowMapValid_ ? shadowMapSize_ : 0;
+  stats_.shadowMapSize = cascadeCount_ > 0 ? shadowTileSize_ : 0;
+  stats_.shadowCascades = static_cast<std::uint32_t>(cascadeCount_);
+  stats_.cloudWidth = cloudWidth_;
+  stats_.cloudHeight = cloudHeight_;
   stats_.lodTier = "LOD" + std::to_string(activeLod_);
 }
 

@@ -31,8 +31,10 @@ int main(){bool initialized=false;try {
   init.fallback=false;require(bgfx::init(init),"GPU initialization");initialized=true;
 #ifdef _WIN32
   auto shadow=program(shadow_vs_dx11,shadow_fs_dx11),pbr=program(pbr_vs_dx11,pbr_fs_dx11),flame=program(flame_vs_dx11,flame_fs_dx11);
+  auto display=program(fullscreen_vs_dx11,post_fs_dx11);
 #else
   auto shadow=program(shadow_vs_glsl,shadow_fs_glsl),pbr=program(pbr_vs_glsl,pbr_fs_glsl),flame=program(flame_vs_glsl,flame_fs_glsl);
+  auto display=program(fullscreen_vs_glsl,post_fs_glsl);
 #endif
   bgfx::VertexLayout layout;layout.begin().add(bgfx::Attrib::Position,3,bgfx::AttribType::Float)
     .add(bgfx::Attrib::Normal,3,bgfx::AttribType::Float).add(bgfx::Attrib::TexCoord0,2,bgfx::AttribType::Float)
@@ -48,28 +50,55 @@ int main(){bool initialized=false;try {
     BGFX_SAMPLER_U_CLAMP|BGFX_SAMPLER_V_CLAMP|BGFX_SAMPLER_MIN_POINT|BGFX_SAMPLER_MAG_POINT,bgfx::copy(texels,sizeof(texels)));
   const std::uint32_t white=0xffffffff;
   const auto whiteTexture=bgfx::createTexture2D(1,1,false,1,bgfx::TextureFormat::RGBA8,0,bgfx::copy(&white,4));
+  // No haze: the aerial-perspective atlas contributes nothing in these fixtures.
+  const std::uint32_t black=0xff000000;
+  const auto blackTexture=bgfx::createTexture2D(1,1,false,1,bgfx::TextureFormat::RGBA8,0,bgfx::copy(&black,4));
   const std::uint8_t tiltedNormal[]{204,128,230,255};
   const auto normalTexture=bgfx::createTexture2D(1,1,false,1,bgfx::TextureFormat::RGBA8,0,bgfx::copy(tiltedNormal,4));
   require(bgfx::isValid(framebuffer)&&bgfx::isValid(readback),"GPU readback capability");
   std::map<std::string,bgfx::UniformHandle> uniforms;
   const auto uniform=[&](const char* name,bgfx::UniformType::Enum type){auto [it,created]=uniforms.try_emplace(name);if(created)it->second=bgfx::createUniform(name,type);return it->second;};
   const auto vec=[&](const char* name,std::array<float,4> value){bgfx::setUniform(uniform(name,bgfx::UniformType::Vec4),value.data());};
+  // The packed per-frame constants, indexed as in client/shaders/frame.glsl.
+  using Frame=std::array<std::array<float,4>,24>;
+  const auto frameUniform=bgfx::createUniform("u_frame",bgfx::UniformType::Vec4,24);
+  const auto shadowMatrices=bgfx::createUniform("u_shadowMatrix",bgfx::UniformType::Mat4,3);
+  const auto setFrame=[&](const Frame& frame){bgfx::setUniform(frameUniform,frame.data(),24);};
+  const auto baseFrame=[&]{
+    Frame frame{};
+    frame[2]={0,0,1,1};            // toward the sun; unit emissive radiance
+    frame[8]={64,64,1.f/64,1.f/64}; // viewport
+    frame[9]={6360000,100000,8000,1200};
+    frame[11]={0,0,0,150};         // no aerosol or fog, but a finite fog scale height
+    frame[14]={2,2,2,0};           // solar irradiance; the disc sits on the horizon, half visible
+    frame[13]={0,0,0,1000};        // aerial range
+    frame[20]={0,bgfx::getCaps()->originBottomLeft?1.f:0.f,0,0};
+    frame[21]={0,0,-1,4};          // metres per stored range unit
+    return frame;
+  };
   const float identity[]{1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
   const float normal[]{1,0,0,0,1,0,0,0,1};
   const auto render=[&](bgfx::ProgramHandle shader,bool reverse,bool mask,float face,float cutoff=.5f,bool mapped=false) {
     bgfx::setViewRect(0,0,0,64,64);bgfx::setViewFrameBuffer(0,framebuffer);
     bgfx::setViewClear(0,BGFX_CLEAR_COLOR,0x000000ff);
-    for(auto name:{"u_ofsModel","u_ofsViewProj","u_shadowMatrix"})bgfx::setUniform(uniform(name,bgfx::UniformType::Mat4),identity);
+    for(auto name:{"u_ofsModel","u_ofsViewProj","u_lightViewProj"})bgfx::setUniform(uniform(name,bgfx::UniformType::Mat4),identity);
+    float cascades[48];for(unsigned i=0;i<48;++i)cascades[i]=identity[i%16];
+    bgfx::setUniform(shadowMatrices,cascades,3);
     bgfx::setUniform(uniform("u_normalMatrix",bgfx::UniformType::Mat3),normal);
     vec("u_baseColor",{1,1,1,1});vec("u_textureFlags",{mask?1.f:0.f,0,0,mapped?1.f:0.f});vec("u_alphaSettings",{mask?1.f:0.f,cutoff,0,0});
-    vec("u_doubleSided",{1,0,0,0});vec("u_cameraPos",{mapped?face*1.2f:0,0,face*(mapped?1.6f:2.f),0});
-    vec("u_sunDirection",{mapped?-face*.6f:0,0,-face*(mapped?.8f:1.f),0});vec("u_sunColor",{1,1,1,0});
-    vec("u_skyAmbient",{0,0,0,0});vec("u_groundAmbient",{0,0,0,0});vec("u_metallicRoughness",{0,1,0,0});
-    vec("u_emissive",{0,0,0,0});vec("u_normalSettings",{1,0,0,0});vec("u_shadowStrength",{0,0,0,0});vec("u_fogEnabled",{0,0,0,0});
-    vec("u_cloudParams",{0,0,0,0});vec("u_weather",{0,0,10000,0});vec("u_worldOrigin",{0,0,0,0});
-    vec("u_fogDensity",{0,0,0,0});vec("u_fogHeightFalloff",{1,0,0,0});vec("u_fogGroundFade",{1,0,0,0});vec("u_fogColor",{0,0,0,0});
+    vec("u_doubleSided",{1,0,0,0});vec("u_metallicRoughness",{0,1,0,0});
+    vec("u_emissive",{0,0,0,0});vec("u_normalSettings",{1,0,0,0});
+    // Sun and eye on the lit side of the plane; no sky, shadows, clouds or haze.
+    Frame frame=baseFrame();
+    frame[0]={mapped?face*1.2f:0,0,face*(mapped?1.6f:2.f),0};
+    frame[2]={mapped?face*.6f:0,0,face*(mapped?.8f:1.f),1};
+    setFrame(frame);
     for(auto [slot,name]:std::array<std::pair<unsigned,const char*>,5>{{{1,"s_baseColor"},{2,"s_metallicRoughness"},{3,"s_emissive"},{4,"s_normal"},{5,"s_occlusion"}}})
       bgfx::setTexture(slot,uniform(name,bgfx::UniformType::Sampler),slot==1&&mask?alphaTexture:slot==4&&mapped?normalTexture:whiteTexture);
+    // A clear path to the sun (white transmittance) and black sky, haze and noise lookups.
+    bgfx::setTexture(6,uniform("s_transmittance",bgfx::UniformType::Sampler),whiteTexture);
+    for(auto [slot,name]:std::array<std::pair<unsigned,const char*>,4>{{{7,"s_skyView"},{8,"s_aerial"},{9,"s_weatherMap"},{10,"s_noise"}}})
+      bgfx::setTexture(slot,uniform(name,bgfx::UniformType::Sampler),blackTexture);
     bgfx::setVertexBuffer(0,vb);bgfx::setIndexBuffer(reverse?bi:fi);bgfx::setState(BGFX_STATE_WRITE_RGB|BGFX_STATE_WRITE_A|BGFX_STATE_FRONT_CCW);
     bgfx::submit(0,shader);
     bgfx::blit(1,{.handle=readback},{.handle=bgfx::getTexture(framebuffer)});
@@ -103,7 +132,7 @@ int main(){bool initialized=false;try {
     bgfx::setViewClear(0,BGFX_CLEAR_COLOR,0x607080ff);
     bgfx::setUniform(uniform("u_ofsModel",bgfx::UniformType::Mat4),matrix.data());
     bgfx::setUniform(uniform("u_ofsViewProj",bgfx::UniformType::Mat4),identity);
-    vec("u_flame",{1,0,0,0});bgfx::setVertexBuffer(0,buffer);
+    setFrame(baseFrame());vec("u_flame",{1,0,0,0});vec("u_effectParams",{0,0,64,64});bgfx::setVertexBuffer(0,buffer);
     bgfx::setState(BGFX_STATE_WRITE_RGB|BGFX_STATE_WRITE_A|BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,BGFX_STATE_BLEND_ONE));
     bgfx::submit(0,flame);bgfx::blit(1,{.handle=readback},{.handle=bgfx::getTexture(framebuffer)});
     std::vector<std::uint8_t> pixels(64*64*4);const auto ready=bgfx::read({.handle=readback},pixels.data());
@@ -114,7 +143,35 @@ int main(){bool initialized=false;try {
   std::printf("GPU plume boundaries before/after=%u/%u interior=%u\n",below,above,inside);
   require(std::abs(int(below)-96)<=1 && std::abs(int(above)-96)<=1,"Plume boundaries preserve background without NaN black squares");
   require(inside>100,"Plume interior still emits light");
+  // The display transform is the one place scene radiance becomes pixels, so
+  // its anchors are pinned: black stays black, middle grey stays middle grey
+  // and the top of the exposure range reaches white without clipping early.
+  const auto displayed=[&](float radiance) {
+    const float texel[]{radiance,radiance,radiance,1};
+    const auto scene=bgfx::createTexture2D(1,1,false,1,bgfx::TextureFormat::RGBA32F,
+      BGFX_SAMPLER_U_CLAMP|BGFX_SAMPLER_V_CLAMP|BGFX_SAMPLER_MIN_POINT|BGFX_SAMPLER_MAG_POINT,bgfx::copy(texel,sizeof(texel)));
+    bgfx::setViewRect(0,0,0,64,64);bgfx::setViewFrameBuffer(0,framebuffer);
+    bgfx::setViewClear(0,BGFX_CLEAR_COLOR,0xff00ffff);
+    setFrame(baseFrame());vec("u_postSettings",{1,0,0,1});vec("u_postStep",{1,0,0,0});
+    bgfx::setTexture(0,uniform("s_scene",bgfx::UniformType::Sampler),scene);
+    bgfx::setTexture(1,uniform("s_bloom",bgfx::UniformType::Sampler),blackTexture);
+    bgfx::setTexture(2,uniform("s_distortion",bgfx::UniformType::Sampler),blackTexture);
+    bgfx::setVertexBuffer(0,vb);bgfx::setIndexBuffer(fi);bgfx::setState(BGFX_STATE_WRITE_RGB|BGFX_STATE_WRITE_A);
+    bgfx::submit(0,display);bgfx::blit(1,{.handle=readback},{.handle=bgfx::getTexture(framebuffer)});
+    std::vector<std::uint8_t> pixels(64*64*4);const auto ready=bgfx::read({.handle=readback},pixels.data());
+    require(ready!=UINT32_MAX,"Display readback scheduled");while(bgfx::frame()<ready+1){}
+    bgfx::destroy(scene);
+    // Green carries no white-balance gain, so it reports the tone curve alone.
+    return unsigned(pixels[(32*64+32)*4+1]);
+  };
+  const auto dark=displayed(0),grey=displayed(.18f),bright=displayed(.18f*std::exp2(4.7f)),stop=displayed(.36f);
+  std::printf("GPU display transform black/grey/+1 stop/white=%u/%u/%u/%u\n",dark,grey,stop,bright);
+  require(dark<=2,"Display transform keeps black");
+  require(std::abs(int(grey)-118)<=4,"Display transform maps 18% grey to its sRGB value");
+  require(stop>grey+25&&stop<grey+60,"Display transform keeps about unit contrast around middle grey");
+  require(bright>=253,"Display transform reaches white at the top of its range");
+  bgfx::destroy(frameUniform);bgfx::destroy(shadowMatrices);
   for(auto [name,handle]:uniforms)bgfx::destroy(handle);
-  for(auto h:{alphaTexture,whiteTexture,normalTexture,readback})bgfx::destroy(h);
-  bgfx::destroy(framebuffer);bgfx::destroy(vb);bgfx::destroy(fi);bgfx::destroy(bi);bgfx::destroy(shadow);bgfx::destroy(pbr);bgfx::destroy(flame);bgfx::shutdown();initialized=false;return 0;
+  for(auto h:{alphaTexture,whiteTexture,blackTexture,normalTexture,readback})bgfx::destroy(h);
+  bgfx::destroy(framebuffer);bgfx::destroy(vb);bgfx::destroy(fi);bgfx::destroy(bi);bgfx::destroy(shadow);bgfx::destroy(pbr);bgfx::destroy(flame);bgfx::destroy(display);bgfx::shutdown();initialized=false;return 0;
 }catch(const std::exception& e){std::fprintf(stderr,"FAIL GPU shader conformance: %s\n",e.what());if(initialized)bgfx::shutdown();return 1;}}

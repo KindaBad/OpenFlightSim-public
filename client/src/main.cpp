@@ -142,7 +142,7 @@ Options parse(int argc, char** argv) {
     throw std::runtime_error("gun smoke requires ordinary offline flight");
   if (!result.scenario.empty()) {
     if (!result.server.empty()) throw std::runtime_error("visual scenarios are offline fixtures only");
-    const std::vector<std::string> names{"parked","surfaces","flaps","gear","flight","high-altitude","high-mach","exhaust","contrail","gun","impact","destruction","mixed","idle","military","afterburner","afterburner-multiple","afterburner-transition","vectoring","high-aoa","condensation","environment","forest","grass","clouds","above-clouds"};
+    const std::vector<std::string> names{"parked","surfaces","flaps","gear","flight","high-altitude","high-mach","exhaust","contrail","gun","impact","destruction","mixed","idle","military","afterburner","afterburner-multiple","afterburner-transition","vectoring","high-aoa","condensation","environment","forest","grass","clouds","above-clouds","lake","mountains"};
     if (std::find(names.begin(), names.end(), result.scenario) == names.end())
       throw std::runtime_error("Unknown visual scenario");
     if (result.screenshot.empty() || !result.frames) throw std::runtime_error("visual scenarios require --frames and --screenshot");
@@ -442,6 +442,9 @@ int main(int argc, char** argv) {
       if(options.scenario=="grass") {fixture.pos_ned={-350,165,-6};fixture.vel_ned={};}
       if(options.scenario=="clouds") {fixture.pos_ned={-2000,3200,-double(graphics.cloudBase+graphics.cloudThickness*.4f)};fixture.vel_ned={};}
       if(options.scenario=="above-clouds") {fixture.pos_ned={-2000,3200,-double(graphics.cloudBase+graphics.cloudThickness+1500)};fixture.vel_ned={};}
+      // Low over the largest lake near the field, and level with the peaks of the northern range.
+      if(options.scenario=="lake") {fixture.pos_ned={3150,-5650,-150};fixture.vel_ned={};}
+      if(options.scenario=="mountains") {fixture.pos_ned={13500,2500,-2300};fixture.vel_ned={};}
       if (options.scenario == "gear") controls.gear01 = 1;
       if (options.scenario == "surfaces") {
         controls.elevator_stick = .8; controls.aileron_stick = .9; controls.rudder_pedal = .8;
@@ -1337,7 +1340,11 @@ int main(int argc, char** argv) {
       if (!network->ready() || remoteFrames < 30 || combatFrames < 10 || n.shots < 32 || n.hitsReceived < 4 ||
           n.destructions < 2 || n.respawns < 2 || life.generation == 0 ||
           !ofs::net::finiteState(simulation().state()))
-        throw std::runtime_error("graphical combat smoke failed");
+        throw std::runtime_error("graphical combat smoke failed: ready=" + std::to_string(network->ready()) +
+            " remoteFrames=" + std::to_string(remoteFrames) + " effectFrames=" + std::to_string(combatFrames) +
+            " shots=" + std::to_string(n.shots) + " hits=" + std::to_string(n.hitsReceived) +
+            " destructions=" + std::to_string(n.destructions) + " respawns=" + std::to_string(n.respawns) +
+            " generation=" + std::to_string(life.generation));
       std::fprintf(stderr,
                    "[COMBAT] GRAPHICAL PASS name=%s remoteFrames=%u shots=%llu "
                    "hitsReceived=%llu destroyed=%llu respawns=%llu life=%u health=%.0f "

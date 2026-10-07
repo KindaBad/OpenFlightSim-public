@@ -6,31 +6,38 @@ from pathlib import Path
 from .storage import LauncherError, atomic_write, read_json, write_json
 
 # key -> (default, minimum, maximum); keys mirror GraphicsSettings::load.
+# Options whose meaning changed with the physically based renderer use new key
+# names there (drawDistance, glare, shadowDistance), so values written by an
+# older launcher are ignored by the simulator rather than misread.
 GRAPHICS = {
-    'vsync': (1, 0, 1), 'msaa': (4, 1, 16), 'fullscreen': (0, 0, 1),
+    'preset': (2, 0, 4), 'vsync': (1, 0, 1), 'msaa': (4, 1, 16), 'fxaa': (1, 0, 1), 'fullscreen': (0, 0, 1),
     'width': (1280, 320, 16384), 'height': (800, 240, 16384),
-    'renderDistance': (24000, 500, 120000), 'textureMaxSize': (2048, 512, 8192),
+    'drawDistance': (160000, 40000, 250000), 'textureMaxSize': (2048, 512, 8192),
     'anisotropic': (1, 0, 1), 'lodBias': (0.0, -2, 2), 'clouds': (3, 0, 3),
-    'cloudShadows': (1, 0, 1), 'vegetation': (1, 0, 1), 'sceneryDistance': (9000, 1000, 15000),
-    'shadows': (3, 0, 3), 'effects': (3, 0, 3), 'shadowMapSize': (2048, 512, 4096),
-    'shadowExtent': (160, 30, 2000), 'bloom': (1, 0, 1), 'bloomStrength': (0.14, 0, .4),
+    'cloudShadows': (1, 0, 1), 'terrain': (2, 0, 2), 'water': (1, 0, 1), 'terrainShadows': (1, 0, 1),
+    'vegetation': (1, 0, 1), 'sceneryDistance': (7000, 1000, 15000), 'treeDensity': (650, 50, 1500),
+    'shadows': (3, 0, 3), 'shadowDistance': (1600, 200, 5000), 'effects': (3, 0, 3),
+    'heatDistortion': (1, 0, 1), 'bloom': (1, 0, 1), 'glare': (0.045, 0, .2),
+    'autoExposure': (1, 0, 1), 'exposureCompensation': (0.0, -4, 4), 'visibilityKm': (70.0, 2, 300),
     'cockpitFov': (70, 40, 100), 'hud': (1, 0, 1), 'playerLabels': (1, 0, 1),
-    'contrails': (1, 0, 1), 'wingVapor': (1, 0, 1), 'engineHeat': (1, 0, 1), 'fog': (1, 0, 1),
+    'contrails': (1, 0, 1), 'wingVapor': (1, 0, 1), 'engineHeat': (1, 0, 1),
 }
+# Mirrors GraphicsSettings::applyPreset; `preset` is the simulator's own index.
 PRESETS = {
-    'Low': dict(msaa=1, textureMaxSize=1024, shadows=0, effects=1, clouds=1,
-                shadowMapSize=512, cloudShadows=0, vegetation=0, sceneryDistance=3000,
-                renderDistance=12000, lodBias=1.5, bloom=0),
-    'Medium': dict(msaa=2, textureMaxSize=2048, shadows=1, effects=2, clouds=2,
-                   shadowMapSize=1024, cloudShadows=0, vegetation=1, sceneryDistance=6000,
-                   renderDistance=20000, lodBias=1.0, bloom=1),
-    'High': dict(msaa=4, textureMaxSize=2048, shadows=2, effects=3, clouds=3,
-                 shadowMapSize=2048, cloudShadows=1, vegetation=1, sceneryDistance=9000,
-                 renderDistance=24000, lodBias=0.0, bloom=1),
-    'Ultra': dict(msaa=8, textureMaxSize=4096, shadows=3, effects=3, clouds=3,
-                  shadowMapSize=4096, cloudShadows=1, vegetation=1, sceneryDistance=15000,
-                  renderDistance=40000, lodBias=-0.5, bloom=1),
+    'Low': dict(preset=0, msaa=1, fxaa=1, textureMaxSize=1024, lodBias=1.5, shadows=0, shadowDistance=800,
+                effects=1, heatDistortion=0, bloom=0, clouds=1, cloudShadows=0, terrain=0, terrainShadows=0,
+                water=1, vegetation=1, treeDensity=250, sceneryDistance=3500, drawDistance=80000),
+    'Medium': dict(preset=1, msaa=2, fxaa=1, textureMaxSize=2048, lodBias=0.5, shadows=2, shadowDistance=1200,
+                   effects=2, heatDistortion=1, bloom=1, clouds=2, cloudShadows=1, terrain=1, terrainShadows=0,
+                   water=1, vegetation=1, treeDensity=450, sceneryDistance=5500, drawDistance=120000),
+    'High': dict(preset=2, msaa=4, fxaa=1, textureMaxSize=2048, lodBias=0.0, shadows=3, shadowDistance=1600,
+                 effects=3, heatDistortion=1, bloom=1, clouds=3, cloudShadows=1, terrain=2, terrainShadows=1,
+                 water=1, vegetation=1, treeDensity=650, sceneryDistance=7000, drawDistance=160000),
+    'Ultra': dict(preset=3, msaa=8, fxaa=1, textureMaxSize=4096, lodBias=-0.5, shadows=3, shadowDistance=2400,
+                  effects=3, heatDistortion=1, bloom=1, clouds=3, cloudShadows=1, terrain=2, terrainShadows=1,
+                  water=1, vegetation=1, treeDensity=900, sceneryDistance=10000, drawDistance=220000),
 }
+CUSTOM_PRESET = 4
 
 
 def user_directory():

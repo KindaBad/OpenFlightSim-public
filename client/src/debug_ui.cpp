@@ -109,8 +109,8 @@ void debugUi(const Simulator& sim, Controls& controls, const Camera& camera,
       else
         ImGui::Text("Draws %u | tris %u | particles %u", stats.drawCalls, stats.triangles,
                     stats.activeParticles);
-      ImGui::Text("Aircraft drawn %u | %s | shadow %u", stats.aircraftDrawn, stats.lodTier.c_str(),
-                  stats.shadowMapSize);
+      ImGui::Text("Aircraft drawn %u | %s | shadow %u x %u", stats.aircraftDrawn, stats.lodTier.c_str(),
+                  stats.shadowCascades, stats.shadowMapSize);
       ImGui::Text("Particles %u / 4096 | peak %zu | prep %.3f ms", stats.activeParticles,
                   stats.particlePeak, stats.preparationMs);
       ImGui::Text("Simulation 120 Hz | %.1f ticks/s measured", measuredTicks);
@@ -211,61 +211,72 @@ void debugUi(const Simulator& sim, Controls& controls, const Camera& camera,
   // ---- Graphics settings ----
   if (!settings.showDevOverlay) return;
   ImGui::SetNextWindowPos({398, 14}, ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowSize({340, 620}, ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize({360, 640}, ImGuiCond_FirstUseEver);
   if (ImGui::Begin("Graphics", nullptr, ImGuiWindowFlags_NoSavedSettings)) {
+    // Any individual change below turns the preset into "Custom".
+    const GraphicsSettings before = settings;
+    int preset = static_cast<int>(settings.preset);
+    if (ImGui::Combo("Quality preset", &preset, "Low\0Medium\0High\0Ultra\0Custom\0"))
+      settings.applyPreset(static_cast<GraphicsPreset>(preset));
     if (ImGui::CollapsingHeader("Display", ImGuiTreeNodeFlags_DefaultOpen)) {
       ImGui::Checkbox("VSync", &settings.vsync);
-      ImGui::SliderInt("MSAA samples", &settings.msaaSamples, 1, 8);
-      ImGui::Checkbox("Bloom",&settings.bloom);
-      ImGui::SliderFloat("Bloom strength",&settings.bloomStrength,0.f,.3f,"%.2f");
+      static const int kSamples[] = {1, 2, 4, 8};
+      int sampleIndex = settings.msaaSamples >= 8 ? 3 : settings.msaaSamples >= 4 ? 2 : settings.msaaSamples >= 2 ? 1 : 0;
+      if (ImGui::Combo("Multisampling", &sampleIndex, "Off\0" "2x\0" "4x\0" "8x\0"))
+        settings.msaaSamples = kSamples[sampleIndex];
+      ImGui::Checkbox("Edge filter (FXAA)", &settings.fxaa);
+      ImGui::Checkbox("Anisotropic filtering", &settings.anisotropic);
       ImGui::SliderInt("Texture resolution (next launch)",&settings.textureMaxSize,512,4096);
-      ImGui::Checkbox("Anisotropic textures (next launch)",&settings.anisotropic);
-      ImGui::SliderFloat("LOD bias",&settings.lodBias,-2.f,2.f,"%.1f");
-      ImGui::SliderFloat("Render distance (m)", &settings.renderDistance, 2000.0f, 60000.0f,
-                         "%.0f");
-      ImGui::SliderFloat("Near plane (m)", &settings.nearPlane, 0.05f, 5.0f, "%.2f");
+      ImGui::SliderFloat("Model LOD bias",&settings.lodBias,-2.f,2.f,"%.1f");
+      ImGui::SliderFloat("Draw distance (km)", &settings.renderDistance, 40000.0f, 250000.0f, "%.0f m");
       ImGui::SliderFloat("Cockpit vertical FOV (deg)",&settings.cockpitFov,40.f,100.f,"%.0f");
       if (ImGui::Checkbox("Fullscreen", &settings.fullscreen)) ui.toggleFullscreen = true;
     }
-    if (ImGui::CollapsingHeader("Shadows", ImGuiTreeNodeFlags_DefaultOpen)) {
-      int shadow = static_cast<int>(settings.shadows);
-      if (ImGui::Combo("Quality", &shadow, "Off\0Low (1024)\0Medium (2048)\0High (4096)\0"))
-        { settings.shadows = static_cast<ShadowQuality>(shadow);
-          settings.shadowMapSize = shadow==1 ? 1024 : (shadow==3 ? 4096 : 2048); }
-      ImGui::Text("Active map: %u", stats.shadowMapSize);
-      ImGui::SliderFloat("Extent (m)", &settings.shadowExtent, 40.0f, 600.0f, "%.0f");
-      ImGui::SliderFloat("Bias", &settings.shadowBias, 0.0001f, 0.01f, "%.5f");
-      ImGui::SliderFloat("Strength", &settings.shadowStrength, 0.0f, 1.0f, "%.2f");
+    if (ImGui::CollapsingHeader("Time and exposure", ImGuiTreeNodeFlags_DefaultOpen)) {
+      ImGui::SliderFloat("Sun elevation (deg)", &settings.sky.sunElevationDeg, -8.0f, 89.0f, "%.1f");
+      ImGui::SliderFloat("Sun azimuth (deg)", &settings.sky.sunAzimuthDeg, 0.0f, 360.0f, "%.1f");
+      ImGui::Checkbox("Automatic exposure", &settings.sky.autoExposure);
+      ImGui::SliderFloat("Exposure compensation (EV)", &settings.sky.exposureCompensation, -3.0f, 3.0f, "%+.1f");
+      ImGui::Text("Sun %.0f klx | sky %.0f klx | exposure %.2f", stats.sunIlluminanceLux / 1000.f,
+                  stats.skyIlluminanceLux / 1000.f, stats.exposure);
+      ImGui::Checkbox("Glare",&settings.bloom);
+      ImGui::SliderFloat("Glare amount",&settings.bloomStrength,0.f,.15f,"%.3f");
     }
-    if (ImGui::CollapsingHeader("Clouds and scenery", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::CollapsingHeader("Air and weather", ImGuiTreeNodeFlags_DefaultOpen)) {
+      ImGui::SliderFloat("Visibility (km)", &settings.weather.visibilityKm, 3.0f, 250.0f, "%.0f", ImGuiSliderFlags_Logarithmic);
+      ImGui::SliderFloat("Ground fog", &settings.weather.fogDensity, 0.0f, 1.0f, "%.2f");
+      ImGui::SliderFloat("Fog depth (m)", &settings.weather.fogHeight, 30.0f, 1200.0f, "%.0f");
+      ImGui::SliderFloat("Rain", &settings.weather.precipitation, 0.0f, 1.0f, "%.2f");
+    }
+    if (ImGui::CollapsingHeader("Clouds", ImGuiTreeNodeFlags_DefaultOpen)) {
       int cloud = static_cast<int>(settings.clouds);
       if (ImGui::Combo("Cloud quality", &cloud, "Off\0Low\0Medium\0High\0"))
         settings.clouds = static_cast<CloudQuality>(cloud);
-      ImGui::SliderFloat("Cloud coverage", &settings.cloudCoverage, 0.f, 1.f, "%.2f");
-      ImGui::SliderFloat("Cloud base (m)", &settings.cloudBase, 500.f, 6000.f, "%.0f");
-      ImGui::SliderFloat("Cloud thickness (m)", &settings.cloudThickness, 200.f, 2500.f, "%.0f");
+      ImGui::SliderFloat("Cumulus coverage", &settings.cloudCoverage, 0.f, 1.f, "%.2f");
+      ImGui::SliderFloat("Cloud base (m)", &settings.cloudBase, 300.f, 6000.f, "%.0f");
+      ImGui::SliderFloat("Cloud depth (m)", &settings.cloudThickness, 300.f, 4000.f, "%.0f");
+      ImGui::SliderFloat("Cirrus coverage", &settings.cirrusCoverage, 0.f, 1.f, "%.2f");
       ImGui::Checkbox("Cloud shadows", &settings.cloudShadows);
-      ImGui::Checkbox("Trees and rocks", &settings.vegetation);
-      ImGui::SliderFloat("Scenery distance (m)", &settings.sceneryDistance, 1000.f, 15000.f, "%.0f");
+      ImGui::Text("March target %u x %u", stats.cloudWidth, stats.cloudHeight);
     }
-    if (ImGui::CollapsingHeader("Sun and sky", ImGuiTreeNodeFlags_DefaultOpen)) {
-      ImGui::SliderFloat("Sun elevation (deg)", &settings.sky.sunElevationDeg, 2.0f, 89.0f, "%.1f");
-      ImGui::SliderFloat("Sun azimuth (deg)", &settings.sky.sunAzimuthDeg, 0.0f, 360.0f, "%.1f");
-      ImGui::SliderFloat("Sun intensity", &settings.sky.sunIntensity, 0.0f, 20.0f, "%.2f");
-      ImGui::SliderFloat("Exposure", &settings.sky.exposure, 0.2f, 3.0f, "%.2f");
-      ImGui::ColorEdit3("Zenith", &settings.sky.zenithR);
-      ImGui::ColorEdit3("Horizon", &settings.sky.horizonR);
-      ImGui::ColorEdit3("Ground", &settings.sky.groundR);
-      ImGui::ColorEdit3("Sky ambient", &settings.sky.skyAmbientR);
-      ImGui::ColorEdit3("Ground ambient", &settings.sky.groundAmbientR);
-      ImGui::SliderFloat("Horizon sharpness", &settings.sky.horizonSharpness, 0.1f, 2.0f, "%.2f");
+    if (ImGui::CollapsingHeader("Terrain and scenery", ImGuiTreeNodeFlags_DefaultOpen)) {
+      int terrain = static_cast<int>(settings.terrain);
+      if (ImGui::Combo("Terrain detail (next launch)", &terrain, "Low\0Medium\0High\0"))
+        settings.terrain = static_cast<TerrainQuality>(terrain);
+      ImGui::Checkbox("Lakes", &settings.water);
+      ImGui::Checkbox("Relief shadows", &settings.terrainShadows);
+      ImGui::Checkbox("Trees", &settings.vegetation);
+      ImGui::SliderFloat("Tree distance (m)", &settings.sceneryDistance, 1000.f, 15000.f, "%.0f");
+      ImGui::SliderInt("Tree density (per km2)", &settings.treeDensity, 50, 1500);
+      ImGui::Text("Trees drawn %u in %u chunks | %d lakes", stats.treesDrawn, stats.treeChunks, stats.lakes);
     }
-    if (ImGui::CollapsingHeader("Atmosphere", ImGuiTreeNodeFlags_DefaultOpen)) {
-      ImGui::Checkbox("Fog", &settings.fog.enabled);
-      ImGui::SliderFloat("Density", &settings.fog.density, 0.0f, 0.0004f, "%.7f");
-      ImGui::SliderFloat("Height falloff (m)", &settings.fog.heightFalloff, 200.0f, 6000.0f, "%.0f");
-      ImGui::SliderFloat("Ground blend", &settings.fog.groundFade, 0.0f, 1.0f, "%.2f");
-      ImGui::ColorEdit3("Fog colour", &settings.fog.colorR);
+    if (ImGui::CollapsingHeader("Shadows", ImGuiTreeNodeFlags_DefaultOpen)) {
+      int shadow = static_cast<int>(settings.shadows);
+      if (ImGui::Combo("Quality", &shadow, "Off\0Low (2 x 1024)\0Medium (3 x 1536)\0High (3 x 2048)\0"))
+        settings.shadows = static_cast<ShadowQuality>(shadow);
+      ImGui::Text("Active: %u cascades of %u", stats.shadowCascades, stats.shadowMapSize);
+      ImGui::SliderFloat("Distance (m)", &settings.shadowDistance, 300.0f, 4000.0f, "%.0f");
+      ImGui::SliderFloat("Strength", &settings.shadowStrength, 0.0f, 1.0f, "%.2f");
     }
     if (ImGui::CollapsingHeader("Effects and overlays")) {
       int effects = static_cast<int>(settings.effects);
@@ -275,6 +286,7 @@ void debugUi(const Simulator& sim, Controls& controls, const Camera& camera,
       ImGui::Checkbox("Wing condensation", &settings.wingVapor);
       ImGui::SliderFloat("Relative humidity", &settings.relativeHumidity, 0.f, 1.f, "%.2f");
       ImGui::Checkbox("Engine heat", &settings.engineHeat);
+      ImGui::Checkbox("Heat refraction", &settings.heatDistortion);
       ImGui::Separator();
       ImGui::Checkbox("HUD", &ui.hud.show);
       ImGui::SameLine();
@@ -290,6 +302,18 @@ void debugUi(const Simulator& sim, Controls& controls, const Camera& camera,
       ImGui::Checkbox("Physics geometry", &settings.showPhysicsGeometry);
       if(settings.showPhysicsGeometry)ImGui::TextWrapped("Magenta: CG/hinges; cyan: aero reference; green: force sites; orange: thrust; white: wheel contacts; RGB: principal inertia axes.");
     }
+    // Cost-related options no longer match the preset once one is edited.
+    if (settings.preset == before.preset &&
+        (settings.msaaSamples != before.msaaSamples || settings.fxaa != before.fxaa || settings.lodBias != before.lodBias ||
+         settings.renderDistance != before.renderDistance || settings.bloom != before.bloom ||
+         settings.clouds != before.clouds || settings.cloudShadows != before.cloudShadows ||
+         settings.terrain != before.terrain || settings.terrainShadows != before.terrainShadows ||
+         settings.water != before.water || settings.vegetation != before.vegetation ||
+         settings.sceneryDistance != before.sceneryDistance || settings.treeDensity != before.treeDensity ||
+         settings.shadows != before.shadows || settings.shadowDistance != before.shadowDistance ||
+         settings.effects != before.effects || settings.heatDistortion != before.heatDistortion ||
+         settings.textureMaxSize != before.textureMaxSize))
+      settings.preset = GraphicsPreset::Custom;
     ImGui::Separator();
     if (ImGui::Button("Save settings")) ui.saveSettings = true;
     ImGui::SameLine();

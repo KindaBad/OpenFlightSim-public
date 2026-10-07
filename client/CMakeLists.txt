@@ -18,6 +18,8 @@ foreach(stage vs fs)
   file(GLOB found "${shader_dir}/*_${stage}.glsl")
   list(APPEND shader_sources ${found})
 endforeach()
+# Every stage file and every shared include is a rebuild dependency.
+file(GLOB shader_includes "${shader_dir}/*.glsl")
 list(LENGTH shader_sources shader_count)
 set(shader_backends "glsl")
 if(WIN32)
@@ -30,7 +32,7 @@ add_custom_command(
   OUTPUT "${shader_header}"
   COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/scripts/pack_shaders.py"
           "${shader_header}" "${shader_dir}" "$<TARGET_FILE:shaderc>" "${BGFX_DIR}" "${shader_backends}"
-  DEPENDS shaderc ${shader_sources} "${shader_dir}/common.glsl" "${shader_dir}/varying.def.sc"
+  DEPENDS shaderc ${shader_sources} ${shader_includes} "${shader_dir}/varying.def.sc"
           "${CMAKE_SOURCE_DIR}/scripts/pack_shaders.py"
   COMMENT "Compiling backend-specific bgfx shader binaries"
   VERBATIM)
@@ -49,6 +51,7 @@ file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/generated/ofs_font.hpp"
 
 add_executable(ofs_client
   src/main.cpp src/platform.cpp src/input.cpp src/renderer.cpp
+  src/renderer_atmosphere.cpp src/renderer_environment.cpp
   src/debug_ui.cpp src/hud.cpp src/camera.cpp src/settings.cpp)
 add_dependencies(ofs_client ofs_shaders)
 target_include_directories(ofs_client PRIVATE src "${CMAKE_CURRENT_BINARY_DIR}/generated")
@@ -124,6 +127,11 @@ if(OFS_BUILD_TESTS)
 endif()
 
 if(OFS_BUILD_TESTS)
+  # Windows compiles these sources as HLSL. Compiling them through shaderc's
+  # HLSL front end to SPIR-V catches GLSL-only constructs on any build machine.
+  add_test(NAME client.shader_portability COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_SOURCE_DIR}/tests/shader_source_tests.py" "${CMAKE_SOURCE_DIR}" "$<TARGET_FILE:shaderc>" "${BGFX_DIR}")
+  set_tests_properties(client.shader_portability PROPERTIES TIMEOUT 120 LABELS "regression-plausibility")
   add_executable(ofs_shader_conformance ../tests/shader_conformance.cpp src/platform.cpp)
   add_dependencies(ofs_shader_conformance ofs_shaders)
   target_include_directories(ofs_shader_conformance PRIVATE src "${CMAKE_CURRENT_BINARY_DIR}/generated")

@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, Q
     QCheckBox, QSpinBox, QDoubleSpinBox, QLineEdit, QProgressBar, QMessageBox,
     QFileDialog, QScrollArea, QPlainTextEdit)
 
-from .config import Preferences, Graphics, GRAPHICS, PRESETS
+from .config import Preferences, Graphics, GRAPHICS, PRESETS, CUSTOM_PRESET
 from .download import download, fetch_manifest, Cancelled
 from .game import Installation, Session, MODES, arguments
 from .hardware import probe, recommendation, display_modes
@@ -365,8 +365,9 @@ class Window(QMainWindow):
             widget = QDoubleSpinBox() if isinstance(default, float) else QSpinBox()
             widget.setRange(low, high)
             if isinstance(default, float):
-                widget.setDecimals(2)
-                widget.setSingleStep(.1)
+                # Fractions such as the glare amount need finer steps than distances or stops.
+                widget.setDecimals(3 if high <= 1 else 2)
+                widget.setSingleStep(.005 if high <= 1 else .1)
             widget.setValue(value if isinstance(default, float) else int(value))
             widget.valueChanged.connect(lambda v: self.graphic_change(key, v))
         widget.setToolTip(tip or 'Saved to the simulator graphics.cfg. Takes effect on the next flight.')
@@ -377,6 +378,7 @@ class Window(QMainWindow):
         if self.updating:
             return
         self.graphics.values[key] = str(value)
+        self.graphics.values['preset'] = str(CUSTOM_PRESET)
         self.prefs.preset = 'Custom'
         self.preset_combo.blockSignals(True)
         self.preset_combo.setCurrentText('Custom')
@@ -390,7 +392,7 @@ class Window(QMainWindow):
             self.error(str(exc))
 
     def make_graphics(self):
-        box = self.page('Visual systems', 'Graphics quality', 'Presets tune the existing renderer. Texture and sampling changes apply on the next launch.')
+        box = self.page('Visual systems', 'Graphics quality', 'Presets set every cost-related renderer option at once. Texture and terrain detail changes apply on the next launch.')
         form = self.form(box)
         self.preset_combo = QComboBox()
         self.preset_combo.addItems(['Auto / Recommended', *PRESETS, 'Custom'])
@@ -402,9 +404,12 @@ class Window(QMainWindow):
         levels = list(enumerate(['Off', 'Low', 'Medium', 'High']))
         self.graphic(form, 'msaa', 'Anti-aliasing', [(n, 'Off' if n == 1 else f'{n}× MSAA') for n in (1, 2, 4, 8, 16)])
         self.graphic(form, 'textureMaxSize', 'Texture limit', [(n, f'{n} px') for n in (512, 1024, 2048, 4096, 8192)])
-        for key, title in [('shadows', 'Shadows'), ('effects', 'Effects / particles'), ('clouds', 'Clouds')]:
+        for key, title in [('shadows', 'Sun shadows'), ('effects', 'Effects / particles'), ('clouds', 'Volumetric clouds')]:
             self.graphic(form, key, title, levels)
-        for key, title in [('anisotropic', 'Anisotropic filtering'), ('bloom', 'Bloom'), ('cloudShadows', 'Cloud shadows'), ('vegetation', 'Vegetation')]:
+        self.graphic(form, 'terrain', 'Terrain detail', list(enumerate(['Low', 'Medium', 'High'])))
+        for key, title in [('fxaa', 'Edge filter (FXAA)'), ('anisotropic', 'Anisotropic filtering'), ('bloom', 'Glare'),
+                           ('cloudShadows', 'Cloud shadows'), ('terrainShadows', 'Relief shadows'), ('water', 'Lakes'),
+                           ('vegetation', 'Trees'), ('heatDistortion', 'Exhaust heat refraction')]:
             self.graphic(form, key, title)
         box.addStretch()
 
@@ -499,18 +504,21 @@ class Window(QMainWindow):
         box.addStretch()
 
     def make_advanced(self):
-        box = self.page('Fine tuning', 'Advanced', 'Adjust renderer settings with clear units. Higher distances and shadow sizes increase GPU cost.')
+        box = self.page('Fine tuning', 'Advanced', 'Adjust renderer settings with clear units. Longer distances and denser forest increase GPU cost.')
         form = self.form(box)
         cameras = [(v, t) for v, t in [('chase', 'Chase'), ('close-chase', 'Close chase'), ('cockpit', 'Cockpit'), ('orbit', 'Orbit'), ('free', 'Free camera')]]
         form.addRow('Starting camera', self.combo(cameras, self.prefs.camera, lambda v: self.set_pref('camera', v)))
-        for key, title, tip in [('renderDistance', 'Draw distance (m)', 'Far clipping distance in metres. Large values reduce depth precision.'),
-                                ('sceneryDistance', 'Scenery distance (m)', 'Terrain vegetation visibility distance, 1–15 km.'),
+        for key, title, tip in [('drawDistance', 'Draw distance (m)', 'How far terrain and haze are drawn, 40–250 km.'),
+                                ('sceneryDistance', 'Tree distance (m)', 'Individual trees are drawn to this range, 1–15 km. Forest beyond it is shaded into the terrain.'),
+                                ('treeDensity', 'Tree density (per km²)', 'Candidate trees per square kilometre of woodland.'),
                                 ('lodBias', 'Model LOD bias', 'Log₂ distance bias. Positive values choose cheaper geometry sooner.'),
-                                ('shadowMapSize', 'Shadow map size', 'Shadow-map resolution per side. Larger maps cost GPU memory.'),
-                                ('shadowExtent', 'Shadow half extent (m)', 'Size of the shadow box around the camera; increasing range reduces detail.'),
-                                ('bloomStrength', 'Bloom strength', 'Post-processing bloom contribution, 0–0.4.'),
-                                ('fog', 'Atmospheric fog', ''), ('contrails', 'Contrails', ''), ('wingVapor', 'Wing vapour', ''),
-                                ('engineHeat', 'Engine exhaust bands', ''), ('hud', 'Flight HUD', ''), ('playerLabels', 'Player labels', '')]:
+                                ('shadowDistance', 'Shadow distance (m)', 'Sun shadows are drawn out to this range from the camera.'),
+                                ('glare', 'Glare amount', 'Fraction of light scattered around bright sources, 0–0.2.'),
+                                ('visibilityKm', 'Visibility (km)', 'Meteorological visual range at sea level; sets the haze.'),
+                                ('autoExposure', 'Automatic exposure', 'Meters the scene like a camera as the sun and weather change.'),
+                                ('exposureCompensation', 'Exposure compensation (EV)', 'Photographic stops added to the metered exposure.'),
+                                ('contrails', 'Contrails', ''), ('wingVapor', 'Wing vapour', ''),
+                                ('engineHeat', 'Engine exhaust heat', ''), ('hud', 'Flight HUD', ''), ('playerLabels', 'Player labels', '')]:
             self.graphic(form, key, title, tip=tip)
         self.hardware_label = label('Detecting hardware…', 'muted')
         box.addWidget(self.hardware_label)

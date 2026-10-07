@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(OpenFlightSim VERSION 0.3.3 LANGUAGES C CXX)
+project(OpenFlightSim VERSION 0.4.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -57,10 +57,13 @@ install(DIRECTORY data/launcher/ DESTINATION data/launcher)
 # CPU asset/animation/effect logic has no window, graphics API or GLM dependency.
 if(OFS_BUILD_CLIENT OR OFS_BUILD_TESTS)
   add_library(ofs_visual_core STATIC client/src/gltf.cpp client/src/json.cpp
-    client/src/protected_asset.cpp client/src/mesh.cpp client/src/effects.cpp client/src/animation.cpp client/src/texture.cpp)
+    client/src/protected_asset.cpp client/src/mesh.cpp client/src/effects.cpp client/src/animation.cpp client/src/texture.cpp
+    client/src/atmosphere_model.cpp client/src/procedural.cpp client/src/landscape.cpp)
   target_include_directories(ofs_visual_core PUBLIC client/src)
   target_include_directories(ofs_visual_core SYSTEM PRIVATE client/thirdparty)
-  target_link_libraries(ofs_visual_core PUBLIC ofs_core)
+  # Procedural environment synthesis spreads its rows across the available cores.
+  find_package(Threads REQUIRED)
+  target_link_libraries(ofs_visual_core PUBLIC ofs_core Threads::Threads)
   ofs_target_defaults(ofs_visual_core)
   include(cmake/ProtectedAssets.cmake)
 endif()

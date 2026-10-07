@@ -10,3 +10,6 @@ vec4 v_color : COLOR0;
 
 vec4 a_tangent : TANGENT;
 vec4 v_tangent : TEXCOORD4;
+
+vec4 i_data0 : TEXCOORD7;
+vec4 i_data1 : TEXCOORD6;

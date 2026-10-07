@@ -77,12 +77,18 @@ A persistent elevator offset is added to stick input in core physics; it is not
 a runtime pitch controller. Existing C control entry points remain unchanged,
 with additive `ofs_set_elevator_trim` for the new offset.
 
-Renderer owns procedural airfield/sky resources, aircraft model resources,
-shadow maps, programs, material textures and the font atlas. Each aircraft type
-shares its GPU model/three LODs; each entity owns an independent visual pose and
-hysteretic LOD choice. Shadow casters use the cheapest LOD and a bounded near set.
-The delivered A320 is the actual GLB, not a placeholder. Models have factor-based
-PBR, base-color/metallic-roughness/emissive textures and directional sun shadows.
+Renderer owns the atmosphere tables, cloud volumes, terrain and airfield
+resources, the instanced forest, aircraft model resources, the shadow atlas,
+programs, material textures and the font atlas. Sunlight, skylight, haze and
+exposure all derive from one CPU atmosphere model (`atmosphere_model.cpp`) with
+no GPU dependency, and land cover, lakes and tree placement derive from the
+shared terrain function (`landscape.cpp`); both are tested headless. The frame
+graph and its settings are described in [RENDERER.md](RENDERER.md). Each aircraft
+type shares its GPU model/three LODs; each entity owns an independent visual pose
+and hysteretic LOD choice. Shadow casters use coarser LODs in the farther cascades
+and a bounded near set. The delivered A320 is the actual GLB, not a placeholder.
+Models have factor-based PBR, base-color/metallic-roughness/emissive textures and
+cascaded sun shadows.
 
 CMake builds pinned bgfx shaderc and compiles the portable project shader sources
 and varying definitions. Linux embeds GLSL 430; Windows embeds GLSL and DXBC

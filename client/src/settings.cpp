@@ -106,19 +106,58 @@ T clampSetting(T value, T low, T high) {
 
 void sunDirection(const SkySettings& sky, float out[3]) {
   // Elevation is measured above the horizon; azimuth is measured clockwise from
-  // north. Converted to the render frame (+X east, +Y up, +Z south) and then
-  // negated so it points from the sun toward the scene.
+  // north. Converted to the render frame (+X east, +Y up, +Z south): north is
+  // -Z, so a sun in the north has a negative Z component.
   constexpr double kDeg2Rad = kPi / 180.0;
   const double elevation = sky.sunElevationDeg * kDeg2Rad;
   const double azimuth = sky.sunAzimuthDeg * kDeg2Rad;
-  const double east = std::sin(azimuth) * std::cos(elevation);
-  const double up = std::sin(elevation);
-  const double south = std::cos(azimuth) * std::cos(elevation);
-  const double length = std::sqrt(east * east + up * up + south * south);
-  const double scale = length > 1e-9 ? 1.0 / length : 0.0;
-  out[0] = static_cast<float>(-east * scale);
-  out[1] = static_cast<float>(-up * scale);
-  out[2] = static_cast<float>(-south * scale);
+  out[0] = static_cast<float>(std::sin(azimuth) * std::cos(elevation));
+  out[1] = static_cast<float>(std::sin(elevation));
+  out[2] = static_cast<float>(-std::cos(azimuth) * std::cos(elevation));
+}
+
+void GraphicsSettings::applyPreset(GraphicsPreset chosen) {
+  preset = chosen;
+  switch (chosen) {
+    case GraphicsPreset::Low:
+      msaaSamples = 1; fxaa = true; textureMaxSize = 1024; lodBias = 1.5f;
+      shadows = ShadowQuality::Off; shadowDistance = 800.f;
+      effects = EffectsQuality::Low; heatDistortion = false; bloom = false;
+      clouds = CloudQuality::Low; cloudShadows = false;
+      terrain = TerrainQuality::Low; terrainShadows = false; water = true;
+      vegetation = true; treeDensity = 250; sceneryDistance = 3500.f;
+      renderDistance = 80000.f;
+      break;
+    case GraphicsPreset::Medium:
+      msaaSamples = 2; fxaa = true; textureMaxSize = 2048; lodBias = .5f;
+      shadows = ShadowQuality::Medium; shadowDistance = 1200.f;
+      effects = EffectsQuality::Medium; heatDistortion = true; bloom = true;
+      clouds = CloudQuality::Medium; cloudShadows = true;
+      terrain = TerrainQuality::Medium; terrainShadows = false; water = true;
+      vegetation = true; treeDensity = 450; sceneryDistance = 5500.f;
+      renderDistance = 120000.f;
+      break;
+    case GraphicsPreset::High:
+      msaaSamples = 4; fxaa = true; textureMaxSize = 2048; lodBias = 0.f;
+      shadows = ShadowQuality::High; shadowDistance = 1600.f;
+      effects = EffectsQuality::High; heatDistortion = true; bloom = true;
+      clouds = CloudQuality::High; cloudShadows = true;
+      terrain = TerrainQuality::High; terrainShadows = true; water = true;
+      vegetation = true; treeDensity = 650; sceneryDistance = 7000.f;
+      renderDistance = 160000.f;
+      break;
+    case GraphicsPreset::Ultra:
+      msaaSamples = 8; fxaa = true; textureMaxSize = 4096; lodBias = -.5f;
+      shadows = ShadowQuality::High; shadowDistance = 2400.f;
+      effects = EffectsQuality::High; heatDistortion = true; bloom = true;
+      clouds = CloudQuality::High; cloudShadows = true;
+      terrain = TerrainQuality::High; terrainShadows = true; water = true;
+      vegetation = true; treeDensity = 900; sceneryDistance = 10000.f;
+      renderDistance = 220000.f;
+      break;
+    case GraphicsPreset::Custom:
+      break;
+  }
 }
 
 void GraphicsSettings::load(const std::string& path) {
@@ -127,30 +166,46 @@ void GraphicsSettings::load(const std::string& path) {
   if (!file) return;  // First run: defaults are the configuration.
   const ConfigTable table = parseConfig(file);
 
+  // Keys whose meaning changed with the physically based renderer have new
+  // names, so a file written by an earlier build (or an earlier launcher) keeps
+  // its still-valid choices and silently falls back to defaults for the rest.
+  int presetIndex = static_cast<int>(preset);
+  read(table, "preset", presetIndex);
   read(table, "vsync", vsync);
   read(table, "msaa", msaaSamples);
+  read(table, "fxaa", fxaa);
   read(table, "fullscreen", fullscreen);
   read(table, "width", windowWidth);
   read(table, "height", windowHeight);
-  read(table, "renderDistance", renderDistance);
+  read(table, "drawDistance", renderDistance);
   read(table, "nearPlane", nearPlane);
-  read(table,"cockpitFov",cockpitFov);
-  read(table,"bloom",bloom);read(table,"bloomStrength",bloomStrength);
-  read(table,"textureMaxSize",textureMaxSize);read(table,"anisotropic",anisotropic);
-  read(table,"lodBias",lodBias);
+  read(table, "cockpitFov", cockpitFov);
+  read(table, "bloom", bloom);
+  read(table, "glare", bloomStrength);
+  read(table, "textureMaxSize", textureMaxSize);
+  read(table, "anisotropic", anisotropic);
+  read(table, "lodBias", lodBias);
   int cloudQuality = static_cast<int>(clouds);
-  read(table,"clouds",cloudQuality);
-  read(table,"cloudCoverage",cloudCoverage); read(table,"cloudBase",cloudBase);
-  read(table,"cloudThickness",cloudThickness); read(table,"cloudShadows",cloudShadows);
-  read(table,"vegetation",vegetation); read(table,"sceneryDistance",sceneryDistance);
+  read(table, "clouds", cloudQuality);
+  read(table, "cloudCoverage", cloudCoverage);
+  read(table, "cloudBase", cloudBase);
+  read(table, "cloudThickness", cloudThickness);
+  read(table, "cirrusCoverage", cirrusCoverage);
+  read(table, "cloudShadows", cloudShadows);
+  int terrainQuality = static_cast<int>(terrain);
+  read(table, "terrain", terrainQuality);
+  read(table, "water", water);
+  read(table, "terrainShadows", terrainShadows);
+  read(table, "vegetation", vegetation);
+  read(table, "sceneryDistance", sceneryDistance);
+  read(table, "treeDensity", treeDensity);
   int shadowQuality = static_cast<int>(shadows);
   read(table, "shadows", shadowQuality);
   int effectsLevel = static_cast<int>(effects);
   read(table, "effects", effectsLevel);
-  read(table, "shadowMapSize", shadowMapSize);
-  read(table, "shadowExtent", shadowExtent);
-  read(table, "shadowBias", shadowBias);
+  read(table, "shadowDistance", shadowDistance);
   read(table, "shadowStrength", shadowStrength);
+  read(table, "heatDistortion", heatDistortion);
   read(table, "hud", showHud);
   read(table, "playerLabels", showPlayerLabels);
   read(table, "playerLabelMaxDistance", playerLabelMaxDistance);
@@ -160,61 +215,48 @@ void GraphicsSettings::load(const std::string& path) {
   read(table, "contrails", contrails);
   read(table, "wingVapor", wingVapor);
   read(table, "relativeHumidity", relativeHumidity);
-  relativeHumidity = clampSetting(relativeHumidity, 0.f, 1.f);
   read(table, "engineHeat", engineHeat);
   read(table, "wireframeAircraft", wireframeAircraft);
 
   read(table, "sunElevation", sky.sunElevationDeg);
   read(table, "sunAzimuth", sky.sunAzimuthDeg);
-  read(table, "sunIntensity", sky.sunIntensity);
-  read(table, "zenithR", sky.zenithR); read(table, "zenithG", sky.zenithG);
-  read(table, "zenithB", sky.zenithB);
-  read(table, "horizonR", sky.horizonR); read(table, "horizonG", sky.horizonG);
-  read(table, "horizonB", sky.horizonB);
-  read(table, "groundR", sky.groundR); read(table, "groundG", sky.groundG);
-  read(table, "groundB", sky.groundB);
-  read(table, "horizonSharpness", sky.horizonSharpness);
-  read(table, "groundBlend", sky.groundBlend);
-  read(table, "skyAmbientR", sky.skyAmbientR);
-  read(table, "skyAmbientG", sky.skyAmbientG);
-  read(table, "skyAmbientB", sky.skyAmbientB);
-  read(table, "groundAmbientR", sky.groundAmbientR);
-  read(table, "groundAmbientG", sky.groundAmbientG);
-  read(table, "groundAmbientB", sky.groundAmbientB);
-  read(table, "exposure", sky.exposure);
+  read(table, "autoExposure", sky.autoExposure);
+  read(table, "exposureCompensation", sky.exposureCompensation);
 
-  read(table, "fog", fog.enabled);
-  read(table, "fogDensity", fog.density);
-  read(table, "fogHeightFalloff", fog.heightFalloff);
-  read(table, "fogGroundFade", fog.groundFade);
-  read(table, "fogColorR", fog.colorR); read(table, "fogColorG", fog.colorG);
-  read(table, "fogColorB", fog.colorB);
+  read(table, "visibilityKm", weather.visibilityKm);
+  read(table, "fogDensity01", weather.fogDensity);
+  read(table, "fogHeight", weather.fogHeight);
+  read(table, "precipitation", weather.precipitation);
 
   // A hand-edited file must not be able to produce an unusable configuration.
+  preset = static_cast<GraphicsPreset>(clampSetting(presetIndex, 0, 4));
   msaaSamples = clampSetting(msaaSamples, 1, 16);
   windowWidth = clampSetting(windowWidth, 320, 16384);
   windowHeight = clampSetting(windowHeight, 240, 16384);
-  renderDistance = clampSetting(renderDistance, 500.0f, 120000.0f);
+  renderDistance = clampSetting(renderDistance, 40000.0f, 250000.0f);
   nearPlane = clampSetting(nearPlane, 0.02f, 20.0f);
-  cockpitFov=clampSetting(cockpitFov,40.f,100.f);
-  bloomStrength=clampSetting(bloomStrength,0.f,.4f);
-  textureMaxSize=clampSetting(textureMaxSize,512,8192);
-  lodBias=clampSetting(lodBias,-2.f,2.f);
-  clouds = static_cast<CloudQuality>(clampSetting(cloudQuality,0,3));
-  cloudCoverage=clampSetting(cloudCoverage,0.f,1.f);
-  cloudBase=clampSetting(cloudBase,500.f,10000.f);
-  cloudThickness=clampSetting(cloudThickness,200.f,3000.f);
-  sceneryDistance=clampSetting(sceneryDistance,1000.f,15000.f);
-  shadowMapSize = clampSetting(shadowMapSize, 512, 4096);
-  shadowExtent = clampSetting(shadowExtent, 30.0f, 2000.0f);
-  shadowBias = clampSetting(shadowBias, 0.00005f, 0.05f);
+  cockpitFov = clampSetting(cockpitFov, 40.f, 100.f);
+  bloomStrength = clampSetting(bloomStrength, 0.f, .2f);
+  textureMaxSize = clampSetting(textureMaxSize, 512, 8192);
+  lodBias = clampSetting(lodBias, -2.f, 2.f);
+  clouds = static_cast<CloudQuality>(clampSetting(cloudQuality, 0, 3));
+  cloudCoverage = clampSetting(cloudCoverage, 0.f, 1.f);
+  cloudBase = clampSetting(cloudBase, 300.f, 8000.f);
+  cloudThickness = clampSetting(cloudThickness, 300.f, 4000.f);
+  cirrusCoverage = clampSetting(cirrusCoverage, 0.f, 1.f);
+  terrain = static_cast<TerrainQuality>(clampSetting(terrainQuality, 0, 2));
+  sceneryDistance = clampSetting(sceneryDistance, 1000.f, 15000.f);
+  treeDensity = clampSetting(treeDensity, 50, 1500);
+  shadowDistance = clampSetting(shadowDistance, 200.0f, 5000.0f);
   shadowStrength = clampSetting(shadowStrength, 0.0f, 1.0f);
   playerLabelMaxDistance = clampSetting(playerLabelMaxDistance, 100.0f, 100000.0f);
-  sky.sunElevationDeg = clampSetting(sky.sunElevationDeg, -5.0f, 89.0f);
-  sky.sunIntensity = clampSetting(sky.sunIntensity, 0.0f, 64.0f);
-  sky.exposure = clampSetting(sky.exposure, 0.05f, 8.0f);
-  fog.density = clampSetting(fog.density, 0.0f, 0.01f);
-  fog.heightFalloff = clampSetting(fog.heightFalloff, 50.0f, 20000.0f);
+  relativeHumidity = clampSetting(relativeHumidity, 0.f, 1.f);
+  sky.sunElevationDeg = clampSetting(sky.sunElevationDeg, -10.0f, 89.0f);
+  sky.exposureCompensation = clampSetting(sky.exposureCompensation, -4.0f, 4.0f);
+  weather.visibilityKm = clampSetting(weather.visibilityKm, 2.0f, 300.0f);
+  weather.fogDensity = clampSetting(weather.fogDensity, 0.0f, 1.0f);
+  weather.fogHeight = clampSetting(weather.fogHeight, 20.0f, 2000.0f);
+  weather.precipitation = clampSetting(weather.precipitation, 0.0f, 1.0f);
   shadows = static_cast<ShadowQuality>(clampSetting(shadowQuality, 0, 3));
   effects = static_cast<EffectsQuality>(clampSetting(effectsLevel, 0, 3));
 }
@@ -227,27 +269,38 @@ bool GraphicsSettings::save() const {
     return false;
   }
   file << "# OpenFlightSim graphics settings\n";
+  write(file, "preset", static_cast<int>(preset));
   write(file, "vsync", vsync);
   write(file, "msaa", msaaSamples);
+  write(file, "fxaa", fxaa);
   write(file, "fullscreen", fullscreen);
   write(file, "width", windowWidth);
   write(file, "height", windowHeight);
-  write(file, "renderDistance", renderDistance);
+  write(file, "drawDistance", renderDistance);
   write(file, "nearPlane", nearPlane);
-  write(file,"cockpitFov",cockpitFov);
-  write(file,"bloom",bloom);write(file,"bloomStrength",bloomStrength);
-  write(file,"textureMaxSize",textureMaxSize);write(file,"anisotropic",anisotropic);
-  write(file,"lodBias",lodBias);
-  write(file,"clouds",static_cast<int>(clouds));
-  write(file,"cloudCoverage",cloudCoverage); write(file,"cloudBase",cloudBase);
-  write(file,"cloudThickness",cloudThickness); write(file,"cloudShadows",cloudShadows);
-  write(file,"vegetation",vegetation); write(file,"sceneryDistance",sceneryDistance);
+  write(file, "cockpitFov", cockpitFov);
+  write(file, "bloom", bloom);
+  write(file, "glare", bloomStrength);
+  write(file, "textureMaxSize", textureMaxSize);
+  write(file, "anisotropic", anisotropic);
+  write(file, "lodBias", lodBias);
+  write(file, "clouds", static_cast<int>(clouds));
+  write(file, "cloudCoverage", cloudCoverage);
+  write(file, "cloudBase", cloudBase);
+  write(file, "cloudThickness", cloudThickness);
+  write(file, "cirrusCoverage", cirrusCoverage);
+  write(file, "cloudShadows", cloudShadows);
+  write(file, "terrain", static_cast<int>(terrain));
+  write(file, "water", water);
+  write(file, "terrainShadows", terrainShadows);
+  write(file, "vegetation", vegetation);
+  write(file, "sceneryDistance", sceneryDistance);
+  write(file, "treeDensity", treeDensity);
   write(file, "shadows", static_cast<int>(shadows));
   write(file, "effects", static_cast<int>(effects));
-  write(file, "shadowMapSize", shadowMapSize);
-  write(file, "shadowExtent", shadowExtent);
-  write(file, "shadowBias", shadowBias);
+  write(file, "shadowDistance", shadowDistance);
   write(file, "shadowStrength", shadowStrength);
+  write(file, "heatDistortion", heatDistortion);
   write(file, "hud", showHud);
   write(file, "playerLabels", showPlayerLabels);
   write(file, "playerLabelMaxDistance", playerLabelMaxDistance);
@@ -262,30 +315,13 @@ bool GraphicsSettings::save() const {
 
   write(file, "sunElevation", sky.sunElevationDeg);
   write(file, "sunAzimuth", sky.sunAzimuthDeg);
-  write(file, "sunIntensity", sky.sunIntensity);
-  write(file, "zenithR", sky.zenithR); write(file, "zenithG", sky.zenithG);
-  write(file, "zenithB", sky.zenithB);
-  write(file, "horizonR", sky.horizonR); write(file, "horizonG", sky.horizonG);
-  write(file, "horizonB", sky.horizonB);
-  write(file, "groundR", sky.groundR); write(file, "groundG", sky.groundG);
-  write(file, "groundB", sky.groundB);
-  write(file, "horizonSharpness", sky.horizonSharpness);
-  write(file, "groundBlend", sky.groundBlend);
-  write(file, "skyAmbientR", sky.skyAmbientR);
-  write(file, "skyAmbientG", sky.skyAmbientG);
-  write(file, "skyAmbientB", sky.skyAmbientB);
-  write(file, "groundAmbientR", sky.groundAmbientR);
-  write(file, "groundAmbientG", sky.groundAmbientG);
-  write(file, "groundAmbientB", sky.groundAmbientB);
-  write(file, "exposure", sky.exposure);
+  write(file, "autoExposure", sky.autoExposure);
+  write(file, "exposureCompensation", sky.exposureCompensation);
 
-  write(file, "fog", fog.enabled);
-  write(file, "fogDensity", fog.density);
-  write(file, "fogHeightFalloff", fog.heightFalloff);
-  write(file, "fogGroundFade", fog.groundFade);
-  write(file, "fogColorR", fog.colorR);
-  write(file, "fogColorG", fog.colorG);
-  write(file, "fogColorB", fog.colorB);
+  write(file, "visibilityKm", weather.visibilityKm);
+  write(file, "fogDensity01", weather.fogDensity);
+  write(file, "fogHeight", weather.fogHeight);
+  write(file, "precipitation", weather.precipitation);
   return static_cast<bool>(file);
 }
 
