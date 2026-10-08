@@ -268,11 +268,20 @@ void Server::step() {
       }
     }
   auto events = world_.combat().takeEvents();
-  for (const auto &event : events)
-    if (event.kind == CombatKind::Destroyed)
-      notice(event.owner == event.target
-                 ? pilot(event.target) + " crashed"
-                 : pilot(event.owner) + " shot down " + pilot(event.target));
+  // An aircraft that was left by its pilot is announced as that, not as a crash.
+  std::vector<EntityId> left;
+  for (const auto &event : events) {
+    if (event.kind == CombatKind::Ejected)
+      left.push_back(event.target);
+    if (event.kind != CombatKind::Destroyed)
+      continue;
+    const bool ejected =
+        std::find(left.begin(), left.end(), event.target) != left.end();
+    notice(event.owner != event.target
+               ? pilot(event.owner) + (ejected ? " forced " : " shot down ") +
+                     pilot(event.target) + (ejected ? " to eject" : "")
+               : pilot(event.target) + (ejected ? " ejected" : " crashed"));
+  }
   stats_.combatSerializationUs = 0;
   for (std::size_t offset = 0; offset < events.size();
        offset += maxCombatEvents) {

@@ -626,7 +626,7 @@ bool decode(std::span<const std::uint8_t> bytes, Message &output,
       e.position = vec(r);
       e.velocity = vec(r);
       if (!e.id || !e.owner || e.tick > m.tick || unsigned(e.kind) < 1 ||
-          unsigned(e.kind) > unsigned(CombatKind::Serviced) ||
+          unsigned(e.kind) > unsigned(CombatKind::Ejected) ||
           unsigned(e.region) >= damagePartCount ||
           !std::isfinite(e.health) || e.health < 0 || e.health > 100 ||
           !std::isfinite(e.lifetime) || e.lifetime < 0 || e.lifetime > 10 ||

@@ -50,9 +50,16 @@ BotDecision flyBot(const Simulator &sim, const State *target, const GunConfig &g
   double desiredPitch = std::clamp(std::atan2(-aim.z, std::hypot(aim.x, aim.y)) +
       flightPathBias * std::clamp(flight.alpha_deg, 2., 10.) * kDeg2Rad,
       -20 * kDeg2Rad, 25 * kDeg2Rad);
-  if (flight.agl < 300 || (flight.agl < 600 && flight.vs < -25)) {
+  // The ground ahead matters as much as the ground below: among mountains a
+  // level flight path runs into a hillside within seconds.
+  double clearance = flight.agl;
+  for (const double seconds : {2., 4., 7.}) {
+    const Vec3 ahead = s.pos_ned + s.vel_ned * seconds;
+    clearance = std::min(clearance, sim.groundHeightAt(ahead.x, ahead.y) - ahead.z);
+  }
+  if (clearance < 300 || (flight.agl < 600 && flight.vs < -25)) {
     desiredBank = 0;
-    desiredPitch = 20 * kDeg2Rad;
+    desiredPitch = (clearance < 80 ? 32 : 20) * kDeg2Rad;
     out.firing = false;
   }
   const double bank = flight.roll_deg * kDeg2Rad;

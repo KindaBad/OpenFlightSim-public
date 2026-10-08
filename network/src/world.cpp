@@ -442,7 +442,7 @@ bool World::enqueueWeapon(EntityId id, const WeaponAction &action) {
     return false;
   };
   if (it == players_.end() || !action.sequence ||
-      unsigned(action.kind) > unsigned(WeaponActionKind::Chaff) ||
+      unsigned(action.kind) > unsigned(WeaponActionKind::Eject) ||
       action.tick > tick_ + 120 ||
       (action.tick < tick_ && tick_ - action.tick > 120))
     return reject();
@@ -455,7 +455,9 @@ bool World::enqueueWeapon(EntityId id, const WeaponAction &action) {
     return true;
   if (action.sequence <= w.lastSequence)
     return true;
-  if (w.actions.size() >= 32 || !aircraftDefinition(p.type).gun)
+  // Every aircraft has a seat to leave by; only armed ones have weapons.
+  if (w.actions.size() >= 32 ||
+      (!aircraftDefinition(p.type).gun && action.kind != WeaponActionKind::Eject))
     return reject();
   if (action.kind == WeaponActionKind::Launch &&
       action.station >= w.inventory.stations.size())
@@ -613,6 +615,7 @@ void World::step() {
           w.lockProgress = 0;
       }
     }
+    bool ejecting = false;
     while (!w.actions.empty() && w.actions.begin()->first <= tick_) {
       const auto action = w.actions.begin()->second;
       w.actions.erase(w.actions.begin());
@@ -666,6 +669,9 @@ void World::step() {
       case WeaponActionKind::Chaff:
         releaseDecoy(id, weapons::DecoyType::Chaff);
         break;
+      case WeaponActionKind::Eject:
+        ejecting = true;
+        break;
       case WeaponActionKind::Launch: {
         auto &station = w.inventory.stations[action.station];
         weapons::Track target;
@@ -707,6 +713,25 @@ void World::step() {
         break;
       }
       }
+    }
+    // A bot with both engines shot out has nothing left to fight with.
+    if (p.bot && p.sim.state().engine_health[0] <= 0 &&
+        p.sim.state().engine_health[1] <= 0)
+      ejecting = true;
+    if (ejecting) {
+      // The seat goes and the aircraft is lost with it: a death for its
+      // pilot, and a kill for whoever hit it last.
+      const auto &abandoned = p.sim.state();
+      CombatEvent event;
+      event.kind = CombatKind::Ejected;
+      event.tick = tick_;
+      event.owner = event.target = id;
+      event.generation = p.life.generation;
+      event.position = abandoned.pos_ned;
+      event.velocity = abandoned.vel_ned;
+      combat_.emit(event);
+      destroy(id, p, abandoned.pos_ned, abandoned.vel_ned);
+      continue;
     }
     const auto previous = p.sim.state();
     while (!p.inputs.empty() && p.inputs.begin()->first <= tick_) {

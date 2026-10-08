@@ -60,7 +60,15 @@ FetchContent_Declare(glm
   URL https://codeload.github.com/g-truc/glm/tar.gz/${ofs_pin_glm}
   URL_HASH SHA256=e7f187d83523f505eb38dd25d297ea6c0d4ed856d733e808f18253f5a8fa88a0
   DOWNLOAD_EXTRACT_TIMESTAMP FALSE)
-FetchContent_MakeAvailable(sdl bgfx_cmake imgui glm)
+# miniaudio is a single header that opens the sound card; the game synthesises
+# what it plays. Its own build files are not used: SOURCE_SUBDIR names nothing.
+set(ofs_pin_miniaudio 9634bedb5b5a2ca38c1ee7108a9358a4e233f14d)
+FetchContent_Declare(miniaudio
+  URL https://codeload.github.com/mackron/miniaudio/tar.gz/${ofs_pin_miniaudio}
+  URL_HASH SHA256=1a3a79b80fc6f0b0cc155e28b954a598e0ddfa2db64e2afa8466be88c476fa55
+  DOWNLOAD_EXTRACT_TIMESTAMP FALSE
+  SOURCE_SUBDIR ofs-header-only)
+FetchContent_MakeAvailable(sdl bgfx_cmake imgui glm miniaudio)
 execute_process(COMMAND "${GIT_EXECUTABLE}" -C "${bgfx_cmake_SOURCE_DIR}" submodule status
   OUTPUT_VARIABLE ofs_submodules COMMAND_ERROR_IS_FATAL ANY)
 if(ofs_submodules MATCHES "(^|\n)[-+U]")

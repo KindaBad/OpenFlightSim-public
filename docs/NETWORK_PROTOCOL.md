@@ -1,4 +1,4 @@
-# OpenFlightSim network protocol v16
+# OpenFlightSim network protocol v17
 
 GameNetworkingSockets v1.6.0, pinned revision
 `2cb93a06350bb065db53abdb0d87cf297e0bfd34`, supplies encrypted direct IP
@@ -8,6 +8,8 @@ were introduced. Numeric IPv4/IPv6 endpoints are supported. Games on the local
 network are found by a separate, unencrypted question and answer described under
 [LAN discovery](#lan-discovery); it only describes a game and carries no game state.
 
+Protocol 17 adds ejection and changes the shape of the terrain every peer
+flies over; see [v17 additions](#v17-additions).
 Protocol 16 adds countermeasures, a missile warning for the aircraft a missile
 was fired at, and the turn-round on the ground; see [v16 additions](#v16-additions).
 Protocol 15 adds regional damage to what other viewers receive, pilot names and
@@ -314,6 +316,28 @@ M4 radar/missile state, bandwidth prioritization, lag compensation, Earth frame 
 and user/account authentication remain outside this protocol milestone.
 
 
+## v17 additions
+
+**Ejection.** `WeaponAction` gains one kind, Eject (9); the station byte is
+ignored, and unlike the other kinds it is accepted from an aircraft that
+carries no weapons. In the tick it is acted on the server announces a combat
+event of kind Ejected (8), owner and target the aircraft, position and velocity
+the aircraft's, and then destroys the aircraft exactly as a crash does: a
+Destroyed event, a death, a kill for whoever damaged it within the credit
+window, and a new life after the usual delay. The seat and parachute that
+clients draw from the Ejected event are presentation and are not replicated.
+A bot whose engines have both been shot out ejects by the same path.
+
+**Terrain.** No message changed, but `ofs::terrainElevation` and the collision
+mesh built from it did (see [TERRAIN.md](TERRAIN.md)), and a client predicts
+its own aircraft over that surface. Peers on different versions would disagree
+about where the ground is, which is why the version number moved.
+
+**Not replicated.** The pilot's tolerance of load ([PILOT.md](PILOT.md)) is
+applied by each client to its own controls before they are sent.
+
+Combat event kinds above 8 and weapon action kinds above 9 are rejected.
+
 ## v16 additions
 
 **Countermeasures.** `WeaponAction` gains two kinds, Flare (7) and Chaff (8);
@@ -337,7 +361,7 @@ aircraft and health 100, says that an aircraft which stood on the ground for
 ten seconds has been repaired, refuelled and rearmed. Its restored part health,
 fuel, ammunition and stores follow in the ordinary snapshots and radar state.
 
-Combat event kinds above 7 and weapon action kinds above 8 are rejected.
+In v16, combat event kinds above 7 and weapon action kinds above 8 were rejected.
 
 ## v15 additions
 

@@ -129,6 +129,11 @@ struct Camera {
   void update(CameraMode next, const State& aircraft, double dt, bool firstFrame,
               AircraftType type = AircraftType::A320, const Vec3* aimView = nullptr);
 
+  // Follows something that is not an aircraft, a pilot under a parachute:
+  // from `distance` behind it along `heading` (radians from north), a little
+  // above, looking at a point `lift` metres over it.
+  void watch(const Vec3& subject, double heading, double distance, double lift, double dt);
+
   // True when the aircraft this camera belongs to should be skipped, because
   // the eye is inside its own model.
   bool hidesOwnAircraft() const { return cameraSettings(mode).hideOwnAircraft; }

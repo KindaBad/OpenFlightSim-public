@@ -1,3 +1,54 @@
+OpenFlightSim 0.5.3 Launcher
+
+- New country to fly over. The smooth hills are gone. The airfield now stands
+  in a broad valley of woods, lakes, villages with red roofs and a church, and
+  big green fields divided by tree-lined hedgerows and winding lanes, with the
+  odd one cut for hay or ploughed, between ranges of real
+  mountains: ridges, spurs and side valleys, bare rock on the steep faces and
+  snow on the tops, the highest of them over 2,500 m and close enough to fly
+  through. Light and long shadows follow the shape of the ground. The ground
+  is solid out to 64 km from the field instead of 32.
+- The ground has texture. Fields are no longer flat patches of one colour:
+  pasture has its drifts, worn gateways and paths, crops show their rows and
+  the sprayer's wheelings, hay lies in swaths and ploughland in furrows, each
+  field laid its own way and a brighter green than before. Field boundaries
+  curve, hedges are thicker with trees, some are whole belts of trees and the
+  odd field is a wood. Forest shows its crowns from the air instead of a dark
+  stain, and open hills carry clumps of scrub.
+- Pull too hard for too long and you black out. Up to 6 g can be held all day.
+  Past that the edges of the view darken and close in, the world goes quiet
+  and you hear your own pulse; hold 9 g for about six seconds and you are out
+  cold, hands off the stick, for a few seconds more. Ease the turn when the
+  view starts to go and it comes straight back. Pushing hard the other way
+  reddens the view instead.
+- Ejecting. Hold J for a second: the seat fires, a parachute opens, and the
+  camera follows you down. Flying solo the aircraft carries on without you
+  until it comes down, and you get a new one after six seconds. Online and
+  against bots it counts as being shot down, by whoever hit you last if anyone
+  did, and you are back after the usual wait. Everyone sees the parachute. A
+  bot with both engines shot out will leave its aircraft too.
+- Louder missiles, and the sound of things breaking. A missile leaves with a
+  bang and a tearing roar that carries for kilometres, and its motor is heard
+  over your own engines. An aircraft that flies into the ground is heard to
+  hit it, fold up and tear along it, and a falling wreck is heard when it
+  lands. A wing or a fin breaking off cracks and tears.
+- Sound. The game was silent; now everything you see can be heard. Engines
+  whine at idle and roar at full power, reheat lights with a thump and
+  crackles, and the wind rises with your speed and thins with height. The
+  airframe shudders in a hard turn, the gear and flaps whirr, the tyres chirp
+  on touchdown. Guns, missile launches, flares, hits and explosions are heard
+  from where they happen: an aircraft passing drops in pitch, and a distant
+  explosion arrives seconds after its flash, as a dull thump. The flight deck
+  has a stall horn, a missile warning that quickens as the missile closes, the
+  growl of a heat seeker finding its target and beeps for a radar lock, a hit
+  and a kill. From the flight deck everything outside is muffled. Volumes for
+  engines, weapons, wind and warnings are under Esc > Settings > Sound, with a
+  master volume on the Esc menu. Sound stops while the game is in the
+  background unless you turn that off.
+- Bots look where they are going: one that is about to fly into a hillside
+  levels its wings and climbs.
+- Online play uses network protocol 17: everyone in a game needs 0.5.3.
+
 OpenFlightSim 0.5.1 Launcher
 
 - New afterburner. Reheat is now a long, nearly parallel jet of pale blue

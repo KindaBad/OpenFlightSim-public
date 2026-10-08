@@ -150,21 +150,6 @@ Surface rock(float u, float v) {
   return {scale(albedo, 1 - .62f * crack), height, .86f + .08f * crack};
 }
 
-Surface forest(float u, float v) {
-  const Cell crown = cell2(u, v, 10, 41);
-  const float radius = crown.f1 / .70f;
-  const float dome = std::sqrt(std::max(0.f, 1 - radius * radius));
-  // Crowns fade to a shared shadow tone well inside their cell, so the cell
-  // boundaries themselves never show.
-  const float gap = smooth(.46f, .72f, crown.f1);
-  const float leaf = fbm2(u, v, 64, 2, 42);
-  const float height = saturate(dome * .82f + leaf * .16f + .06f);
-  Color tint = mixColor({.018f, .040f, .011f}, {.048f, .082f, .021f}, unit(crown.id));
-  if (unit(mix32(crown.id)) > .62f) tint = {.014f, .033f, .015f};  // conifer
-  Color albedo = scale(tint, .5f + .66f * dome + .28f * leaf);
-  return {mixColor(albedo, {.007f, .014f, .006f}, gap), height, .9f};
-}
-
 Surface snow(float u, float v) {
   const float warp = fbm2(u, v, 3, 3, 51);
   const float ripple = .5f + .5f * std::sin((u * 7 + .9f * warp + .3f * fbm2(u, v, 9, 3, 53)) * kTau);
@@ -185,6 +170,98 @@ Surface asphalt(float u, float v) {
   const float grey = (.036f + .034f * stone * unit(grit.id) + .008f * speckle) * (.88f + .3f * stain);
   const float height = saturate(.3f + stone * .5f + speckle * .15f - crack);
   return {scale({grey * 1.02f, grey, grey * .97f}, 1 - .7f * crack), height, .86f - .1f * stain + .08f * crack};
+}
+
+// --- Land cover seen from the air -------------------------------------------
+// The layers above are the ground underfoot, a few metres to a tile. These
+// are the same country from a few hundred metres up, a few hundred metres to
+// a tile: what a field or a wood looks like as a whole. The surface shader
+// lays one over each field, turned to the field's own lay.
+
+// Pasture and meadow: drifts of rank and thin grass, buttercups, bare
+// gateways and the paths stock have worn.
+Surface pasture(float u, float v) {
+  const float broad = fbm2(u, v, 3, 5, 71);
+  const float mid = fbm2(u, v, 9, 4, 72);
+  const float fine = fbm2(u, v, 56, 3, 73);
+  Color albedo = mixColor({.060f, .135f, .028f}, {.160f, .255f, .050f}, saturate(.5f + .9f * broad + .4f * mid));
+  const float flowers = smooth(.18f, .46f, fbm2(u, v, 5, 4, 74)) * smooth(-.25f, .35f, fbm2(u, v, 37, 2, 75));
+  albedo = mixColor(albedo, {.270f, .285f, .050f}, flowers * .62f);
+  const float rank = smooth(.20f, .52f, fbm2(u, v, 7, 4, 76));
+  albedo = mixColor(albedo, {.040f, .098f, .026f}, rank * .55f);
+  const float worn = smooth(.34f, .58f, fbm2(u, v, 6, 5, 77)) * (.6f + .4f * fine);
+  albedo = mixColor(albedo, {.250f, .240f, .120f}, worn * .7f);
+  const float path = (1 - smooth(.006f, .028f, std::abs(fbm2(u, v, 3, 3, 78)))) * smooth(-.1f, .3f, fbm2(u, v, 2, 2, 79));
+  albedo = mixColor(albedo, {.230f, .215f, .125f}, path * .6f);
+  // Topped or grazed in strips: faint bands along the tile.
+  const float strip = std::sin((v + fbm2(u, v, 3, 2, 80) * .012f) * kTau * 38);
+  const float height = saturate(.45f + .2f * mid + .25f * fine - .2f * worn);
+  return {scale(albedo, .86f + .24f * fine + .07f * strip), height, .93f};
+}
+
+// A standing crop: drilled rows along the tile, the sprayer's paired wheelings
+// every twenty-four metres, and patches where it came up thin or lay wet.
+Surface crop(float u, float v) {
+  const float drift = fbm2(u, v, 4, 3, 81) * .012f;
+  const float rows = .5f + .5f * std::sin((v + drift * .15f) * kTau * 128);
+  const float wheel = std::abs(std::abs((v + drift) * 10 - std::floor((v + drift) * 10) - .5f) - .04f);
+  const float tramline = 1 - smooth(.008f, .024f, wheel);
+  const float growth = perlinAxes(u * 3, v * 9, .5f, 3, 9, 1, 82) * .6f + fbm2(u, v, 5, 4, 83) * .5f;
+  const float fine = fbm2(u, v, 48, 2, 84);
+  Color albedo = mixColor({.062f, .150f, .028f}, {.165f, .255f, .046f}, saturate(.5f + .8f * growth));
+  const float thin = smooth(.30f, .56f, fbm2(u, v, 6, 4, 85));
+  albedo = mixColor(albedo, {.230f, .215f, .110f}, thin * .6f);
+  albedo = mixColor(albedo, {.200f, .180f, .105f}, tramline * .5f);
+  const float height = saturate(.35f + .4f * rows * (1 - thin * .6f) - .3f * tramline + .1f * fine);
+  return {scale(albedo, .86f + .2f * rows + .08f * fine), height, .92f};
+}
+
+// Cut for hay or harvested: straw-coloured swaths with the green coming back
+// between them.
+Surface stubble(float u, float v) {
+  const float bend = fbm2(u, v, 3, 3, 91) * .010f;
+  const float swath = .5f + .5f * std::sin((v + bend) * kTau * 34);
+  const float broad = fbm2(u, v, 4, 4, 92);
+  const float fine = fbm2(u, v, 64, 2, 93);
+  Color albedo = mixColor({.215f, .180f, .090f}, {.400f, .340f, .180f}, saturate(swath * .75f + .2f * broad + .12f));
+  const float regrowth = smooth(.05f, .5f, fbm2(u, v, 5, 4, 94)) * (1 - swath * .6f);
+  albedo = mixColor(albedo, {.120f, .185f, .050f}, regrowth * .55f);
+  const float bare = smooth(.36f, .6f, fbm2(u, v, 7, 4, 95));
+  albedo = mixColor(albedo, {.165f, .120f, .080f}, bare * .5f);
+  const float height = saturate(.3f + .45f * swath + .15f * fine);
+  return {scale(albedo, .9f + .2f * fine), height, .9f};
+}
+
+// Under the plough: furrows, pale where the crests have dried and dark in
+// the wet hollows.
+Surface plough(float u, float v) {
+  const float bend = fbm2(u, v, 3, 3, 96) * .008f;
+  const float furrow = .5f + .5f * std::sin((v + bend) * kTau * 96);
+  const float damp = fbm2(u, v, 4, 5, 97);
+  const float clods = fbm2(u, v, 72, 2, 98);
+  Color albedo = mixColor({.070f, .050f, .034f}, {.175f, .130f, .085f}, saturate(.5f - .7f * damp + .25f * furrow));
+  const float weeds = smooth(.30f, .58f, fbm2(u, v, 6, 4, 99));
+  albedo = mixColor(albedo, {.085f, .125f, .040f}, weeds * .4f);
+  const float height = saturate(.25f + .5f * furrow + .2f * clods);
+  return {scale(albedo, .84f + .3f * furrow * (.7f + .3f * clods)), height, .94f};
+}
+
+// Woodland canopy: whole crowns nine metres across, broadleaf and conifer in
+// stands, the odd tree turning, and the dark between them.
+Surface woodland(float u, float v) {
+  const Cell crown = cell2(u, v, 34, 44);
+  const float radius = crown.f1 / .66f;
+  const float dome = std::sqrt(std::max(0.f, 1 - radius * radius));
+  const float gap = smooth(.44f, .70f, crown.f1);
+  const float leaf = fbm2(u, v, 96, 2, 45);
+  const float stand = fbm2(u, v, 4, 4, 46);
+  const float kind = unit(mix32(crown.id)), shade = unit(crown.id);
+  Color tint = mixColor({.040f, .088f, .020f}, {.105f, .170f, .034f}, shade);
+  if (kind + stand * .5f > .78f) tint = mixColor({.022f, .052f, .024f}, {.040f, .078f, .032f}, shade);  // conifer
+  else if (kind < .04f) tint = mixColor({.150f, .150f, .032f}, {.185f, .120f, .030f}, shade);           // turning
+  const float height = saturate(dome * .84f + leaf * .12f + .04f);
+  const Color albedo = scale(tint, (.52f + .62f * dome + .22f * leaf) * (.9f + .25f * stand));
+  return {mixColor(albedo, {.012f, .024f, .010f}, gap), height, .9f};
 }
 
 using Generator = Surface (*)(float, float);
@@ -376,9 +453,11 @@ std::vector<std::uint8_t> waterNormalTile(int size) {
 }
 
 TerrainLayers terrainLayers(int size) {
-  static constexpr Generator generators[kTerrainLayerCount] = {grass, soil, rock, forest, snow, asphalt};
+  static constexpr Generator generators[kTerrainLayerCount] = {grass,   soil, rock,    snow,   asphalt,
+                                                              pasture, crop, stubble, plough, woodland};
   // Relief depth of each layer relative to its tile, which sets normal strength.
-  static constexpr float relief[kTerrainLayerCount] = {.030f, .035f, .11f, .16f, .018f, .012f};
+  static constexpr float relief[kTerrainLayerCount] = {.030f, .035f, .11f,  .018f, .012f,
+                                                     .010f, .014f, .012f, .016f, .050f};
   TerrainLayers out;
   out.size = size;
   out.albedoHeight.resize(kTerrainLayerCount);

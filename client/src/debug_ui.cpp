@@ -106,6 +106,9 @@ void gameMenu(const Simulator& sim, Controls& controls, const Renderer& renderer
   if (ImGui::Checkbox("Mouse aim   [X]", &settings.mouseAim)) ui.saveSettings = true;
   if (hasManeuverMode(sim.config().control_law)) ImGui::Checkbox("Maneuver mode   [M]", &controls.maneuver_mode);
   ImGui::Checkbox("Flight display   [F4]", &ui.hud.show);
+  ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * .6f);
+  ImGui::SliderFloat("Volume", &settings.soundVolume, 0.f, 1.f, "%.2f");
+  if (ImGui::IsItemDeactivatedAfterEdit()) ui.saveSettings = true;
   ImGui::Separator();
   if (wideButton("Settings")) ui.showSettings = !ui.showSettings;
   if (wideButton("Controls")) ui.showControls = !ui.showControls;
@@ -145,6 +148,7 @@ void controlsWindow(UiSettings& ui) {
     row("L", "Lock, or break lock");
     row("T / Y", "Next / previous target");
     row("R    C", "Flare, chaff");
+    row("J  (hold)", "Eject");
     section("ON THE GROUND");
     row("Land and stop", "Repaired and rearmed after 10 s");
     section("VIEW AND GAME");
@@ -322,6 +326,21 @@ void debugUi(const Simulator& sim, Controls& controls, const Camera& camera,
       ImGui::Checkbox("Pursuit camera: speed changes the field of view", &settings.dynamicFov);
       ImGui::TextWrapped("The mouse places an aim point and the aircraft flies to it. Flight keys and "
                          "the gamepad still override their own axes. Hold the right mouse button to look around.");
+    }
+    if (ImGui::CollapsingHeader("Sound", ImGuiTreeNodeFlags_DefaultOpen)) {
+      // A volume is saved as soon as its slider is let go.
+      const auto volume = [&](const char* label, float& value) {
+        ImGui::SliderFloat(label, &value, 0.f, 1.f, "%.2f");
+        if (ImGui::IsItemDeactivatedAfterEdit()) ui.saveSettings = true;
+      };
+      if (ImGui::Checkbox("Sound", &settings.sound)) ui.saveSettings = true;
+      volume("Master volume", settings.soundVolume);
+      volume("Engines", settings.engineVolume);
+      volume("Weapons and explosions", settings.weaponVolume);
+      volume("Wind and airframe", settings.airframeVolume);
+      volume("Warnings and interface", settings.cockpitVolume);
+      if (ImGui::Checkbox("Keep playing in the background", &settings.soundInBackground)) ui.saveSettings = true;
+      if (!ui.soundStatus.empty()) ImGui::TextDisabled("Output: %s", ui.soundStatus.c_str());
     }
     if (ImGui::CollapsingHeader("Display", ImGuiTreeNodeFlags_DefaultOpen)) {
       ImGui::Checkbox("VSync", &settings.vsync);

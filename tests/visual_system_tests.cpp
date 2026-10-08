@@ -457,7 +457,9 @@ void proceduralTextures() {
   check(layers.size==64 && layers.albedoHeight.size()==kTerrainLayerCount && layers.normalRoughness.size()==kTerrainLayerCount,"one albedo and one detail image per terrain layer");
   const auto mean=[&](int layer,int channel){double sum=0;const auto& d=layers.albedoHeight[layer];for(std::size_t i=channel;i<d.size();i+=4)sum+=d[i];return sum/(d.size()/4);};
   check(mean(kLayerGrass,1)>mean(kLayerGrass,0) && mean(kLayerGrass,1)>mean(kLayerGrass,2),"grass is green");
-  check(mean(kLayerSnow,1)>200 && mean(kLayerAsphalt,1)<90 && mean(kLayerForest,1)<mean(kLayerGrass,1),"snow is bright, asphalt dark and forest darker than grass");
+  check(mean(kLayerSnow,1)>200 && mean(kLayerAsphalt,1)<90 && mean(kLayerWoodland,1)<mean(kLayerPasture,1),"snow is bright, asphalt dark and woodland darker than pasture");
+  check(mean(kLayerPasture,1)>mean(kLayerPasture,0) && mean(kLayerCrop,1)>mean(kLayerCrop,0) && mean(kLayerStubble,0)>mean(kLayerStubble,2)+30 &&
+        mean(kLayerPlough,0)>mean(kLayerPlough,1),"pasture and crops are green, stubble is straw and ploughland brown");
   for(int layer=0;layer<kTerrainLayerCount;++layer) for(std::size_t i=0;i<layers.normalRoughness[layer].size();i+=4) {
     // The two stored components of a unit normal that points out of the surface.
     const double x=layers.normalRoughness[layer][i]/127.5-1,y=layers.normalRoughness[layer][i+1]/127.5-1;
@@ -527,6 +529,32 @@ void landscape() {
     total+=trees.size();
   }
   check(total>5000 && conifers>total/20 && conifers<total,"a mixed forest of both species");
+  // Fields: every point of farmland is some distance inside one field, the
+  // nearest point of its edge really is on the edge, and the trees that stand
+  // on farmland outside the woods stand in its hedgerows.
+  unsigned fields=0,onEdge=0,hedged=0;
+  for(double north=-20000;north<=20000;north+=730) for(double east=-20000;east<=20000;east+=730) {
+    const auto field=land.fieldPattern(north,east);
+    check(std::isfinite(field.edge) && field.edge>-.5f && field.edge<400,"a point is inside its field, within a field's width of the edge");
+    if(!field.farmed) continue;
+    ++fields;hedged+=field.hedged;
+    check(std::hypot(field.hedgeNorth-north,field.hedgeEast-east)<field.edge*1.6+8,"the nearest edge is about as far away as it is said to be");
+    onEdge+=std::abs(land.fieldPattern(field.hedgeNorth,field.hedgeEast).edge)<2;
+  }
+  check(fields>150 && onEdge>fields*9/10 && hedged>fields*2/5 && hedged<fields*9/10,"fields have edges, and most of them hedges");
+  std::size_t open=0,inHedge=0;
+  for(int cz=-9;cz<9;++cz) for(int cx=-9;cx<9;++cx) {
+    std::vector<TreeInstance> trees;
+    land.treesInChunk(cx,cz,400,trees);
+    for(const TreeInstance& tree:trees) {
+      const double north=-tree.south,east=tree.east;
+      if(land.farmland(north,east)<.6f || land.forestDensity(north,east)>.15f) continue;
+      ++open;
+      const auto field=land.fieldPattern(north,east);
+      inHedge+=field.wooded || (field.hedged && std::abs(field.edge)<field.reach+1 && tree.conifer<.5f);
+    }
+  }
+  check(open>300 && inHedge>open*4/5,"trees on open farmland stand in its hedgerows, belts and woods");
   std::printf("PASS landscape: %d lakes over %.0f km2, %zu trees in 324 km2 (%zu conifers)\n",land.lakeCount(),land.lakeAreaKm2(),total,conifers);
 }
 int main(int argc,char** argv) {

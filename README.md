@@ -63,7 +63,7 @@ shared visual/force geometry and unsteady separation/vortex state. The
 held-out Airbus approach point passes; other fidelity limits and the takeoff
 discrepancy are recorded in [the aircraft audit](docs/AIRCRAFT_PHYSICS_AUDIT.md).
 The temporary Falcon is retired; stable wire ID 2 is rejected. Physics geometry
-can be displayed from the Effects panel. Current network peers require protocol 16.
+can be displayed from the Effects panel. Current network peers require protocol 17.
 
 M3.68.1 adds scenario metadata and explicit PASS/WARN/FAIL comparisons, load-dependent
 inertia corrections, physical nozzle/energy regressions, required content validation,
@@ -138,6 +138,7 @@ Windows has not yet produced a passing build; see BUILDING.md for the current CI
 | Heat seeker | Select 2 and point at a target: the seeker locks on its own; L or T / Y break lock and move to the next target |
 | Flares / chaff | R drops a flare, C a bundle of chaff; hold to repeat. See [countermeasures](docs/COUNTERMEASURES.md) |
 | Repair and rearm | Land, stop and wait ten seconds |
+| Eject | Hold J for a second; a new aircraft follows. See [the pilot](docs/PILOT.md) |
 | Gun camera | V toggles flight-deck camera; armed aircraft have a gun sight in every flying view |
 | Gear / brakes | G toggles simulation gear; B wheel brakes; UI parking brake |
 | Flaps / airbrake | F cycles 0/25/50/75/100%; H toggles airbrake/spoilers |
@@ -192,7 +193,7 @@ See [maneuver and condensation validation](docs/SU57_MANEUVER_MODE.md).
 The Typhoon has the same M-key **maneuver mode** on its canard control law, with
 smaller gains because it has no vectoring nozzles. See
 [Typhoon maneuver mode and model](docs/TYPHOON_MANEUVER_MODE.md).
-Both network peers now require protocol **16**; rebuild client and server together.
+Both network peers now require protocol **17**; rebuild client and server together.
 
 The elevator-trim slider keeps a persistent pitch offset when the stick is released.
 Airborne reset solves this offset and throttle from actual force/moment balance.
@@ -317,9 +318,12 @@ are recorded in [docs/VALIDATION.md](docs/VALIDATION.md).
 - [Repository audit](docs/AUDIT.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [M3.7.1 networking hardening](docs/M3_7_1_NETWORKING_HARDENING.md)
-- [Network protocol v16](docs/NETWORK_PROTOCOL.md)
+- [Network protocol v17](docs/NETWORK_PROTOCOL.md)
+- [Terrain](docs/TERRAIN.md)
+- [The pilot: blacking out and ejecting](docs/PILOT.md)
 - [Regional damage model](docs/DAMAGE_MODEL.md)
 - [Countermeasures and the missile warning](docs/COUNTERMEASURES.md)
+- [Sound](docs/SOUND.md)
 - [The airfield](docs/AIRFIELD.md)
 - [Flight interface](docs/BATTLE_UI.md)
 - [M3.66 advanced physics, measurements and limitations](docs/M3_66_ADVANCED_PHYSICS_VALIDATION.md)
@@ -352,7 +356,8 @@ and verification are in [docs/RENDERER.md](docs/RENDERER.md). The earlier
 [graphics refresh notes](docs/GRAPHICS_REFRESH.md) record the fixes it built on.
 
 M3.6 stops at multi-aircraft flight and repeatable gun combat. Missiles, radar,
-terrain collision, Jolt and audio remain outside this milestone.
+terrain collision and Jolt remain outside this milestone; sound came with
+0.5.3 ([docs/SOUND.md](docs/SOUND.md)).
 
 ## Fly together
 
@@ -389,7 +394,7 @@ The Eurofighter Typhoon is available with `--aircraft typhoon`.
 It has an independently configured twin-engine flight model, reheat above 85%
 throttle, articulated foreplanes/elevons/airbrake/gear/nozzles, Luftwaffe markings
 and four LODs. Its model is by bohmerang (CC BY-NC-SA 4.0); the original
-Austrian 7L-WA model described in the M3.65 report is retired from the runtime. M3.6 originally introduced protocol v5; current client/server builds require v16. Rebuild both together. See the inspected Blender
+Austrian 7L-WA model described in the M3.65 report is retired from the runtime. M3.6 originally introduced protocol v5; current client/server builds require v17. Rebuild both together. See the inspected Blender
 and native captures, measurements and approximations in
 [docs/M3_65_TYPHOON_VALIDATION.md](docs/M3_65_TYPHOON_VALIDATION.md).
 

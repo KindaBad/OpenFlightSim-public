@@ -13,6 +13,7 @@
 #include <SDL3/SDL.h>
 
 #include <array>
+#include <string>
 
 namespace ofs::client {
 
@@ -51,6 +52,8 @@ struct UiSettings {
   // on the frame it opens, and `chatSubmit` reports that Enter was pressed.
   bool chatOpen{}, chatFocus{}, chatSubmit{};
   std::array<char, 121> chatBuffer{};
+  // Where the sound is going, or why it is not, for the settings window.
+  std::string soundStatus;
 };
 
 // Draws every developer window. `settings` is edited in place and the caller

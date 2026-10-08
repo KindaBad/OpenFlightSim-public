@@ -105,13 +105,14 @@ public:
   Controls controlTargets() const;
   struct ControlAllocation { Controls surfaces; double nozzle[2]{}; };
   ControlAllocation vectorFighterAllocation(double horizon_seconds = 1e9) const;
+  // The ground this simulation flies over, NED: the terrain, or a level plain.
+  double groundHeightAt(double north, double east) const { return groundSurface(north,east).heightNed; }
 
 private:
   void substep(double dt);
   TerrainSample groundSurface(double north, double east) const {
     return ground_model_==GroundModel::FlatRunway ? TerrainSample{} : sampleTerrain(north,east);
   }
-  double groundHeightAt(double north, double east) const { return groundSurface(north,east).heightNed; }
 
   Vec3 windAt(const Vec3&, double, const Weather&) const;
   ContinuousIntegrator integrator_{ContinuousIntegrator::SemiImplicitEuler};

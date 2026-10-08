@@ -10,7 +10,7 @@ namespace ofs::net {
 using Tick = std::uint64_t;
 using EntityId = std::uint64_t;
 constexpr std::uint16_t protocolVersion =
-    16; // v15 plus countermeasures, missile warning and ground service
+    17; // v16 plus ejection and the fractal terrain surface
 constexpr std::size_t maxPlayers = 64, maxPacket = 65536, maxBatch = 8;
 constexpr std::size_t applicationPayload = 1100;
 // Legacy full-world Snapshot is an offline measurement format only.
@@ -69,7 +69,8 @@ struct FireCommand {
 using HitRegion = ofs::DamagePart;
 // Flare and Chaff are a countermeasure leaving `owner`, with the decoy's
 // identity in `projectile`. Serviced is an aircraft repaired, refuelled and
-// rearmed after standing on the ground.
+// rearmed after standing on the ground. Ejected is a pilot leaving `target`,
+// which is destroyed in the same tick.
 enum class CombatKind : std::uint8_t {
   Shot = 1,
   Hit,
@@ -77,7 +78,8 @@ enum class CombatKind : std::uint8_t {
   Respawn,
   Flare,
   Chaff,
-  Serviced
+  Serviced,
+  Ejected
 };
 struct CombatEvent {
   std::uint64_t id{}; // Unique event ID, separate from projectile ID.

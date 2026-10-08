@@ -2,9 +2,14 @@
 //
 // The mesh is the simulation's collision surface and is never displaced. All
 // extra detail is shading: a per-pixel normal from the same analytic height
-// function, tiling material layers blended by slope, altitude and the baked
+// function, material layers blended by slope, altitude and the baked
 // land-cover map, lake water where a basin's level stands above the bed, and
 // long shadows cast by the relief itself.
+//
+// The materials come at two scales. Cover layers are the country as it looks
+// from the air, a few hundred metres to a tile: one is laid over each field,
+// wood and stretch of open ground. Detail layers are the ground underfoot, a
+// few metres to a tile, and only show close to.
 
 $input v_worldPos, v_normal, v_uv, v_surfacePos
 #include <bgfx_shader.sh>
@@ -15,32 +20,44 @@ SAMPLER2DARRAY(s_terrainNormal, 2);
 SAMPLER2D(s_landMap, 3);
 SAMPLER2D(s_lakeMap, 4);
 SAMPLER2D(s_waterNormal, 5);
+SAMPLER2D(s_heightMap, 12);
+uniform vec4 u_terrainMap; // x metres per texel, y coarsest level, z base height, w height range
 uniform vec4 u_surface;   // x kind: 0 land, 1 asphalt, 2 paint, 3 concrete; y decal layer
 uniform vec4 u_baseColor; // tint for paved kinds
 
 #define LAYER_GRASS 0.0
 #define LAYER_SOIL 1.0
 #define LAYER_ROCK 2.0
-#define LAYER_FOREST 3.0
-#define LAYER_SNOW 4.0
-#define LAYER_ASPHALT 5.0
+#define LAYER_SNOW 3.0
+#define LAYER_ASPHALT 4.0
+#define LAYER_PASTURE 5.0
+#define LAYER_CROP 6.0
+#define LAYER_STUBBLE 7.0
+#define LAYER_PLOUGH 8.0
+#define LAYER_WOODLAND 9.0
+// Metres to a tile of each cover layer.
+#define PASTURE_TILE 380.0
+#define FIELD_TILE 240.0
+#define WOOD_TILE 300.0
 #define LAND_EXTENT 96000.0
+#define FIELD_SIZE 430.0
+#define LANE_SIZE 1700.0
+#define FIELD_WANDER 55.0
 
-// Must match ofs::terrainElevation (core/include/ofs/terrain.hpp).
-float terrainHeight(vec2 eastSouth)
+// A layer read with the caller's own screen-space gradients, for coordinates
+// that jump from one field to the next.
+#if BGFX_SHADER_LANGUAGE_GLSL
+#   define layerGrad(_coord, _dx, _dy) textureGrad(s_terrainAlbedo, _coord, _dx, _dy)
+#else
+#   define layerGrad(_coord, _dx, _dy) s_terrainAlbedo.m_texture.SampleGrad(s_terrainAlbedo.m_sampler, _coord, _dx, _dy)
+#endif
+
+// The shape of the ground (ofs::terrainElevation), baked by the landscape into
+// a height map that covers the same square as the land cover. A coarser level
+// of its chain is the same ground averaged over a wider footprint.
+float terrainHeight(vec2 eastSouth, float level)
 {
-    float east = eastSouth.x;
-    float south = eastSouth.y;
-    float radius = length(eastSouth);
-    float t = clamp((radius - 3500.0) / 5000.0, 0.0, 1.0);
-    float ramp = t * t * (3.0 - 2.0 * t);
-    float mt = clamp((radius - 11000.0) / 9000.0, 0.0, 1.0);
-    float mountainRamp = mt * mt * (3.0 - 2.0 * mt);
-    float ridge = 1.0 - abs(sin(east * 0.00031 + sin(south * 0.00022) * 1.4));
-    float peaks = mountainRamp * (500.0 + 1450.0 * ridge * ridge);
-    return peaks + ramp * (380.0 + 240.0 * sin(east * 0.0008) * cos(south * 0.00065)
-        + 140.0 * sin(south * 0.0013 + east * 0.0004)
-        + 65.0 * sin(east * 0.0027 + south * 0.0011) * cos(south * 0.0023));
+    return u_terrainMap.z + u_terrainMap.w * texture2DLod(s_heightMap, eastSouth / LAND_EXTENT + 0.5, level).r;
 }
 
 // Sine-free hash (Hoskins), stable across GPU vendors for integer-like input.
@@ -49,6 +66,50 @@ float cellHash(vec2 p)
     vec3 p3 = fract(vec3(p.x, p.y, p.x) * 0.1031);
     p3 += dot(p3, p3.yzx + 33.33);
     return fract((p3.x + p3.y) * p3.z);
+}
+
+// Farmland is a scatter of points, one to a square: the ground nearest each
+// point is one field. Returns how far `q` (in squares) is from the edge of its
+// field, with the field's own square and its neighbour's across that edge.
+// Landscape::fieldPattern (client/src/landscape.cpp) is the same thing in C++,
+// so the trees of a hedgerow stand on the line drawn here.
+float fieldEdge(vec2 q, out vec2 own, out vec2 neighbour, out vec2 ownSite)
+{
+    vec2 home = floor(q);
+    float nearest = 1.0e9;
+    float second = 1.0e9;
+    vec2 otherSite = vec2_splat(0.0);
+    own = home;
+    neighbour = home;
+    ownSite = home;
+    for (int j = -1; j <= 1; ++j) {
+        for (int i = -1; i <= 1; ++i) {
+            vec2 cell = home + vec2(float(i), float(j));
+            vec2 site = cell + vec2(0.15, 0.15) + 0.7 * vec2(cellHash(cell + 5.3), cellHash(cell + 91.7));
+            float away = length(q - site);
+            if (away < nearest) {
+                second = nearest;
+                neighbour = own;
+                otherSite = ownSite;
+                nearest = away;
+                own = cell;
+                ownSite = site;
+            } else if (away < second) {
+                second = away;
+                neighbour = cell;
+                otherSite = site;
+            }
+        }
+    }
+    vec2 between = otherSite - ownSite;
+    return dot((ownSite + otherSite) * 0.5 - q, between / max(length(between), 1.0e-4));
+}
+
+// Field boundaries and lanes wander a little instead of running dead straight.
+vec2 fieldWander(vec2 p)
+{
+    return p + FIELD_WANDER * vec2(sin(p.y / 340.0) + 0.5 * sin(p.x / 190.0 + 1.7) + 0.3 * sin(p.y / 95.0 + 4.1),
+                                   sin(p.x / 410.0 + 0.6) + 0.5 * sin(p.y / 230.0 + 2.1) + 0.3 * sin(p.x / 83.0 + 0.9));
 }
 
 vec3 layerAlbedo(vec2 uv, float layer) { return texture2DArray(s_terrainAlbedo, vec3(uv, layer)).rgb; }
@@ -85,9 +146,17 @@ vec4 layerDetail(vec2 uv, float layer)
     return vec4(texel.xy * 2.0 - 1.0, texel.z, texel.w);
 }
 
-// Long shadows from the relief: walk toward the sun over the height function
-// and keep the tightest clearance, which gives a soft edge for free.
-float reliefShadow(vec2 p, float altitude)
+// What a layer's detail averages to, for ground too far off to show it.
+vec4 layerDetailMean(float layer)
+{
+    vec4 texel = texture2DArrayLod(s_terrainNormal, vec3(0.5, 0.5, layer), 9.0);
+    return vec4(0.0, 0.0, texel.z, texel.w);
+}
+
+// Long shadows from the relief: walk toward the sun over the height map and
+// keep the tightest clearance, which gives a soft edge for free. Each step
+// reads the map at about the width the shadow's edge has spread to by then.
+float reliefShadow(vec2 p, float altitude, float pixelLevel)
 {
     vec3 sun = u_sunDirection.xyz;
     float flatLength = length(sun.xz);
@@ -103,7 +172,8 @@ float reliefShadow(vec2 p, float altitude)
             break;
         }
         float rayHeight = altitude + climb * reach + 4.0;
-        clearance = min(clearance, (rayHeight - terrainHeight(p + heading * reach)) / reach);
+        float level = clamp(max(log2(reach * 0.2 / u_terrainMap.x), pixelLevel), 0.0, u_terrainMap.y);
+        clearance = min(clearance, (rayHeight - terrainHeight(p + heading * reach, level)) / reach);
         reach *= 1.75;
     }
     return smoothstep(-0.004, 0.022, clearance);
@@ -134,99 +204,192 @@ void main()
 
     if (u_surface.x < 0.5) {
         // ---- Natural land ----------------------------------------------------
-        float bed = terrainHeight(p);
-        if (detailLevel > 0.5) {
-            float d = 3.0;
-            float hx = terrainHeight(p + vec2(d, 0.0));
-            float hz = terrainHeight(p + vec2(0.0, d));
-            n = normalize(vec3(bed - hx, d, bed - hz));
+        // Inside the mapped square the slope comes from the height map, read
+        // at the scale a pixel covers; beyond it, from the mesh.
+        vec2 fromEdge = LAND_EXTENT * 0.5 - abs(p);
+        float mapped = smoothstep(200.0, 2500.0, min(fromEdge.x, fromEdge.y));
+        float bed = altitude;
+        float mapLevel = 0.0;
+        if (mapped > 0.0) {
+            float level = clamp(log2(max(footprint, 1.0e-3) / u_terrainMap.x), 0.0, u_terrainMap.y);
+            float d = u_terrainMap.x * exp2(level);
+            float east = terrainHeight(p + vec2(d, 0.0), level) - terrainHeight(p - vec2(d, 0.0), level);
+            float south = terrainHeight(p + vec2(0.0, d), level) - terrainHeight(p - vec2(0.0, d), level);
+            n = normalize(mix(n, normalize(vec3(-east, 2.0 * d, -south)), mapped));
+            // Read no finer than the pixel is: far ground would otherwise
+            // touch a different part of the map at every pixel.
+            bed = mix(altitude, terrainHeight(p, level), mapped);
+            mapLevel = level;
         }
         vec4 land = texture2D(s_landMap, p / LAND_EXTENT + 0.5);
         vec4 macro = texture2D(s_noise, p / 1730.0);
         vec4 meso = texture2D(s_noise, p / 171.0);
         float steep = 1.0 - n.y;
 
-        float rock = smoothstep(0.20, 0.40, steep + (land.a - 0.5) * 0.20 + (meso.r - 0.5) * 0.12
+        float rock = smoothstep(0.13, 0.30, steep + (land.a - 0.5) * 0.20 + (meso.r - 0.5) * 0.12
                                  + smoothstep(1500.0, 2200.0, altitude) * 0.22);
         float snow = smoothstep(1620.0, 1930.0, altitude + (macro.g - 0.5) * 520.0 + (meso.b - 0.5) * 120.0)
-                   * (1.0 - smoothstep(0.42, 0.68, steep));
-        float forest = smoothstep(0.34, 0.62, land.r + (meso.g - 0.5) * 0.34) * (1.0 - rock) * (1.0 - snow);
+                   * (1.0 - smoothstep(0.24, 0.50, steep));
+        float forest;
         float farm = land.g;
         float dry = smoothstep(0.30, 0.72, macro.r * 0.55 + (1.0 - land.b) * 0.55 + smoothstep(700.0, 1500.0, altitude) * 0.35);
 
-        // Two scales per layer hide the tile repeat: a near tile for the
-        // ground under the aircraft and a far tile that carries to the horizon.
+        // Cover: what the ground is, seen whole. Each is read at two sizes
+        // and the larger takes over in drifts, so neither repeat shows.
+        vec2 woodUv = turned(p, vec2(0.9211, 0.3894)) / WOOD_TILE;
+        vec4 wood = texture2DArray(s_terrainAlbedo, vec3(woodUv, LAYER_WOODLAND));
+        vec3 sward = mix(layerAlbedo(turned(p, vec2(0.7986, 0.6018)) / PASTURE_TILE, LAYER_PASTURE),
+                         layerAlbedo(turned(p, vec2(0.2890, -0.9573)) / (PASTURE_TILE * 2.7), LAYER_PASTURE),
+                         smoothstep(0.35, 0.65, macro.r));
+        // Detail: the grain of the ground under the aircraft, laid over the
+        // cover and gone within a kilometre.
         vec2 nearUv = p / 6.3;
-        vec2 farUv = turned(p, vec2(0.7986, 0.6018)) / 97.0;
         vec2 stoneUv = turned(p, vec2(0.9455, -0.3256)) / 143.0;
-        vec2 canopyUv = turned(p, vec2(0.6157, 0.7880)) / 61.0;
         float nearWeight = detailLevel > 0.5 ? exp(-viewDistance / 520.0) : 0.0;
         // Past a few kilometres a tile is smaller than a pixel and only its
         // repeat would show; hand over to the layer's mean colour and let the
         // land-cover noise carry the variation.
         float distant = smoothstep(1500.0, 7000.0, viewDistance);
-        float farTexels = footprint * 512.0 / 97.0;
-        vec3 grass = mix(layerBroad(farUv, LAYER_GRASS, farTexels), layerMean(LAYER_GRASS), distant);
+        vec3 grain = vec3_splat(1.0);
         vec3 stone = mix(layerAlbedo(stoneUv, LAYER_ROCK), layerMean(LAYER_ROCK), distant * 0.6);
-        if (detailLevel > 0.5) {
-            grass *= mix(vec3_splat(1.0), layerGrain(nearUv, LAYER_GRASS), nearWeight);
+        if (nearWeight > 0.004) {
+            grain = mix(grain, layerGrain(nearUv, LAYER_GRASS), nearWeight);
             stone *= mix(vec3_splat(1.0), layerGrain(p / 11.0, LAYER_ROCK), nearWeight);
         }
         vec3 soil = mix(layerBroad(p / 23.0, LAYER_SOIL, footprint * 512.0 / 23.0), layerMean(LAYER_SOIL), distant);
-        vec3 canopy = mix(layerAlbedo(canopyUv, LAYER_FOREST), layerMean(LAYER_FOREST) * 1.15,
-                          smoothstep(900.0, 4500.0, viewDistance));
+        // Painted crowns pass for trees from a height; lower down they are
+        // softened toward the wood's own colour and the real trees stand on them.
+        vec3 canopy = mix(wood.rgb, layerMean(LAYER_WOODLAND), 0.6 * exp(-viewDistance / 800.0))
+                    * (0.92 + 0.44 * macro.b) * (0.88 + 0.24 * meso.a);
+        // From among the trees the ground is the wood's floor: litter and
+        // moss in the shade of the crowns, which are the trees themselves.
+        float underfoot = exp(-viewDistance / 240.0);
+        canopy = mix(canopy, mix(soil, sward, 0.35) * grain * 0.42, underfoot);
+        // A wood ends at the crowns of its outermost trees, not along a contour.
+        float crowns = wood.a - 0.45;
+        forest = smoothstep(0.34, 0.62, land.r + (meso.g - 0.5) * 0.34 + crowns * 0.20) * (1.0 - rock) * (1.0 - snow);
 
-        // Meadow: lush to dry with moisture, never one flat green.
-        vec3 meadow = grass * mix(vec3(0.98, 1.16, 0.86), vec3(1.65, 1.30, 0.80), dry);
-        meadow *= 0.80 + 0.46 * macro.a;
-        // Mown and unmown patches, clover and bare earth at walking scale.
-        meadow *= 0.88 + 0.24 * texture2D(s_noise, p / 37.0).g;
-        meadow = mix(meadow, soil, smoothstep(0.62, 0.86, meso.a + dry * 0.2) * 0.55);
+        // Open ground: lush to dry with moisture and height, never one flat
+        // green, with thorn and gorse in clumps where nothing grazes it down.
+        vec3 meadow = sward * grain * mix(vec3(0.92, 1.00, 0.90), vec3(1.55, 1.12, 0.95), dry);
+        meadow *= 0.84 + 0.34 * macro.a;
+        meadow = mix(meadow, soil, smoothstep(0.62, 0.86, meso.a + dry * 0.2) * 0.45);
+        float thicket = smoothstep(0.52, 0.78, texture2D(s_noise, p / 2300.0).a * 0.75 + texture2D(s_noise, p / 610.0).b * 0.35);
+        float scrub = thicket * smoothstep(0.50, 0.64, wood.a * 0.55 + meso.r * 0.45)
+                    * (1.0 - farm) * (1.0 - rock) * (1.0 - snow);
 
-        // Farmland: an irregular patchwork with a crop, a lay and a boundary
-        // hedge per field.
-        if (farm > 0.01) {
-            vec2 warp = (macro.rg - 0.5) * 260.0;
-            vec2 fieldPos = (p + warp) / vec2(410.0, 290.0);
-            vec2 cell = floor(fieldPos);
-            float crop = cellHash(cell);
-            float lay = cellHash(cell + 17.0);
-            // Mostly pasture and green crops, some ripening grain, the odd
-            // ploughed field: muted, as fields are from the air.
-            vec3 cropColor = crop < 0.42 ? grass * vec3(0.98, 1.12, 0.84)
-                           : (crop < 0.66 ? vec3(0.058, 0.094, 0.030)
-                           : (crop < 0.86 ? vec3(0.185, 0.160, 0.078) : soil * vec3(0.80, 0.84, 0.86)));
-            vec2 along = lay < 0.5 ? vec2(1.0, 0.18) : vec2(0.22, 1.0);
-            float furrow = sin(dot(p + warp, along) * 1.9);
-            cropColor *= 1.0 + furrow * 0.09 * exp(-footprint * 1.4);
-            cropColor *= 0.86 + 0.28 * meso.a;
-            vec2 border = min(fract(fieldPos), 1.0 - fract(fieldPos)) * vec2(410.0, 290.0);
-            float hedge = 1.0 - smoothstep(2.5, 6.0 + footprint * 1.5, min(border.x, border.y));
-            cropColor = mix(cropColor, canopy * 0.9, hedge * 0.85);
-            meadow = mix(meadow, cropColor, farm);
+        // Farmland: irregular fields a few hundred metres across, most of them
+        // grass and green crops, some cut for hay or under the plough, with
+        // hedgerows and belts of trees between them, a wood here and there and
+        // lanes winding through. A field is all farmed or not at all, so the
+        // farmed land ends at a field's edge.
+        if (farm > 0.004) {
+            vec2 wandered = fieldWander(p);
+            vec2 field;
+            vec2 nextField;
+            vec2 fieldSite;
+            float fieldGap = fieldEdge(wandered / FIELD_SIZE, field, nextField, fieldSite) * FIELD_SIZE;
+            vec2 block;
+            vec2 nextBlock;
+            vec2 blockSite;
+            float laneGap = fieldEdge(wandered / LANE_SIZE + 37.5, block, nextBlock, blockSite) * LANE_SIZE;
+            float farmed = step(0.42, texture2DLod(s_landMap, fieldSite * FIELD_SIZE / LAND_EXTENT + 0.5, 0.0).g);
+            if (farmed > 0.5) {
+                scrub = 0.0;
+                // A lane cuts a field in two, and each side is its own field.
+                vec2 plot = field + block * 7.31;
+                float crop = cellHash(plot + 11.0);
+                float tone = cellHash(plot * 1.7 + 3.0);
+                // Each field is worked its own way: its cover lies along it.
+                float lay = cellHash(plot + 23.0) * 3.14159265;
+                vec2 along = vec2(cos(lay), sin(lay));
+                float coverLayer = LAYER_PASTURE;
+                float tile = PASTURE_TILE;
+                vec3 tint = mix(vec3(0.80, 0.90, 0.92), vec3(1.16, 1.10, 0.96), tone);
+                if (crop >= 0.44) {
+                    tile = FIELD_TILE;
+                    if (crop < 0.68) {
+                        // A green crop, from blue-green to yellow-green.
+                        coverLayer = LAYER_CROP;
+                        tint = mix(vec3(0.74, 0.92, 1.05), vec3(1.25, 1.12, 0.85), tone);
+                    } else if (crop < 0.77) {
+                        // Beet or potatoes: darker, closed over.
+                        coverLayer = LAYER_CROP;
+                        tint = mix(vec3(0.52, 0.70, 0.80), vec3(0.66, 0.80, 0.78), tone);
+                    } else if (crop < 0.89) {
+                        coverLayer = LAYER_STUBBLE;
+                        tint = mix(vec3(0.78, 0.80, 0.78), vec3(1.02, 1.00, 0.92), tone);
+                    } else if (crop < 0.94) {
+                        // Ripe corn: the crop's rows in the stubble's colour.
+                        coverLayer = LAYER_CROP;
+                        tint = mix(vec3(2.40, 1.25, 3.00), vec3(2.90, 1.45, 3.80), tone);
+                    } else {
+                        coverLayer = LAYER_PLOUGH;
+                        tint = mix(vec3(0.85, 0.85, 0.85), vec3(1.25, 1.20, 1.15), tone);
+                    }
+                }
+                vec2 coverUv = turned(p, along) / tile + vec2(crop, tone) * 7.0;
+                vec3 cropColor = layerGrad(vec3(coverUv, coverLayer), turned(dpx, along) / tile, turned(dpy, along) / tile).rgb * tint;
+                cropColor *= (0.90 + 0.22 * macro.a) * mix(vec3_splat(1.0), grain, step(coverLayer, LAYER_CROP + 0.5));
+                // What grows on the boundary: a strip of rough grass, a hedge
+                // or a belt of trees, its outline the crowns that make it up.
+                float boundary = cellHash(field + nextField + 40.0);
+                float reach = boundary < 0.75 ? 4.0 : 11.0;
+                float hedge = step(0.30, boundary) * (1.0 - smoothstep(reach * 0.45, reach + footprint * 1.2, fieldGap - crowns * reach * 0.9));
+                float margin = 1.0 - smoothstep(1.2, 3.2 + footprint * 1.2, fieldGap);
+                cropColor = mix(cropColor, sward * vec3(1.15, 1.08, 0.95), margin * 0.7);
+                // One field in a dozen was never cleared, or has gone back to wood.
+                float wooded = step(cellHash(field + 61.0), 0.085) * smoothstep(-3.0, 5.0, fieldGap + crowns * 14.0);
+                // Lanes: tarmac between grass verges, kept clear of the trees.
+                float verge = 1.0 - smoothstep(4.5, 8.0 + footprint * 1.5, laneGap);
+                float lane = 1.0 - smoothstep(2.4, 3.2 + footprint * 1.2, laneGap);
+                cropColor = mix(cropColor, sward * vec3(1.20, 1.10, 0.95), verge * 0.8);
+                cropColor = mix(cropColor, vec3(0.150, 0.146, 0.138) * (0.9 + 0.2 * meso.g), lane);
+                forest = max(forest, max(hedge, wooded) * (1.0 - verge));
+                meadow = cropColor;
+            }
         }
 
-        albedo = meadow;
-        albedo = mix(albedo, canopy * (0.74 + 0.52 * macro.b) * (0.86 + 0.28 * meso.a), forest);
+        albedo = mix(meadow, canopy * 0.9, scrub);
+        albedo = mix(albedo, canopy, forest);
         albedo = mix(albedo, stone * (0.80 + 0.40 * macro.a), rock);
         vec3 snowColor = vec3(0.86, 0.89, 0.93) * (0.94 + 0.08 * meso.r);
         albedo = mix(albedo, snowColor, snow);
         roughness = mix(mix(mix(0.92, 0.88, forest), 0.86, rock), 0.55, snow);
 
-        if (detailLevel > 0.5) {
-            vec4 grassDetail = layerDetail(nearUv, LAYER_GRASS);
-            vec4 stoneFar = layerDetail(stoneUv, LAYER_ROCK);
-            vec4 stoneNear = layerDetail(p / 11.0, LAYER_ROCK);
-            vec4 canopyDetail = layerDetail(canopyUv, LAYER_FOREST);
-            canopyDetail.xy *= 1.0 - smoothstep(900.0, 4500.0, viewDistance);
-            vec4 snowDetail = layerDetail(p / 14.0, LAYER_SNOW);
-            vec4 detail = vec4(grassDetail.xy * nearWeight, 0.0, mix(1.0, grassDetail.w, nearWeight));
-            detail = mix(detail, vec4(canopyDetail.xy * 1.2, 0.0, canopyDetail.w), forest);
-            vec4 stone4 = vec4(stoneFar.xy * 1.4 + stoneNear.xy * nearWeight, 0.0, stoneFar.w * mix(1.0, stoneNear.w, nearWeight));
-            detail = mix(detail, stone4, rock);
-            detail = mix(detail, vec4(snowDetail.xy * 0.45, 0.0, 1.0), snow);
-            slopeDetail = detail.xy;
-            occlusion = detail.w;
+        // Surface relief is too fine to see from far off, where its five
+        // lookups would be most of this shader's cost: it fades out and is
+        // then not read at all.
+        float reliefFade = 1.0 - smoothstep(6000.0, 10000.0, viewDistance);
+        if (detailLevel > 0.5 && reliefFade > 0.0) {
+            // Each material's relief is read only where that material shows
+            // and is near enough to be made out; elsewhere its mean will do.
+            vec4 detail = vec4(0.0, 0.0, 0.0, 1.0);
+            if (nearWeight > 0.004) {
+                vec4 grassDetail = layerDetail(nearUv, LAYER_GRASS);
+                detail = vec4(grassDetail.xy * nearWeight, 0.0, mix(1.0, grassDetail.w, nearWeight));
+            }
+            float wooded = max(forest, scrub * 0.8);
+            if (wooded > 0.004) {
+                // Crowns stand proud of the gaps between them, and catch the sun.
+                vec4 crownDetail = layerDetail(woodUv, LAYER_WOODLAND);
+                detail = mix(detail, vec4(crownDetail.xy * 1.6 * (1.0 - exp(-viewDistance / 500.0)), 0.0, mix(crownDetail.w, 0.8, underfoot)), wooded);
+            }
+            if (rock > 0.004) {
+                vec4 stoneFar = layerDetail(stoneUv, LAYER_ROCK);
+                vec4 stone4 = vec4(stoneFar.xy * 1.4, 0.0, stoneFar.w);
+                if (nearWeight > 0.004) {
+                    vec4 stoneNear = layerDetail(p / 11.0, LAYER_ROCK);
+                    stone4 = vec4(stone4.xy + stoneNear.xy * nearWeight, 0.0, stone4.w * mix(1.0, stoneNear.w, nearWeight));
+                }
+                detail = mix(detail, stone4, rock);
+            }
+            if (snow > 0.004) {
+                vec2 drift = viewDistance < 3000.0 ? layerDetail(p / 14.0, LAYER_SNOW).xy : vec2_splat(0.0);
+                detail = mix(detail, vec4(drift * 0.45, 0.0, 1.0), snow);
+            }
+            slopeDetail = detail.xy * reliefFade;
+            occlusion = mix(1.0, detail.w, reliefFade);
         }
 
         // ---- Lakes -----------------------------------------------------------
@@ -239,7 +402,7 @@ void main()
             albedo *= mix(1.0, 0.55, damp * step(-9000.0, waterLevel));
             roughness = mix(roughness, 0.45, damp * step(-9000.0, waterLevel));
         }
-        macroShadow = reliefShadow(p, altitude);
+        macroShadow = mix(1.0, reliefShadow(p, bed, mapLevel), mapped);
     } else {
         // ---- Paved surfaces --------------------------------------------------
         vec4 macro = texture2D(s_noise, p / 310.0);

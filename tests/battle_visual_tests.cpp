@@ -1,6 +1,7 @@
 // What a fight looks like, without a window: where damage is shown, the parts
 // that break away, the effects that weapons and damage produce, and chat.
 #include "breakaway.hpp"
+#include "ejection.hpp"
 #include "chat.hpp"
 #include "damage_visuals.hpp"
 #include "effects.hpp"
@@ -154,6 +155,75 @@ void breakaway() {
   crowd.clear();
   check(crowd.pieces().empty(), "clear removes every piece");
   std::puts("battle breakaway: release on damage, slivers, kinematics, landing, shatter, respawn, bounds PASS");
+}
+// A pilot who has left: thrown clear, stopped by the air, and let down gently.
+void ejection() {
+  const auto type = AircraftType::Typhoon;
+  State aircraft;
+  aircraft.pos_ned = {0, 0, groundHeightNed(0, 0) - 600};
+  aircraft.vel_ned = {240, 0, 0};
+  Ejections out;
+  out.eject(7, true, aircraft, type);
+  check(out.pilots().size() == 1 && out.own() && out.own()->entity == 7, "the pilot's own ejection is known as theirs");
+  check((out.own()->position - aircraft.pos_ned).norm() < aircraftDefinition(type).visual.radius &&
+            out.own()->velocity.z < -10 && std::abs(out.own()->velocity.x - 240) < 1e-9,
+        "the seat leaves upward from the flight deck at the aircraft's speed");
+  double highest = 0, openedAt = -1, speedAtOpen = 0, time = 0;
+  int opened = 0, touched = 0;
+  bool settled = false;
+  for (; time < 400 && out.own()->landed == 0; time += 1. / 60) {
+    out.update(1. / 60);
+    check(out.own() != nullptr, "a pilot still coming down is kept");
+    const auto& pilot = *out.own();
+    check(std::isfinite(pilot.position.norm2()) && std::abs(pilot.up.norm() - 1) < 1e-6, "the pilot's motion stays finite");
+    highest = std::max(highest, aircraft.pos_ned.z - pilot.position.z);
+    opened += pilot.opened;
+    touched += pilot.touched;
+    if (pilot.opened) { openedAt = time; speedAtOpen = pilot.velocity.norm(); }
+    if (time > 12 && !pilot.touched) {
+      settled = true;
+      check(pilot.velocity.z > 4.5 && pilot.velocity.z < 8 && std::hypot(pilot.velocity.x, pilot.velocity.y) < 1.5 && pilot.up.z < -.98,
+            "under a full canopy the descent is slow, steady and upright");
+    }
+  }
+  check(highest > 12, "the seat clears the fin");
+  check(opened == 1 && openedAt > .8 && openedAt < 1.6 && speedAtOpen < 200, "the parachute opens once, after the air has slowed the seat");
+  check(settled && touched == 1 && time > 70 && time < 200, "the pilot comes down slowly and lands once");
+  const auto& down = *out.own();
+  check(std::abs(down.position.z - (groundHeightNed(down.position.x, down.position.y) - 1.3)) < 1e-6 && down.velocity.norm() == 0,
+        "the pilot stands on the ground where they landed");
+  for (double t = 0; t < Ejections::kLandedSeconds + 1; t += 1. / 60) out.update(1. / 60);
+  check(out.pilots().empty(), "a pilot who is down is not drawn for ever");
+  // Too low for the parachute: the pilot still ends on the ground, not under it.
+  aircraft.pos_ned.z = groundHeightNed(0, 0) - 4;
+  aircraft.att = quatFromEuler(kPi, 0, 0);
+  out.eject(7, true, aircraft, type);
+  for (double t = 0; t < 3; t += 1. / 60) out.update(1. / 60);
+  check(out.own() && out.own()->landed > 0 && out.own()->position.z <= groundHeightNed(out.own()->position.x, out.own()->position.y),
+        "an inverted ejection near the ground stops at the ground");
+  // Others' pilots are kept apart from the player's, and the number is bounded.
+  out.clear();
+  for (std::uint64_t entity = 1; entity <= 40; ++entity) out.eject(entity, false, Vec3{double(entity) * 50, 0, -2000}, Vec3{200, 0, 0});
+  check(out.pilots().size() == Ejections::kCapacity && !out.own(), "ejected pilots are bounded, and none is taken for the player's");
+  out.eject(0, true, aircraft, type);
+  out.clearOwn();
+  check(!out.own() && out.pilots().size() == Ejections::kCapacity - 1, "a new life removes only the player's own pilot");
+  // The figure hangs below the canopy on an upright frame.
+  EjectedPilot hanging;
+  const auto axes = pilotAxes(hanging);
+  check((axes[2] - Vec3{0, 0, 1}).norm() < 1e-9 && std::abs(axes[0].dot(axes[1])) < 1e-9 && (axes[0].cross(axes[1]) - axes[2]).norm() < 1e-9,
+        "the pilot's axes are right-handed with down along the risers");
+  const ChuteMesh mesh = buildChuteMesh();
+  float top = 0, widest = 0;
+  for (const auto part : {ChutePart::Panels, ChutePart::Stripes})
+    for (const auto& vertex : mesh.parts[std::size_t(part)]) {
+      top = std::min(top, vertex.z);
+      widest = std::max(widest, std::hypot(vertex.x, vertex.y));
+      check(vertex.z < -float(kChuteHeight) + .01f, "the canopy is above the rigging");
+    }
+  check(top < -9 && widest > 3.3f && widest < 4.3f, "the canopy is a dome a few metres across");
+  for (const auto& part : mesh.parts) check(!part.empty() && part.size() % 3 == 0, "every part of the parachute has triangles");
+  std::puts("battle ejection: seat, parachute, descent, landing, bounds, mesh PASS");
 }
 void effects() {
   const auto type = AircraftType::Typhoon;
@@ -414,6 +484,7 @@ int main(int argc, char** argv) {
     if (suite == "view") view();
     else if (suite == "breakaway") breakaway();
     else if (suite == "effects") effects();
+    else if (suite == "ejection") ejection();
     else if (suite == "chat") chat();
     else if (suite == "weapons") weaponVisuals();
     else throw std::invalid_argument("suite");

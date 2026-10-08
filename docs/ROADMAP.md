@@ -14,7 +14,7 @@
 | Later terrain | Terrain streaming and local chunks; asset import/LOD and origin integration |
 | M5 | Improved aerodynamics and aircraft handling |
 | M7 | Multiple configurable aircraft |
-| M8 | Airports and world content; audio through miniaudio when needed |
+| M8 | Airports and world content. Sound arrived in 0.5.3, synthesised and played through miniaudio; see [SOUND.md](SOUND.md) |
 | M9 | Large-world improvements |
 | M10 | Earth-scale experimentation |
 

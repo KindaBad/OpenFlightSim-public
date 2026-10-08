@@ -221,6 +221,13 @@ void GraphicsSettings::load(const std::string& path) {
   read(table, "mouseAimSensitivity", mouseAimSensitivity);
   read(table, "dynamicFov", dynamicFov);
   read(table, "minimap", showMinimap);
+  read(table, "sound", sound);
+  read(table, "soundVolume", soundVolume);
+  read(table, "engineVolume", engineVolume);
+  read(table, "weaponVolume", weaponVolume);
+  read(table, "airframeVolume", airframeVolume);
+  read(table, "cockpitVolume", cockpitVolume);
+  read(table, "soundInBackground", soundInBackground);
 
   read(table, "sunElevation", sky.sunElevationDeg);
   read(table, "sunAzimuth", sky.sunAzimuthDeg);
@@ -256,6 +263,8 @@ void GraphicsSettings::load(const std::string& path) {
   playerLabelMaxDistance = clampSetting(playerLabelMaxDistance, 100.0f, 100000.0f);
   relativeHumidity = clampSetting(relativeHumidity, 0.f, 1.f);
   mouseAimSensitivity = clampSetting(mouseAimSensitivity, .2f, 3.f);
+  for (float* volume : {&soundVolume, &engineVolume, &weaponVolume, &airframeVolume, &cockpitVolume})
+    *volume = clampSetting(*volume, 0.f, 1.f);
   sky.sunElevationDeg = clampSetting(sky.sunElevationDeg, -10.0f, 89.0f);
   sky.exposureCompensation = clampSetting(sky.exposureCompensation, -4.0f, 4.0f);
   weather.visibilityKm = clampSetting(weather.visibilityKm, 2.0f, 300.0f);
@@ -321,6 +330,13 @@ bool GraphicsSettings::save() const {
   write(file, "mouseAimSensitivity", mouseAimSensitivity);
   write(file, "dynamicFov", dynamicFov);
   write(file, "minimap", showMinimap);
+  write(file, "sound", sound);
+  write(file, "soundVolume", soundVolume);
+  write(file, "engineVolume", engineVolume);
+  write(file, "weaponVolume", weaponVolume);
+  write(file, "airframeVolume", airframeVolume);
+  write(file, "cockpitVolume", cockpitVolume);
+  write(file, "soundInBackground", soundInBackground);
 
   write(file, "sunElevation", sky.sunElevationDeg);
   write(file, "sunAzimuth", sky.sunAzimuthDeg);

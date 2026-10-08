@@ -52,8 +52,12 @@ file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/generated/ofs_font.hpp"
 add_executable(ofs_client
   src/main.cpp src/platform.cpp src/input.cpp src/renderer.cpp
   src/renderer_atmosphere.cpp src/renderer_environment.cpp src/renderer_stores.cpp
-  src/debug_ui.cpp src/hud.cpp src/camera.cpp src/settings.cpp)
+  src/debug_ui.cpp src/hud.cpp src/camera.cpp src/settings.cpp src/audio_device.cpp)
 add_dependencies(ofs_client ofs_shaders)
+# miniaudio finds the system's sound libraries when it runs, so nothing is linked
+# for them and a machine without sound still starts the game.
+target_include_directories(ofs_client SYSTEM PRIVATE "${miniaudio_SOURCE_DIR}")
+target_link_libraries(ofs_client PRIVATE ${CMAKE_DL_LIBS})
 target_include_directories(ofs_client PRIVATE src "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_include_directories(ofs_client PRIVATE "${CMAKE_BINARY_DIR}/generated")
 target_link_libraries(ofs_client PRIVATE ofs_visual_core SDL3::SDL3 bgfx ofs_imgui glm::glm)

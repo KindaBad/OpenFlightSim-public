@@ -1,6 +1,7 @@
 #include "hud.hpp"
 #include "map.hpp"
 #include "ofs/ground_service.hpp"
+#include "ofs/pilot.hpp"
 #include "ofs/units.hpp"
 #include <imgui.h>
 #include <algorithm>
@@ -653,6 +654,38 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
   const auto& definition = aircraftDefinition(frame.type);
   const bool armed = definition.gun.has_value();
 
+  // Under load the view closes in from its edges and darkens: black as the
+  // blood leaves the head, red as it is forced into it.
+  if (frame.visionLoss > .002) {
+    const float loss = float(std::clamp(frame.visionLoss, 0., 1.)), red = float(std::clamp(frame.redOut, 0., 1.));
+    const auto veil = [&](float alpha) {
+      return IM_COL32(int(96 * red), int(4 * red), int(6 * red), int(255 * std::clamp(alpha, 0.f, 1.f)));
+    };
+    const float reach = std::hypot(cx, cy);
+    // What is still seen, a soft edge, and nothing beyond it.
+    const float clear = reach * 1.05f * (1 - loss) * (1 - loss), soft = clear + reach * (.55f - .3f * loss);
+    constexpr int kSegments = 48;
+    const ImVec2 white = ImGui::GetFontTexUvWhitePixel();
+    draw->PrimReserve(kSegments * 12, kSegments * 8);
+    for (int i = 0; i < kSegments; ++i) {
+      const float a = 6.2831853f * float(i) / kSegments, b = 6.2831853f * float(i + 1) / kSegments;
+      const ImVec2 da{std::cos(a), std::sin(a)}, db{std::cos(b), std::sin(b)};
+      const auto at = [&](const ImVec2& d, float r) { return ImVec2{cx + d.x * r, cy + d.y * r}; };
+      const auto quad = [&](float inner, float outer, ImU32 innerColour, ImU32 outerColour) {
+        const auto base = ImDrawIdx(draw->_VtxCurrentIdx);
+        draw->PrimWriteVtx(at(da, inner), white, innerColour);
+        draw->PrimWriteVtx(at(db, inner), white, innerColour);
+        draw->PrimWriteVtx(at(db, outer), white, outerColour);
+        draw->PrimWriteVtx(at(da, outer), white, outerColour);
+        for (const int index : {0, 1, 2, 0, 2, 3}) draw->PrimWriteIdx(ImDrawIdx(base + index));
+      };
+      const float edge = std::min(1.f, .55f + loss);
+      quad(clear, soft, veil(0), veil(edge));
+      quad(soft, reach * 2.2f, veil(edge), veil(edge));
+    }
+    // The middle dims too, and goes last.
+    draw->AddRectFilled({0, 0}, display, veil(loss * loss * loss));
+  }
   // Being hit reddens the edges of the view for a moment.
   if (frame.damageFlash > 0) {
     const ImU32 edge = faded(kDanger, float(std::clamp(frame.damageFlash / .6, 0., 1.)) * .38f), none = faded(kDanger, 0);
@@ -679,7 +712,8 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
     const std::string climb = (flight.vs >= 0 ? "+" : "") + number(flight.vs);
     text(draw, {x + 14, y + 84}, "MACH " + number(flight.mach, 2), kMuted, 12);
     if (settings.showGLoad)
-      text(draw, {x + 104, y + 84}, number(flight.g_load, 1) + " G", std::abs(flight.g_load) > 7 ? kAmber : kMuted, 12);
+      text(draw, {x + 104, y + 84}, number(flight.g_load, 1) + " G",
+           frame.visionLoss > .5 ? kDanger : flight.g_load > PilotStrain::kSustainedG || flight.g_load < PilotStrain::kNegativeG ? kAmber : kMuted, 12);
     text(draw, {x + 152, y + 84}, "V/S " + climb + " m/s", kMuted, 12);
     // Throttle, with reheat shown once it is lit.
     const bool reheat = state.afterburner[0] > .05 || state.afterburner[1] > .05;
@@ -877,12 +911,25 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
     textRight(draw, {x + 132, y + 8}, number(frame.ammo), frame.ammo ? kText : kDanger, 12);
     countermeasures(draw, {x + 14, y + 28}, frame);
   }
+  // The pilot is out: nothing answers until they come round.
+  if (frame.alive && frame.unconscious && !frame.menuOpen) {
+    panel(draw,{cx-150,cy+70},{cx+150,cy+126},IM_COL32(9,16,25,235));
+    centred(draw,{cx,cy+78},"BLACKED OUT",kDanger,20);
+    centred(draw,{cx,cy+104},"Too much g for too long",kMuted,12);
+  }
+  // Holding the eject key: a moment to change your mind.
+  if (frame.alive && frame.ejectHold > 0) {
+    panel(draw,{cx-150,cy+134},{cx+150,cy+178},IM_COL32(9,16,25,235));
+    centred(draw,{cx,cy+140},"EJECTING",kAmber,15);
+    bar(draw,{cx-130,cy+164},{cx+130,cy+169},float(std::clamp(frame.ejectHold,0.,1.)),kAmber);
+  }
   if (!frame.alive) {
     panel(draw,{cx-170,cy-40},{cx+170,cy+44},IM_COL32(9,16,25,235));
-    centred(draw,{cx,cy-28},frame.multiplayer?"AIRCRAFT DESTROYED":"AIRCRAFT CRASHED",kDanger,22);
-    if (frame.multiplayer) {
+    centred(draw,{cx,cy-28},frame.ejected?"EJECTED":frame.multiplayer?"AIRCRAFT DESTROYED":"AIRCRAFT CRASHED",
+            frame.ejected?kAmber:kDanger,22);
+    if (frame.multiplayer || frame.ejected) {
       centred(draw,{cx,cy+2},"Back in the air in "+number(frame.respawnSeconds,1)+" s",kMuted,13);
-      bar(draw,{cx-140,cy+26},{cx+140,cy+31},1-float(std::clamp(frame.respawnSeconds/4.,0.,1.)),kBlue);
+      bar(draw,{cx-140,cy+26},{cx+140,cy+31},1-float(std::clamp(frame.respawnSeconds/std::max(.1,frame.respawnSpan),0.,1.)),kBlue);
     } else {
       centred(draw,{cx,cy+6},"F2  fly again      F3  back to the runway",kMuted,13);
     }

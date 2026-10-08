@@ -197,6 +197,7 @@ void Renderer::createUniforms() {
   uniforms_.lightViewProj = bgfx::createUniform("u_lightViewProj", mat4);
   uniforms_.shadowMatrix = bgfx::createUniform("u_shadowMatrix", mat4, kMaxCascades);
   uniforms_.damage = bgfx::createUniform("u_damage", vec4, 7);
+  uniforms_.terrainMap = bgfx::createUniform("u_terrainMap", vec4);
   uniforms_.baseColor = bgfx::createUniform("u_baseColor", vec4);
   uniforms_.metallicRoughness = bgfx::createUniform("u_metallicRoughness", vec4);
   uniforms_.emissive = bgfx::createUniform("u_emissive", vec4);
@@ -229,6 +230,7 @@ void Renderer::createUniforms() {
   uniforms_.terrainNormal = bgfx::createUniform("s_terrainNormal", sampler);
   uniforms_.landMap = bgfx::createUniform("s_landMap", sampler);
   uniforms_.lakeMap = bgfx::createUniform("s_lakeMap", sampler);
+  uniforms_.heightMap = bgfx::createUniform("s_heightMap", sampler);
   uniforms_.waterNormal = bgfx::createUniform("s_waterNormal", sampler);
   uniforms_.cloudShape = bgfx::createUniform("s_cloudShape", sampler);
   uniforms_.cloudDetail = bgfx::createUniform("s_cloudDetail", sampler);
@@ -334,6 +336,7 @@ bool Renderer::initialize(const Platform& platform) {
   screenTriangle_ = bgfx::createVertexBuffer(
       bgfx::copy(triangle, static_cast<std::uint32_t>(sizeof(triangle))), unlitLayout_);
   createStoreMeshes();
+  createChuteMeshes();
 
   synthesis_ = std::async(std::launch::async, synthesise, settings_);
 
@@ -363,7 +366,7 @@ Renderer::Synthesis Renderer::synthesise(const GraphicsSettings& settings) {
                                        glm::mix(data.weather.visibilityKm, 7.f, data.weather.precipitation));
   data.atmosphere = std::make_unique<AtmosphereModel>(AtmosphereParameters::fromWeather(
       data.weather.visibilityKm, data.weather.fogDensity, data.weather.fogHeight));
-  data.landscape = std::make_unique<Landscape>();
+  data.landscape = std::make_unique<Landscape>(1024, 512, settings.terrain == TerrainQuality::High ? 4096 : 2048);
   data.map = buildMapImage(*data.landscape);
   data.cloudShape = procedural::cloudShapeVolume(kCloudShapeSize);
   data.cloudDetail = procedural::cloudDetailVolume(kCloudDetailSize);
@@ -430,6 +433,8 @@ void Renderer::destroy() {
   for (auto& type : storeMeshes_) for (auto& detail : type) for (auto& part : detail)
     if (bgfx::isValid(part.vertices)) bgfx::destroy(part.vertices);
   if (bgfx::isValid(pylonMesh_.vertices)) bgfx::destroy(pylonMesh_.vertices);
+  for (auto& part : chuteMeshes_)
+    if (bgfx::isValid(part.vertices)) { bgfx::destroy(part.vertices); part = {}; }
   if (bgfx::isValid(flameMesh_)) bgfx::destroy(flameMesh_);
   if (bgfx::isValid(screenTriangle_)) bgfx::destroy(screenTriangle_);
   bgfx::shutdown();
@@ -1411,6 +1416,8 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
   stats_.aircraftDrawn = 0;
   stats_.treesDrawn = 0;
   stats_.lodCounts = {};
+  partsLost_.clear();
+  wreckImpacts_.clear();
   // An aircraft that blew up throws its wings and fin clear. This comes before
   // its instance is dropped, while the pose of its moving parts is still held.
   for (const CombatVisuals::Destruction& destruction : combat.destructions) {
@@ -1466,8 +1473,10 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
     const auto& instance=instances_.at(id);
     const std::size_t released=breakaways_.observe(id,instance.type,*instance.state,instance.damage,instance.deltas,instance.damageSeed);
     const auto& pieces=breakaways_.pieces();
-    for (std::size_t i=pieces.size()-std::min(released,pieces.size());i<pieces.size();++i)
+    for (std::size_t i=pieces.size()-std::min(released,pieces.size());i<pieces.size();++i) {
       combat_.onPartLost(pieces[i].position,pieces[i].velocity);
+      partsLost_.push_back({pieces[i].position,id==0});
+    }
   };
   if (!combat.localDestroyed) shed(0);
   for (const RemoteAircraft& remote : remotes) if (remote.alive) shed(remote.entity);
@@ -1475,7 +1484,10 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
   breakaways_.update(effectDt,weather.wind_ned);
   for (BreakawayPiece& piece : breakaways_.pieces()) {
     // A wreck burns until it reaches the ground, and goes up when it does.
-    if (piece.struck && piece.wreck()) combat_.onDestroyed(piece.position, {});
+    if (piece.struck && piece.wreck()) {
+      combat_.onDestroyed(piece.position, {});
+      wreckImpacts_.push_back(piece.position);
+    }
     if (!piece.grounded && (piece.wreck() || piece.age<7) && piece.smoke>=(piece.wreck() ? .035 : .06)) {
       piece.smoke=0;
       combat_.onPieceSmoke(piece.position,piece.velocity,piece.wreck());
@@ -1556,6 +1568,7 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
       drawAircraft(instances_.at(remote.entity), false, kViewWorld, viewProj_);
   drawStores(combat, camera, false);
   drawBreakaways();
+  drawPilots(combat);
 
   // ---- Atmosphere: clouds, particles, plumes, rain ----
   drawClouds();

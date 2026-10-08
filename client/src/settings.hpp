@@ -102,6 +102,13 @@ struct GraphicsSettings {
   bool dynamicFov{true};
   bool showMinimap{true};
 
+  // Sound. Each volume is 0..1; the master applies on top of the other four.
+  bool sound{true};
+  float soundVolume{.8f};
+  float engineVolume{1.f}, weaponVolume{1.f}, airframeVolume{1.f}, cockpitVolume{1.f};
+  // Keeps playing while another window has the keyboard.
+  bool soundInBackground{false};
+
   SkySettings sky;
   WeatherSettings weather;
 

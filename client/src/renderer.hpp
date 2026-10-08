@@ -25,6 +25,7 @@
 #include "camera.hpp"
 #include "damage_visuals.hpp"
 #include "effects.hpp"
+#include "ejection.hpp"
 #include "ofs/weapons.hpp"
 #include "gltf.hpp"
 #include "landscape.hpp"
@@ -127,6 +128,8 @@ struct CombatVisuals {
   std::vector<Hit> hits;
   std::vector<Destruction> destructions;
   std::vector<Simulator::GroundImpact> groundImpacts;
+  // Pilots who have left their aircraft, as they are this frame.
+  std::span<const EjectedPilot> pilots;
   // Life state for the HUD, straight from the server's replicated values.
   bool localDestroyed{};
   double localHealth{100};
@@ -246,6 +249,12 @@ class Renderer {
   };
   const Stats& stats() const { return stats_; }
 
+  // What the last frame did that can be heard: a wing or fin leaving an
+  // aircraft (`own` for the pilot's), and a falling wreck reaching the ground.
+  struct PartLost { Vec3 position; bool own{}; };
+  const std::vector<PartLost>& partsLost() const { return partsLost_; }
+  const std::vector<Vec3>& wreckImpacts() const { return wreckImpacts_; }
+
   const char* backend() const { return bgfx::getRendererName(bgfx::getRendererType()); }
   bool screenshotWritten() const { return callbacks_.screenshotWritten.load(); }
   // Submits ImGui's draw data in its own view, after the world.
@@ -303,11 +312,11 @@ class Renderer {
     bgfx::UniformHandle lightViewProj, shadowMatrix;
     bgfx::UniformHandle baseColor, metallicRoughness, emissive, doubleSided, normalSettings, textureFlags, alphaSettings;
     bgfx::UniformHandle surface, flame, effectParams, cloudRender, cloudResolve, postSettings, postStep, rain, rainSide;
-    bgfx::UniformHandle damage;
+    bgfx::UniformHandle damage, terrainMap;
     // Samplers.
     bgfx::UniformHandle shadowAtlas, baseTexture, mrTexture, emissiveTexture, normalTexture, occlusionTexture;
     bgfx::UniformHandle transmittance, skyView, aerial, multiScatter, weatherMap, noise;
-    bgfx::UniformHandle terrainAlbedo, terrainNormal, landMap, lakeMap, waterNormal;
+    bgfx::UniformHandle terrainAlbedo, terrainNormal, landMap, lakeMap, waterNormal, heightMap;
     bgfx::UniformHandle cloudShape, cloudDetail, sceneRange, cloudLayer, cloudDepth;
     bgfx::UniformHandle cloudCurrent, cloudHistory, cloudHistoryDepth;
     bgfx::UniformHandle sceneTexture, bloomTexture, distortion;
@@ -403,6 +412,9 @@ class Renderer {
   void drawMissilePlumes(const CombatVisuals& combat);
   // Wings and fins that have broken away, drawn from their aircraft's own mesh.
   void drawBreakaways();
+  void createChuteMeshes();
+  // Ejected pilots, their seats and parachutes.
+  void drawPilots(const CombatVisuals& combat);
   void ensureFlameMesh();
   void applyMaterial(const Material& material, const Model* model = nullptr, float detail = 0);
   std::uint32_t resetFlags() const;
@@ -456,6 +468,9 @@ class Renderer {
   };
   std::array<std::array<std::array<PartBuffer, 4>, 2>, 2> storeMeshes_{};
   PartBuffer pylonMesh_{};
+  std::array<PartBuffer, std::size_t(ChutePart::Count)> chuteMeshes_{};
+  std::vector<PartLost> partsLost_;
+  std::vector<Vec3> wreckImpacts_;
   bgfx::VertexBufferHandle flameMesh_{BGFX_INVALID_HANDLE};
   unsigned flameVertices_{};
   double flameTime_{};
@@ -512,6 +527,8 @@ class Renderer {
   std::uint32_t terrainIndexCount_{};
   bgfx::TextureHandle terrainAlbedo_{BGFX_INVALID_HANDLE}, terrainNormal_{BGFX_INVALID_HANDLE};
   bgfx::TextureHandle landMap_{BGFX_INVALID_HANDLE}, lakeMap_{BGFX_INVALID_HANDLE}, waterNormal_{BGFX_INVALID_HANDLE};
+  bgfx::TextureHandle heightMap_{BGFX_INVALID_HANDLE};
+  int heightMapLevels_{};
   bgfx::TextureHandle mapTexture_{BGFX_INVALID_HANDLE};
   // The airfield (airfield.hpp): layers of paving and paint drawn into the
   // terrain, and one batch of solid structure per material.
@@ -527,8 +544,9 @@ class Renderer {
   };
   std::vector<GroundLayer> airfieldGround_;
   std::vector<StructureBatch> airfieldParts_;
-  bgfx::VertexBufferHandle houses_{BGFX_INVALID_HANDLE};
-  std::uint32_t houseVertices_{};
+  // Village buildings, in two batches: walls and roofs.
+  bgfx::VertexBufferHandle houses_{BGFX_INVALID_HANDLE}, roofs_{BGFX_INVALID_HANDLE};
+  std::uint32_t houseVertices_{}, roofVertices_{};
   // Tree meshes: [species][0 near, 1 far].
   TreeMesh treeMeshes_[2][2]{};
   std::map<std::pair<int, int>, TreeChunk> treeChunks_;

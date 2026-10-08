@@ -29,7 +29,8 @@ Three compile jobs are the preset default to keep dependency compilation memory
 bounded; adjust --parallel for your machine. Linux M0 selects SDL's X11 driver,
 so a Wayland session needs XWayland. bgfx owns an OpenGL 4.3+ context through EGL.
 An accelerated driver is recommended. No SDL Renderer/SDL GPU/audio module is
-used. Native Wayland and alternate bgfx backends are not enabled.
+used; sound goes through miniaudio, which needs no development packages and
+finds PulseAudio, PipeWire's PulseAudio service or ALSA when the game starts. Native Wayland and alternate bgfx backends are not enabled.
 
 To use Clang, choose a fresh build directory:
 
@@ -135,13 +136,16 @@ Only graphics-enabled configuration downloads these pinned sources:
 | bimg submodule | 87aaad3ac882e741889fdd4263224e5d12c26f99 |
 | Dear ImGui 1.91.9b | f5befd2d29e66809cd1110a152e375a7f1981f06 |
 | GLM 1.0.1 | 0af55ccecd98d4e5a8d1fad7de25ba429d60e863 |
+| miniaudio 0.11.25 | 9634bedb5b5a2ca38c1ee7108a9358a4e233f14d |
 
-SDL3/ImGui/GLM use SHA256-verified commit archives; bgfx.cmake is fetched with
+SDL3/ImGui/GLM/miniaudio use SHA256-verified commit archives; bgfx.cmake is fetched with
 its matching Git submodules. First configure requires network access and may
 take time. Sources/builds live under each build directory's _deps. bgfx examples
 and unused backends are disabled; shaderc is built and its binaries are embedded.
 M2 additionally fetches GameNetworkingSockets v1.6.0 at pinned commit
-2cb93a06350bb065db53abdb0d87cf297e0bfd34. Jolt and miniaudio remain absent.
+2cb93a06350bb065db53abdb0d87cf297e0bfd34. Jolt remains absent. miniaudio (public
+domain) is a single header compiled into the client; only its device layer is
+used, and it is not part of OFS_DEPS_SOURCE_ROOT.
 
 Optional OFS_DEPS_SOURCE_ROOT points to pre-fetched Git directories named sdl,
 bgfx_cmake, imgui and glm. Their HEAD revisions must match the pins. Submodules

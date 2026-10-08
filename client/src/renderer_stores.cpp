@@ -177,6 +177,65 @@ void Renderer::drawStores(const CombatVisuals& combat, const Camera& camera, boo
   }
 }
 
+void Renderer::createChuteMeshes() {
+  const ChuteMesh mesh = buildChuteMesh();
+  for (std::size_t part = 0; part < mesh.parts.size(); ++part) {
+    const auto& data = mesh.parts[part];
+    if (data.empty()) continue;
+    chuteMeshes_[part].vertices = bgfx::createVertexBuffer(
+        bgfx::copy(data.data(), static_cast<std::uint32_t>(data.size() * sizeof(SurfaceVertex))), surfaceLayout_);
+    chuteMeshes_[part].count = static_cast<std::uint32_t>(data.size());
+  }
+}
+
+void Renderer::drawPilots(const CombatVisuals& combat) {
+  for (const EjectedPilot& pilot : combat.pilots) {
+    const double distance = (pilot.position - lastCamera_.eye).norm();
+    if (distance > 9000) continue;
+    const auto axes = pilotAxes(pilot);
+    glm::mat4 body{1};
+    for (int axis = 0; axis < 3; ++axis) body[axis] = glm::vec4(renderDirection(axes[axis]), 0);
+    body[3] = glm::vec4(localPosition(pilot.position, origin_), 1);
+    // The canopy streams out behind as a narrow sleeve, then fills. On the
+    // ground it falls slack.
+    const float open = static_cast<float>(pilot.canopy);
+    const float width = pilot.landed > 0 ? .25f + .75f * open : .1f + .9f * open * open;
+    const float length = pilot.landed > 0 ? .12f + .88f * open : .82f + .18f * open;
+    const glm::mat4 rigging = glm::scale(body, glm::vec3(width, width, length));
+    for (std::size_t index = 0; index < chuteMeshes_.size(); ++index) {
+      const ChutePart part = ChutePart(index);
+      const bool cloth = part == ChutePart::Panels || part == ChutePart::Stripes || part == ChutePart::Lines;
+      if (!bgfx::isValid(chuteMeshes_[index].vertices)) continue;
+      if (cloth && pilot.canopy <= 0) continue;
+      if (part == ChutePart::Seat && pilot.canopy > .35) continue;
+      // From far off only the canopy can be made out.
+      if (!cloth && distance > 1500) continue;
+      if (part == ChutePart::Lines && distance > 600) continue;
+      Material material;
+      material.metallic = 0;
+      material.roughness = .85f;
+      material.doubleSided = cloth;
+      const glm::vec3 colour = part == ChutePart::Figure ? glm::vec3(.12f, .15f, .09f)
+          : part == ChutePart::Helmet ? glm::vec3(.62f, .64f, .62f)
+          : part == ChutePart::Seat ? glm::vec3(.05f, .055f, .06f)
+          : part == ChutePart::Panels ? glm::vec3(.78f, .76f, .70f)
+          : part == ChutePart::Stripes ? glm::vec3(.82f, .26f, .04f) : glm::vec3(.09f, .09f, .08f);
+      material.baseColor[0] = colour.r; material.baseColor[1] = colour.g; material.baseColor[2] = colour.b;
+      const glm::mat4& model = cloth ? rigging : body;
+      bindFrame(viewProj_);
+      bindLighting();
+      bgfx::setUniform(uniforms_.model, glm::value_ptr(model));
+      bgfx::setUniform(uniforms_.normalMatrix, glm::value_ptr(glm::inverseTranspose(glm::mat3(model))));
+      bgfx::setState((cloth ? kOpaqueState & ~BGFX_STATE_CULL_MASK : kOpaqueState) | BGFX_STATE_MSAA);
+      bgfx::setVertexBuffer(0, chuteMeshes_[index].vertices);
+      applyMaterial(material);
+      bgfx::submit(kViewWorld, programs_.pbr);
+      ++stats_.drawCalls;
+      stats_.triangles += chuteMeshes_[index].count / 3;
+    }
+  }
+}
+
 void Renderer::drawMissilePlumes(const CombatVisuals& combat) {
   if (settings_.effects == EffectsQuality::Off || combat.missiles.empty()) return;
   ensureFlameMesh();

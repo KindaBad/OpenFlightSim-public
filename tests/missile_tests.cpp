@@ -973,7 +973,7 @@ void countermeasures() {
             "countermeasure request round trip");
     }
     auto bytes = encodeWeapon(m);
-    bytes[36] = std::uint8_t(unsigned(WeaponActionKind::Chaff) + 1);
+    bytes[36] = std::uint8_t(unsigned(WeaponActionKind::Eject) + 1);
     check(!decodeWeapon(bytes, out), "unknown request rejected");
     Message combat;
     combat.type = Type::Combat;
@@ -1004,8 +1004,96 @@ void countermeasures() {
               (received.events[1].velocity - Vec3{240, 3, 20}).norm() < .1,
           "countermeasure and turn-round events round trip");
     auto packet = encode(combat);
-    combat.events[0].kind = CombatKind(unsigned(CombatKind::Serviced) + 1);
+    combat.events[0].kind = CombatKind(unsigned(CombatKind::Ejected) + 1);
     check(!decode(encode(combat), received, reason), "unknown event rejected");
+  }
+  // Ejecting: the pilot leaves, the aircraft is lost with them, whoever hit it
+  // last has the kill, and a new life follows as after any other loss.
+  {
+    World world;
+    const auto liner = world.join(AircraftType::A320),
+               fighter = world.join(AircraftType::Typhoon);
+    std::uint64_t sequence = 0;
+    const auto ask = [&](EntityId id) {
+      return world.enqueueWeapon(id, {++sequence, world.tick(),
+                                      fixture(world, id).life.generation,
+                                      WeaponActionKind::Eject, 0});
+    };
+    auto &left = fixture(world, liner);
+    left.lastAttacker = fighter;
+    left.lastAttacked = world.tick();
+    const auto generation = left.life.generation;
+    const Vec3 where = left.sim.state().pos_ned;
+    check(ask(liner), "an unarmed aircraft can still be left");
+    bool ejected = false, destroyed = false, ordered = false, credited = false;
+    for (unsigned i = 0; i < 3; ++i) {
+      world.step();
+      for (const auto &event : world.combat().takeEvents()) {
+        if (event.target != liner)
+          continue;
+        if (event.kind == CombatKind::Ejected) {
+          ejected = true;
+          ordered = !destroyed && (event.position - where).norm() < 20;
+        }
+        if (event.kind == CombatKind::Destroyed) {
+          destroyed = true;
+          credited = event.owner == fighter;
+        }
+      }
+    }
+    check(ejected && destroyed && ordered,
+          "the seat is announced where the aircraft was, then its loss");
+    check(!left.life.alive() && left.life.deaths == 1 && credited &&
+              fixture(world, fighter).life.kills == 1,
+          "ejecting is a death, and a kill for whoever hit the aircraft last");
+    check(ask(liner), "a request from a pilot who has already gone");
+    unsigned again = 0;
+    for (unsigned i = 0; i < 2000 && !left.life.alive(); ++i) {
+      world.step();
+      for (const auto &event : world.combat().takeEvents())
+        again += event.kind == CombatKind::Ejected;
+    }
+    check(left.life.alive() && left.life.generation == generation + 1 && !again,
+          "a new life follows, and nobody ejects twice from one aircraft");
+    // Nobody hit the fighter: leaving it is nobody's kill.
+    check(ask(fighter), "an armed aircraft ejects too");
+    bool own = false;
+    for (unsigned i = 0; i < 3; ++i) {
+      world.step();
+      for (const auto &event : world.combat().takeEvents())
+        own = own || (event.kind == CombatKind::Destroyed &&
+                      event.target == fighter && event.owner == fighter);
+    }
+    check(own && fixture(world, liner).life.kills == 0,
+          "an undamaged aircraft left by its pilot is nobody's kill");
+    // The request and the announcement cross the wire.
+    WeaponMessage m, out;
+    m.tick = 10;
+    m.sequence = 1;
+    m.entity = 1;
+    m.action = {1, 10, 0, WeaponActionKind::Eject, 0};
+    check(decodeWeapon(encodeWeapon(m), out) &&
+              out.action.kind == WeaponActionKind::Eject,
+          "eject request round trip");
+    Message combat, received;
+    combat.type = Type::Combat;
+    combat.tick = 50;
+    combat.sequence = 3;
+    CombatEvent event;
+    event.id = 1;
+    event.tick = 40;
+    event.kind = CombatKind::Ejected;
+    event.owner = event.target = 5;
+    event.position = {1000, -200, -3000};
+    event.velocity = {240, 3, 20};
+    combat.events.push_back(event);
+    std::string reason;
+    check(decode(encode(combat), received, reason) &&
+              received.events.size() == 1 &&
+              received.events[0].kind == CombatKind::Ejected &&
+              received.events[0].target == 5 &&
+              (received.events[0].position - event.position).norm() < 1,
+          "ejection event round trip");
   }
   // A bot answers a missile that is nearly on it with the matching decoy,
   // and is inattentive to every other missile.

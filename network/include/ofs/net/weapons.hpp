@@ -15,7 +15,8 @@ enum class WeaponActionKind : std::uint8_t {
   Launch,
   Unlock,
   Flare,
-  Chaff
+  Chaff,
+  Eject // the pilot abandons the aircraft; `station` is unused
 };
 struct WeaponAction {
   std::uint64_t sequence{};

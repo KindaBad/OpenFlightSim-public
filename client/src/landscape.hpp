@@ -30,11 +30,20 @@ class Landscape {
   static constexpr float kNoLake = -10000.f;
   static constexpr float kTreeChunk = 1000.f;
 
-  // Builds both maps. About 100 ms on a desktop CPU; done once at start-up.
-  explicit Landscape(int landSize = 1024, int lakeSize = 512);
+  // Heights are stored as 16-bit fractions of this range, in metres.
+  static constexpr float kHeightBase = -200.f, kHeightRange = 5600.f;
+
+  // Builds the maps. Done once at start-up, on every core.
+  explicit Landscape(int landSize = 1024, int lakeSize = 512, int heightSize = 2048);
 
   int landSize() const { return landSize_; }
   int lakeSize() const { return lakeSize_; }
+  int heightSize() const { return heightSize_; }
+  // The terrain's own shape, laid out like the land cover: the surface shader
+  // reads its slopes and long shadows from this.
+  const std::vector<std::uint16_t>& heightTexels() const { return height_; }
+  // Bilinear elevation from the height map, metres.
+  float elevation(double north, double east) const;
   // RGBA8, row 0 is the northern edge and column 0 the western edge, so a
   // texture lookup at (east, south) / (2 * kExtent) + 0.5 addresses it directly.
   // R forest density, G farmland, B moisture, A rock exposure.
@@ -51,6 +60,18 @@ class Landscape {
   int lakeCount() const { return lakeCount_; }
   double lakeAreaKm2() const { return lakeAreaKm2_; }
 
+  // The pattern of fields the surface shader draws on farmland, which is
+  // where hedgerow trees have to stand: how far a point is from the edge of
+  // its field in metres, whether that edge carries a hedge or a belt of trees
+  // and how far to either side it reaches, whether the field is farmed at all,
+  // and whether it is a wood. `hedge` is the nearest point on that edge.
+  struct Field {
+    float edge{}, reach{};
+    bool hedged{}, farmed{}, wooded{};
+    double hedgeNorth{}, hedgeEast{};
+  };
+  Field fieldPattern(double north, double east) const;
+
   // Appends the trees standing in the chunk whose south-west corner is at
   // (chunkEast, chunkSouth) * kTreeChunk. `density` is candidates per square
   // kilometre; the result is deterministic for a given chunk and density.
@@ -58,7 +79,8 @@ class Landscape {
 
  private:
   float land(double north, double east, int channel) const;
-  int landSize_, lakeSize_;
+  int landSize_, lakeSize_, heightSize_;
+  std::vector<std::uint16_t> height_;
   std::vector<std::uint8_t> land_;
   std::vector<float> lake_;
   int lakeCount_{};

@@ -2,8 +2,8 @@
 
 Three things here cannot be checked by compiling for one backend:
 
-* terrain_fs.glsl carries a copy of ofs::terrainElevation so the per-pixel
-  normal, lake shorelines and relief shadows follow the collision surface.
+* terrain_fs.glsl reads the shape of the ground from a height map the
+  landscape bakes, at a sampler stage and scale the renderer has to match.
 * frame.glsl and FrameConstants describe the same packed uniform array.
 * Windows compiles the same sources as HLSL. With the pinned shaderc supplied
   (argument 2 and the bgfx source directory as argument 3) every shader is also
@@ -30,14 +30,17 @@ def body(text, start, end):
     return text[begin:text.index(end, begin)]
 
 
-# --- Terrain height: identical constants, in the same order -------------------
-cpp = body((ROOT / 'core/include/ofs/terrain.hpp').read_text(encoding='utf-8'), 'inline double terrainElevation', 'inline const Vec3& terrainVertex')
-glsl = body((SHADERS / 'terrain_fs.glsl').read_text(encoding='utf-8'), 'float terrainHeight(vec2 eastSouth)', '// Sine-free hash')
-# The C++ takes (north, east); the shader takes render axes. Only the numeric
-# model has to agree: radii, ramps, wavelengths and amplitudes.
-expected = [n for n in numbers(cpp) if n not in (0.0, 1.0, 2.0)]
-found = [n for n in numbers(glsl) if n not in (0.0, 1.0, 2.0)]
-assert expected == found, f'terrain height constants differ:\n C++  {expected}\n GLSL {found}'
+# --- Terrain height: the shader reads the landscape's baked map ----------------
+terrain = (SHADERS / 'terrain_fs.glsl').read_text(encoding='utf-8')
+environment = (ROOT / 'client/src/renderer_environment.cpp').read_text(encoding='utf-8')
+landscape = (ROOT / 'client/src/landscape.hpp').read_text(encoding='utf-8')
+height_stage = re.search(r'SAMPLER2D\(s_heightMap,\s*(\d+)\)', terrain).group(1)
+assert f'bgfx::setTexture({height_stage}, uniforms_.heightMap' in environment, 'the height map is bound to a different stage than the shader reads'
+# One square for land cover, lakes and heights: the shader's is twice the half-size.
+extent = float(re.search(r'#define LAND_EXTENT ([\d.]+)', terrain).group(1))
+half = float(re.search(r'kExtent = ([\d.]+)f', landscape).group(1))
+assert extent == 2 * half, f'terrain_fs.glsl covers {extent} m, the landscape {2 * half} m'
+assert 'Landscape::kHeightBase' in environment and 'Landscape::kHeightRange' in environment, 'height scale is not passed to the shader'
 
 # --- Frame constants: one contiguous array, same length on both sides ---------
 frame = (SHADERS / 'frame.glsl').read_text(encoding='utf-8')
@@ -94,5 +97,5 @@ if len(sys.argv) >= 4:
             assert result.returncode == 0, f'{source.name} does not compile as HLSL:\n{result.stdout[-2000:]}{result.stderr[-2000:]}'
             compiled += 1
 
-print(f'PASS shader sources: terrain model ({len(found)} constants), {size} frame slots, sampler stages, '
+print(f'PASS shader sources: terrain height map at stage {height_stage}, {size} frame slots, sampler stages, '
       f'reserved identifiers' + (f', {compiled} shaders through the HLSL front end' if compiled else ''))

@@ -1,6 +1,7 @@
 #include "ofs/simulator.hpp"
 #include "ofs/fixed_step.hpp"
 #include "ofs/c_api.h"
+#include "ofs/pilot.hpp"
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -139,6 +140,61 @@ void cApi() {
   ofs_destroy(c); ofs_destroy(nullptr); ofs_step(nullptr, .1);
   near(ofs_get_state(nullptr).time, 0, 0, "null C accessor");
 }
+// The pilot's tolerance of load: what can be held, what cannot, and coming round.
+void pilotStrain() {
+  using namespace ofs;
+  const auto hold = [](double g, double seconds) {
+    PilotStrain pilot;
+    for (double t = 0; t < seconds; t += 1. / 120) pilot.update(g, 1. / 120);
+    return pilot;
+  };
+  const auto until = [](double g) {
+    PilotStrain pilot;
+    double t = 0;
+    for (; t < 600 && !pilot.incapacitated(); t += 1. / 120) pilot.update(g, 1. / 120);
+    return t;
+  };
+  require(hold(1, 60).strain == 0 && hold(5.9, 300).vision() == 0, "ordinary manoeuvring costs nothing");
+  require(hold(-1.5, 300).strain == 0, "mild negative load costs nothing");
+  const double nine = until(9), twelve = until(12), seven = until(7.5);
+  require(nine > 4 && nine < 8, "nine g can be held for a few seconds only");
+  require(twelve > 1.5 && twelve < nine * .6, "more load takes the pilot sooner");
+  require(seven > nine * 2 && seven < 30, "a little over the limit lasts much longer");
+  const double negative = until(-4);
+  require(negative > 1.5 && negative < 6, "negative load is tolerated less");
+  // Sight goes before consciousness does, by degrees.
+  PilotStrain pilot;
+  double greyAt = -1, last = 0;
+  for (double t = 0; !pilot.incapacitated(); t += 1. / 120) {
+    pilot.update(9, 1. / 120);
+    require(pilot.vision() >= last - 1e-12 && pilot.vision() <= 1, "sight narrows steadily under load");
+    last = pilot.vision();
+    if (greyAt < 0 && pilot.vision() > 0) greyAt = t;
+  }
+  require(greyAt > 1 && greyAt < nine * .6 && pilot.red < .01, "the view greys well before it is lost, and is not reddened");
+  // Out cold for a fixed time whatever the load does, then recovering.
+  double out = 0;
+  for (; pilot.incapacitated(); out += 1. / 120) {
+    pilot.update(out < 1 ? 9 : 1, 1. / 120);
+    require(pilot.vision() == 1, "nothing is seen while unconscious");
+  }
+  near(out, PilotStrain::kUnconsciousSeconds, .02, "unconscious for the stated time");
+  double clear = 0;
+  for (; pilot.vision() > 0 && clear < 60; clear += 1. / 120) pilot.update(1, 1. / 120);
+  require(clear > .5 && clear < 4, "sight returns over a second or two");
+  for (double t = 0; t < 20; t += 1. / 120) pilot.update(1, 1. / 120);
+  require(pilot.strain == 0 && !pilot.incapacitated(), "and the pilot recovers completely");
+  // Easing off before the limit recovers without a blackout.
+  PilotStrain eased;
+  for (double t = 0; t < nine * .7; t += 1. / 120) eased.update(9, 1. / 120);
+  const double strained = eased.strain;
+  for (double t = 0; t < 3; t += 1. / 120) eased.update(3, 1. / 120);
+  require(!eased.incapacitated() && eased.strain < strained * .6, "easing the turn brings sight back");
+  require(hold(-4, 2).red > .9, "negative load reddens the view");
+  PilotStrain bad;
+  bad.update(std::nan(""), 1); bad.update(9, -1); bad.update(9, std::nan(""));
+  require(bad.strain == 0, "nonsense input changes nothing");
+}
 int main(int argc, char** argv) {
   try {
     require(argc == 2, "expected suite name"); const std::string_view name = argv[1];
@@ -146,6 +202,7 @@ int main(int argc, char** argv) {
     else if(name == "aero") aero(); else if(name == "integration") integration();
     else if(name == "contact") contact(); else if(name == "clock") clockTest();
     else if(name == "coordinates") coordinates(); else if(name == "c_api") cApi();
+    else if(name == "pilot") pilotStrain();
     else throw std::runtime_error("unknown suite");
     std::cout << "PASS " << name << '\n'; return 0;
   } catch(const std::exception& e) { std::cerr << "FAIL: " << e.what() << '\n'; return 1; }

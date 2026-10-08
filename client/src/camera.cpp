@@ -265,4 +265,22 @@ void Camera::update(CameraMode next, const State& aircraft, double dt, bool firs
   rigidAttitude = settings.rigid;
 }
 
+void Camera::watch(const Vec3& subject, double heading, double distance, double lift, double dt) {
+  const Vec3 back{-std::cos(heading), -std::sin(heading), 0};
+  Vec3 desired = subject + back * distance + Vec3{0, 0, -distance * .18};
+  desired.z = std::min(desired.z, groundHeightNed(desired.x, desired.y) - 1.5);
+  const bool carry = mode == CameraMode::Chase && smoothingPrimed && (smoothedPosition - desired).norm() < 400;
+  // The pilot is thrown about in the first moments; the camera follows smoothly.
+  smoothedPosition = carry ? smoothedPosition + (desired - smoothedPosition) * (1.0 - std::exp(-dt / .35)) : desired;
+  smoothedPosition.z = std::min(smoothedPosition.z, groundHeightNed(smoothedPosition.x, smoothedPosition.y) - 1.5);
+  eye = smoothedPosition;
+  target = subject + Vec3{0, 0, -lift};
+  smoothedAtt = attitudeLookAt(target - eye, Vec3{0, 0, -1});
+  smoothingPrimed = true;
+  mode = CameraMode::Chase;
+  aimViewActive = false;
+  rigidAttitude = false;
+  fov = 62;
+}
+
 }  // namespace ofs::client

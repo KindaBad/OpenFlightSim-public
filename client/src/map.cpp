@@ -42,13 +42,13 @@ MapImage buildMapImage(const Landscape& landscape, int size) {
   for (int row = 0; row < size; ++row) {
     for (int column = 0; column < size; ++column) {
       const double north = extent - (row + .5) * cell, east = (column + .5) * cell - extent;
-      const float height = float(terrainElevation(north, east));
+      const float height = landscape.elevation(north, east);
       Colour colour = elevationTint(height);
       colour = mix(colour, {.25f, .38f, .23f}, .75f * landscape.forestDensity(north, east));
       colour = mix(colour, {.62f, .64f, .40f}, .55f * landscape.farmland(north, east));
       // Relief: lit from the north-west, as printed maps are.
-      const double slopeNorth = (terrainElevation(north + cell, east) - terrainElevation(north - cell, east)) / (2 * cell);
-      const double slopeEast = (terrainElevation(north, east + cell) - terrainElevation(north, east - cell)) / (2 * cell);
+      const double slopeNorth = (landscape.elevation(north + cell, east) - landscape.elevation(north - cell, east)) / (2 * cell);
+      const double slopeEast = (landscape.elevation(north, east + cell) - landscape.elevation(north, east - cell)) / (2 * cell);
       const float shade = std::clamp(1.f + .45f * float(slopeNorth - slopeEast), .74f, 1.2f);
       colour = {colour.r * shade, colour.g * shade, colour.b * shade};
       if (landscape.underWater(north, east)) colour = {.24f, .42f, .58f};

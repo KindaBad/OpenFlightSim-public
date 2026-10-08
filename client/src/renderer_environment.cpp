@@ -125,6 +125,32 @@ void Renderer::createEnvironmentTextures(Synthesis& data) {
                                    bgfx::TextureFormat::R32F,
                                    BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP | BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT,
                                    bgfx::copy(lake.data(), static_cast<std::uint32_t>(lake.size() * sizeof(float))));
+  // The shape of the ground, for slopes and long shadows. Each level of the
+  // chain is the mean of the one below, so distant relief is lit as smoothly
+  // as it is seen.
+  {
+    int size = landscape_->heightSize();
+    std::vector<std::uint16_t> level = landscape_->heightTexels();
+    heightMapLevels_ = 1;
+    for (int s = size; s > 4; s /= 2) ++heightMapLevels_;
+    heightMap_ = bgfx::createTexture2D(static_cast<std::uint16_t>(size), static_cast<std::uint16_t>(size), true, 1,
+                                       bgfx::TextureFormat::R16, BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP);
+    if (!bgfx::isValid(heightMap_)) throw std::runtime_error("Terrain height map creation failed");
+    for (std::uint8_t mip = 0;; ++mip) {
+      bgfx::updateTexture2D(heightMap_, 0, mip, 0, 0, static_cast<std::uint16_t>(size), static_cast<std::uint16_t>(size),
+                            bgfx::copy(level.data(), static_cast<std::uint32_t>(level.size() * sizeof(std::uint16_t))));
+      auxiliaryTextureBytes_ += level.size() * sizeof(std::uint16_t);
+      if (size == 1) break;
+      const int half = size / 2;
+      std::vector<std::uint16_t> next(std::size_t(half) * half);
+      for (int y = 0; y < half; ++y) for (int x = 0; x < half; ++x) {
+        const auto at = [&](int dx, int dy) { return std::uint32_t(level[std::size_t(2 * y + dy) * size + 2 * x + dx]); };
+        next[std::size_t(y) * half + x] = std::uint16_t((at(0, 0) + at(1, 0) + at(0, 1) + at(1, 1) + 2) / 4);
+      }
+      level = std::move(next);
+      size = half;
+    }
+  }
   const auto waterChain = textureMipChain(data.waterNormal, kWaterTileSize, kWaterTileSize, TextureRole::Linear);
   waterNormal_ = bgfx::createTexture2D(kWaterTileSize, kWaterTileSize, true, 1, bgfx::TextureFormat::RGBA8, filtered,
                                        bgfx::copy(waterChain.data(), static_cast<std::uint32_t>(waterChain.size())));
@@ -158,7 +184,7 @@ void Renderer::buildEnvironment(Synthesis& data) {
     std::vector<double> radii;
     for (int ring = 0; ring <= kTerrainRings; ++ring)
       radii.push_back(kTerrainRadius * std::pow(double(ring) / kTerrainRings, 2));
-    for (double spacing = 700.; radii.back() < kTerrainDrawRadius; spacing *= 1.045)
+    for (double spacing = radii.back() - radii[radii.size() - 2]; radii.back() < kTerrainDrawRadius; spacing *= 1.07)
       radii.push_back(radii.back() + spacing);
     const int rings = static_cast<int>(radii.size());
     std::vector<TerrainVertex> vertices(std::size_t(rings) * kTerrainSegments);
@@ -172,13 +198,25 @@ void Renderer::buildEnvironment(Synthesis& data) {
           const double north = -radii[ring] * std::sin(angle), east = radii[ring] * std::cos(angle);
           ned = {north, east, -terrainElevation(north, east)};
         }
-        // Smooth shading normals; the collision surface uses the exact faces.
-        const double dn = (terrainElevation(ned.x + 4, ned.y) - terrainElevation(ned.x - 4, ned.y)) / 8;
-        const double de = (terrainElevation(ned.x, ned.y + 4) - terrainElevation(ned.x, ned.y - 4)) / 8;
         const glm::vec3 position = renderDirection(ned);
-        const auto normal = glm::normalize(glm::vec3(-de, 1, dn));
-        vertices[std::size_t(ring) * kTerrainSegments + segment] = {position.x, position.y, position.z,
-                                                                    normal.x, normal.y, normal.z};
+        vertices[std::size_t(ring) * kTerrainSegments + segment] = {position.x, position.y, position.z, 0, 1, 0};
+      }
+    });
+    // Smooth shading normals from the triangles as drawn, so the light on far
+    // ground follows the surface that is actually there. Near ground takes its
+    // slope from the height map instead.
+    procedural::parallelRows(rings, [&](int ring) {
+      for (int segment = 0; segment < kTerrainSegments; ++segment) {
+        const auto at = [&](int r, int s) {
+          const auto& v = vertices[std::size_t(std::clamp(r, 0, rings - 1)) * kTerrainSegments +
+                                   std::size_t((s + kTerrainSegments) % kTerrainSegments)];
+          return glm::vec3(v.x, v.y, v.z);
+        };
+        glm::vec3 normal = glm::cross(at(ring, segment + 1) - at(ring, segment - 1), at(ring + 1, segment) - at(ring - 1, segment));
+        if (normal.y < 0) normal = -normal;
+        normal = glm::length(normal) > 1e-6f ? glm::normalize(normal) : glm::vec3(0, 1, 0);
+        auto& v = vertices[std::size_t(ring) * kTerrainSegments + segment];
+        v.nx = normal.x; v.ny = normal.y; v.nz = normal.z;
       }
     });
     std::vector<std::uint32_t> indices;
@@ -189,7 +227,47 @@ void Renderer::buildEnvironment(Synthesis& data) {
     const auto position = [&](std::uint32_t index) {
       return glm::vec3(vertices[index].x, vertices[index].y, vertices[index].z);
     };
-    for (int ring = 0; ring + 1 < rings; ++ring) for (int segment = 0; segment < kTerrainSegments; ++segment) {
+    // The airfield's plain is level, and the collision mesh spends a third of
+    // its rings on it. Drawn as they are, those would be a hundred thousand
+    // slivers under the runway; the same plane is drawn with a few hundred
+    // triangles instead, halving in number toward the middle.
+    int level = 0;
+    while (level + 1 < kTerrainRings) {
+      bool flat = true;
+      for (int segment = 0; segment < kTerrainSegments && flat; ++segment) flat = terrainVertex(level + 1, segment).z == 0;
+      if (!flat) break;
+      ++level;
+    }
+    if (level > 0) {
+      const auto triangle = [&](std::uint32_t a, std::uint32_t b, std::uint32_t c) {
+        const bool up = glm::cross(position(b) - position(a), position(c) - position(a)).y >= 0;
+        indices.push_back(a); indices.push_back(up ? b : c); indices.push_back(up ? c : b);
+      };
+      std::vector<std::uint32_t> outer(kTerrainSegments);
+      for (int segment = 0; segment < kTerrainSegments; ++segment) outer[segment] = at(level, segment);
+      double radius = radii[level];
+      while (outer.size() > 12 && outer.size() % 2 == 0) {
+        radius *= .5;
+        std::vector<std::uint32_t> inner(outer.size() / 2);
+        for (std::size_t i = 0; i < inner.size(); ++i) {
+          // Each inner vertex lies on the line from the middle to every other outer one.
+          const auto& rim = vertices[outer[i * 2]];
+          const double scale = radius / std::max(1e-6, double(std::hypot(rim.x, rim.z)));
+          inner[i] = static_cast<std::uint32_t>(vertices.size());
+          vertices.push_back({float(rim.x * scale), 0, float(rim.z * scale), 0, 1, 0});
+        }
+        for (std::size_t i = 0; i < inner.size(); ++i) {
+          const std::uint32_t c0 = inner[i], c1 = inner[(i + 1) % inner.size()];
+          const std::uint32_t f0 = outer[i * 2], f1 = outer[i * 2 + 1], f2 = outer[(i * 2 + 2) % outer.size()];
+          triangle(c0, f0, f1); triangle(c0, f1, c1); triangle(c1, f1, f2);
+        }
+        outer = std::move(inner);
+      }
+      const auto middle = static_cast<std::uint32_t>(vertices.size());
+      vertices.push_back({0, 0, 0, 0, 1, 0});
+      for (std::size_t i = 0; i < outer.size(); ++i) triangle(middle, outer[i], outer[(i + 1) % outer.size()]);
+    }
+    for (int ring = level; ring + 1 < rings; ++ring) for (int segment = 0; segment < kTerrainSegments; ++segment) {
       // The same diagonal as ofs::sampleTerrain, so the drawn triangles are the
       // ones the aircraft's wheels touch.
       const std::uint32_t a = at(ring, segment), b = at(ring, segment + 1), c = at(ring + 1, segment + 1), d = at(ring + 1, segment);
@@ -208,18 +286,9 @@ void Renderer::buildEnvironment(Synthesis& data) {
   }
 
   // ---- Airfield ------------------------------------------------------------
-  std::vector<SurfaceVertex> vertices;
   const auto upload = [&](const std::vector<SurfaceVertex>& data) {
     return bgfx::createVertexBuffer(bgfx::copy(data.data(),
         static_cast<std::uint32_t>(data.size() * sizeof(SurfaceVertex))), surfaceLayout_);
-  };
-  const auto box = [&](float x, float z, float w, float d, float y, float h) {
-    const float l=x-w/2, r=x+w/2, f=z-d/2, b=z+d/2, t=y+h;
-    addQuad(vertices,{l,t,f},{l,t,b},{r,t,b},{r,t,f},{0,1,0});
-    addQuad(vertices,{l,y,f},{r,y,f},{r,t,f},{l,t,f},{0,0,-1});
-    addQuad(vertices,{r,y,b},{l,y,b},{l,t,b},{r,t,b},{0,0,1});
-    addQuad(vertices,{l,y,b},{l,y,f},{l,t,f},{l,t,b},{-1,0,0});
-    addQuad(vertices,{r,y,f},{r,y,b},{r,t,b},{r,t,f},{1,0,0});
   };
   {
     // Paving and paint are coplanar with the ground. Their draw order is fixed
@@ -245,31 +314,98 @@ void Renderer::buildEnvironment(Synthesis& data) {
     }
   }
 
-  // Hamlets on dry, open ground around the field.
-  std::vector<SurfaceVertex> houses;
-  unsigned seed = 0;
-  for (int iz = -4; iz <= 4; ++iz) for (int ix = -4; ix <= 4; ++ix) {
-    ++seed;
-    const float cx = ix * 1750.f + (sceneryRandom(seed * 53) - .5f) * 400;
-    const float cz = iz * 1750.f + (sceneryRandom(seed * 71) - .5f) * 400;
-    if (std::hypot(cx, cz) > 9000 || (ix + iz) % 3 != 0 || std::hypot(cx, cz) <= 2800) continue;
-    for (int house = 0; house < 5; ++house) {
-      const float x = cx + house * 33.f - 65.f, z = cz + 610.f;
-      if (landscape_->underWater(-z, x)) continue;
-      const float y = float(-groundHeightNed(-z, x));
-      vertices.clear();
-      box(x, z, 18, 26, y, 6);
-      const glm::vec3 a{x-10,y+6,z-14}, b{x-10,y+6,z+14};
-      const glm::vec3 c{x,y+11,z+14}, d{x,y+11,z-14};
-      addQuad(vertices,a,b,c,d,glm::normalize(glm::vec3(-.5f,1,0)));
-      addQuad(vertices,d,c,{x+10,y+6,z+14},{x+10,y+6,z-14},glm::normalize(glm::vec3(.5f,1,0)));
-      addQuad(vertices,a,d,{x+10,y+6,z-14},a,{0,0,-1});
-      addQuad(vertices,{x+10,y+6,z+14},c,b,b,{0,0,1});
-      houses.insert(houses.end(), vertices.begin(), vertices.end());
+  // ---- Villages ------------------------------------------------------------
+  // Where the low country is farmed there are villages: a street of houses
+  // with pitched roofs, and in the larger ones a church. They are scenery,
+  // like the trees, and are not collided with.
+  std::vector<SurfaceVertex> walls, roofs;
+  {
+    const auto ground = [](float x, float z) { return float(-groundHeightNed(-z, x)); };
+    // A building `width` by `depth` on the ground at (x, z), turned by `yaw`,
+    // with walls `height` high and a roof rising `pitch` above them: a ridge
+    // along its depth, or with `spire` a point.
+    const auto building = [&](float x, float z, float width, float depth, float height, float pitch, float yaw, bool spire) {
+      const glm::vec2 along{std::sin(yaw), std::cos(yaw)}, across{std::cos(yaw), -std::sin(yaw)};
+      const auto corner = [&](float u, float v) { return glm::vec2{x, z} + across * (u * width * .5f) + along * (v * depth * .5f); };
+      const glm::vec2 c[4] = {corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)};
+      // Walls go down to the lowest corner, so nothing stands on air on a slope.
+      float low = 1e9f, high = -1e9f;
+      for (const auto& p : c) { low = std::min(low, ground(p.x, p.y)); high = std::max(high, ground(p.x, p.y)); }
+      const float base = low - .4f, eaves = high + height, ridge = eaves + pitch;
+      const auto at = [](const glm::vec2& p, float y) { return glm::vec3{p.x, y, p.y}; };
+      for (int i = 0; i < 4; ++i) {
+        const glm::vec2 p = c[i], q = c[(i + 1) % 4], out = glm::normalize(glm::vec2{q.y - p.y, p.x - q.x});
+        const glm::vec2 mid = (p + q) * .5f, centre{x, z};
+        const glm::vec2 normal = glm::dot(out, mid - centre) < 0 ? -out : out;
+        addQuad(walls, at(p, base), at(q, base), at(q, eaves), at(p, eaves), {normal.x, 0, normal.y});
+      }
+      if (spire) {
+        const glm::vec3 top{x, ridge, z};
+        for (int i = 0; i < 4; ++i) {
+          const glm::vec3 p = at(c[i], eaves), q = at(c[(i + 1) % 4], eaves);
+          glm::vec3 normal = glm::normalize(glm::cross(q - p, top - p));
+          if (normal.y < 0) normal = -normal;
+          addQuad(roofs, p, q, top, top, normal);
+        }
+        return;
+      }
+      // Eaves overhang the walls a little.
+      const auto eave = [&](float u, float v) { return at(corner(u * 1.12f, v * 1.06f), eaves - .15f); };
+      const glm::vec3 front = at(corner(0, -1.06f), ridge), back = at(corner(0, 1.06f), ridge);
+      for (const float side : {-1.f, 1.f}) {
+        const glm::vec3 p = eave(side, -1), q = eave(side, 1);
+        glm::vec3 normal = glm::normalize(glm::cross(q - p, front - p));
+        if (normal.y < 0) normal = -normal;
+        addQuad(roofs, p, q, back, front, normal);
+      }
+      for (const float end : {-1.f, 1.f}) {
+        const glm::vec3 top = end < 0 ? front : back;
+        const glm::vec2 normal = along * end;
+        addQuad(walls, at(corner(-1, end), eaves), at(corner(1, end), eaves), top, top, {normal.x, 0, normal.y});
+      }
+    };
+    const auto buildable = [&](float x, float z) {
+      const double north = -z, east = x;
+      return !insideAirfieldClearway(north, east) && std::hypot(north, east) > 2700 && !landscape_->underWater(north, east) &&
+             -sampleTerrain(north, east).normalNed.z > .985;
+    };
+    unsigned seed = 0;
+    int villages = 0;
+    for (int iz = -11; iz <= 11; ++iz) for (int ix = -11; ix <= 11; ++ix) {
+      seed += 7;
+      const float cx = (ix + sceneryRandom(seed * 53) - .5f) * 2100.f, cz = (iz + sceneryRandom(seed * 71) - .5f) * 2100.f;
+      if (landscape_->farmland(-cz, cx) < .5f || sceneryRandom(seed * 97) > .62f || !buildable(cx, cz)) continue;
+      ++villages;
+      const float heading = sceneryRandom(seed * 13) * 3.1415927f;
+      const glm::vec2 street{std::sin(heading), std::cos(heading)}, side{std::cos(heading), -std::sin(heading)};
+      const int houses = 8 + int(sceneryRandom(seed * 29) * 20);
+      for (int house = 0; house < houses; ++house) {
+        const unsigned h = seed * 131 + unsigned(house) * 17;
+        // Houses face each other across the street, a second row behind in the larger places.
+        const float row = house % 2 ? 1.f : -1.f, depthRow = house >= 18 ? 2.6f : 1.f;
+        const float position = (float(house / 2) - float(std::min(houses, 18)) * .25f) * 27.f + (sceneryRandom(h) - .5f) * 9.f;
+        const glm::vec2 p = glm::vec2{cx, cz} + street * (house >= 18 ? position - 9 * 27.f + 60 : position) +
+                            side * row * (15.f + 5.f * sceneryRandom(h + 1)) * depthRow;
+        if (!buildable(p.x, p.y)) continue;
+        const float width = 7.5f + 3.5f * sceneryRandom(h + 2), depth = 10.f + 7.f * sceneryRandom(h + 3);
+        building(p.x, p.y, width, depth, 4.6f + 2.4f * sceneryRandom(h + 4), 2.6f + 1.6f * sceneryRandom(h + 5),
+                 heading + 1.5707963f + (sceneryRandom(h + 6) - .5f) * .25f, false);
+      }
+      if (houses >= 16) {
+        // The church stands back from the middle of the street.
+        const glm::vec2 nave = glm::vec2{cx, cz} + side * 58.f + street * 12.f, tower = nave - street * 17.f;
+        if (buildable(nave.x, nave.y) && buildable(tower.x, tower.y)) {
+          building(nave.x, nave.y, 11, 26, 9, 5.5f, heading, false);
+          building(tower.x, tower.y, 6.5f, 6.5f, 21, 11, heading, true);
+        }
+      }
     }
+    log("RENDER", "Villages: " + std::to_string(villages) + ", " + std::to_string((walls.size() + roofs.size()) / 3) + " triangles");
   }
-  if (!houses.empty()) houses_ = upload(houses);
-  houseVertices_ = static_cast<std::uint32_t>(houses.size());
+  if (!walls.empty()) houses_ = upload(walls);
+  if (!roofs.empty()) roofs_ = upload(roofs);
+  houseVertices_ = static_cast<std::uint32_t>(walls.size());
+  roofVertices_ = static_cast<std::uint32_t>(roofs.size());
 
   // ---- Trees ---------------------------------------------------------------
   for (int species = 0; species < 2; ++species) for (int lod = 0; lod < 2; ++lod) {
@@ -298,7 +434,7 @@ void Renderer::buildEnvironment(Synthesis& data) {
 }
 
 void Renderer::destroyEnvironment() {
-  for (auto* handle : {&terrainVertices_, &houses_, &grid_}) {
+  for (auto* handle : {&terrainVertices_, &houses_, &roofs_, &grid_}) {
     if (bgfx::isValid(*handle)) bgfx::destroy(*handle);
     handle->idx = bgfx::kInvalidHandle;
   }
@@ -317,7 +453,7 @@ void Renderer::destroyEnvironment() {
     if (bgfx::isValid(chunk.instances)) bgfx::destroy(chunk.instances);
   }
   treeChunks_.clear();
-  for (auto* texture : {&terrainAlbedo_, &terrainNormal_, &landMap_, &lakeMap_, &waterNormal_, &mapTexture_}) {
+  for (auto* texture : {&terrainAlbedo_, &terrainNormal_, &landMap_, &lakeMap_, &waterNormal_, &mapTexture_, &heightMap_}) {
     if (bgfx::isValid(*texture)) bgfx::destroy(*texture);
     texture->idx = bgfx::kInvalidHandle;
   }
@@ -352,6 +488,10 @@ void Renderer::drawEnvironment() {
     bgfx::setTexture(3, uniforms_.landMap, landMap_);
     bgfx::setTexture(4, uniforms_.lakeMap, lakeMap_);
     bgfx::setTexture(5, uniforms_.waterNormal, waterNormal_, wrap);
+    bgfx::setTexture(12, uniforms_.heightMap, heightMap_);
+    bgfx::setUniform(uniforms_.terrainMap, glm::value_ptr(glm::vec4(
+        2.f * Landscape::kExtent / float(landscape_->heightSize()), float(heightMapLevels_ - 1), Landscape::kHeightBase,
+        Landscape::kHeightRange)));
     bgfx::setUniform(uniforms_.model, glm::value_ptr(environment));
     bgfx::setUniform(uniforms_.surface, glm::value_ptr(glm::vec4(kind, layer, 0, 0)));
     bgfx::setUniform(uniforms_.baseColor, glm::value_ptr(glm::vec4(tint, 1)));
@@ -389,7 +529,7 @@ void Renderer::drawEnvironment() {
     bgfx::submit(kViewWorld, programs_.pbr);
     ++stats_.drawCalls;
   };
-  std::uint32_t structureVertices = houseVertices_;
+  std::uint32_t structureVertices = houseVertices_ + roofVertices_;
   // The airfield's buildings are only worth drawing from where they can be made out.
   const bool airfieldInView = glm::length(cameraEye_ - glm::vec3(environment[3])) < 30000.f;
   if (airfieldInView)
@@ -398,7 +538,9 @@ void Renderer::drawEnvironment() {
       structure(part.buffer, look.color, look.metallic, look.roughness, look.detail, look.emissive, look.glass);
       structureVertices += part.vertices;
     }
-  structure(houses_, {.42f, .37f, .31f, 1}, 0, .85f, 1, {}, 0);
+  // Limewashed walls under tiled roofs.
+  structure(houses_, {.60f, .56f, .47f, 1}, 0, .9f, 1, {}, 0);
+  structure(roofs_, {.30f, .115f, .07f, 1}, 0, .8f, 1, {}, 0);
   stats_.triangles += structureVertices / 3;
 
   if (settings_.vegetation) drawTrees(kViewWorld, programs_.tree, nullptr);

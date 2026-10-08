@@ -47,9 +47,14 @@ enum TerrainLayer : int {
   kLayerGrass = 0,
   kLayerSoil,
   kLayerRock,
-  kLayerForest,
   kLayerSnow,
   kLayerAsphalt,
+  // Land cover as it looks from the air, a few hundred metres to a tile.
+  kLayerPasture,
+  kLayerCrop,
+  kLayerStubble,
+  kLayerPlough,
+  kLayerWoodland,
   kTerrainLayerCount
 };
 struct TerrainLayers {

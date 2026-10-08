@@ -68,7 +68,14 @@ struct HudFrame {
   double health{100};
   std::uint16_t ammo{600};
   bool gunReady{true};
-  double respawnSeconds{};
+  double respawnSeconds{}, respawnSpan{4};
+  // The pilot under load: how much of the view is lost, 0..1, whether to
+  // black (0) or red (1), and whether they are unconscious.
+  double visionLoss{}, redOut{};
+  bool unconscious{};
+  // The pilot has ejected; and how far the eject key has been held, 0..1.
+  bool ejected{};
+  double ejectHold{};
   bool firing{};
   // Gun solution in body FRD, projected to screen by the caller when present.
   bool gunPointValid{};

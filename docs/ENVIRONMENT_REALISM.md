@@ -41,7 +41,8 @@ Physics locates the actual triangle, interpolates its height and uses its face
 normal for gear, tire friction and distributed fuselage/wing/upper-body contacts. Lighting
 uses smoother normals without changing the collision mesh. Camera clearance,
 AGL, ground effect and ground-mode control logic all use the terrain height.
-The original airfield remains level; the terrain mesh has a 32 km radius. Scenery
+The original airfield remains level; the terrain mesh has a 64 km radius
+(its present shape is described in [TERRAIN.md](TERRAIN.md)). Scenery
 objects are visual additions, not individual solid-object collision bodies.
 
 Impact work above safe normal closing speeds damages the existing replicated

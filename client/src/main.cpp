@@ -5,6 +5,9 @@
 #include "mouse_aim.hpp"
 #include "debug_ui.hpp"
 #include "hud.hpp"
+#include "sound.hpp"
+#include "ofs/pilot.hpp"
+#include "audio_device.hpp"
 #include "weapon_visuals.hpp"
 #include "log.hpp"
 #include "camera.hpp"
@@ -43,9 +46,10 @@ namespace {
 using ofs::client::CameraMode;
 struct Options {
   bool smoke{}, gunSmoke{}, networkSmoke{}, combatSmoke{}, missileSmoke{}, dogfightSmoke{},
-      airborne{}, afterburnerBench{}, map{};
+      airborne{}, afterburnerBench{}, map{}, noSound{};
   unsigned frames{}, seconds{};
-  std::string screenshot, server, name{"pilot"}, asset, config{"graphics.cfg"};
+  double ejectAt{-1};  // a scripted run fires the seat after this many seconds
+  std::string screenshot, server, name{"pilot"}, asset, config{"graphics.cfg"}, soundCapture;
   unsigned port{27020}, bots{};
   int visualBench{};
   ofs::AircraftType aircraft{ofs::AircraftType::A320};
@@ -72,6 +76,8 @@ Options parse(int argc, char** argv) {
     else if (arg == "--screenshot" && i + 1 < argc) result.screenshot = argv[++i];
     else if (arg == "--asset" && i + 1 < argc) result.asset = argv[++i];
     else if (arg == "--config" && i + 1 < argc) result.config = argv[++i];
+    else if (arg == "--no-sound") result.noSound = true;
+    else if (arg == "--sound-capture" && i + 1 < argc) result.soundCapture = argv[++i];
     else if (arg == "--width" && i + 1 < argc) result.width = std::atoi(argv[++i]);
     else if (arg == "--height" && i + 1 < argc) result.height = std::atoi(argv[++i]);
     else if (arg == "--camera" && i + 1 < argc) {
@@ -103,6 +109,7 @@ Options parse(int argc, char** argv) {
     else if (arg == "--name" && i + 1 < argc) result.name = argv[++i];
     else if (arg == "--port" && i + 1 < argc) result.port = ofs::net::number(argv[++i], 1, 65535);
     else if (arg == "--seconds" && i + 1 < argc) result.seconds = ofs::net::number(argv[++i], 1, 86400);
+    else if (arg == "--eject-at" && i + 1 < argc) result.ejectAt = std::stod(argv[++i]);
     else if (arg == "--missile-smoke") {
       result.missileSmoke = true;
       result.seconds = 20;
@@ -124,6 +131,7 @@ Options parse(int argc, char** argv) {
           "Usage: ofs_client [--smoke-test|--gun-smoke] [--frames N] [--screenshot path.ppm] "
           "[--aircraft a320|su57|typhoon|sr71] [--asset path.glb] [--config path.cfg] [--airborne] [--width N] [--height N] "
           "[--map] [--free-camera|--pursuit|--chase|--close-chase|--orbit|--cockpit] [--visual-bench N] "
+          "[--no-sound] [--sound-capture path.wav] "
           "[--bots 0..8] [--server host --name name]");
     }
   }
@@ -153,7 +161,7 @@ Options parse(int argc, char** argv) {
     throw std::runtime_error("gun smoke requires ordinary offline flight");
   if (!result.scenario.empty()) {
     if (!result.server.empty()) throw std::runtime_error("visual scenarios are offline fixtures only");
-    const std::vector<std::string> names{"parked","surfaces","flaps","gear","flight","high-altitude","high-mach","exhaust","contrail","gun","impact","destruction","mixed","idle","military","afterburner","afterburner-multiple","afterburner-transition","vectoring","high-aoa","condensation","environment","forest","grass","clouds","above-clouds","lake","mountains","damage","damage-heavy","breakup","missile","detonation","menu","controls","chat","airfield","apron","shelters","threshold","decoys","warning","service"};
+    const std::vector<std::string> names{"parked","surfaces","flaps","gear","flight","high-altitude","high-mach","exhaust","contrail","gun","impact","destruction","mixed","idle","military","afterburner","afterburner-multiple","afterburner-transition","vectoring","high-aoa","condensation","environment","forest","grass","clouds","above-clouds","lake","mountains","valley","ranges","village","farmland","fields","eject","blackout","damage","damage-heavy","breakup","missile","detonation","menu","controls","chat","airfield","apron","shelters","threshold","decoys","warning","service"};
     if (std::find(names.begin(), names.end(), result.scenario) == names.end())
       throw std::runtime_error("Unknown visual scenario");
     if (result.screenshot.empty() || !result.frames) throw std::runtime_error("visual scenarios require --frames and --screenshot");
@@ -208,6 +216,20 @@ void reset(ofs::Simulator& sim, ofs::Controls& controls, ofs::State& previous,
   camera.frameAircraft(state.pos_ned);
   clock.reset();
   ofs::client::log("SIM", airborne ? "Reset airborne (steady trim)" : "Reset on runway");
+}
+
+// What a scripted run would have played, as a 16-bit stereo WAV.
+bool writeWave(const std::string& path, const std::vector<float>& stereo) {
+  std::ofstream file(path, std::ios::binary);
+  const auto number = [&](std::uint32_t value, int bytes) {
+    for (int i = 0; i < bytes; ++i) file.put(char(value >> (8 * i)));
+  };
+  const std::uint32_t bytes = std::uint32_t(stereo.size() * 2);
+  file.write("RIFF", 4); number(36 + bytes, 4); file.write("WAVEfmt ", 8); number(16, 4); number(1, 2); number(2, 2);
+  number(ofs::client::kSoundRate, 4); number(ofs::client::kSoundRate * 4, 4); number(4, 2); number(16, 2);
+  file.write("data", 4); number(bytes, 4);
+  for (const float sample : stereo) number(std::uint16_t(std::int16_t(std::lround(std::clamp(sample, -1.f, 1.f) * 32767))), 2);
+  return bool(file);
 }
 
 void pushKey(SDL_Window* window, SDL_Scancode scancode, bool down) {
@@ -482,8 +504,15 @@ int main(int argc, char** argv) {
       if(options.scenario=="clouds") {fixture.pos_ned={-2000,3200,-double(graphics.cloudBase+graphics.cloudThickness*.4f)};fixture.vel_ned={};}
       if(options.scenario=="above-clouds") {fixture.pos_ned={-2000,3200,-double(graphics.cloudBase+graphics.cloudThickness+1500)};fixture.vel_ned={};}
       // Low over the largest lake near the field, and level with the peaks of the northern range.
-      if(options.scenario=="lake") {fixture.pos_ned={3150,-5650,-150};fixture.vel_ned={};}
-      if(options.scenario=="mountains") {fixture.pos_ned={13500,2500,-2300};fixture.vel_ned={};}
+      if(options.scenario=="lake") {fixture.pos_ned={-9400,2400,-250};fixture.vel_ned={};}
+      if(options.scenario=="mountains") {fixture.pos_ned={3500,-15000,-1900};fixture.vel_ned={};}
+      // Down in the valley south of the field, and among the ranges to the west.
+      if(options.scenario=="valley") {fixture.pos_ned={-16000,3500,-420};fixture.vel_ned={};}
+      // Over the farmland north-west of the field, from height and from low down.
+      if(options.scenario=="farmland") {fixture.pos_ned={3800,-2500,-650};fixture.vel_ned={};}
+      if(options.scenario=="fields") {fixture.pos_ned={5200,-2200,-170};fixture.vel_ned={};}
+      if(options.scenario=="village") {fixture.pos_ned={1990,3850,-70};fixture.vel_ned={};}
+      if(options.scenario=="ranges") {fixture.pos_ned={-4000,-11000,-1500};fixture.vel_ned={};fixture.att=quatFromEuler(0,0,-kPi*.5);}
       if (options.scenario == "gear") controls.gear01 = 1;
       if (options.scenario == "surfaces") {
         controls.elevator_stick = .8; controls.aileron_stick = .9; controls.rudder_pedal = .8;
@@ -544,6 +573,21 @@ int main(int argc, char** argv) {
         options.missileSmoke || options.dogfightSmoke || options.afterburnerBench || options.visualBench > 0 ||
         options.frames > 0 || options.seconds > 0 || !options.screenshot.empty() || !options.scenario.empty() ||
         !options.flightDemo.empty();
+    // Sound. A scripted run opens no sound card; it can record what it would
+    // have played instead.
+    SoundMixer mixer;
+    SoundDirector sound(mixer);
+    std::unique_ptr<AudioDevice> speakers;
+    if (!automated && !options.noSound) speakers = std::make_unique<AudioDevice>(mixer);
+    ui.soundStatus = speakers ? speakers->description() : "off for this run";
+    std::vector<float> capturedSound;
+    std::vector<SoundFrame::Aircraft> soundAircraft;
+    std::vector<SoundFrame::Missile> soundMissiles;
+    std::vector<SoundFrame::Threat> soundThreats;
+    // Since the last tick for own rounds striking, and the last crunch of a
+    // hard landing, so that neither becomes a buzz.
+    double hitCueClock = 1, crunchClock = 1;
+    bool menuWasOpen = false, mapWasOpen = options.map, triggerWasHeld = false, wasCrashed = false;
     unsigned frame = 0, fullscreenSwitches = 0;
     bool sawFlightInput = false, sawMouseLook = false, sawFocusRelease = false;
     bool sawCameraMove = false, sawCameraTurn = false, sawAirborneReset = false;
@@ -596,6 +640,14 @@ int main(int argc, char** argv) {
     double airbrakeBefore = 0;
     // Seconds stood on the ground toward a turn-round, and left to say it is done.
     double standing = 0, servicedSeconds = 0;
+    // The pilot: how much load they have taken, and whether they are still
+    // aboard. The eject key has to be held; a solo pilot who has gone is given
+    // a new aircraft after a few seconds, a shared game does that itself.
+    PilotStrain pilot;
+    Ejections ejections;
+    constexpr double kEjectHoldSeconds = 1, kSoloRespawnSeconds = 6;
+    double ejectHold = 0, ejectAsked = 0, soloEjected = -1;
+    bool ownEjected = false, respawnAirborne = options.airborne;
     ChatLog chatLog;
     std::vector<HudFrame::Score> scores;
     double uiClock = 0;  // seconds of wall time, for chat ages
@@ -680,7 +732,10 @@ int main(int argc, char** argv) {
         localGun = LocalGun(options.aircraft);
         soloFlares = soloChaff = int(weapons::decoyCapacity(options.aircraft));
         standing = servicedSeconds = 0;
+        pilot.reset(); ejections.clear();
+        soloEjected = -1; ejectHold = ejectAsked = 0; ownEjected = false;
         renderer.clearEffects();
+        sound.reset();
         clock.reset(); serverClock.reset();
       }
       if (dogfight) {
@@ -703,6 +758,7 @@ int main(int argc, char** argv) {
           camera.frameAircraft(simulation().state().pos_ned);
           ui.parkingBrake = false;
           clock.reset();
+          sound.reset();
         }
       }
 #endif
@@ -771,6 +827,11 @@ int main(int argc, char** argv) {
               cameraMode = input.cycleCamera(cameraMode);
               sawCameraCycle = true;
             }
+            // The switches a pilot can hear being thrown.
+            for (const SDL_Scancode key : {SDL_SCANCODE_TAB, SDL_SCANCODE_V, SDL_SCANCODE_X, SDL_SCANCODE_M,
+                                           SDL_SCANCODE_F4, SDL_SCANCODE_BACKSPACE, SDL_SCANCODE_P, SDL_SCANCODE_T,
+                                           SDL_SCANCODE_Y})
+              if (event.key.scancode == key) sound.cue(SoundKind::UiClick);
             if (event.key.scancode == SDL_SCANCODE_HOME) camera.frameAircraft(simulation().state().pos_ned);
             if (event.key.scancode == SDL_SCANCODE_G)
               controls.gear01 = controls.gear01 > .5 ? 0 : 1;
@@ -822,6 +883,13 @@ int main(int argc, char** argv) {
           clock.advance(elapsed, [&](double) { network->predict(controls); });
         }
 #endif
+        // Nothing is drawn while the window is minimised, and nothing is heard
+        // either unless the pilot asked for sound in the background.
+        if (!graphics.soundInBackground) {
+          SoundScene quiet = sound.scene();
+          quiet.master = 0;
+          mixer.setScene(quiet);
+        }
         bgfx::frame();
         SDL_Delay(10);
         continue;
@@ -837,8 +905,9 @@ int main(int argc, char** argv) {
 #else
         const bool flying = !aircraftCrashed(simulation().state());
 #endif
+        const bool aboard = flying && soloEjected < 0;
         const bool wasAiming = input.aiming();
-        input.setAiming(platform.window(), graphics.mouseAim && !automated && flightView && flying &&
+        input.setAiming(platform.window(), graphics.mouseAim && !automated && flightView && aboard &&
             !graphics.showDevOverlay && !ui.paused && !ui.menuOpen &&
             (SDL_GetWindowFlags(platform.window()) & SDL_WINDOW_INPUT_FOCUS));
         if (input.aiming() && !wasAiming) ImGui::GetIO().AddMousePosEvent(-FLT_MAX, -FLT_MAX);
@@ -851,6 +920,8 @@ int main(int argc, char** argv) {
       ImGui::NewFrame();
 
       const bool captureKeyboard = ImGui::GetIO().WantCaptureKeyboard;
+      // An unconscious pilot holds nothing: not the stick, not the trigger.
+      const bool conscious = !pilot.incapacitated();
       controls.brake01 = ui.parkingBrake ? 1 : 0;
       if (options.scenario.empty() && options.flightDemo.empty()) {
         input.update(controls, std::min(elapsed, .1), captureKeyboard || cameraMode == CameraMode::Free);
@@ -863,7 +934,13 @@ int main(int argc, char** argv) {
         brakeHeld = braking;
       }
       // The instructor takes only the axes the keys and the gamepad left neutral.
-      if (mouseAim.active) applyMouseAim(controls, mouseAimCommand(simulation(), mouseAim.direction()));
+      if (mouseAim.active && conscious) applyMouseAim(controls, mouseAimCommand(simulation(), mouseAim.direction()));
+      if (!conscious) controls.elevator_stick = controls.aileron_stick = controls.rudder_pedal = 0;
+      if (soloEjected >= 0) {
+        // Nobody is aboard: the controls centre and the engines are left at idle.
+        controls.elevator_stick = controls.aileron_stick = controls.rudder_pedal = controls.steering = 0;
+        controls.throttle[0] = controls.throttle[1] = 0;
+      }
       if (cameraMode == CameraMode::Free) {
         input.freeCamera(camera, std::min(realElapsed, .1), captureKeyboard);
       }
@@ -895,6 +972,37 @@ int main(int argc, char** argv) {
           releasedDecoys.push_back({type, decoy.position, decoy.velocity});
         }
       }
+      {
+        // J, held for a second, fires the seat.
+        bool aboard = !aircraftCrashed(simulation().state()) && soloEjected < 0;
+#ifdef OFS_NETWORK_ENABLED
+        if (network) aboard = network->ready() && network->life().alive();
+#endif
+        ejectAsked = std::max(0., ejectAsked - realElapsed);
+        const bool asking = aboard && ejectAsked <= 0 && !automated && !captureKeyboard && cameraMode != CameraMode::Free &&
+            !ui.paused && !ui.menuOpen && input.key(SDL_SCANCODE_J);
+        ejectHold = asking ? ejectHold + realElapsed : 0;
+        if (aboard && options.ejectAt >= 0 && std::chrono::duration<double>(now - started).count() >= options.ejectAt) {
+          options.ejectAt = -1;
+          ejectHold = kEjectHoldSeconds;
+        }
+        if (ejectHold >= kEjectHoldSeconds) {
+          ejectHold = 0;
+#ifdef OFS_NETWORK_ENABLED
+          if (network) {
+            // The game decides; asked again only if nothing comes of it.
+            network->weaponAction(ofs::net::WeaponActionKind::Eject);
+            ejectAsked = 2;
+          } else
+#endif
+          {
+            ejections.eject(0, true, simulation().state(), options.aircraft);
+            sound.at(SoundKind::Eject, simulation().state().pos_ned, 1, true);
+            soloEjected = 0;
+            log("SIM", "Pilot ejected");
+          }
+        }
+      }
 #ifdef OFS_NETWORK_ENABLED
       if (network) {
         using ofs::net::WeaponActionKind;
@@ -910,20 +1018,24 @@ int main(int argc, char** argv) {
           network->weaponAction(heatSeeker || radar.locked.id ? WeaponActionKind::Unlock
                                                                : WeaponActionKind::Lock);
         }
-        if (input.pressed(SDL_SCANCODE_1, captureKeyboard))
+        if (input.pressed(SDL_SCANCODE_1, captureKeyboard)) {
           missileSelected = false;
+          sound.cue(SoundKind::WeaponSelect, 1, .9f);
+        }
         if (input.pressed(SDL_SCANCODE_2, captureKeyboard)) {
           missileSelected = true;
           network->weaponAction(WeaponActionKind::SelectIR);
+          sound.cue(SoundKind::WeaponSelect);
         }
         if (input.pressed(SDL_SCANCODE_3, captureKeyboard)) {
           missileSelected = true;
           network->weaponAction(WeaponActionKind::SelectRadar);
+          sound.cue(SoundKind::WeaponSelect, 1, 1.1f);
         }
-        const bool fire =
+        const bool fire = conscious &&
             input.firing(captureKeyboard, ImGui::GetIO().WantCaptureMouse);
         const bool missileFire =
-            !captureKeyboard && input.key(SDL_SCANCODE_SPACE);
+            conscious && !captureKeyboard && input.key(SDL_SCANCODE_SPACE);
         if (missileSelected && missileFire && !missileFireHeld) {
           const auto &radar = network->radar();
           for (unsigned i = 0; i < radar.stations.size(); ++i)
@@ -975,10 +1087,14 @@ int main(int argc, char** argv) {
       if (!ui.multiplayer && (ui.resetParked || ui.resetAirborne)) {
         sawAirborneReset = sawAirborneReset || ui.resetAirborne;
         reset(simulation(), controls, previous, camera, clock, ui.resetAirborne);
+        respawnAirborne = ui.resetAirborne;
+        pilot.reset(); ejections.clear();
+        soloEjected = -1; ejectHold = 0;
         localGun.reset();
         soloFlares = soloChaff = int(weapons::decoyCapacity(options.aircraft));
         standing = servicedSeconds = 0;
         renderer.clearEffects();
+        sound.reset();
         ui.parkingBrake = !ui.resetAirborne;
         ui.paused = false;
         ui.resetParked = ui.resetAirborne = false;
@@ -1004,6 +1120,28 @@ int main(int argc, char** argv) {
       // A solo flight waits while the menu is up; a shared one cannot.
       const bool held = ui.paused || (ui.menuOpen && !ui.multiplayer);
       if (ui.quit) running = false;
+      // ---- The pilot: load taken, and time under a parachute ----
+      {
+        bool aboard = !aircraftCrashed(simulation().state()) && soloEjected < 0;
+#ifdef OFS_NETWORK_ENABLED
+        if (network) aboard = network->ready() && network->life().alive();
+        if (network && aboard && ownEjected) {
+          // Back in a new aircraft.
+          ownEjected = false;
+          ejections.clearOwn();
+          camera.smoothingPrimed = false;
+        }
+#endif
+        // Scripted runs fly themselves and are not asked to mind the load.
+        if (!aboard || automated) pilot.reset();
+        else if (!held) pilot.update(simulation().instruments().g_load, std::min(elapsed, .1));
+        const double pilotDt = !options.scenario.empty() ? 1. / 60 : held ? 0. : std::min(elapsed, .1);
+        if (soloEjected >= 0) {
+          soloEjected += pilotDt;
+          if (soloEjected >= kSoloRespawnSeconds) (respawnAirborne ? ui.resetAirborne : ui.resetParked) = true;
+        }
+        ejections.update(pilotDt, simulation().weather().wind_ned);
+      }
       uiClock += realElapsed;
       std::vector<Simulator::GroundImpact> frameImpacts;
       unsigned steps = 0;
@@ -1053,7 +1191,7 @@ int main(int argc, char** argv) {
               }
               }
             }
-            localGun.step(simulation().state(), dt, options.scenario.empty() &&
+            localGun.step(simulation().state(), dt, options.scenario.empty() && conscious && soloEjected < 0 &&
                 input.firing(captureKeyboard, ImGui::GetIO().WantCaptureMouse));
             simulation().setControls(controls);
             simulation().step(dt);
@@ -1099,8 +1237,10 @@ int main(int argc, char** argv) {
         }
         if (!remotes.empty()) ++remoteFrames;
         // Chat, and everyone in the game for the scoreboard, own row first.
-        for (auto& line : network->takeChat())
+        for (auto& line : network->takeChat()) {
           chatLog.add({std::move(line.name), std::move(line.text), uiClock, line.from == 0, line.from == network->entity()});
+          sound.cue(SoundKind::ChatBlip);
+        }
         if (ui.chatSubmit) {
           ui.chatSubmit = false;
           ui.chatOpen = false;
@@ -1122,6 +1262,7 @@ int main(int argc, char** argv) {
       }
 #endif
       combat = {};
+      soundMissiles.clear();
       combat.decoys = std::move(releasedDecoys);
       releasedDecoys.clear();
       threats.clear();
@@ -1175,7 +1316,7 @@ int main(int argc, char** argv) {
               break;
             }
             case ofs::net::CombatKind::Serviced:
-              if (event.target == network->entity()) { servicedSeconds = 4; standing = 0; }
+              if (event.target == network->entity()) { servicedSeconds = 4; standing = 0; sound.cue(SoundKind::Serviced); }
               break;
             case ofs::net::CombatKind::Hit: {
               // Sparks land on the aircraft as it is drawn: ahead of the
@@ -1185,7 +1326,10 @@ int main(int argc, char** argv) {
                                                                          : network->stats().renderTick;
               combat.hits.push_back({hitOrigin(event.position, carried, (shownTick - double(event.tick)) * ofs::net::tickSeconds),
                                      event.target==network->entity(),event.projectile,carried});
-              if (event.owner == network->entity() && event.target != network->entity()) hitMarkerSeconds = .25;
+              if (event.owner == network->entity() && event.target != network->entity()) {
+                hitMarkerSeconds = .25;
+                if (hitCueClock > .07) { sound.cue(SoundKind::HitMarker); hitCueClock = 0; }
+              }
               if (event.target == network->entity() && event.owner != network->entity()) {
                 damageFlashSeconds = .6;
                 lastDamagedPart = event.region;
@@ -1229,7 +1373,25 @@ int main(int argc, char** argv) {
               if (destruction.airframe && (destruction.state.pos_ned - event.position).norm() <= kPresentationReach)
                 destruction.position = destruction.state.pos_ned;
               combat.destructions.push_back(destruction);
-              if (event.owner == network->entity() && event.target != network->entity()) killMarkerSeconds = 1.2;
+              if (event.owner == network->entity() && event.target != network->entity()) {
+                killMarkerSeconds = 1.2;
+                sound.cue(SoundKind::KillChime);
+              }
+              break;
+            }
+            case ofs::net::CombatKind::Ejected: {
+              // The seat leaves the aircraft as it is seen, when it is seen.
+              const bool self = event.target == network->entity();
+              AircraftType type{};
+              if (const State* shown = shownAircraft(event.target, type)) {
+                ejections.eject(event.target, self, *shown, type);
+                sound.at(SoundKind::Eject, shown->pos_ned, 1, self);
+              } else {
+                ejections.eject(event.target, self, event.position, event.velocity);
+                sound.at(SoundKind::Eject, event.position);
+              }
+              ownEjected = ownEjected || self;
+              if (self) log("SIM", "Pilot ejected");
               break;
             }
             case ofs::net::CombatKind::Respawn: break;
@@ -1264,6 +1426,8 @@ int main(int argc, char** argv) {
                missile.motor == weapons::MotorPhase::Boost || missile.motor == weapons::MotorPhase::Sustain});
           combat.stores.push_back({position, missile.attitude, missile.type, false,
                                    missile.motor == weapons::MotorPhase::Boost || missile.motor == weapons::MotorPhase::Sustain});
+          soundMissiles.push_back({missile.id, position, missile.velocity, combat.missiles.back().powered,
+                                   missile.owner.id == self, missile.age});
         }
         presentedMissiles = std::move(presented);
         // Stores on the pylons of every armed aircraft close enough to see.
@@ -1375,6 +1539,7 @@ int main(int argc, char** argv) {
             servicedSeconds = 4;
             standing = 0;
             serviceProgress = -1;
+            sound.cue(SoundKind::Serviced);
             log("SIM", "Repaired, refuelled and rearmed on the ground");
           }
         }
@@ -1424,9 +1589,18 @@ int main(int argc, char** argv) {
         if (options.scenario == "flaps") controls.flap01 = frame < 20 ? 0 : 1;
         if (options.scenario == "contrail" || options.scenario == "condensation" || options.scenario == "high-aoa" ||
             options.scenario == "breakup" || options.scenario == "missile" || options.scenario == "detonation" ||
-            options.scenario == "decoys" || options.scenario == "warning") {
+            options.scenario == "decoys" || options.scenario == "warning" || options.scenario == "eject" ||
+            options.scenario == "blackout") {
           aircraft.pos_ned.x += fixtureTime * aircraft.vel_ned.x;
         }
+        // The seat going, the parachute opening and the aircraft flying on;
+        // and the view closing in under a hard turn.
+        if (options.scenario == "eject" && frame == 12) {
+          ejections.eject(0, true, aircraft, options.aircraft);
+          sound.at(SoundKind::Eject, aircraft.pos_ned, 1, true);
+          soloEjected = 0;
+        }
+        if (options.scenario == "blackout") pilot.strain = std::min(.86, .3 + fixtureTime * .4);
         if (options.scenario == "decoys" || options.scenario == "warning") {
           // A string of flares with a bundle of chaff among them, left behind
           // as the aircraft flies on.
@@ -1458,6 +1632,7 @@ int main(int argc, char** argv) {
             const auto& d = weapons::missileDefinition(type);
             const Vec3 position = aircraft.pos_ned + aircraft.att.rotate({4. + 3 * i, 7. + 3.5 * i, -1.5 + .8 * i});
             combat.missiles.push_back({1000 + i, position, aircraft.vel_ned, aircraft.att, d.length, d.diameter, fixtureTime, true});
+            soundMissiles.push_back({1000 + i, position, aircraft.vel_ned, true, true, fixtureTime});
             combat.stores.push_back({position, aircraft.att, type, false, true});
           }
           if (options.scenario == "detonation" && frame == 36)
@@ -1541,6 +1716,12 @@ int main(int argc, char** argv) {
       camera.dynamicFov = graphics.dynamicFov;
       camera.update(cameraMode, aircraft, renderDt, firstFrame, options.aircraft, mouseAim.active ? &aimView : nullptr);
       if(cameraMode==CameraMode::FirstPerson)camera.fov=graphics.cockpitFov;
+      // A pilot who has left the aircraft is followed down instead of it.
+      const EjectedPilot* outside = cameraMode != CameraMode::Free ? ejections.own() : nullptr;
+      if (outside)
+        camera.watch(outside->position, std::atan2(outside->forward.y, outside->forward.x), 21, 4.5, renderDt);
+      const CameraMode viewMode = outside ? CameraMode::Chase : cameraMode;
+      combat.pilots = ejections.pilots();
       if (simulation().origin().rebaseIfNeeded(camera.eye)) log("RENDER", "Render origin rebased");
       combat.gunPointValid = definition.gun.has_value() && cameraMode != CameraMode::Free && cameraMode != CameraMode::Orbit;
       if (combat.gunPointValid)
@@ -1558,7 +1739,7 @@ int main(int argc, char** argv) {
       hud.local = &aircraft;
       hud.controls = &controls;
       hud.instruments = simulation().instruments();
-      hud.cameraMode = cameraMode;
+      hud.cameraMode = viewMode;
       hud.type = options.aircraft;
       hud.parkingBrake = ui.parkingBrake;
       hud.paused = ui.paused;
@@ -1571,6 +1752,16 @@ int main(int argc, char** argv) {
       hud.nosePoint = camera.eye + aircraft.att.rotate({4000, 0, 0});
       hud.fullMap = fullMap;
       hud.alive = !aircraftCrashed(aircraft);
+      hud.visionLoss = pilot.vision();
+      hud.redOut = pilot.red;
+      hud.unconscious = pilot.incapacitated();
+      hud.ejectHold = ejectHold / kEjectHoldSeconds;
+      if (soloEjected >= 0) {
+        hud.alive = false;
+        hud.ejected = true;
+        hud.respawnSeconds = std::max(0., kSoloRespawnSeconds - soloEjected);
+        hud.respawnSpan = kSoloRespawnSeconds;
+      }
       hud.health = airframeIntegrity(aircraft)*100;
       hud.damage = damageView(aircraft, combat.localHealth);
       hud.now = uiClock;
@@ -1629,6 +1820,7 @@ int main(int argc, char** argv) {
           hud.radarCount += weapon == weapons::WeaponType::ActiveRadar;
         }
         hud.alive = network->life().alive();
+        hud.ejected = ownEjected && !hud.alive;
         hud.health = network->life().health;
         hud.damagedPart = lastDamagedPart;
         hud.hitMarker = hitMarkerSeconds;
@@ -1663,6 +1855,105 @@ int main(int argc, char** argv) {
       hud.chat = chatLines;
       hud.chatOpen = ui.chatOpen;
       drawHud(hud, ui.hud, renderer);
+
+      // ---- Sound: this frame as it is heard from the camera ----
+      {
+        const Vec3 gunPosition = definition.gun
+            ? aircraft.pos_ned + aircraft.att.rotate(definition.gun->muzzle - loadedCg(definition.flight, aircraft))
+            : aircraft.pos_ned;
+        for (const auto& shot : combat.shots)
+          sound.at(SoundKind::Gun, shot.ownAircraft ? gunPosition : shot.position, 1, shot.ownAircraft);
+        for (const auto& hit : combat.hits)
+          sound.at(hit.ownAircraft ? SoundKind::HitTaken : SoundKind::Impact, hit.ownAircraft ? aircraft.pos_ned : hit.position,
+                   1, hit.ownAircraft);
+        // An aircraft that goes into the ground is heard to hit it; one that
+        // blows up in the air is not.
+        const auto ending = [](const Vec3& position) {
+          return groundHeightNed(position.x, position.y) - position.z < 15 ? SoundKind::Crash : SoundKind::Explosion;
+        };
+        for (const auto& destruction : combat.destructions)
+          sound.at(ending(destruction.position), destruction.position, 1, destruction.airframe && !destruction.entity);
+        for (const auto& position : renderer.wreckImpacts()) sound.at(SoundKind::Crash, position);
+        for (const auto& part : renderer.partsLost()) sound.at(SoundKind::PartBreak, part.position, 1, part.own);
+        for (const auto& out : ejections.pilots())
+          if (out.opened) sound.at(SoundKind::Parachute, out.position, 1, out.own);
+        for (const auto& position : combat.missileDetonations) sound.at(SoundKind::Detonation, position);
+        for (const auto& decoy : combat.decoys)
+          sound.at(decoy.type == weapons::DecoyType::Flare ? SoundKind::Flare : SoundKind::Chaff, decoy.position, 1,
+                   (decoy.position - aircraft.pos_ned).norm() < 40);
+        // A hard arrival is one crunch; sliding on afterwards is a scrape.
+        crunchClock += realElapsed;
+        for (const auto& impact : combat.groundImpacts) {
+          if (impact.bodyContact) sound.scrape(float(std::clamp(impact.scrapeSpeed / 60, 0., 1.)));
+          if (impact.closingSpeed > 4 && (impact.damage > 0 || impact.bodyContact) && crunchClock > .3) {
+            sound.at(SoundKind::Crunch, aircraft.pos_ned, float(std::clamp(.3 + impact.closingSpeed / 25, .3, 1.2)), true);
+            crunchClock = 0;
+          }
+        }
+        // A solo crash has no server to announce it.
+        const bool crashed = aircraftCrashed(aircraft);
+        if (crashed && !wasCrashed && !hud.multiplayer) sound.at(ending(aircraft.pos_ned), aircraft.pos_ned, 1, soloEjected < 0);
+        wasCrashed = crashed;
+        hitCueClock += realElapsed;
+        if (hud.firing && !triggerWasHeld && !hud.missileSelected && definition.gun && hud.ammo == 0 && hud.alive)
+          sound.cue(SoundKind::DryFire);
+        triggerWasHeld = hud.firing;
+        if (ui.menuOpen != menuWasOpen) sound.cue(ui.menuOpen ? SoundKind::UiOpen : SoundKind::UiClose);
+        if (fullMap != mapWasOpen) sound.cue(fullMap ? SoundKind::UiOpen : SoundKind::UiClose, .8f, 1.25f);
+        menuWasOpen = ui.menuOpen; mapWasOpen = fullMap;
+        if (ImGui::GetIO().WantCaptureMouse && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) sound.cue(SoundKind::UiClick);
+
+        SoundFrame heard;
+        heard.dt = options.soundCapture.empty() ? std::min(realElapsed, .25) : renderDt;
+        heard.held = held && options.scenario.empty();
+        heard.focused = !speakers || (SDL_GetWindowFlags(platform.window()) & SDL_WINDOW_INPUT_FOCUS);
+        heard.eye = camera.eye;
+        heard.forward = camera.target - camera.eye;
+        heard.up = camera.renderOrientation().rotate({0, 0, -1});
+        heard.attached = cameraMode != CameraMode::Free && !outside;
+        heard.cockpit = viewMode == CameraMode::FirstPerson;
+        heard.type = options.aircraft;
+        heard.alive = hud.alive && !combat.localDestroyed;
+        heard.instruments = hud.instruments;
+        const auto forces = simulation().debugFrame();
+        heard.qbar = forces.qbar;
+        heard.onWheels = forces.contact_normal_force > 0;
+        heard.gearCommand = controls.gear01;
+        heard.own = &aircraft;
+#ifdef OFS_NETWORK_ENABLED
+        // Nothing is flying until the game has been joined.
+        if (network && !network->ready()) heard.own = nullptr;
+#endif
+        // Under a parachute there is no aircraft to hear from the inside.
+        if (hud.ejected) heard.own = nullptr;
+        heard.strain = hud.visionLoss;
+        heard.unconscious = hud.unconscious;
+        soundAircraft.clear();
+        for (const auto& remote : remotes)
+          if (remote.alive) soundAircraft.push_back({&remote.state, remote.type, remote.entity});
+        heard.others = soundAircraft;
+        heard.missiles = soundMissiles;
+        soundThreats.clear();
+        for (const auto& threat : threats) soundThreats.push_back({threat.position, threat.velocity, threat.decoyed});
+        heard.threats = soundThreats;
+        heard.missileSelected = hud.missileSelected;
+        heard.weapon = hud.missileWeapon;
+        heard.seekerTracking = hud.seekerTarget.id != 0;
+        heard.seekerReady = hud.seekerReady;
+        heard.lockProgress = hud.lockProgress;
+        heard.radarLocked = hud.lockedTarget.id != 0;
+        heard.health = hud.health;
+        heard.enabled = graphics.sound;
+        heard.muteUnfocused = !graphics.soundInBackground;
+        heard.master = graphics.soundVolume;
+        heard.volume = {graphics.engineVolume, graphics.weaponVolume, graphics.airframeVolume, graphics.cockpitVolume};
+        sound.update(heard);
+        if (!options.soundCapture.empty()) {
+          const std::size_t count = std::size_t(std::lround(renderDt * kSoundRate));
+          capturedSound.resize(capturedSound.size() + count * 2);
+          mixer.render(capturedSound.data() + capturedSound.size() - count * 2, count);
+        }
+      }
 
       debugUi(simulation(), controls, camera, clock, steps, realElapsed, measuredTicks, renderer, assetName,
               remotes.size() + 1, input.connected(), ui, graphics);
@@ -1739,6 +2030,12 @@ int main(int argc, char** argv) {
       if (options.smoke && frame > 220) throw std::runtime_error("Smoke event loop did not quit");
     }
     input.release(platform.window());
+    speakers.reset();
+    if (!options.soundCapture.empty()) {
+      if (!writeWave(options.soundCapture, capturedSound)) throw std::runtime_error("Cannot write " + options.soundCapture);
+      std::fprintf(stderr, "[SOUND] CAPTURE %.2f s peak=%.3f path=%s\n", double(capturedSound.size()) / (2. * kSoundRate),
+                   double(mixer.peak()), options.soundCapture.c_str());
+    }
 
     if (options.smoke) {
       std::fprintf(stderr,
