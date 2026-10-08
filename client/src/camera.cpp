@@ -283,4 +283,20 @@ void Camera::watch(const Vec3& subject, double heading, double distance, double 
   fov = 62;
 }
 
+void Camera::ride(const Vec3& subject, const Vec3& velocity) {
+  const Vec3 along = velocity.norm() > 1 ? velocity.normalized() : Vec3{1, 0, 0};
+  eye = subject - along * 14 + Vec3{0, 0, -2.2};
+  eye.z = std::min(eye.z, groundHeightNed(eye.x, eye.y) - 1.5);
+  target = subject + along * 60;
+  smoothedPosition = eye;
+  smoothedAtt = attitudeLookAt(target - eye, Vec3{0, 0, -1});
+  // The flight camera starts afresh when the view returns to the aircraft.
+  smoothingPrimed = false;
+  speedPrimed = false;
+  mode = CameraMode::Chase;
+  aimViewActive = false;
+  rigidAttitude = false;
+  fov = 62;
+}
+
 }  // namespace ofs::client

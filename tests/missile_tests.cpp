@@ -1198,6 +1198,42 @@ void lifecycle() {
   check(receiver.missiles().empty(), "watchdog expiry");
 }
 } // namespace
+// A game set to hand missiles out gives one back per interval, to an empty
+// pylon, until the aircraft is full; a game that is not leaves them empty.
+void reload() {
+  for (const double seconds : {0.0, 2.0}) {
+    World world;
+    world.setMissileReload(seconds);
+    const auto a = world.join(AircraftType::Typhoon);
+    auto &p = fixture(world, a);
+    auto &stations = p.weapons.inventory.stations;
+    const auto mounted = [&] {
+      return p.weapons.inventory.remaining(WeaponType::Infrared) +
+             p.weapons.inventory.remaining(WeaponType::ActiveRadar);
+    };
+    check(mounted() == 4, "pylons are full at spawn");
+    const auto first = stations[0].mounted;
+    stations[0].mounted = stations[3].mounted = WeaponType::None;
+    const auto run = [&](double time) {
+      for (int i = 0; i < int(std::lround(time / tickSeconds)); ++i)
+        world.step();
+    };
+    run(1.9);
+    check(mounted() == 2, "nothing comes back before the reload time");
+    run(.2);
+    if (seconds == 0) {
+      run(30);
+      check(mounted() == 2, "without a reload time pylons stay empty in flight");
+      continue;
+    }
+    check(mounted() == 3 && stations[0].mounted == first,
+          "one missile comes back, of the kind its pylon carries");
+    run(2);
+    check(mounted() == 4, "the next follows a reload time later");
+    run(5);
+    check(mounted() == 4 && p.reloading == 0, "a full aircraft is left alone");
+  }
+}
 int main(int argc, char **argv) {
   try {
     const std::string suite = argc > 1 ? argv[1] : "guidance";
@@ -1237,6 +1273,8 @@ int main(int argc, char **argv) {
       robustness();
     else if (suite == "respawn")
       respawn();
+    else if (suite == "reload")
+      reload();
     else
       throw std::runtime_error("unknown suite");
     std::printf("m4.%s PASS\n", suite.c_str());

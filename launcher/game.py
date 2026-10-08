@@ -8,7 +8,7 @@ import subprocess
 import time
 from .config import PURSUIT_CAMERA_VERSION
 from .installation import active_directory
-from .lan import LAN_VERSION, lobby_name
+from .lan import LAN_VERSION, MISSILE_RELOAD_VERSION, lobby_name
 from .platform_process import spawn
 from .storage import LauncherError, read_json, safe_path, relative_name
 from .version import Version
@@ -136,6 +136,12 @@ def server_arguments(installation, preferences, lan=False):
         command += ['--lan-name', lobby_name(preferences.lobby, lobby_name(preferences.name + "'s game"))]
         if preferences.lan_bots:
             command += ['--bots', str(preferences.lan_bots)]
+        if type(preferences.lan_missile_reload) is not int or not 0 <= preferences.lan_missile_reload <= 3600:
+            raise LauncherError('Missile reload time must be 0–3600 seconds')
+        if preferences.lan_missile_reload:
+            if Version(installation.catalog['version']) < Version(MISSILE_RELOAD_VERSION):
+                raise LauncherError(f'A missile reload time needs OpenFlightSim {MISSILE_RELOAD_VERSION} or newer. Update the game or set it to off.')
+            command += ['--missile-reload', str(preferences.lan_missile_reload)]
     return command
 
 

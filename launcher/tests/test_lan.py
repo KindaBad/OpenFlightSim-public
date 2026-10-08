@@ -241,6 +241,17 @@ class Hosting(unittest.TestCase):
         command = server_arguments(self.installation, prefs, lan=True)
         self.assertEqual(command[-2:], ['--lan-name', 'Squadron night  $(reboot)'])
         self.assertNotIn('--bots', command)
+        self.assertNotIn('--missile-reload', command)
+
+    def test_missile_reload_reaches_a_server_that_takes_it(self):
+        prefs = Preferences(name='Ace', lan_missile_reload=60)
+        with self.assertRaises(LauncherError):
+            server_arguments(self.installation, prefs, lan=True)
+        self.installation.catalog['version'] = '0.5.5'
+        self.assertEqual(server_arguments(self.installation, prefs, lan=True)[-2:], ['--missile-reload', '60'])
+        prefs.lan_missile_reload = 3601
+        with self.assertRaises(LauncherError):
+            server_arguments(self.installation, prefs, lan=True)
 
     def test_private_server_stays_on_this_computer(self):
         command = server_arguments(self.installation, Preferences(lobby='ignored', lan_bots=4))

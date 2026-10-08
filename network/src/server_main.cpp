@@ -31,13 +31,15 @@ int main(int argc, char **argv) {
         config.bots = number(argument(i, argc, argv), 0, 8);
       else if (a == "--ground")
         config.airborne = false;
+      else if (a == "--missile-reload")
+        config.missileReload = number(argument(i, argc, argv), 0, 3600);
       else if (a == "--lan-name")
         config.lobbyName = lobbyName(std::string(argument(i, argc, argv)));
       else
         throw std::invalid_argument(
             "ofs_server [--bind IP] [--port N] [--max-players 1..64] "
             "[--snapshot-hz 1..60] [--bots 0..8] [--ground] [--seconds N] "
-            "[--lan-name NAME]");
+            "[--lan-name NAME] [--missile-reload SECONDS]");
     }
     std::signal(SIGINT, stop);
     std::signal(SIGTERM, stop);

@@ -20,7 +20,7 @@ GRAPHICS = {
     'heatDistortion': (1, 0, 1), 'bloom': (1, 0, 1), 'glare': (0.045, 0, .2),
     'autoExposure': (1, 0, 1), 'exposureCompensation': (0.0, -4, 4), 'visibilityKm': (70.0, 2, 300),
     'cockpitFov': (70, 40, 100), 'hud': (1, 0, 1), 'playerLabels': (1, 0, 1),
-    'contrails': (1, 0, 1), 'wingVapor': (1, 0, 1), 'engineHeat': (1, 0, 1),
+    'contrails': (1, 0, 1), 'wingVapor': (1, 0, 1), 'engineHeat': (1, 0, 1), 'realTime': (0, 0, 1),
 }
 # Mirrors GraphicsSettings::applyPreset; `preset` is the simulator's own index.
 PRESETS = {
@@ -67,6 +67,9 @@ class Preferences:
     # pilot's) and how many AI opponents fly in it.
     lobby: str = ''
     lan_bots: int = 0
+    # Seconds between missiles handed out in flight in a hosted game; 0 rearms
+    # on the ground only.
+    lan_missile_reload: int = 0
     channel: str = 'stable'
     manifest_url: str = ''  # Publisher configures a public HTTPS host; no guessed endpoint.
     auto_check: bool = True
@@ -93,6 +96,8 @@ class Preferences:
             raise LauncherError('Invalid channel or camera')
         if not 1 <= prefs.port <= 65535 or not 1 <= prefs.bots <= 8 or not 0 <= prefs.lan_bots <= 8:
             raise LauncherError('Invalid port or bot count')
+        if not 0 <= prefs.lan_missile_reload <= 3600:
+            raise LauncherError('Invalid missile reload time')
         return prefs
 
     def save(self, path):

@@ -1,3 +1,16 @@
+OpenFlightSim 0.5.5 Launcher
+
+- Missile view. Hold U after a launch to ride along behind your missile and
+  watch it go in; let go to come back to your aircraft.
+- Missile reload time for hosted games. On the Multiplayer page, under Host a
+  game, set how many seconds it takes to get a missile back. At 60, every
+  pilot gets one missile a minute, in the air, until the pylons are full. Off
+  keeps things as they were: land and stop to rearm.
+- Follow real-world time. A new setting, in Advanced and in the game's own
+  settings under Time and exposure, puts the sun where this computer's clock
+  says it is, so it is morning, noon or dusk in the game when it is outside.
+  The game has no night yet, so after dark it stays at dusk.
+
 OpenFlightSim 0.5.4 Launcher
 
 - The Su-57 can now be flown past the stall. In maneuver mode (M) below about

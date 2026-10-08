@@ -10,6 +10,7 @@ Server::Server(const ServerConfig &config)
       config.bots >= maxPlayers || config.maxClients + config.bots > maxPlayers)
     throw std::invalid_argument(
         "server limits: players plus bots <=64, bots 0..8, snapshot rate 1..60");
+  world_.setMissileReload(config.missileReload);
   transport_.listen(config.bind, config.port);
   config_.lobbyName = lobbyName(config_.lobbyName);
   if (!config_.lobbyName.empty())

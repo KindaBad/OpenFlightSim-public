@@ -688,7 +688,7 @@ class Window(QMainWindow):
         for title, text in [('Pitch / roll', 'W / S · A / D'), ('Rudder', 'Q / E'), ('Throttle', 'Shift / Ctrl'),
                             ('Brake', 'Hold Ctrl with the throttle at idle: wheel brakes on the ground, airbrake in the air'),
                             ('Gear, flaps, airbrake', 'G · F · H'),
-                            ('Camera', 'Tab cycles camera · V flight deck · right mouse looks · wheel zooms'),
+                            ('Camera', 'Tab cycles camera · V flight deck · right mouse looks · wheel zooms · hold U to follow your missile'),
                             ('Map', 'N opens and closes the full map'),
                             ('Weapons', 'Space / left mouse / gamepad right trigger · 1 gun · 2 heat seeker · 3 radar missile'),
                             ('Targets', 'L locks or breaks lock · T / Y next and previous target'),
@@ -792,6 +792,15 @@ class Window(QMainWindow):
         self.lan_bots.setToolTip('AI opponents that fly in your game. They need an armed aircraft to fight.')
         self.lan_bots.valueChanged.connect(lambda v: self.set_pref('lan_bots', v))
         host_form.addRow(label('AI opponents', 'muted'), self.lan_bots)
+        self.lan_missile_reload = QSpinBox()
+        self.lan_missile_reload.setRange(0, 3600)
+        self.lan_missile_reload.setSingleStep(10)
+        self.lan_missile_reload.setSuffix(' s')
+        self.lan_missile_reload.setSpecialValueText('Off · rearm by landing')
+        self.lan_missile_reload.setValue(self.prefs.lan_missile_reload)
+        self.lan_missile_reload.setToolTip('Every pilot gets one missile back after this many seconds, in the air or on the ground. At 60, that is one missile a minute.')
+        self.lan_missile_reload.valueChanged.connect(lambda v: self.set_pref('lan_missile_reload', v))
+        host_form.addRow(label('Missile reload', 'muted'), self.lan_missile_reload)
         host_box.addLayout(host_form)
         self.host_button = button('Host and fly', self.host_lan)
         self.host_button.setObjectName('primary')
@@ -926,6 +935,7 @@ class Window(QMainWindow):
                                 ('lodBias', 'Model LOD bias', 'Log₂ distance bias. Positive values choose cheaper geometry sooner.'),
                                 ('shadowDistance', 'Shadow distance (m)', 'Sun shadows are drawn out to this range from the camera.'),
                                 ('glare', 'Glare amount', 'Fraction of light scattered around bright sources, 0–0.2.'),
+                                ('realTime', 'Follow real-world time', 'The sun follows this computer\'s clock: morning, noon and dusk when they are outside.'),
                                 ('visibilityKm', 'Visibility (km)', 'Meteorological visual range at sea level; sets the haze.'),
                                 ('autoExposure', 'Automatic exposure', 'Meters the scene like a camera as the sun and weather change.'),
                                 ('exposureCompensation', 'Exposure compensation (EV)', 'Photographic stops added to the metered exposure.'),

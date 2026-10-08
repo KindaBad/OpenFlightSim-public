@@ -16,6 +16,9 @@ struct ServerConfig {
   unsigned bots{}; // Server-owned opponents; reserve at least one human slot.
   std::optional<GunConfig>
       gun; // Scenario/server override; never client editable.
+  // Seconds between missiles handed out in flight, one at a time; zero rearms
+  // on the ground only.
+  double missileReload{};
   // A named game answers discovery on the local network; an unnamed one is
   // reachable by address only.
   std::string lobbyName, version;

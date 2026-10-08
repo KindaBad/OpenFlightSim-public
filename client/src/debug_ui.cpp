@@ -154,6 +154,7 @@ void controlsWindow(UiSettings& ui) {
     section("VIEW AND GAME");
     row("Tab    V", "Next camera, flight deck");
     row("Right mouse", "Look around");
+    row("U (hold)", "Follow your missile");
     row("N", "Map");
     row("/  or  Enter", "Chat (multiplayer)");
     row("K (hold)", "Pilots and scores");
@@ -357,8 +358,11 @@ void debugUi(const Simulator& sim, Controls& controls, const Camera& camera,
       if (ImGui::Checkbox("Fullscreen", &settings.fullscreen)) ui.toggleFullscreen = true;
     }
     if (ImGui::CollapsingHeader("Time and exposure", ImGuiTreeNodeFlags_DefaultOpen)) {
+      ImGui::Checkbox("Follow real-world time", &settings.sky.realTime);
+      ImGui::BeginDisabled(settings.sky.realTime);
       ImGui::SliderFloat("Sun elevation (deg)", &settings.sky.sunElevationDeg, -8.0f, 89.0f, "%.1f");
       ImGui::SliderFloat("Sun azimuth (deg)", &settings.sky.sunAzimuthDeg, 0.0f, 360.0f, "%.1f");
+      ImGui::EndDisabled();
       ImGui::Checkbox("Automatic exposure", &settings.sky.autoExposure);
       ImGui::SliderFloat("Exposure compensation (EV)", &settings.sky.exposureCompensation, -3.0f, 3.0f, "%+.1f");
       ImGui::Text("Sun %.0f klx | sky %.0f klx | exposure %.2f", stats.sunIlluminanceLux / 1000.f,

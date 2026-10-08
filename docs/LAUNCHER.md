@@ -124,7 +124,9 @@ hosting setup are outside the current transport's capabilities.
 **Host and fly** starts the installed `ofs_server` bound to every interface
 with `--lan-name` (the game name, or "<pilot>'s game"; printable ASCII, at most
 48 characters, passed as one argument and never through a shell) and the chosen
-number of bots, then joins it over loopback. The server stops when the host's
+number of bots, then joins it over loopback. A missile reload time, when set,
+is passed as `--missile-reload SECONDS` (0.5.5 or newer): every aircraft gets
+one missile back on an empty pylon after that long, in the air as well. The server stops when the host's
 flight ends. Hosting needs a simulator of version 0.5.0 or newer; an older
 installed or rolled-back game reports that instead of starting.
 

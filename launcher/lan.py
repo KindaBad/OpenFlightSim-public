@@ -20,6 +20,8 @@ MAX_LOBBY_NAME = 48
 MAX_VERSION = 24
 # The first simulator version whose server answers discovery and takes --lan-name.
 LAN_VERSION = '0.5.0'
+# The first simulator version whose server takes --missile-reload.
+MISSILE_RELOAD_VERSION = '0.5.5'
 
 
 @dataclass(frozen=True)

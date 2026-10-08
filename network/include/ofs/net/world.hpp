@@ -34,6 +34,9 @@ struct Player {
   Tick standing{};
   // When a bot may next answer a missile with a decoy.
   Tick botDecoyReady{};
+  // Ticks an empty pylon has waited toward the next missile, in a game that
+  // hands them out in flight.
+  Tick reloading{};
 };
 // How long after a hit a crash still counts for the attacker.
 constexpr Tick killCreditTicks = 20 * 120;
@@ -59,6 +62,11 @@ public:
   bool releaseDecoy(EntityId, weapons::DecoyType);
   // Ticks an aircraft has to stand on the ground to be repaired and rearmed.
   static Tick serviceTicks();
+  // Seconds between missiles handed to an aircraft with an empty pylon, one at
+  // a time and in the air as well as on the ground. Zero leaves rearming to a
+  // stop on the ground.
+  void setMissileReload(double seconds);
+  double missileReload() const { return double(missileReload_) * tickSeconds; }
   bool enqueueFire(EntityId, const FireCommand &);
   Combat &combat() { return combat_; }
   const Combat &combat() const { return combat_; }
@@ -86,6 +94,8 @@ private:
   // the airframe mended, the tanks, gun, pylons and dispensers refilled.
   bool needsService(const Player &) const;
   void service(EntityId, Player &);
+  void reload(Player &);
+  Tick missileReload_{};
   std::vector<weapons::Decoy> decoys_;
   std::uint64_t nextDecoy_{1};
   bool airborne_;

@@ -21,6 +21,9 @@ enum class GraphicsPreset : std::uint8_t { Low = 0, Medium = 1, High = 2, Ultra 
 struct SkySettings {
   float sunElevationDeg{38};
   float sunAzimuthDeg{125};
+  // Follows this computer's clock and calendar: the two angles above are then
+  // set from the local time of day instead of by hand.
+  bool realTime{false};
   // Meters the scene like a camera. When off, the compensation alone sets the
   // exposure relative to a clear-noon reference.
   bool autoExposure{true};
@@ -126,5 +129,12 @@ struct GraphicsSettings {
 // Unit vector from the scene toward the sun, in the render frame (+X east,
 // +Y up, +Z south).
 void sunDirection(const SkySettings&, float outDirection[3]);
+
+// Where the sun stands at a local solar time, for a day of the year (1..366)
+// and a latitude in degrees. Elevation above the horizon and azimuth clockwise
+// from north, both in degrees.
+void sunPosition(double hour, int dayOfYear, double latitudeDeg, float& elevationDeg, float& azimuthDeg);
+// Sets the sun from this computer's clock when the sky follows real time.
+void applyRealTime(SkySettings&);
 
 }  // namespace ofs::client

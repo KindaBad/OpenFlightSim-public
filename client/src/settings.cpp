@@ -4,6 +4,7 @@
 #include "ofs/math.hpp"
 
 #include <cmath>
+#include <ctime>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -114,6 +115,39 @@ void sunDirection(const SkySettings& sky, float out[3]) {
   out[0] = static_cast<float>(std::sin(azimuth) * std::cos(elevation));
   out[1] = static_cast<float>(std::sin(elevation));
   out[2] = static_cast<float>(-std::cos(azimuth) * std::cos(elevation));
+}
+
+void sunPosition(double hour, int dayOfYear, double latitudeDeg, float& elevationDeg, float& azimuthDeg) {
+  constexpr double kDeg2Rad = kPi / 180.0;
+  const double declination = -23.44 * kDeg2Rad * std::cos(2 * kPi * (dayOfYear + 10) / 365.0);
+  const double latitude = latitudeDeg * kDeg2Rad;
+  const double hourAngle = (hour - 12.0) * 15.0 * kDeg2Rad;
+  const double sinElevation = std::sin(latitude) * std::sin(declination) +
+                              std::cos(latitude) * std::cos(declination) * std::cos(hourAngle);
+  const double elevation = std::asin(clampSetting(sinElevation, -1.0, 1.0));
+  // Measured from south, positive toward the west, then turned to a compass bearing.
+  const double azimuth = std::atan2(std::sin(hourAngle),
+                                    std::cos(hourAngle) * std::sin(latitude) -
+                                        std::tan(declination) * std::cos(latitude));
+  elevationDeg = static_cast<float>(elevation / kDeg2Rad);
+  azimuthDeg = static_cast<float>(std::fmod(azimuth / kDeg2Rad + 180.0 + 360.0, 360.0));
+}
+
+void applyRealTime(SkySettings& sky) {
+  if (!sky.realTime) return;
+  const std::time_t now = std::time(nullptr);
+  std::tm local{};
+#ifdef _WIN32
+  localtime_s(&local, &now);
+#else
+  localtime_r(&now, &local);
+#endif
+  // The clock is taken as it reads, so noon on the clock is noon in the game.
+  constexpr double kLatitudeDeg = 45.0;
+  const double hour = local.tm_hour + local.tm_min / 60.0 + local.tm_sec / 3600.0;
+  sunPosition(hour, local.tm_yday + 1, kLatitudeDeg, sky.sunElevationDeg, sky.sunAzimuthDeg);
+  // The renderer has no night; the sun stops a little under the horizon, at dusk.
+  sky.sunElevationDeg = clampSetting(sky.sunElevationDeg, -10.0f, 89.0f);
 }
 
 void GraphicsSettings::applyPreset(GraphicsPreset chosen) {
@@ -231,6 +265,7 @@ void GraphicsSettings::load(const std::string& path) {
 
   read(table, "sunElevation", sky.sunElevationDeg);
   read(table, "sunAzimuth", sky.sunAzimuthDeg);
+  read(table, "realTime", sky.realTime);
   read(table, "autoExposure", sky.autoExposure);
   read(table, "exposureCompensation", sky.exposureCompensation);
 
@@ -340,6 +375,7 @@ bool GraphicsSettings::save() const {
 
   write(file, "sunElevation", sky.sunElevationDeg);
   write(file, "sunAzimuth", sky.sunAzimuthDeg);
+  write(file, "realTime", sky.realTime);
   write(file, "autoExposure", sky.autoExposure);
   write(file, "exposureCompensation", sky.exposureCompensation);
 

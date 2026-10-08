@@ -134,6 +134,10 @@ struct Camera {
   // above, looking at a point `lift` metres over it.
   void watch(const Vec3& subject, double heading, double distance, double lift, double dt);
 
+  // Rides just behind and above a missile in flight, looking along its path.
+  // Rigid: at missile speeds any smoothing would leave the camera far behind.
+  void ride(const Vec3& subject, const Vec3& velocity);
+
   // True when the aircraft this camera belongs to should be skipped, because
   // the eye is inside its own model.
   bool hidesOwnAircraft() const { return cameraSettings(mode).hideOwnAircraft; }

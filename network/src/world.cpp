@@ -267,6 +267,35 @@ void World::service(EntityId id, Player &p) {
   event.position = state.pos_ned;
   combat_.emit(event);
 }
+void World::setMissileReload(double seconds) {
+  missileReload_ = seconds > 0 ? std::max<Tick>(1, Tick(std::llround(seconds / tickSeconds))) : 0;
+}
+void World::reload(Player &p) {
+  if (!missileReload_)
+    return;
+  auto &stations = p.weapons.inventory.stations;
+  weapons::Inventory full;
+  full.reset(p.type);
+  auto state = p.sim.state();
+  // The first empty pylon that is still there to hang a missile on.
+  std::size_t empty = stations.size();
+  for (std::size_t i = stations.size(); i-- > 0;)
+    if (i < full.stations.size() && stations[i].mounted == WeaponType::None &&
+        full.stations[i].mounted != WeaponType::None &&
+        !partDestroyed(state, stations[i].position.y < 0 ? DamagePart::LeftWing
+                                                         : DamagePart::RightWing))
+      empty = i;
+  if (empty == stations.size()) {
+    p.reloading = 0;
+    return;
+  }
+  if (++p.reloading < missileReload_)
+    return;
+  p.reloading = 0;
+  stations[empty].mounted = full.stations[empty].mounted;
+  p.weapons.inventory.applyPayload(p.sim.config(), state);
+  p.sim.setState(state);
+}
 void World::loseStores(Player &p, State &state) {
   bool lost = false;
   for (auto &station : p.weapons.inventory.stations) {
@@ -532,6 +561,7 @@ void World::step() {
       } else
         continue;
     }
+    reload(p);
     auto &w = p.weapons;
     w.seekerReady = false;
     w.envelope = {};

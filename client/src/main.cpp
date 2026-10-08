@@ -33,6 +33,7 @@
 #include <string_view>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <vector>
 #include <filesystem>
@@ -635,6 +636,10 @@ int main(int argc, char** argv) {
     int soloFlares = int(weapons::decoyCapacity(options.aircraft)), soloChaff = soloFlares;
     std::vector<CombatVisuals::Decoy> releasedDecoys;
     std::vector<HudFrame::Threat> threats;
+    // The pilot's own most recently launched missile still in flight: position,
+    // velocity and age, for the missile view.
+    struct OwnMissile { Vec3 position, velocity; double age{}; };
+    std::optional<OwnMissile> ownMissile;
     // Ctrl at idle brakes; the airbrake goes back to where the pilot had it.
     bool brakeHeld = false;
     double airbrakeBefore = 0;
@@ -1266,6 +1271,7 @@ int main(int argc, char** argv) {
       combat.decoys = std::move(releasedDecoys);
       releasedDecoys.clear();
       threats.clear();
+      ownMissile.reset();
       for (const auto& event : localGun.takeEvents()) {
         if (event.shot) combat.shots.push_back({event.position,event.velocity,event.lifetime,true,event.projectile,aircraft.vel_ned});
         else combat.hits.push_back({event.position,false,event.projectile});
@@ -1421,6 +1427,8 @@ int main(int argc, char** argv) {
                 aircraft.vel_ned,
                 (double(network->prediction().tick()) - sampledTicks[i]) * ofs::net::tickSeconds,
                 missile.age);
+          if (missile.owner.id == self && (!ownMissile || missile.age < ownMissile->age))
+            ownMissile = OwnMissile{position, missile.velocity, missile.age};
           combat.missiles.push_back(
               {missile.id, position, missile.velocity, missile.attitude, d.length, d.diameter, missile.age,
                missile.motor == weapons::MotorPhase::Boost || missile.motor == weapons::MotorPhase::Sustain});
@@ -1714,13 +1722,18 @@ int main(int argc, char** argv) {
       const double renderDt = !options.scenario.empty() || !options.flightDemo.empty() ? 1.0/60.0 : std::min(realElapsed, .1);
       const Vec3 aimView = mouseAim.viewDirection();
       camera.dynamicFov = graphics.dynamicFov;
+      if (options.scenario.empty() && options.flightDemo.empty() && !options.smoke) applyRealTime(graphics.sky);
       camera.update(cameraMode, aircraft, renderDt, firstFrame, options.aircraft, mouseAim.active ? &aimView : nullptr);
       if(cameraMode==CameraMode::FirstPerson)camera.fov=graphics.cockpitFov;
       // A pilot who has left the aircraft is followed down instead of it.
       const EjectedPilot* outside = cameraMode != CameraMode::Free ? ejections.own() : nullptr;
       if (outside)
         camera.watch(outside->position, std::atan2(outside->forward.y, outside->forward.x), 21, 4.5, renderDt);
-      const CameraMode viewMode = outside ? CameraMode::Chase : cameraMode;
+      // Holding U rides along with the missile the pilot last launched.
+      const bool missileView = ownMissile && !outside && cameraMode != CameraMode::Free && !automated &&
+          !ImGui::GetIO().WantCaptureKeyboard && !ui.menuOpen && input.key(SDL_SCANCODE_U);
+      if (missileView) camera.ride(ownMissile->position, ownMissile->velocity);
+      const CameraMode viewMode = outside || missileView ? CameraMode::Chase : cameraMode;
       combat.pilots = ejections.pilots();
       if (simulation().origin().rebaseIfNeeded(camera.eye)) log("RENDER", "Render origin rebased");
       combat.gunPointValid = definition.gun.has_value() && cameraMode != CameraMode::Free && cameraMode != CameraMode::Orbit;
