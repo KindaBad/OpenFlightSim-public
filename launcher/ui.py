@@ -29,6 +29,36 @@ from .presentation import STYLE, CoverArt, AircraftGallery, ResponsiveRow, DropD
 
 log = logging.getLogger('ofs.ui')
 
+
+def aircraft_summary(a):
+    """The aircraft page's data sheet, from the game's own catalogue and the
+    published figures in data/launcher/aircraft-info.json."""
+    def number(key):
+        value = a.get(key)
+        return value if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0 else None
+    engines = a.get('engines', '?')
+    lines = [f'{a.get("manufacturer", "Manufacturer not provided")} · {a.get("type", "Aircraft")}',
+             a.get('role', 'Role not provided'),
+             f'{engines} {"engine" if engines == 1 else "engines"} · {a.get("engine_type", "Engine type not provided")}']
+    dry, reheat = number('thrust_dry_kn'), number('thrust_reheat_kn')
+    if dry:
+        lines.append(f'Thrust: {dry:g} kN' + (f' dry · {reheat:g} kN with reheat' if reheat else ''))
+    empty, fuel = number('empty_mass_kg'), number('fuel_capacity_kg')
+    masses = [f'Empty: {empty:,.0f} kg' if empty else f'Reference mass: {a.get("reference_mass_kg", "?")} kg']
+    if fuel:
+        masses.append(f'internal fuel: {fuel:,.0f} kg')
+    lines.append(' · '.join(masses))
+    area = number('wing_area_m2')
+    lines.append(f'Span: {a.get("span_m", "?")} m' + (f' · wing area: {area:g} m²' if area else ''))
+    if isinstance(a.get('max_speed'), str):
+        lines.append('Top speed: ' + a['max_speed'])
+    if isinstance(a.get('armament'), str) and a['armed']:
+        lines.append('Armament: ' + a['armament'])
+    else:
+        lines.append('Armed aircraft · local dogfight available' if a['armed'] else 'Unarmed aircraft')
+    return '\n'.join(lines)
+
+
 class FlightArt(QWidget):
     """Small procedural vector art; optional aircraft thumbnail takes precedence."""
     def __init__(self, compact=False):
@@ -1074,7 +1104,7 @@ class Window(QMainWindow):
                 self.save()
             a = next((a for a in self.installation.aircraft if a['id'] == self.aircraft_combo.currentData()), None)
             if a:
-                self.aircraft_detail.setText(f'{a.get("manufacturer", "Manufacturer not provided")} · {a.get("type", "Aircraft")}\n{a.get("role", "Role not provided")}\n{a.get("engines", "?")} engines · {a.get("engine_type", "Engine type not provided")}\nSpan: {a.get("span_m", "?")} m · simulator reference mass: {a.get("reference_mass_kg", "?")} kg\n{"Armed aircraft · local dogfight available" if a["armed"] else "Unarmed aircraft"}')
+                self.aircraft_detail.setText(aircraft_summary(a))
                 preview = None
                 if a.get('thumbnail'):
                     try:

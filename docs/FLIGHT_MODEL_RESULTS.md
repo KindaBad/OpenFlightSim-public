@@ -17,7 +17,7 @@ All paths below are repository-relative.
 | Public compatibility/evaluation changes | `core/include/ofs/{aircraft,simulator,math}.hpp`, `core/include/ofs/c_api.h` |
 | New implementation components | `core/src/{data_model,dynamics,control_allocation,f16_reference,environment_models,aerodynamic_model,propulsion_model,mass_properties,dynamics_evaluation,flight_control_system}.cpp`, `core/src/flight_model_detail.hpp` |
 | Stepper and compatibility updates | `core/src/{simulator,c_api,su57}.cpp` |
-| Machine-readable provenance | `data/provenance.schema.json`, `data/aircraft/{a320,typhoon,sr71,su57}.json`, `data/models/engineering-fallback.json`, `data/geometry/su57-normalization.json`, `data/reference/f16/README.md` |
+| Machine-readable provenance | `data/provenance.schema.json`, `data/aircraft/{a320,typhoon,sr71,su57,jf17}.json`, `data/models/engineering-fallback.json`, `data/geometry/su57-normalization.json`, `data/reference/f16/README.md` |
 | Import/export audit tooling | `scripts/{import_nasa_f16,export_aircraft_provenance}.py` |
 | Loader/render corrections | `client/src/{gltf,mesh}.{cpp,hpp}`, `client/src/renderer.cpp`, `client/shaders/{pbr_vs,pbr_fs,shadow_vs,shadow_fs}.glsl`, `client/shaders/varying.def.sc` |
 | New verification | `tests/{foundation_tests,f16_validation,gltf_conformance_tests,asset_conformance,shader_conformance}.cpp`, `tests/asset_policy_tests.py` |

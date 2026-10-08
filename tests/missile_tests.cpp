@@ -241,12 +241,16 @@ void radar() {
 }
 void inventory() {
   for (auto type : {AircraftType::A320, AircraftType::SR71,
-                    AircraftType::Typhoon, AircraftType::Su57}) {
+                    AircraftType::Typhoon, AircraftType::Su57,
+                    AircraftType::JF17}) {
+    if (!validAircraftType(type))
+      continue; // Left out of this build.
     Inventory inventory;
     inventory.reset(type);
-    const bool armed =
-        type == AircraftType::Typhoon || type == AircraftType::Su57;
-    check(inventory.stations.size() == (armed ? 4 : 0), "appropriate stations");
+    const bool armed = aircraftDefinition(type).gun.has_value();
+    // Two heat seekers each; four radar missiles, or two on the JF-17's pylons.
+    const unsigned radar = type == AircraftType::JF17 ? 2 : 4;
+    check(inventory.stations.size() == (armed ? 2 + radar : 0), "appropriate stations");
     if (!armed)
       continue;
     Simulator sim(aircraftDefinition(type).flight);
@@ -255,7 +259,7 @@ void inventory() {
     sim.setState(s);
     const auto before = sim.massProperties();
     check(inventory.remaining(WeaponType::Infrared) == 2 &&
-              inventory.remaining(WeaponType::ActiveRadar) == 2,
+              inventory.remaining(WeaponType::ActiveRadar) == radar,
           "test loadout");
     check(!inventory.consume(9, WeaponType::Infrared) &&
               !inventory.consume(0, WeaponType::ActiveRadar),
@@ -413,8 +417,8 @@ void acquisition() {
   check(!w.radar.locked.id && !w.radar.selected.id, "unlock clears selection");
   const auto loadouts = world.loadoutsNear(b);
   check(loadouts.size() == 2 && loadouts[0].entity.id == c &&
-            loadouts[0].mounted == 0b1111 && loadouts[1].entity.id == a &&
-            loadouts[1].mounted == 0b1110,
+            loadouts[0].mounted == 0b111111 && loadouts[1].entity.id == a &&
+            loadouts[1].mounted == 0b111110,
         "nearby stores projected nearest first");
   auto &motor = missileDefinition(WeaponType::ActiveRadar);
   auto s = launchState(motor, launchAircraft(), {}, {});
@@ -1211,7 +1215,7 @@ void reload() {
       return p.weapons.inventory.remaining(WeaponType::Infrared) +
              p.weapons.inventory.remaining(WeaponType::ActiveRadar);
     };
-    check(mounted() == 4, "pylons are full at spawn");
+    check(mounted() == 6, "pylons are full at spawn");
     const auto first = stations[0].mounted;
     stations[0].mounted = stations[3].mounted = WeaponType::None;
     const auto rounds = p.life.ammo;
@@ -1224,23 +1228,23 @@ void reload() {
         world.step();
     };
     run(1.9);
-    check(mounted() == 2, "nothing comes back before the reload time");
+    check(mounted() == 4, "nothing comes back before the reload time");
     run(.2);
     if (seconds == 0) {
       run(30);
-      check(mounted() == 2 && p.weapons.flares == 2 && p.life.ammo == 0,
+      check(mounted() == 4 && p.weapons.flares == 2 && p.life.ammo == 0,
             "without a reload time nothing comes back in flight");
       continue;
     }
-    check(mounted() == 3 && stations[0].mounted == first,
+    check(mounted() == 5 && stations[0].mounted == first,
           "one missile comes back, of the kind its pylon carries");
     check(p.weapons.flares == 6 && p.weapons.chaff == 16 &&
               p.life.ammo == (rounds + 3) / 4,
           "a quarter of the flares, chaff and rounds come back with it");
     run(2);
-    check(mounted() == 4, "the next follows a reload time later");
+    check(mounted() == 6, "the next follows a reload time later");
     run(5);
-    check(mounted() == 4 && p.reloading == 0, "a full aircraft is left alone");
+    check(mounted() == 6 && p.reloading == 0, "a full aircraft is left alone");
     run(4);
     check(p.weapons.flares == 16 && p.weapons.chaff == 16 &&
               p.life.ammo == rounds && p.resupplying == 0,

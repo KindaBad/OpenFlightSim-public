@@ -8,6 +8,17 @@
 #include <stdexcept>
 namespace ofs {
 using namespace detail;
+namespace {
+// Thrust falls more slowly than density while the air keeps cooling with
+// height. Above the tropopause the temperature is constant, so there it falls
+// in proportion to density and a ceiling exists.
+double densityLapse(double sigma, double exponent) {
+  static const double tropopause = isaAtAltitude(11000).rho / 1.225;
+  sigma = std::max(sigma, .02);
+  return sigma >= tropopause ? std::pow(sigma, exponent)
+                             : std::pow(tropopause, exponent) * sigma / tropopause;
+}
+} // namespace
 Simulator::ThrustResult Simulator::evalThrust() const { return evalThrust(state_,weather_); }
 Simulator::ThrustResult Simulator::evalThrust(const State& state_, const Weather& weather_) const {
   const AirData air = isaAtAltitude(-state_.pos_ned.z, weather_.temp_offset_c);
@@ -21,9 +32,10 @@ Simulator::ThrustResult Simulator::evalThrust(const State& state_, const Weather
       ? std::pow(std::max(sigma,.0001),cfg_.thrust_density_exponent)*
         machCurve(mach,{{0,1},{.8,.80},{1.2,.90},{1.6,1.20},{2,1.55},
                         {2.8,2.7},{3.2,3.1},{3.6,3.0},{4,2.3}})
-      : std::pow(std::max(sigma, .02), cfg_.thrust_density_exponent) *
+      : densityLapse(sigma, cfg_.thrust_density_exponent) *
         (1.0 - .20 * std::min(mach, 2.5) +
-         cfg_.thrust_ram_gain * mach * mach / (1 + mach * mach));
+         cfg_.thrust_ram_gain * mach * mach / (1 + mach * mach) +
+         cfg_.thrust_ram_supersonic * clamp(mach - 1, 0, 1.5));
   ThrustResult result;
   {
     for (unsigned e = 0; e < cfg_.engine_count; ++e) {

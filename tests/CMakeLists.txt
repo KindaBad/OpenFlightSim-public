@@ -57,6 +57,21 @@ foreach(scenario engines cruise taxi takeoff controls maneuver stall landing rob
   add_test(NAME typhoon.${scenario} COMMAND ofs_typhoon_scenarios ${scenario})
 endforeach()
 
+if(OFS_INCLUDE_JF17)
+  add_executable(ofs_jf17_scenarios jf17_scenarios.cpp)
+  target_link_libraries(ofs_jf17_scenarios PRIVATE ofs_core)
+  ofs_target_defaults(ofs_jf17_scenarios)
+  foreach(scenario engines cruise taxi takeoff controls stall landing robustness)
+    add_test(NAME jf17.${scenario} COMMAND ofs_jf17_scenarios ${scenario})
+  endforeach()
+endif()
+# Published speeds, masses, thrust, guns and loadouts; docs/AIRCRAFT_REFERENCE.md.
+add_executable(ofs_aircraft_reference aircraft_reference.cpp)
+target_link_libraries(ofs_aircraft_reference PRIVATE ofs_core)
+ofs_target_defaults(ofs_aircraft_reference)
+add_test(NAME aircraft.reference COMMAND ofs_aircraft_reference)
+set_tests_properties(aircraft.reference PROPERTIES LABELS "external-aircraft-validation")
+
 add_executable(ofs_sr71_scenarios sr71_scenarios.cpp)
 target_link_libraries(ofs_sr71_scenarios PRIVATE ofs_core)
 ofs_target_defaults(ofs_sr71_scenarios)
@@ -381,7 +396,8 @@ if(OFS_BUILD_NETWORK AND OFS_BUILD_CLIENT AND OFS_CLIENT_SMOKE_TEST)
 endif()
 add_executable(ofs_player_registry player_registry.cpp)
 target_link_libraries(ofs_player_registry PRIVATE ofs_core)
-target_compile_definitions(ofs_player_registry PRIVATE OFS_INCLUDE_SU57=$<BOOL:${OFS_INCLUDE_SU57}>)
+target_compile_definitions(ofs_player_registry PRIVATE OFS_INCLUDE_SU57=$<BOOL:${OFS_INCLUDE_SU57}>
+  OFS_INCLUDE_JF17=$<BOOL:${OFS_INCLUDE_JF17}>)
 ofs_target_defaults(ofs_player_registry)
 add_test(NAME player.registry COMMAND ofs_player_registry)
 

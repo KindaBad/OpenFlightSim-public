@@ -895,8 +895,10 @@ Reach reachOf(SoundKind kind) {
 JetSound jetOf(const State& state, AircraftType type, std::uint64_t id) {
   JetSound jet;
   jet.id = id;
+  const unsigned engines = validAircraftType(type) ? aircraftDefinition(type).flight.engine_count : 2;
   for (int e = 0; e < 2; ++e) {
-    const bool running = state.engine_health[e] > 0 && state.fuel_mass != 0;
+    // A single-engined aircraft leaves the second slot silent.
+    const bool running = unsigned(e) < engines && state.engine_health[e] > 0 && state.fuel_mass != 0;
     jet.power[e] = running && std::isfinite(state.n1[e]) ? float(std::clamp(state.n1[e], 0., 1.)) : -1.f;
     jet.reheat[e] = running && std::isfinite(state.afterburner[e]) ? float(std::clamp(state.afterburner[e], 0., 1.)) : 0.f;
   }
@@ -904,6 +906,7 @@ JetSound jetOf(const State& state, AircraftType type, std::uint64_t id) {
     case AircraftType::A320: jet.pitch = .82f; jet.fan = 1; break;
     case AircraftType::Su57: jet.pitch = .9f; break;
     case AircraftType::SR71: jet.pitch = .72f; break;
+    case AircraftType::JF17: jet.pitch = 1.12f; break;
     default: jet.pitch = 1.05f; break;
   }
   return jet;

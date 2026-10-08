@@ -388,7 +388,7 @@
     },
     {
       "parameter": "mach_drag_peak",
-      "values": 0.04,
+      "values": 0.02,
       "unit": "1",
       "provenance": "ESTIMATE",
       "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
@@ -397,7 +397,7 @@
     },
     {
       "parameter": "mach_drag_supersonic",
-      "values": 0.02,
+      "values": 0.009,
       "unit": "1",
       "provenance": "ESTIMATE",
       "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
@@ -406,7 +406,7 @@
     },
     {
       "parameter": "thrust_density_exponent",
-      "values": 0.6,
+      "values": 0.66,
       "unit": "1",
       "provenance": "ESTIMATE",
       "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
@@ -421,6 +421,15 @@
       "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
       "notes": "Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.",
       "field": "thrust_ram_gain"
+    },
+    {
+      "parameter": "thrust_ram_supersonic",
+      "values": 0.35,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/AIRCRAFT_PHYSICS_AUDIT.md",
+      "notes": "Fitted with the wave-drag terms to the published Mach 2.0 at altitude and Mach 1.1 at sea level; no installed engine deck.",
+      "field": "thrust_ram_supersonic"
     },
     {
       "parameter": "inlet_spike_rate",

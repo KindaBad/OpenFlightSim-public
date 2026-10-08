@@ -5,9 +5,10 @@
 int main() {
   using namespace ofs;
   try {
-    const auto expected = OFS_INCLUDE_SU57 ? 4u : 3u;
+    const auto expected = 3u + OFS_INCLUDE_SU57 + OFS_INCLUDE_JF17;
     if (aircraftDefinitions().size() != expected ||
-        validAircraftType(AircraftType::Su57) != bool(OFS_INCLUDE_SU57))
+        validAircraftType(AircraftType::Su57) != bool(OFS_INCLUDE_SU57) ||
+        validAircraftType(AircraftType::JF17) != bool(OFS_INCLUDE_JF17))
       throw std::runtime_error("Player aircraft registry differs from configured content");
     for (const auto type : {AircraftType::A320, AircraftType::Typhoon, AircraftType::SR71}) {
       const auto& definition = aircraftDefinition(type);
@@ -20,12 +21,19 @@ int main() {
       catch (const std::invalid_argument&) { rejected = true; }
       if (!rejected) throw std::runtime_error("Excluded aircraft can still be selected");
     }
+    if (OFS_INCLUDE_JF17) {
+      // One engine in the two-slot engine state, and the published limits.
+      const auto& jf17 = aircraftDefinition(aircraftTypeFromName("jf17"));
+      if (jf17.type != AircraftType::JF17 || jf17.flight.engine_count != 1 || !jf17.gun ||
+          dogfightAircraftType(AircraftType::JF17) != AircraftType::JF17)
+        throw std::runtime_error("JF-17 registration is incomplete");
+    }
     const auto fighter = OFS_INCLUDE_SU57 ? AircraftType::Su57 : AircraftType::Typhoon;
     if (dogfightAircraftType(AircraftType::A320) != fighter ||
         dogfightAircraftType(AircraftType::SR71) != fighter ||
         dogfightAircraftType(AircraftType::Typhoon) != AircraftType::Typhoon)
       throw std::runtime_error("Dogfight selection requires an available armed aircraft");
-    std::printf("PASS player registry: %zu aircraft, Su-57=%d\n", aircraftDefinitions().size(), OFS_INCLUDE_SU57);
+    std::printf("PASS player registry: %zu aircraft, Su-57=%d, JF-17=%d\n", aircraftDefinitions().size(), OFS_INCLUDE_SU57, OFS_INCLUDE_JF17);
     return 0;
   } catch (const std::exception& error) {
     std::fprintf(stderr, "FAIL player registry: %s\n", error.what());

@@ -65,6 +65,8 @@ struct Station {
   Vec3 position;
   std::uint8_t compatible{}; // bit 1 IR, bit 2 active radar
   WeaponType mounted{WeaponType::None};
+  // Hung from a wing, and lost with it; fuselage and bay stations are not.
+  bool wing{};
 };
 struct Inventory {
   std::vector<Station> stations;

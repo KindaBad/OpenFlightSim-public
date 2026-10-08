@@ -130,7 +130,7 @@ Options parse(int argc, char** argv) {
     } else {
       throw std::runtime_error(
           "Usage: ofs_client [--smoke-test|--gun-smoke] [--frames N] [--screenshot path.ppm] "
-          "[--aircraft a320|su57|typhoon|sr71] [--asset path.glb] [--config path.cfg] [--airborne] [--width N] [--height N] "
+          "[--aircraft a320|su57|typhoon|sr71|jf17] [--asset path.glb] [--config path.cfg] [--airborne] [--width N] [--height N] "
           "[--map] [--free-camera|--pursuit|--chase|--close-chase|--orbit|--cockpit] [--visual-bench N] "
           "[--no-sound] [--sound-capture path.wav] "
           "[--bots 0..8] [--server host --name name]");

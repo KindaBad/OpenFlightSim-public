@@ -99,6 +99,9 @@ struct AircraftConfig {
   double pitch_arm{-12}, pitch_span{3};
   double mach_drag_onset{.72}, mach_drag_peak{.08}, mach_drag_supersonic{.045};
   double thrust_density_exponent{.85}, thrust_ram_gain{};
+  // Extra installed thrust per Mach number above 1, as a fraction of static
+  // thrust: intake ram recovery that the subsonic lapse does not carry.
+  double thrust_ram_supersonic{};
   bool variable_inlets{}; // optional mixed-compression propulsion approximation
   double inlet_spike_rate{.20}; // normalized travel / s; reconstructed actuator
   FlightControlLaw control_law{FlightControlLaw::Transport};

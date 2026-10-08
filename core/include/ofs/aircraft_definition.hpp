@@ -10,7 +10,7 @@
 namespace ofs {
 
 // ID 2 (retired temporary Falcon) is reserved and rejected. Stable wire IDs; filenames are never supplied by a network peer.
-enum class AircraftType : std::uint8_t { A320 = 1, Typhoon = 3, SR71 = 4, Su57 = 5 };
+enum class AircraftType : std::uint8_t { A320 = 1, Typhoon = 3, SR71 = 4, Su57 = 5, JF17 = 6 };
 
 struct GunConfig {
   double rpm{600}, muzzleVelocity{850}, dispersion{.0015}, damage{25};
@@ -49,6 +49,7 @@ struct AircraftDefinition {
 AircraftConfig typhoonConfig();
 AircraftConfig sr71Config();
 AircraftConfig su57Config();
+AircraftConfig jf17Config();
 std::span<const AircraftDefinition> aircraftDefinitions();
 // Preserve an armed selection; otherwise choose an available dogfight fighter.
 AircraftType dogfightAircraftType(AircraftType selected);

@@ -265,7 +265,7 @@ void turnround() {
   const auto whole=[&] {
     const auto& state=player.sim.state();
     return player.life.health==100 && player.life.ammo==fullAmmo && player.weapons.flares==stock && player.weapons.chaff==stock &&
-        player.weapons.inventory.remaining(WeaponType::Infrared)==2 && player.weapons.inventory.remaining(WeaponType::ActiveRadar)==2 &&
+        player.weapons.inventory.remaining(WeaponType::Infrared)==2 && player.weapons.inventory.remaining(WeaponType::ActiveRadar)==4 &&
         !needsRepair(player.sim.config(),state) && state.engine_health[0]==1;
   };
   check(whole(),"served: whole, fuelled and armed");

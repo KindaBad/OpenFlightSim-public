@@ -63,7 +63,7 @@ shared visual/force geometry and unsteady separation/vortex state. The
 held-out Airbus approach point passes; other fidelity limits and the takeoff
 discrepancy are recorded in [the aircraft audit](docs/AIRCRAFT_PHYSICS_AUDIT.md).
 The temporary Falcon is retired; stable wire ID 2 is rejected. Physics geometry
-can be displayed from the Effects panel. Current network peers require protocol 18.
+can be displayed from the Effects panel. Current network peers require protocol 19.
 
 M3.68.1 adds scenario metadata and explicit PASS/WARN/FAIL comparisons, load-dependent
 inertia corrections, physical nozzle/energy regressions, required content validation,
@@ -86,12 +86,20 @@ source dependencies are pinned and fetched at configuration; the first build
 requires network access. Fedora needs X11 and OpenGL development packages;
 see [docs/BUILDING.md](docs/BUILDING.md) before the first client configure.
 
+Four aircraft ship to players: the A320, Eurofighter Typhoon, SR-71A and
+Su-57. A fifth, the JF-17 Thunder, is built when its model is present locally
+and is left out of player builds until its artwork is cleared; see
+[asset provenance](docs/ASSET_RELEASE_PROVENANCE.md). Weights, thrust, speeds,
+guns and missile loads are set from published figures; see
+[the aircraft reference](docs/AIRCRAFT_REFERENCE.md).
+
 ```sh
 cmake --preset debug
 cmake --build --preset debug
 ctest --preset debug
 ./build/debug/client/ofs_client
 ./build/debug/client/ofs_client --aircraft su57 --airborne
+./build/debug/client/ofs_client --aircraft jf17 --airborne
 
 cmake --preset release
 cmake --build --preset release

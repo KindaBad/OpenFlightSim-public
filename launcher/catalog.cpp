@@ -1,6 +1,7 @@
 // Export the actual compiled registry. Neither the launcher nor release tooling
 // maintains a second list of supported aircraft or claims unavailable modes.
 #include "ofs/aircraft_definition.hpp"
+#include "ofs/weapons.hpp"
 #include "ofs_version.hpp"
 #ifdef OFS_NETWORK_ENABLED
 #include "ofs/net/protocol.hpp"
@@ -27,13 +28,25 @@ int main(int argc, char** argv) {
   for (const auto& d : ofs::aircraftDefinitions()) {
     if (!first) out << ',';
     first = false;
+    ofs::weapons::Inventory loadout;
+    loadout.reset(d.type);
     out << "{\"id\":" << std::quoted(std::string(d.key))
         << ",\"name\":" << std::quoted(std::string(d.displayName))
         << ",\"model\":" << std::quoted(std::string(d.modelAsset))
         << ",\"armed\":" << (d.gun ? "true" : "false")
         << ",\"engines\":" << d.flight.engine_count
         << ",\"span_m\":" << d.flight.wing_span
-        << ",\"reference_mass_kg\":" << d.flight.mass << ",\"lods\":[";
+        << ",\"reference_mass_kg\":" << d.flight.mass
+        << ",\"empty_mass_kg\":" << d.flight.empty_mass
+        << ",\"fuel_capacity_kg\":" << d.flight.fuel_capacity
+        << ",\"wing_area_m2\":" << d.flight.wing_area
+        << ",\"thrust_dry_kn\":" << d.flight.engine_count * d.flight.thrust_sl_static_each / 1000
+        << ",\"thrust_reheat_kn\":" << d.flight.engine_count * d.flight.afterburner_thrust_each / 1000
+        << ",\"g_limit\":" << d.flight.g_positive
+        << ",\"gun_rounds\":" << (d.gun ? d.gun->ammo : 0)
+        << ",\"heat_seekers\":" << loadout.remaining(ofs::weapons::WeaponType::Infrared)
+        << ",\"radar_missiles\":" << loadout.remaining(ofs::weapons::WeaponType::ActiveRadar)
+        << ",\"lods\":[";
     bool firstLod = true;
     for (const auto& lod : d.lodAssets) {
       if (lod.empty()) continue;

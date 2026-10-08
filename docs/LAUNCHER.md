@@ -387,7 +387,8 @@ List **every** model/LOD, not only Su-57. A publisher must actually establish
 those rights; a JSON assertion cannot grant them. The Su-57 and Typhoon donors' Creative
 Commons listings are recorded in ASSET_RELEASE_PROVENANCE.md; both ship as
 ordinary GLBs. `OFS_INCLUDE_SU57=OFF` still excludes the Su-57 from the compiled
-registry, launcher catalogue, installed models and content pack.
+registry, launcher catalogue, installed models and content pack, and
+`OFS_INCLUDE_JF17=OFF` does the same for the JF-17.
 CI runs the complete source regression suite, then reconfigures the player
 binaries to require every registry model and LOD and runs their content checks. CI fails when release inputs or
 approval are missing. See LAUNCHER_DEPENDENCIES.md for runtime/license/source

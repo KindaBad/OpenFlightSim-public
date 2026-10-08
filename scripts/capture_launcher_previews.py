@@ -39,7 +39,7 @@ def capture(client, catalog, asset_root, output, frames=45, logs=None,
             if not isinstance(key, str) or not key.isascii() or not key.isalnum():
                 raise LauncherError('Invalid preview aircraft identity')
             ppm = temporary / (key + '.ppm')
-            distance = {'a320': 45, 'typhoon': 24, 'sr71': 42, 'su57': 28}.get(key, 40)
+            distance = {'a320': 45, 'typhoon': 24, 'sr71': 42, 'su57': 28, 'jf17': 22}.get(key, 40)
             command = [str(client), '--aircraft', key, '--visual-scenario', 'flight',
                        '--camera', 'orbit', '--orbit-yaw', '2.3', '--orbit-pitch', '.12',
                        '--orbit-distance', str(distance), '--frames', str(frames),

@@ -162,8 +162,10 @@ jobs:
           path: build/release
           key: windows-native-build-${{ steps.vcpkg-environment.outputs.version }}-${{ hashFiles('cmake/Dependencies.cmake', 'network/CMakeLists.txt') }}-v1
       # No shipped aircraft is encrypted, so player binaries carry no content key.
-      - name: Configure player registry with all four aircraft
-        run: cmake -S . -B build/release -DOFS_INCLUDE_SU57=ON -DOFS_REQUIRE_PRODUCTION_ASSETS=ON -DOFS_ASSET_KEY_FILE=
+      # The JF-17 donor's origin is unresolved (docs/ASSET_RELEASE_PROVENANCE.md),
+      # so player builds leave it out until its artwork is approved.
+      - name: Configure player registry with the four approved aircraft
+        run: cmake -S . -B build/release -DOFS_INCLUDE_SU57=ON -DOFS_INCLUDE_JF17=OFF -DOFS_REQUIRE_PRODUCTION_ASSETS=ON -DOFS_ASSET_KEY_FILE=
       - name: Rebuild the player binaries and catalogue
         run: cmake --build build/release --config Release --parallel 3
       - name: Provision approved release assets

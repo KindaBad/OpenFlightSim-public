@@ -12,6 +12,7 @@ aerospace product of inertia. See [COORDINATES.md](COORDINATES.md) and
 | A320-214 | 42,000 kg basic mass ESTIMATE; structure + two 2,400 kg installed engine allocations; structure covariance (38,17,1.6) m²; DERIVED tensor | Fuel covariance (35,20,0), payload covariance (30,.8,.25) m², distinct load centroids | Not a manufacturer weight-and-balance sheet; basic mass includes an approximate operational configuration |
 | Typhoon | 11,000 kg basic mass ESTIMATE; 9,000 kg structure + two 1,000 kg engines; structure covariance ((.20 length)²,(.16 span)²,(.10 height)²); engine covariance (.64,.09,.09) m²; DERIVED tensor | Fuel covariance (6,2.5,0) m² at X=-.25 m; payload treated as a point | Replaces unsupported fixed 20,500/115,000/132,000 kg m² moments, independently of FCS gains; no certified tank capacity/load envelope enforced |
 | SR-71 | NASA 60,728 lb zero-fuel baseline and 220,660/954,850/1,172,039 slug ft² moments; product Ixz=19,200 slug ft²; REFERENCE baseline, DERIVED loaded tensor | Estimated fuel covariance (49,9,0) m², centroid (-.45,0,.05) m; reference fuel 20,000 kg | NASA test-aircraft baseline, not every fleet configuration; fuel-burn tank sequence is not reproduced |
+| JF-17 | 6,586 kg published empty mass; 5,531 kg structure + one 1,055 kg RD-93; structure covariance ((.20 length)²,(.16 span)²,(.10 height)²); DERIVED tensor | Fuel covariance (3,.6,0) m² at X=-.2 m; 2,330 kg capacity | No OEM inertia, CG or load sheet; CG placed 0.55 m ahead of the main axles |
 | Su-57 | 18,500 kg basic mass ESTIMATE; structure + two 1,600 kg engine allocations; DERIVED tensor | Estimated fuel covariance (12,5,0), payload covariance (.01,.01,.01) m²; distinct centroids | No OEM inertia or load sheet; see [SU57_PHYSICS_PROVENANCE.md](SU57_PHYSICS_PROVENANCE.md) |
 
 The SR-71 source is [NASA/TP-2002-210718](https://ntrs.nasa.gov/api/citations/20020057965/downloads/20020057965.pdf),
@@ -46,9 +47,14 @@ power, not independently validated compressor RPM.
 | Aircraft | Public anchor | Off-design curve and response |
 |---|---|---|
 | A320 | CFM56-5B4/P rated 120,100 N, REFERENCE | Pressure exponent .75, Mach factor 1-.45M+.10M², power exponent 2.5, TSFC 1.65e-5 kg/(N s), 2 s spool ESTIMATE / CALIBRATED_APPROXIMATION |
-| Typhoon | EJ200 60/90 kN dry/reheat, REFERENCE; nominal TSFC bands 21–23/47–49 g/(kN s) | Runtime band midpoints 22/48 g/(kN s), .5 density exponent, .22 ram gain, .65 s spool; approximate curves, no installed engine deck |
+| Typhoon | EJ200 60/90 kN dry/reheat, REFERENCE; nominal TSFC bands 21–23/47–49 g/(kN s) | Runtime band midpoints 22/48 g/(kN s), .74 density exponent, .22 ram gain, .50 supersonic ram, .65 s spool; fitted to the published speeds, no installed engine deck |
+| JF-17 | RD-93 49.4/84.4 kN dry/reheat, published | .55 density exponent, .22 ram gain, .22 supersonic ram, .9 s spool, 2.18e-5/5.8e-5 TSFC; ESTIMATE fitted to Mach 1.6 at altitude |
 | SR-71 | NASA identifies 34,000 lbf thrust-class J58s in the technical report | .60 density exponent, piecewise Mach ram curve and inlet recovery, 1.7 s spool, 2.65e-5/5.4e-5 TSFC; ESTIMATE |
-| Su-57 | 93/147 kN dry/reheat ESTIMATE, AL-41F1-era surrogate | .60 density exponent, .23 ram gain, .8 s spool, 2.2e-5/5.1e-5 TSFC; ESTIMATE |
+| Su-57 | 93/147 kN dry/reheat ESTIMATE, AL-41F1-era surrogate | .66 density exponent, .23 ram gain, .35 supersonic ram, .8 s spool, 2.2e-5/5.1e-5 TSFC; ESTIMATE fitted to the published speeds |
+
+Above Mach 1 the engineering lapse adds `thrust_ram_supersonic` per Mach number
+for intake ram recovery, and above 11 km thrust falls in proportion to density.
+The fits and the speeds they give are in [AIRCRAFT_REFERENCE.md](AIRCRAFT_REFERENCE.md).
 
 Primary rating sources: [EASA E.003 issue 06, III 6.1 page 12](https://www.easa.europa.eu/sites/default/files/dfu/TCDS%20EASA%20E.003%20issue%2006.pdf),
 [EUROJET technical fact sheet](https://www.eurojet.de/wp-content/uploads/EUJ_Factsheet_A4_Ansicht.pdf).

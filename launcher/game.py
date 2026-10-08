@@ -69,7 +69,7 @@ class Installation:
             if not isinstance(presentation, dict):
                 raise LauncherError('Invalid optional aircraft presentation metadata')
             aircraft.append({**entry, **{k: v for k, v in presentation.items()
-                if k in ('manufacturer', 'type', 'role', 'engine_type', 'thumbnail') and isinstance(v, str)}})
+                if k in ('manufacturer', 'type', 'role', 'engine_type', 'max_speed', 'armament', 'thumbnail') and isinstance(v, str)}})
         build = read_json(catalog_root / 'build-info.json')
         if not isinstance(build, dict) or build.get('schema') != 1 or build.get('channel') not in ('stable', 'development'):
             raise LauncherError('Invalid simulator build metadata')

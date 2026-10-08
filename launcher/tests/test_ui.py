@@ -23,6 +23,33 @@ from launcher.manifest import platform_id
 
 
 @unittest.skipUnless(QT, 'PySide6 is optional for headless engine tests')
+class AircraftSummary(unittest.TestCase):
+    def test_data_sheet_uses_catalogue_and_published_figures(self):
+        from launcher.ui import aircraft_summary
+        fighter = {'manufacturer': 'PAC / CAC', 'type': 'Fighter', 'role': 'Lightweight multirole', 'engines': 1,
+                   'engine_type': 'RD-93 afterburning turbofan', 'thrust_dry_kn': 49.4, 'thrust_reheat_kn': 84.4,
+                   'empty_mass_kg': 6586, 'fuel_capacity_kg': 2330, 'span_m': 9.44, 'wing_area_m2': 24.43,
+                   'max_speed': 'Mach 1.6 at altitude', 'armament': '23 mm GSh-23-2, 200 rounds', 'armed': True}
+        text = aircraft_summary(fighter)
+        self.assertIn('1 engine · RD-93', text)
+        self.assertIn('Thrust: 49.4 kN dry · 84.4 kN with reheat', text)
+        self.assertIn('Empty: 6,586 kg · internal fuel: 2,330 kg', text)
+        self.assertIn('Top speed: Mach 1.6 at altitude', text)
+        self.assertIn('Armament: 23 mm GSh-23-2, 200 rounds', text)
+
+    def test_older_catalogue_and_unarmed_aircraft(self):
+        from launcher.ui import aircraft_summary
+        # A catalogue from before 0.5.7 has no thrust or mass breakdown.
+        text = aircraft_summary({'engines': 2, 'span_m': 35.8, 'reference_mass_kg': 64000, 'armed': False,
+                                 'fuel_capacity_kg': 0, 'thrust_reheat_kn': 0, 'armament': 'ignored'})
+        self.assertIn('2 engines · Engine type not provided', text)
+        self.assertIn('Reference mass: 64000 kg', text)
+        self.assertNotIn('Thrust', text)
+        self.assertNotIn('Armament', text)
+        self.assertTrue(text.endswith('Unarmed aircraft'))
+
+
+@unittest.skipUnless(QT, 'PySide6 is optional for headless engine tests')
 class UI(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

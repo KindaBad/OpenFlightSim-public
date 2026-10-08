@@ -103,7 +103,7 @@ void parts() {
         "overloading a damaged wing snaps it off, in either direction");
   // Engines have no collision spheres: a hit beside one is the engine's.
   for (const auto &definition : aircraftDefinitions())
-    for (unsigned e = 0; e < 2; ++e) {
+    for (unsigned e = 0; e < definition.flight.engine_count; ++e) {
       const auto bay = engineBay(definition, e);
       const auto engine = e == 0 ? DamagePart::LeftEngine : DamagePart::RightEngine;
       check(classifyHit(definition, DamagePart::Fuselage,
@@ -168,9 +168,13 @@ void flight() {
     for (unsigned i = 0; i < 120 * 4; ++i)
       single.step(tickSeconds);
     const auto asymmetric = single.evalThrust();
-    check(asymmetric.each[0] == 0 && asymmetric.each[1] > 0 &&
-              asymmetric.moment_body.z < 0,
-          "one engine out yaws toward the dead engine");
+    if (definition.flight.engine_count == 1)
+      check(asymmetric.each[0] == 0 && asymmetric.force_body.norm() == 0,
+            "a single-engined aircraft is left with no thrust");
+    else
+      check(asymmetric.each[0] == 0 && asymmetric.each[1] > 0 &&
+                asymmetric.moment_body.z < 0,
+            "one engine out yaws toward the dead engine");
     // Every part wrecked at once must still integrate.
     auto wreck = trimmed(definition.type);
     state = wreck.state();
@@ -348,7 +352,7 @@ void world() {
         ++(station.position.y < 0 ? left : right);
     return std::pair{left, right};
   };
-  check(quarry.life.alive() && mounted() == std::pair{2u, 2u} &&
+  check(quarry.life.alive() && mounted() == std::pair{3u, 3u} &&
             partHealth(quarry.sim.state(), DamagePart::LeftWing) <
                 weakenedWingHealth,
         "a weakened wing still carries its stores");
@@ -366,7 +370,9 @@ void world() {
     authority.step();
     snapped = partDestroyed(quarry.sim.state(), DamagePart::LeftWing);
   }
-  check(snapped && quarry.life.alive() && mounted() == std::pair{0u, 2u},
+  // The Typhoon's outer-pylon missile goes with the wing; the two half sunk
+  // into that side of the fuselage stay.
+  check(snapped && quarry.life.alive() && mounted() == std::pair{2u, 3u},
         "pulling hard on a weakened wing snaps it off with its stores");
   // The aircraft cannot stay up on one wing; when it goes in, the pilot who
   // shot the wing up is credited.

@@ -79,6 +79,12 @@ if(OFS_INCLUDE_SU57)
     "${CMAKE_SOURCE_DIR}/assets/aircraft/su57/su57_lod2.glb"
     "${CMAKE_SOURCE_DIR}/assets/aircraft/su57/su57_lod3.glb" DESTINATION assets/aircraft/su57)
 endif()
+if(OFS_INCLUDE_JF17)
+  install(FILES "${CMAKE_SOURCE_DIR}/assets/aircraft/jf17/jf17_lod0.glb"
+    "${CMAKE_SOURCE_DIR}/assets/aircraft/jf17/jf17_lod1.glb"
+    "${CMAKE_SOURCE_DIR}/assets/aircraft/jf17/jf17_lod2.glb"
+    "${CMAKE_SOURCE_DIR}/assets/aircraft/jf17/jf17_lod3.glb" DESTINATION assets/aircraft/jf17)
+endif()
 if(OFS_BUILD_NETWORK)
   target_link_libraries(ofs_client PRIVATE ofs_net)
   target_compile_definitions(ofs_client PRIVATE OFS_NETWORK_ENABLED=1)

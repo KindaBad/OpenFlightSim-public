@@ -10,7 +10,7 @@ namespace ofs::net {
 using Tick = std::uint64_t;
 using EntityId = std::uint64_t;
 constexpr std::uint16_t protocolVersion =
-    18; // v17 plus water in the lakes and the Su-57's post-stall flight
+    19; // v18 plus the JF-17, refitted thrust and wave drag, and real missile loads
 constexpr std::size_t maxPlayers = 64, maxPacket = 65536, maxBatch = 8;
 constexpr std::size_t applicationPayload = 1100;
 // Legacy full-world Snapshot is an offline measurement format only.

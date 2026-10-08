@@ -296,8 +296,9 @@ void World::reload(Player &p) {
   for (std::size_t i = stations.size(); i-- > 0;)
     if (i < full.stations.size() && stations[i].mounted == WeaponType::None &&
         full.stations[i].mounted != WeaponType::None &&
-        !partDestroyed(state, stations[i].position.y < 0 ? DamagePart::LeftWing
-                                                         : DamagePart::RightWing))
+        !(stations[i].wing &&
+          partDestroyed(state, stations[i].position.y < 0 ? DamagePart::LeftWing
+                                                          : DamagePart::RightWing)))
       empty = i;
   if (empty == stations.size()) {
     p.reloading = 0;
@@ -315,7 +316,7 @@ void World::loseStores(Player &p, State &state) {
   for (auto &station : p.weapons.inventory.stations) {
     const auto wing = station.position.y < 0 ? DamagePart::LeftWing
                                              : DamagePart::RightWing;
-    if (station.mounted != WeaponType::None && partDestroyed(state, wing)) {
+    if (station.wing && station.mounted != WeaponType::None && partDestroyed(state, wing)) {
       station.mounted = WeaponType::None;
       lost = true;
     }

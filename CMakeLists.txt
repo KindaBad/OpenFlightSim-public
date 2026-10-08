@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(OpenFlightSim VERSION 0.5.6 LANGUAGES C CXX)
+project(OpenFlightSim VERSION 0.5.7 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -17,6 +17,7 @@ option(OFS_CLIENT_SMOKE_TEST "Register graphical smoke test (needs a desktop)" O
 set(OFS_PRODUCTION_ASSET_ROOT "${CMAKE_SOURCE_DIR}" CACHE PATH "Root of installed production asset pack used by content tests")
 option(OFS_REQUIRE_PRODUCTION_ASSETS "Fail asset validation if any registry model/LOD is absent" OFF)
 option(OFS_INCLUDE_SU57 "Include the local Su-57 in the aircraft registry and installation" ON)
+option(OFS_INCLUDE_JF17 "Include the JF-17 in the aircraft registry and installation" ON)
 option(OFS_SANITIZE "Instrument project targets with ASan/UBSan (GCC/Clang)" OFF)
 if(OFS_BUILD_GDEXT)
   message(FATAL_ERROR "The unimplemented Godot option is retired. Use OFS_BUILD_CLIENT.")

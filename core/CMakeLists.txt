@@ -15,6 +15,7 @@ add_library(ofs_core STATIC
   src/aircraft_definition.cpp
   src/sr71.cpp
   src/su57.cpp
+  src/jf17.cpp
   src/control_allocation.cpp
   src/data_model.cpp
   src/dynamics.cpp
@@ -32,7 +33,8 @@ add_library(ofs_core STATIC
   src/c_api.cpp
 )
 target_include_directories(ofs_core PUBLIC include)
-target_compile_definitions(ofs_core PRIVATE OFS_INCLUDE_SU57=$<BOOL:${OFS_INCLUDE_SU57}>)
+target_compile_definitions(ofs_core PRIVATE OFS_INCLUDE_SU57=$<BOOL:${OFS_INCLUDE_SU57}>
+  OFS_INCLUDE_JF17=$<BOOL:${OFS_INCLUDE_JF17}>)
 ofs_target_defaults(ofs_core)
 
 option(OFS_ENABLE_F16_REFERENCE "Build NASA F-16 reference model from locally imported data" OFF)

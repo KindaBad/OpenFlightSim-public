@@ -59,18 +59,32 @@ const MissileDefinition &missileDefinition(WeaponType type) {
 void Inventory::reset(AircraftType type) {
   stations.clear();
   selected = WeaponType::Infrared;
-  // Underwing pylons, measured against each visual model's lower wing skin:
-  // heat seekers outboard, radar missiles inboard and clear of the main gear.
+  // Each aircraft's usual air-to-air load, placed against its visual model.
+  // The heat seekers come first; see docs/AIRCRAFT_REFERENCE.md.
+  // Typhoon: two IRIS-T on the outer wing pylons and four Meteor half sunk
+  // into the fuselage, the forward pair under the intake and outboard.
   if (type == AircraftType::Typhoon)
-    stations = {{{-2.8, -4.2, .52}, 6, WeaponType::Infrared},
-                {{-2.8, 4.2, .52}, 6, WeaponType::Infrared},
-                {{-1.8, -2.7, .63}, 6, WeaponType::ActiveRadar},
-                {{-1.8, 2.7, .63}, 6, WeaponType::ActiveRadar}};
+    stations = {{{-2.8, -4.2, .52}, 6, WeaponType::Infrared, true},
+                {{-2.8, 4.2, .52}, 6, WeaponType::Infrared, true},
+                {{1.3, -1.0, .60}, 6, WeaponType::ActiveRadar},
+                {{1.3, 1.0, .60}, 6, WeaponType::ActiveRadar},
+                {{-2.6, -.8, .64}, 6, WeaponType::ActiveRadar},
+                {{-2.6, .8, .64}, 6, WeaponType::ActiveRadar}};
+  // Su-57: everything is carried inside. Two R-74M2 in the wing-root bays and
+  // four R-77M in the tandem bays between the engines, so nothing shows.
   if (type == AircraftType::Su57)
-    stations = {{{-2.6, -4.8, .40}, 6, WeaponType::Infrared},
-                {{-2.6, 4.8, .40}, 6, WeaponType::Infrared},
-                {{-2.2, -3.4, .46}, 6, WeaponType::ActiveRadar},
-                {{-2.2, 3.4, .46}, 6, WeaponType::ActiveRadar}};
+    stations = {{{-.3, -2.9, .10}, 6, WeaponType::Infrared},
+                {{-.3, 2.9, .10}, 6, WeaponType::Infrared},
+                {{1.2, -.42, .30}, 6, WeaponType::ActiveRadar},
+                {{1.2, .42, .30}, 6, WeaponType::ActiveRadar},
+                {{-3.4, -.42, .30}, 6, WeaponType::ActiveRadar},
+                {{-3.4, .42, .30}, 6, WeaponType::ActiveRadar}};
+  // JF-17: two PL-5EII on the wingtip rails and two SD-10A on the outer pylons.
+  if (type == AircraftType::JF17)
+    stations = {{{-1.1, -4.70, .415}, 6, WeaponType::Infrared, true},
+                {{-1.1, 4.70, .415}, 6, WeaponType::Infrared, true},
+                {{-.6, -3.063, .745}, 6, WeaponType::ActiveRadar, true},
+                {{-.6, 3.063, .745}, 6, WeaponType::ActiveRadar, true}};
 }
 unsigned Inventory::remaining(WeaponType type) const {
   return std::count_if(stations.begin(), stations.end(),
@@ -178,6 +192,11 @@ double targetRcs(const SensorTarget &t, Vec3 observer) {
     front = 2;
     side = 8;
     rear = 4;
+  }
+  if (t.type == AircraftType::JF17) { // A small conventional airframe.
+    front = 2;
+    side = 8;
+    rear = 3.5;
   }
   const double axial = aspect.x * aspect.x;
   return (aspect.x >= 0 ? front : rear) * axial + side * (1 - axial);

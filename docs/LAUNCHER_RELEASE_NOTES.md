@@ -1,3 +1,21 @@
+OpenFlightSim 0.5.7 Launcher
+
+- The fighters are as fast as the real ones. The Typhoon and Su-57 used to top
+  out near Mach 1.5 and could not go supersonic at sea level. The Typhoon now
+  reaches Mach 2 at height and Mach 1.2 on the deck, and holds Mach 1.4
+  without reheat; the Su-57 reaches Mach 2 and Mach 1.1. They also have a
+  ceiling now, near 19 km: engines lose thrust with the thinning air as they
+  should, so top speed no longer keeps climbing with height.
+- Real missile loads. The Typhoon carries two heat seekers on its outer pylons
+  and four radar missiles under the fuselage. The Su-57 carries two and four
+  as well, all inside its weapon bays, so you see none until one is fired.
+  Missiles on or in the fuselage stay with you if a wing comes off.
+- Corrected figures: the Typhoon's wing area and gun, and a real fuel capacity
+  of 4,996 kg in place of a bottomless tank.
+- The aircraft page shows each aircraft's thrust, weights, top speed and
+  armament.
+- Everyone in a shared game needs this version.
+
 OpenFlightSim 0.5.6 Launcher
 
 - The reload time for hosted games now covers everything: with each missile

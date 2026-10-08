@@ -2,6 +2,7 @@
 #include "ofs/physical_geometry.hpp"
 #include <array>
 #include <stdexcept>
+#include <vector>
 
 namespace ofs {
 
@@ -11,12 +12,15 @@ AircraftConfig typhoonConfig() {
   c.control_law=FlightControlLaw::Canard; c.pitch_arm=3.1; c.pitch_span=1.6;
   c.max_pitch_rate=.75; c.max_roll_rate=3.5; c.response_time=.25;
   c.g_positive=9; c.g_negative=-3; c.alpha_limit=28*kDeg2Rad;
-  c.actuator_rate=6; c.mach_drag_onset=.90; c.mach_drag_peak=.035; c.mach_drag_supersonic=.018;
-  c.thrust_density_exponent=.50; c.thrust_ram_gain=.22; c.dry_tsfc=2.2e-5; c.reheat_tsfc=4.8e-5; // engineering TSFC approximation; no verified manufacturer curve
+  c.actuator_rate=6;
+  // Wave drag and thrust lapse fitted to the published Mach 1.25 at sea level,
+  // Mach 2.0 at altitude and Mach 1.5 without reheat.
+  c.mach_drag_onset=.90; c.mach_drag_peak=.012; c.mach_drag_supersonic=.006;
+  c.thrust_density_exponent=.74; c.thrust_ram_gain=.22; c.thrust_ram_supersonic=.50; c.dry_tsfc=2.2e-5; c.reheat_tsfc=4.8e-5; // engineering TSFC approximation; no verified manufacturer curve
   c.mass=14000; // Representative fueled clean aircraft, not empty weight.
   // Reconstruct inertia from estimated component geometry, independently of FCS gains.
   // Basic mass 11000 kg: 9000 structure + two 1000 kg installed engines.
-  c.empty_mass=11000;
+  c.empty_mass=11000; c.fuel_capacity=4996; // Published internal fuel.
   constexpr double length=15.96,span=10.95,height=5.28;
   const Vec3 structureVariance{std::pow(.20*length,2),std::pow(.16*span,2),std::pow(.10*height,2)};
   const Vec3 fuelVariance{6,2.5,0};
@@ -35,7 +39,7 @@ AircraftConfig typhoonConfig() {
     c.izz+=part.mass*(p.x*p.x+p.y*p.y+v.x+v.y);
     c.ixz-=part.mass*p.x*p.z;
   }
-  c.wing_area=50; c.wing_span=10.95; c.mac=4.3;
+  c.wing_area=51.2; c.wing_span=10.95; c.mac=4.3;
   c.alpha0=-.5*kDeg2Rad; c.cl_alpha=3.8;
   c.cl_max_clean=1.50; c.cl_max_full_flap=1.85;
   c.flap_lift=.35;
@@ -62,7 +66,7 @@ AircraftConfig typhoonConfig() {
 std::span<const AircraftDefinition> aircraftDefinitions() {
   static const auto definitions = [] {
     GunConfig typhoonGun;
-    typhoonGun.rpm=1700; typhoonGun.muzzleVelocity=1000; typhoonGun.ammo=150;
+    typhoonGun.rpm=1700; typhoonGun.muzzleVelocity=1025; typhoonGun.ammo=150; // Mauser BK-27.
     typhoonGun.muzzle={4.1,.82,-.30}; // Starboard intake shoulder, body FRD.
     typhoonGun.damage=34; // Gameplay damage, not a ballistic lethality claim.
     const std::array<AircraftDefinition::CollisionSphere,17> typhoonBoxes{{
@@ -88,7 +92,19 @@ std::span<const AircraftDefinition> aircraftDefinitions() {
       {{-.8,2.1,.10},1.20},{{-2.3,3.6,.10},1.05},{{-3.3,5.0,.10},.80},{{-3.5,6.3,.10},.65},
       {{-5.1,0,-1.15},1.15}}};
 #endif
-    auto definitions = std::array{
+#if OFS_INCLUDE_JF17
+    // GSh-23-2 twin-barrel 23 mm cannon in the belly, left of the centreline.
+    GunConfig jf17Gun;
+    jf17Gun.rpm=3400;jf17Gun.muzzleVelocity=715;jf17Gun.ammo=200;
+    jf17Gun.muzzle={3.4,-.30,.85};jf17Gun.damage=20; // Gameplay damage scaled from shell mass.
+    const std::array<AircraftDefinition::CollisionSphere,17> jf17Boxes{{
+      {{8.3,0,.45},.25},{{7.0,0,.40},.50},{{5.6,0,.15},.75},{{4.1,0,0},.90},
+      {{2.4,0,.03},.90},{{.6,0,.04},.88},{{-1.6,0,.05},.90},{{-4.2,0,.05},.85},
+      {{-.9,-1.6,.20},.85},{{-1.3,-2.6,.20},.70},{{-1.6,-3.5,.20},.55},{{-1.7,-4.4,.25},.40},
+      {{-.9,1.6,.20},.85},{{-1.3,2.6,.20},.70},{{-1.6,3.5,.20},.55},{{-1.7,4.4,.25},.40},
+      {{-4.9,0,-1.9},.95}}};
+#endif
+    auto definitions = std::vector{
       AircraftDefinition
       {AircraftType::A320, "a320", "Airbus A320-214 | CFM56-5B4/P reference", "output/Airbus_A320.glb", a320Config(),
        {{15.51, 3.55, 0}, {13.6, 0, -.55}, {-68, 16, -19}, {-60, 0, -13}, {}, {},
@@ -116,6 +132,15 @@ std::span<const AircraftDefinition> aircraftDefinitions() {
         {"assets/aircraft/su57/su57_lod1.glb","assets/aircraft/su57/su57_lod2.glb","assets/aircraft/su57/su57_lod3.glb"},su57Boxes}
 #endif
     };
+#if OFS_INCLUDE_JF17
+    // Anchors measured from the donor rig; see assets/aircraft/jf17/README.md.
+    definitions.push_back(AircraftDefinition{AircraftType::JF17,"jf17","PAC JF-17 Thunder | Block II, RD-93",
+        "assets/aircraft/jf17/jf17_lod0.glb",jf17Config(),
+        {{9.155,2.044,0},{4.56,0,-.63},{-27,5,-7.5},{-18,0,-4.5},{-1,0,0},{-1,0,0},
+          {{-6.04,0,0},{-6.04,0,0}},{{-1.9,-4.705,.23},{-1.9,4.705,.23}},
+          9,4,2,.341,.263,.045,true}, {.43,.29,.50},jf17Gun,
+        {"assets/aircraft/jf17/jf17_lod1.glb","assets/aircraft/jf17/jf17_lod2.glb","assets/aircraft/jf17/jf17_lod3.glb"},jf17Boxes});
+#endif
     // A320/Su-57 renderer and physics consume the same geometry anchors.
     for(auto& d:definitions) {
       const PhysicalGeometry* g=d.type==AircraftType::A320?&a320Geometry():
