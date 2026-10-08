@@ -37,6 +37,8 @@ struct Player {
   // Ticks an empty pylon has waited toward the next missile, in a game that
   // hands them out in flight.
   Tick reloading{};
+  // The same wait for the next share of flares, chaff and gun rounds.
+  Tick resupplying{};
 };
 // How long after a hit a crash still counts for the attacker.
 constexpr Tick killCreditTicks = 20 * 120;
@@ -63,8 +65,9 @@ public:
   // Ticks an aircraft has to stand on the ground to be repaired and rearmed.
   static Tick serviceTicks();
   // Seconds between missiles handed to an aircraft with an empty pylon, one at
-  // a time and in the air as well as on the ground. Zero leaves rearming to a
-  // stop on the ground.
+  // a time and in the air as well as on the ground. A quarter of its flares,
+  // chaff and gun rounds come back on the same interval. Zero leaves rearming
+  // to a stop on the ground.
   void setMissileReload(double seconds);
   double missileReload() const { return double(missileReload_) * tickSeconds; }
   bool enqueueFire(EntityId, const FireCommand &);

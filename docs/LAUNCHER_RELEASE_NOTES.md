@@ -1,3 +1,11 @@
+OpenFlightSim 0.5.6 Launcher
+
+- The reload time for hosted games now covers everything: with each missile
+  come a quarter of your flares, chaff and gun rounds. The setting is called
+  Weapon reload and needs this version to host with.
+- The missile view stays for a second after the missile hits or runs out, so
+  you see the explosion before the view returns to your aircraft.
+
 OpenFlightSim 0.5.5 Launcher
 
 - Missile view. Hold U after a launch to ride along behind your missile and

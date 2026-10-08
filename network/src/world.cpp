@@ -273,6 +273,20 @@ void World::setMissileReload(double seconds) {
 void World::reload(Player &p) {
   if (!missileReload_)
     return;
+  // Each reload time also puts back a quarter of the flares, the chaff and
+  // the gun's rounds, so they fill at the pace of the four pylons.
+  auto &w = p.weapons;
+  const unsigned decoys = weapons::decoyCapacity(p.type);
+  const unsigned rounds = aircraftDefinition(p.type).gun ? gunFor(p.type).ammo : 0;
+  if (w.flares >= decoys && w.chaff >= decoys && p.life.ammo >= rounds)
+    p.resupplying = 0;
+  else if (++p.resupplying >= missileReload_) {
+    p.resupplying = 0;
+    const auto more = [](unsigned have, unsigned full) { return std::min(full, have + (full + 3) / 4); };
+    w.flares = std::uint8_t(std::max<unsigned>(w.flares, more(w.flares, decoys)));
+    w.chaff = std::uint8_t(std::max<unsigned>(w.chaff, more(w.chaff, decoys)));
+    p.life.ammo = std::uint16_t(std::max<unsigned>(p.life.ammo, more(p.life.ammo, rounds)));
+  }
   auto &stations = p.weapons.inventory.stations;
   weapons::Inventory full;
   full.reset(p.type);

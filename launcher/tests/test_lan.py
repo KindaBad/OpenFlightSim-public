@@ -247,7 +247,7 @@ class Hosting(unittest.TestCase):
         prefs = Preferences(name='Ace', lan_missile_reload=60)
         with self.assertRaises(LauncherError):
             server_arguments(self.installation, prefs, lan=True)
-        self.installation.catalog['version'] = '0.5.5'
+        self.installation.catalog['version'] = '0.5.6'
         self.assertEqual(server_arguments(self.installation, prefs, lan=True)[-2:], ['--missile-reload', '60'])
         prefs.lan_missile_reload = 3601
         with self.assertRaises(LauncherError):

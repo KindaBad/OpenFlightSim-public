@@ -1214,6 +1214,11 @@ void reload() {
     check(mounted() == 4, "pylons are full at spawn");
     const auto first = stations[0].mounted;
     stations[0].mounted = stations[3].mounted = WeaponType::None;
+    const auto rounds = p.life.ammo;
+    check(rounds >= 4 && p.weapons.flares == 16, "gun and dispensers are full at spawn");
+    p.weapons.flares = 2;
+    p.weapons.chaff = 14;
+    p.life.ammo = 0;
     const auto run = [&](double time) {
       for (int i = 0; i < int(std::lround(time / tickSeconds)); ++i)
         world.step();
@@ -1223,15 +1228,23 @@ void reload() {
     run(.2);
     if (seconds == 0) {
       run(30);
-      check(mounted() == 2, "without a reload time pylons stay empty in flight");
+      check(mounted() == 2 && p.weapons.flares == 2 && p.life.ammo == 0,
+            "without a reload time nothing comes back in flight");
       continue;
     }
     check(mounted() == 3 && stations[0].mounted == first,
           "one missile comes back, of the kind its pylon carries");
+    check(p.weapons.flares == 6 && p.weapons.chaff == 16 &&
+              p.life.ammo == (rounds + 3) / 4,
+          "a quarter of the flares, chaff and rounds come back with it");
     run(2);
     check(mounted() == 4, "the next follows a reload time later");
     run(5);
     check(mounted() == 4 && p.reloading == 0, "a full aircraft is left alone");
+    run(4);
+    check(p.weapons.flares == 16 && p.weapons.chaff == 16 &&
+              p.life.ammo == rounds && p.resupplying == 0,
+          "gun and dispensers fill and stop there");
   }
 }
 int main(int argc, char **argv) {

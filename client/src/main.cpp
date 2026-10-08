@@ -638,8 +638,12 @@ int main(int argc, char** argv) {
     std::vector<HudFrame::Threat> threats;
     // The pilot's own most recently launched missile still in flight: position,
     // velocity and age, for the missile view.
-    struct OwnMissile { Vec3 position, velocity; double age{}; };
+    struct OwnMissile { std::uint64_t id{}; Vec3 position, velocity; double age{}; };
     std::optional<OwnMissile> ownMissile;
+    // The missile the view last rode, and how long the view still holds where
+    // it ended, to watch what it did.
+    OwnMissile riddenMissile;
+    double missileViewLinger = 0;
     // Ctrl at idle brakes; the airbrake goes back to where the pilot had it.
     bool brakeHeld = false;
     double airbrakeBefore = 0;
@@ -1428,7 +1432,7 @@ int main(int argc, char** argv) {
                 (double(network->prediction().tick()) - sampledTicks[i]) * ofs::net::tickSeconds,
                 missile.age);
           if (missile.owner.id == self && (!ownMissile || missile.age < ownMissile->age))
-            ownMissile = OwnMissile{position, missile.velocity, missile.age};
+            ownMissile = OwnMissile{missile.id, position, missile.velocity, missile.age};
           combat.missiles.push_back(
               {missile.id, position, missile.velocity, missile.attitude, d.length, d.diameter, missile.age,
                missile.motor == weapons::MotorPhase::Boost || missile.motor == weapons::MotorPhase::Sustain});
@@ -1730,9 +1734,16 @@ int main(int argc, char** argv) {
       if (outside)
         camera.watch(outside->position, std::atan2(outside->forward.y, outside->forward.x), 21, 4.5, renderDt);
       // Holding U rides along with the missile the pilot last launched.
-      const bool missileView = ownMissile && !outside && cameraMode != CameraMode::Free && !automated &&
+      // When it ends the view stays there a second, on the explosion.
+      const bool missileKey = !outside && cameraMode != CameraMode::Free && !automated &&
           !ImGui::GetIO().WantCaptureKeyboard && !ui.menuOpen && input.key(SDL_SCANCODE_U);
-      if (missileView) camera.ride(ownMissile->position, ownMissile->velocity);
+      const bool riddenFlying = std::any_of(combat.missiles.begin(), combat.missiles.end(),
+                                            [&](const auto& missile) { return missile.id == riddenMissile.id; });
+      if (!missileKey) missileViewLinger = 0;
+      else if (!riddenFlying && missileViewLinger > 0) missileViewLinger -= renderDt;
+      else if (ownMissile) { riddenMissile = *ownMissile; missileViewLinger = 1; }
+      const bool missileView = missileKey && (ownMissile || missileViewLinger > 0) && missileViewLinger > 0;
+      if (missileView) camera.ride(riddenMissile.position, riddenMissile.velocity);
       const CameraMode viewMode = outside || missileView ? CameraMode::Chase : cameraMode;
       combat.pilots = ejections.pilots();
       if (simulation().origin().rebaseIfNeeded(camera.eye)) log("RENDER", "Render origin rebased");
