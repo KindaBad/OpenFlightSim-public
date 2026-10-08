@@ -172,7 +172,7 @@ inline MouseAimCommand mouseAimCommand(const Simulator& sim, const Vec3& aimDire
   // led by the g the present pitch rate is about to produce.
   const double gravity = s.att.rotate({0, 0, 1}).z;  // share of 1 g the wing carries untouched
   const double load = std::max(flight.g_load, gravity + s.omega_body.y * flight.tas / kG0);
-  double high = clamp(1 - (load - (loadFactor - .5)), 0, 1);
+  double high = clamp(1 - (load - (loadFactor + .5)), 0, 1);
   const double low = clamp(-.5 + 2 * (-.75 - flight.g_load), -.5, 0);
   // Stall guard: authority to pull runs out as the wing nears the angle the
   // stall warning sounds at, and past it the nose is eased down. Manoeuvre

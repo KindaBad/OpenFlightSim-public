@@ -1,3 +1,11 @@
+OpenFlightSim 0.4.7 Launcher
+
+- Mouse aim climbs faster. When the ring is above the nose, the instructor now
+  pulls harder and keeps pulling further into the load limit before it eases
+  off, so a climb onto the ring takes up to about 30 percent less time on the
+  Su-57. The load and stall limits still apply, so it does not match holding
+  full aft stick.
+
 OpenFlightSim 0.4.6 Launcher
 
 - Missiles are now real objects on the aircraft. The Typhoon and Su-57 carry
