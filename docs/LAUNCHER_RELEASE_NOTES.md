@@ -1,3 +1,26 @@
+OpenFlightSim 0.5.4 Launcher
+
+- The Su-57 can now be flown past the stall. In maneuver mode (M) below about
+  750 km/h, the nozzles swing further and faster and the nose no longer drops
+  on its own when the wing stalls. Pull right back for a second at 400 to
+  450 km/h and let go for a Cobra: the aircraft stands on its tail, sheds half
+  its speed and drops its nose back onto the horizon. Hold the stick back
+  instead and it goes right over in its own length. Let go of the stick at any
+  time and the nose comes back down by itself. It costs speed, as it should.
+- Lakes are water. An aircraft used to pass through the surface and land on
+  the bed as if it were a field. Now water slows whatever goes into it and
+  half floats it: fly into a lake and the aircraft is stopped and broken up in
+  a burst of spray; set it down gently and it wallows, its engines drown and
+  it sinks.
+- Trees look like trees from close to. Crowns are fuller and lumpier, with a
+  ragged, leafy outline and sky showing through instead of smooth green
+  balls, and they are a livelier green.
+- The ground has more to look at from low down: blades, tussocks and patches
+  of thin and rank grass under the aircraft, and a proper floor under the
+  woods instead of painted treetops.
+- Online play needs everyone on this version, because the water and the
+  Su-57's handling are part of what each player's game works out.
+
 OpenFlightSim 0.5.3 Launcher
 
 - New country to fly over. The smooth hills are gone. The airfield now stands

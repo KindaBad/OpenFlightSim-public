@@ -59,7 +59,7 @@ void replay() {
  const auto nativeError=(a.state().pos_ned-exact.state().pos_ned).norm(),packetError=(a.state().pos_ned-packet.state().pos_ned).norm();
  std::printf("Su57 10s replay nativeError=%.9g packetError=%.9g vector=%.9g/%.9g\n",nativeError,packetError,a.state().nozzle_angle[0],a.state().nozzle_angle[1]);
  check(nativeError<1e-8 && packetError<.02,"physical TV replay remains deterministic and packet rounding bounded");
- for(double bad:{.3,std::numeric_limits<double>::infinity(),std::numeric_limits<double>::quiet_NaN()}){
+ for(double bad:{.4,std::numeric_limits<double>::infinity(),std::numeric_limits<double>::quiet_NaN()}){
   m.aircrafts[0].state.nozzle_angle[0]=bad;bool rejected=false;
   try{rejected=!decode(encode(m),decoded,reason);}catch(const std::invalid_argument&){rejected=true;}
   check(rejected,"invalid nozzle state rejected");

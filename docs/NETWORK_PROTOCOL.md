@@ -8,6 +8,10 @@ were introduced. Numeric IPv4/IPv6 endpoints are supported. Games on the local
 network are found by a separate, unencrypted question and answer described under
 [LAN discovery](#lan-discovery); it only describes a game and carries no game state.
 
+Protocol 18 changes no message. It marks a change in what every peer simulates:
+lakes are water (`ofs/water.hpp`) instead of dry ground at the level of their
+beds, and the Su-57 flies past the stall under thrust vectoring, so a client
+predicting its own aircraft against an older server would disagree with it.
 Protocol 17 adds ejection and changes the shape of the terrain every peer
 flies over; see [v17 additions](#v17-additions).
 Protocol 16 adds countermeasures, a missile warning for the aircraft a missile

@@ -110,6 +110,27 @@ void maneuver() {
  }
  std::printf("Su57 maneuver peakAoA=%.3f recoveryAoA=%.3f speed=%.3f\n",peak,sim.instruments().alpha_deg,sim.instruments().tas);
  check(peak>cfg.alpha_limit*kRad2Deg && sim.instruments().alpha_deg<peak-10,"high AoA entry and normal-mode recovery");
+ // The Cobra: a second or so of full back stick at 430 km/h stands the
+ // aircraft on its tail and past it; letting go brings the nose back down.
+ {
+  Simulator cobra(cfg);const auto entry=solveTrim(cfg,TrimRequest{.altitude=3000,.tas=120});
+  check(entry.converged,"Cobra entry trim");cobra.setState(entry.state);auto k=entry.controls;
+  k.elevator_stick=1;k.throttle[0]=k.throttle[1]=1;k.maneuver_mode=true;cobra.setControls(k);
+  double top=0,slowest=1e9;const unsigned release=unsigned(1.3/FixedStepClock::tick),end=unsigned(7/FixedStepClock::tick);
+  for(unsigned tick=0;tick<end;++tick) {
+   if(tick==release){k.elevator_stick=0;cobra.setControls(k);}
+   cobra.step(FixedStepClock::tick);check(finite(cobra.state()),"Cobra finite");
+   top=std::max(top,cobra.instruments().alpha_deg);slowest=std::min(slowest,cobra.instruments().tas);
+  }
+  std::printf("Su57 Cobra peakAoA=%.1f endAoA=%.1f slowest=%.1f height=%.0f\n",top,cobra.instruments().alpha_deg,slowest,-cobra.state().pos_ned.z);
+  check(top>85 && top<135,"the nose goes past the vertical to the airflow");
+  check(cobra.instruments().alpha_deg<40 && cobra.instruments().alpha_deg>-10,"and comes back when the stick is released");
+  check(slowest<entry.state.vel_ned.norm()*.65 && std::abs(-cobra.state().pos_ned.z-3000)<150,"shedding speed without changing height much");
+  // Held back instead, it goes right over.
+  Simulator over(cfg);over.setState(entry.state);k.elevator_stick=1;over.setControls(k);double turned=0;
+  for(unsigned tick=0;tick<unsigned(6/FixedStepClock::tick);++tick){over.step(FixedStepClock::tick);turned+=over.state().omega_body.y*FixedStepClock::tick;}
+  check(finite(over.state()) && turned>1.6*kPi,"a held pull turns the aircraft over in its own length");
+ }
 }
 void poles() {
  for(const auto& d:aircraftDefinitions()) {

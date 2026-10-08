@@ -73,10 +73,33 @@ farmed land ends at a field's edge. The shader draws the pattern and
 `Landscape::fieldPattern` computes the same one, which is how the trees find
 the hedges, belts and woods.
 
+Trees are instanced meshes built from rounded masses of foliage. Within 350 m
+the shader cuts those masses into sprays of leaves, most of all along their
+outline, with alpha-to-coverage smoothing the cut edges; the cut fades out by
+700 m, where it would only shimmer.
+
 From a height the painted canopy passes for trees. Lower down it is softened,
 and within a few hundred metres it gives way to the wood's floor, on which the
 real trees stand. Thorn and gorse grow in clumps on open ground that is not
 farmed.
+
+## Water
+
+Lakes belong to the simulation, not the picture (`ofs/water.hpp`,
+`core/src/water.cpp`): a priority flood of the terrain function on a 512-cell
+grid finds the closed hollows of the low country, and a hollow deep and wide
+enough is filled to about half its depth, at most 45 m. The client draws the
+surface from the same map.
+
+Water is not ground. Each of the points on the airframe that would bear on the
+ground is slowed by quadratic drag in proportion to how deep it is, and lifted
+by 88% of its share of the aircraft's weight, so what goes in is stopped and
+then settles slowly. The harm done is that of an impact at the rate of sinking
+plus 8% of the speed: a ditching damages the aircraft and an arrival at flying
+speed destroys it. Engines stop once the centre of gravity is half a metre
+under, and the aircraft is lost at two and a half. The bed is still there
+underneath. A level-ground test simulation has no water. `core.water` checks
+all of this.
 
 Land cover is classified from the same map: farmland on flat, low, dry ground;
 woodland in groves that thin out at the treeline and on cliffs; lakes where a

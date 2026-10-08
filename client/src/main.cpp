@@ -1884,9 +1884,9 @@ int main(int argc, char** argv) {
         // A hard arrival is one crunch; sliding on afterwards is a scrape.
         crunchClock += realElapsed;
         for (const auto& impact : combat.groundImpacts) {
-          if (impact.bodyContact) sound.scrape(float(std::clamp(impact.scrapeSpeed / 60, 0., 1.)));
+          if (impact.bodyContact && !impact.water) sound.scrape(float(std::clamp(impact.scrapeSpeed / 60, 0., 1.)));
           if (impact.closingSpeed > 4 && (impact.damage > 0 || impact.bodyContact) && crunchClock > .3) {
-            sound.at(SoundKind::Crunch, aircraft.pos_ned, float(std::clamp(.3 + impact.closingSpeed / 25, .3, 1.2)), true);
+            sound.at(impact.water ? SoundKind::Splash : SoundKind::Crunch, aircraft.pos_ned, float(std::clamp(.3 + impact.closingSpeed / 25, .3, 1.2)), true);
             crunchClock = 0;
           }
         }

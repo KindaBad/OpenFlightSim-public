@@ -293,6 +293,13 @@ std::array<Recipe, std::size_t(SoundKind::Count)> makeRecipes() {
       noise(kLow, 1.1f, 1800, 350, .12f, .7f, .3f),
       noise(kBand, .5f, 1900, 1400, .2f, 2.5f, .4f, .01f, 0, 0, 110),
       sine(.12f, 640, 630, .1f, .2f)});
+  // Water: the slap of the hull, the rush of what it throws up and the hiss
+  // of it coming back down.
+  define(Splash, SoundBus::Airframe, .8f, {
+      sine(1.f, 74, 36, .06f, .22f, 0, 0, 0, .3f),
+      noise(kLow, 1.f, 1100, 320, .1f, .7f, .32f),
+      noise(kBand, .7f, 2600, 1300, .15f, .9f, .55f),
+      noise(kHigh, .35f, 5200, 3400, .3f, .7f, .8f, .005f, .05f, .01f)});
   define(DryFire, SoundBus::Cockpit, .16f, {
       noise(kBand, .8f, 3200, 3200, 0, 3.f, .008f),
       sine(.3f, 1900, 1700, .01f, .012f)});
@@ -877,6 +884,7 @@ Reach reachOf(SoundKind kind) {
     case SoundKind::Parachute: return {30, 1500};
     case SoundKind::MissileLaunch: return {80, 9000};
     case SoundKind::Crunch: return {60, 5000};
+    case SoundKind::Splash: return {70, 6000};
     case SoundKind::ReheatLight: return {50, 6000};
     case SoundKind::HitTaken: return {200, 2000};
     case SoundKind::Flare: case SoundKind::Chaff: return {24, 2500};

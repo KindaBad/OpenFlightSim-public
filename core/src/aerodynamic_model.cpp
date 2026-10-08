@@ -109,7 +109,7 @@ Simulator::AeroResult Simulator::evalAero(const State& state_, const Controls& c
   const double cmStatic =
       cfg_.cm0 + cfg_.cm_alpha * std::sin(r.alpha) + (airliner?highlift.pitching_increment:-.1*c.flap01) +
       .02 * c.spoiler01 -
-      (r.alpha > acrit ? .55 * std::sin(clamp((r.alpha - acrit) * 3, 0, 1.2))
+      (r.alpha > acrit ? cfg_.poststall_pitch_break * std::sin(clamp((r.alpha - acrit) * 3, 0, 1.2))
                        : 0);
   const double canardDe =
       allocated ? elevatorDeflection(state_.canard, cfg_) : de;

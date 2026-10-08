@@ -63,7 +63,7 @@ shared visual/force geometry and unsteady separation/vortex state. The
 held-out Airbus approach point passes; other fidelity limits and the takeoff
 discrepancy are recorded in [the aircraft audit](docs/AIRCRAFT_PHYSICS_AUDIT.md).
 The temporary Falcon is retired; stable wire ID 2 is rejected. Physics geometry
-can be displayed from the Effects panel. Current network peers require protocol 17.
+can be displayed from the Effects panel. Current network peers require protocol 18.
 
 M3.68.1 adds scenario metadata and explicit PASS/WARN/FAIL comparisons, load-dependent
 inertia corrections, physical nozzle/energy regressions, required content validation,

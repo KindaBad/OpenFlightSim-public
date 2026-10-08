@@ -109,6 +109,9 @@ struct AircraftConfig {
   double control_q_limit{45000}; // reserved FCS dynamic-pressure scheduling anchor
   double unsteady_alpha_tau{}, unsteady_detach_tau{.18}, unsteady_attach_tau{.55}, unsteady_vortex_tau{.25};
   double unsteady_alpha_dot_gain{.12}, unsteady_beta_gain{.35};
+  // Nose-down pitching moment coefficient that builds over the 23 degrees past
+  // the stall. Airframes shaped to be flown there have far less of it.
+  double poststall_pitch_break{.55};
   double vortex_lift{}; // estimated nonlinear leading-edge lift coefficient
   double input_deadzone{}, input_exponent{1}, input_tau{.035};
 

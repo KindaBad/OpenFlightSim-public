@@ -27,6 +27,7 @@ add_library(ofs_core STATIC
   src/simulator.cpp
   src/damage.cpp
   src/ground_service.cpp
+  src/water.cpp
   src/trim.cpp
   src/c_api.cpp
 )

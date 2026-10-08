@@ -16,7 +16,7 @@ to 1.35 times normal, shortens the response time by 35%, and gives the physical
 thrust-vectoring nozzles more allocation priority even before flow separation.
 This makes ordinary combat-speed stick movements noticeably sharper as well as
 supporting high-incidence flight. It changes the soft AoA
-protection from the configured 35 degrees to 80 degrees. Gear down inhibits the
+protection from the configured 35 degrees to 110 degrees. Gear down inhibits the
 extension. Positive/negative G protections, physical aerodynamic separation,
 energy loss, engine output, surface bounds and finite nozzle slew remain active.
 The aircraft still requires sufficient thrust and room to recover; the mode
@@ -49,6 +49,30 @@ The actual pressure-drop coefficients and patch locations are estimates.
 Cold-altitude exhaust contrails remain separate: their broad envelope also
 requires humidity above 0.5 and powered, healthy engines. That envelope is not a
 Schmidt–Appleman contrail forecast.
+
+## Post-stall flight
+
+Three things make the mode more than a sharper stick, all of them gameplay
+engineering estimates with no flight-test basis:
+
+- **The airframe.** Every aircraft has a nose-down pitching moment that builds
+  over the 23 degrees past the stall (`AircraftConfig::poststall_pitch_break`,
+  0.55 by default). It is what makes an airliner recover from a stall by
+  itself, and it used to overpower the Su-57's nozzles: full back stick ended
+  in a mush at 30 to 44 degrees. The Su-57's is 0.08.
+- **The nozzles.** They travel 20 degrees either way at 90 degrees a second
+  (were 15 and 60).
+- **The law.** With the stick released and the incidence beyond the normal
+  limit, the law commands the nose back toward the limit by the shorter way
+  round. With the stick held, it does not.
+
+Measured at 3,000 m with full reheat (`regression.su57_scenarios`): from
+120 m/s, 1.3 s of full back stick and then hands off reaches about 100 degrees
+of incidence, slows the aircraft to about 60 m/s and returns below 30 degrees
+within five seconds, some 30 m higher than it began. Full back stick held turns
+the aircraft through a complete loop of pitch in about four and a half seconds
+and its own length. Outside maneuver mode the law still holds the aircraft
+near its normal limit.
 
 ## Verification
 

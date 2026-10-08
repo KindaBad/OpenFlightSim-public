@@ -1,4 +1,5 @@
 #include "ofs/simulator.hpp"
+#include "ofs/water.hpp"
 #include "ofs/aerodynamics.hpp"
 #include "ofs/airliner.hpp"
 #include "ofs/control_allocation.hpp"
@@ -190,6 +191,7 @@ Simulator::Simulator(const AircraftConfig &cfg, GroundModel ground) : cfg_(cfg),
   if(!std::isfinite(cfg_.unsteady_alpha_tau)||cfg_.unsteady_alpha_tau<0 ||
      !positive(cfg_.unsteady_detach_tau)||!positive(cfg_.unsteady_attach_tau)||!positive(cfg_.unsteady_vortex_tau)||
      !std::isfinite(cfg_.unsteady_alpha_dot_gain)||cfg_.unsteady_alpha_dot_gain<0||
+     !std::isfinite(cfg_.poststall_pitch_break)||cfg_.poststall_pitch_break<0||cfg_.poststall_pitch_break>1||
      !std::isfinite(cfg_.unsteady_beta_gain)||cfg_.unsteady_beta_gain<0)
     throw std::invalid_argument("Invalid unsteady aerodynamic parameters");
   State empty = state_;
@@ -588,8 +590,52 @@ void Simulator::substep(double dt) {
     f_belly_b+=force;m_belly_b+=arm.cross(force);
   }
 
-  const Vec3 Fb = aero.force_body + f_thr + f_gear + f_grav_b + f_belly_b;
-  const Vec3 Mb = aero.moment_body + m_thr + m_gear + m_belly_b;
+  // --- Water ---
+  // A lake is not ground: the airframe goes into it. Each of the points that
+  // would bear on the ground is slowed by the water it is moving through and
+  // lifted a little by what it displaces, so an aircraft that arrives slowly
+  // wallows and settles, and one that arrives fast is stopped as if by a wall
+  // and breaks up. Lakes lie at most 45 m over their beds, so nothing higher
+  // above the ground than that looks for one.
+  Vec3 f_water_b{}, m_water_b{};
+  bool inWater=false;
+  if(ground_model_==GroundModel::Terrain && cfg_.contacts_enabled &&
+     state_.pos_ned.z+60>groundHeightAt(state_.pos_ned.x,state_.pos_ned.y)) {
+    const double level=waterSurfaceElevation(state_.pos_ned.x,state_.pos_ned.y);
+    if(level>kNoWater+1) {
+      const double surface=-level,share=mass.mass/bodyContacts.size();
+      // Wetted drag area of the whole airframe, shared between the points.
+      const double dragArea=.10*cfg_.wing_area/bodyContacts.size();
+      for(const auto& contact:bodyContacts) {
+        const Vec3 arm=contact-mass.cg;
+        const Vec3 point=state_.pos_ned+state_.att.rotate(arm);
+        const double depth=point.z-surface;
+        if(depth<=0) continue;
+        inWater=true;
+        const double wet=std::min(1.,depth/1.2);
+        const Vec3 velocity=state_.vel_ned+state_.att.rotate(state_.omega_body.cross(arm));
+        const double speed=velocity.norm();
+        // Quadratic drag, taken implicitly so one step can stop but never reverse.
+        const double k=.5*1000.*dragArea*wet/share;
+        const Vec3 force=velocity*(-share*k*speed/(1+k*speed*dt))+Vec3{0,0,-.88*share*kG0*wet};
+        const Vec3 body=state_.att.inverseRotate(force);
+        f_water_b+=body;m_water_b+=arm.cross(body);
+        // What the water does to the airframe: the rate of sinking into it,
+        // and a share of the speed along it.
+        const double arrival=std::max(0.,velocity.z)+.08*speed;
+        const bool first=!ground_impact_.bodyContact || arrival>ground_impact_.closingSpeed;
+        recordImpact({point.x,point.y,surface},{0,0,-1},{velocity.x,velocity.y,arrival},force.norm(),true);
+        if(first) {ground_impact_.position.z=surface;ground_impact_.water=true;}
+      }
+      // Engines drown, and an airframe that has gone under is lost.
+      if(state_.pos_ned.z-surface>.5) for(auto& health:state_.engine_health) health=0;
+      if(state_.pos_ned.z-surface>2.5 && !aircraftCrashed(state_))
+        recordImpact({state_.pos_ned.x,state_.pos_ned.y,surface},{0,0,-1},{0,0,30},1,true);
+    }
+  }
+
+  const Vec3 Fb = aero.force_body + f_thr + f_gear + f_grav_b + f_belly_b + f_water_b;
+  const Vec3 Mb = aero.moment_body + m_thr + m_gear + m_belly_b + m_water_b;
   const Vec3 Fw = state_.att.rotate(Fb);
 
   last_total_force_world_ = Fw;
@@ -605,6 +651,7 @@ void Simulator::substep(double dt) {
     const auto point=state_.pos_ned+state_.att.rotate(p);
     nearContact |= point.z + state_.vel_ned.norm()*dt >= groundHeightAt(point.x,point.y);
   }
+  nearContact |= inWater;
   if(integrator_==ContinuousIntegrator::RungeKutta4 && !nearContact && f_gear.norm2()==0 && f_belly_b.norm2()==0) {
     const double time=state_.time;
     state_=integrateContinuous(state_,dt,integrator_,[&](const State& s){return evaluateContinuous(s,controls_,weather_).derivative;});

@@ -3,12 +3,12 @@
 #include "airfield.hpp"
 
 #include "ofs/terrain.hpp"
+#include "ofs/water.hpp"
 #include "procedural.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <functional>
-#include <queue>
 #include <utility>
 
 namespace ofs::client {
@@ -42,8 +42,8 @@ bool insideAirfieldClearway(double north, double east) {
          (std::abs(east) < 130 && std::abs(north) < 1900);
 }
 
-Landscape::Landscape(int landSize, int lakeSize, int heightSize)
-    : landSize_(landSize), lakeSize_(lakeSize), heightSize_(heightSize) {
+Landscape::Landscape(int landSize, int heightSize)
+    : landSize_(landSize), lakeSize_(kWaterCells), heightSize_(heightSize) {
   // ---- The shape of the ground ---------------------------------------------
   height_.resize(std::size_t(heightSize_) * heightSize_);
   procedural::parallelRows(heightSize_, [&](int row) {
@@ -54,85 +54,11 @@ Landscape::Landscape(int landSize, int lakeSize, int heightSize)
           std::uint16_t(std::clamp((metres - kHeightBase) / kHeightRange, 0., 1.) * 65535. + .5);
     }
   });
-  // ---- Lakes: fill closed basins part-way to their spill point -------------
-  const int n = lakeSize_;
-  const double cell = 2.0 * kExtent / n;
-  const auto northOf = [&](int row) { return kExtent - (row + .5) * cell; };
-  const auto eastOf = [&](int column) { return -kExtent + (column + .5) * cell; };
-  std::vector<float> height(std::size_t(n) * n);
-  procedural::parallelRows(n, [&](int row) {
-    for (int column = 0; column < n; ++column)
-      height[std::size_t(row) * n + column] = elevation(northOf(row), eastOf(column));
-  });
-  // Priority flood (Barnes et al. 2014): raise every cell to the lowest level
-  // from which water can still drain to the map edge. The airfield drains too,
-  // otherwise the basin it sits in would be one large lake.
-  std::vector<float> spill(height.size(), 0.f);
-  std::vector<std::uint8_t> visited(height.size(), 0);
-  using Entry = std::pair<float, int>;
-  std::priority_queue<Entry, std::vector<Entry>, std::greater<>> open;
-  for (int row = 0; row < n; ++row) for (int column = 0; column < n; ++column) {
-    const int index = row * n + column;
-    const bool edge = row == 0 || column == 0 || row == n - 1 || column == n - 1;
-    if (edge || std::hypot(northOf(row), eastOf(column)) < 3800.) {
-      spill[index] = height[index];
-      visited[index] = 1;
-      open.emplace(height[index], index);
-    }
-  }
-  constexpr int kNeighbours[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-  while (!open.empty()) {
-    const auto [level, index] = open.top();
-    open.pop();
-    const int row = index / n, column = index % n;
-    for (const auto& offset : kNeighbours) {
-      const int r = row + offset[0], c = column + offset[1];
-      if (r < 0 || c < 0 || r >= n || c >= n || visited[r * n + c]) continue;
-      visited[r * n + c] = 1;
-      spill[r * n + c] = std::max(height[r * n + c], level);
-      open.emplace(spill[r * n + c], r * n + c);
-    }
-  }
-  lake_.assign(height.size(), kNoLake);
-  std::vector<int> component(height.size(), -1), stack, members;
-  for (int start = 0; start < n * n; ++start) {
-    if (component[start] >= 0 || spill[start] - height[start] < 1.f) continue;
-    members.clear();
-    stack.assign(1, start);
-    component[start] = start;
-    float floor = height[start], rim = spill[start];
-    while (!stack.empty()) {
-      const int index = stack.back();
-      stack.pop_back();
-      members.push_back(index);
-      floor = std::min(floor, height[index]);
-      rim = std::max(rim, spill[index]);
-      const int row = index / n, column = index % n;
-      for (const auto& offset : kNeighbours) {
-        const int r = row + offset[0], c = column + offset[1];
-        if (r < 0 || c < 0 || r >= n || c >= n) continue;
-        const int next = r * n + c;
-        if (component[next] >= 0 || spill[next] - height[next] < 1.f) continue;
-        component[next] = start;
-        stack.push_back(next);
-      }
-    }
-    // Real basins leak and evaporate: the lake stands well below the rim, and
-    // only reasonably deep basins hold one at all.
-    // Water stands in the low country; a hollow high in the mountains is
-    // drawn on ground too steep and too coarse to hold a level surface.
-    const float depth = rim - floor;
-    if (depth < 30.f || floor > 520.f) continue;
-    const float level = floor + std::clamp(depth * .5f, 12.f, 45.f);
-    int wet = 0;
-    for (const int index : members) wet += height[index] < level;
-    const double area = wet * cell * cell * 1e-6;
-    // Leave some basins dry so valleys are not uniformly flooded.
-    if (area < .25 || unit(mix32(std::uint32_t(start) * 2654435761u)) > .78f) continue;
-    for (const int index : members) lake_[index] = level;
-    ++lakeCount_;
-    lakeAreaKm2_ += area;
-  }
+  // ---- Lakes: the simulation's own, so the picture is where the water is ----
+  const WaterMap& water = waterMap();
+  lake_ = water.level;
+  lakeCount_ = water.lakes;
+  lakeAreaKm2_ = water.areaKm2;
 
   // ---- Land cover ----------------------------------------------------------
   const int m = landSize_;

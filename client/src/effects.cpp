@@ -680,6 +680,20 @@ void CombatEffects::onGroundImpact(const Simulator::GroundImpact& impact) {
     if(scrapeClock_<.1)return;
     scrapeClock_=0;
   }
+  // Water goes up in a sheet of spray and falls back.
+  if(impact.water) {
+    const unsigned drops=unsigned(budget)*(impact.closingSpeed>12?10:impact.closingSpeed>5?5:2);
+    const std::uint32_t wet=static_cast<std::uint32_t>(std::abs(impact.position.x*29+impact.position.y*13))+static_cast<std::uint32_t>(scrapeClock_*977);
+    const double throwUp=std::clamp(2+impact.closingSpeed*.55,2.,28.);
+    for(unsigned i=0;i<drops;++i) {
+      const float a=hashUnit(wet+i*733),b=hashUnit(wet+i*911+5),c=hashUnit(wet+i*389+11);
+      Effect e;e.position=impact.position+Vec3{(a-.5)*6,(c-.5)*6,-.2};
+      e.velocity=Vec3{impact.velocity.x,impact.velocity.y,0}*(.10+.25*c)+impact.normal*(throwUp*(.35+.65*b))+Vec3{(a-.5)*throwUp,(c-.5)*throwUp,0};
+      e.kind=EffectKind::Dust;e.gravity=float(kG0);e.drag=.9f;
+      e.lifetime=.9f+b*1.8f;e.size=1.2f+a*2.6f+float(throwUp)*.06f;e.tint=0xa8f4f2eeu;pool_.spawn(e);
+    }
+    return;
+  }
   // Paving throws up tyre smoke and sparks; open ground throws up dust.
   const bool asphalt=airfieldUse(impact.position.x,impact.position.y)==AirfieldUse::Paved;
   const unsigned count=unsigned(budget)*(impact.damage>.05?6:2);

@@ -34,7 +34,7 @@ class Landscape {
   static constexpr float kHeightBase = -200.f, kHeightRange = 5600.f;
 
   // Builds the maps. Done once at start-up, on every core.
-  explicit Landscape(int landSize = 1024, int lakeSize = 512, int heightSize = 2048);
+  explicit Landscape(int landSize = 1024, int heightSize = 2048);
 
   int landSize() const { return landSize_; }
   int lakeSize() const { return lakeSize_; }

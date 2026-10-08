@@ -366,7 +366,7 @@ Renderer::Synthesis Renderer::synthesise(const GraphicsSettings& settings) {
                                        glm::mix(data.weather.visibilityKm, 7.f, data.weather.precipitation));
   data.atmosphere = std::make_unique<AtmosphereModel>(AtmosphereParameters::fromWeather(
       data.weather.visibilityKm, data.weather.fogDensity, data.weather.fogHeight));
-  data.landscape = std::make_unique<Landscape>(1024, 512, settings.terrain == TerrainQuality::High ? 4096 : 2048);
+  data.landscape = std::make_unique<Landscape>(1024, settings.terrain == TerrainQuality::High ? 4096 : 2048);
   data.map = buildMapImage(*data.landscape);
   data.cloudShape = procedural::cloudShapeVolume(kCloudShapeSize);
   data.cloudDetail = procedural::cloudDetailVolume(kCloudDetailSize);

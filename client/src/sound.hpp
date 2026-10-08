@@ -51,6 +51,7 @@ enum class SoundKind : std::uint8_t {
   GearLock,
   Touchdown,
   Crunch,         // the airframe striking the ground
+  Splash,         // the airframe going into water
   // The flight deck and the interface.
   DryFire,        // the trigger pulled on an empty gun
   WeaponSelect,

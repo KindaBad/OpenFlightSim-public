@@ -981,6 +981,15 @@
       "field": "unsteady_alpha_dot_gain"
     },
     {
+      "parameter": "poststall_pitch_break",
+      "values": 0.08,
+      "unit": "1",
+      "provenance": "ESTIMATE",
+      "source": "OpenFlightSim engineering estimate; docs/SU57_MANEUVER_MODE.md",
+      "notes": "Gameplay engineering value chosen so vectored thrust can hold the nose past the stall; no flight-test or wind-tunnel basis.",
+      "field": "poststall_pitch_break"
+    },
+    {
       "parameter": "unsteady_beta_gain",
       "values": 0.35,
       "unit": "1",
@@ -1204,7 +1213,7 @@
     },
     {
       "parameter": "engines[0].vector_limit",
-      "values": 0.2617993877991494,
+      "values": 0.3490658503988659,
       "unit": "rad",
       "provenance": "ESTIMATE",
       "source": "OpenFlightSim component model; docs/AIRCRAFT_PHYSICS_AUDIT.md",
@@ -1213,7 +1222,7 @@
     },
     {
       "parameter": "engines[0].vector_rate",
-      "values": 1.0471975511965976,
+      "values": 1.5707963267948966,
       "unit": "rad/s",
       "provenance": "ESTIMATE",
       "source": "OpenFlightSim component model; docs/AIRCRAFT_PHYSICS_AUDIT.md",
@@ -1235,7 +1244,7 @@
     },
     {
       "parameter": "engines[1].vector_limit",
-      "values": 0.2617993877991494,
+      "values": 0.3490658503988659,
       "unit": "rad",
       "provenance": "ESTIMATE",
       "source": "OpenFlightSim component model; docs/AIRCRAFT_PHYSICS_AUDIT.md",
@@ -1244,7 +1253,7 @@
     },
     {
       "parameter": "engines[1].vector_rate",
-      "values": 1.0471975511965976,
+      "values": 1.5707963267948966,
       "unit": "rad/s",
       "provenance": "ESTIMATE",
       "source": "OpenFlightSim component model; docs/AIRCRAFT_PHYSICS_AUDIT.md",

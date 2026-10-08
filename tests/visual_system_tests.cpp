@@ -362,7 +362,7 @@ void scenery() {
   for(bool conifer:{false,true}) {
     const auto full=unitTree(conifer,false),distant=unitTree(conifer,true);
     check(!full.empty() && distant.size()<full.size()/2,"both species keep a much cheaper distant mesh");
-    check(full.size()/3<450 && distant.size()/3<80,"bounded per-tree geometry budget");
+    check(full.size()/3<800 && distant.size()/3<80,"bounded per-tree geometry budget");
     bool wood=false,foliage=false;
     for(const auto* mesh:{&full,&distant}) for(std::size_t i=0;i<mesh->size();i+=3) {
       const auto& a=(*mesh)[i];const auto& b=(*mesh)[i+1];const auto& c=(*mesh)[i+2];
@@ -472,7 +472,7 @@ void proceduralTextures() {
 
 void landscape() {
   const Landscape land(256,256);
-  check(land.landTexels().size()==256u*256*4 && land.lakeTexels().size()==256u*256,"land-cover maps have the requested size");
+  check(land.landTexels().size()==256u*256*4 && land.lakeTexels().size()==std::size_t(land.lakeSize())*land.lakeSize(),"land-cover maps have the requested size");
   // Lakes: only in closed basins, never on the airfield, always above their bed.
   check(land.lakeCount()>5 && land.lakeAreaKm2()>5 && land.lakeAreaKm2()<400,"a plausible number and area of lakes");
   check(land.lakeSurface(0,0)==Landscape::kNoLake && !land.underWater(0,0) && !land.underWater(1200,0),"the airfield drains and stays dry");

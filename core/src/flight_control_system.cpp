@@ -169,13 +169,22 @@ Simulator::ControlAllocation Simulator::vectorFighterAllocation(double horizon_s
   const double pitchRate = cfg_.max_pitch_rate*(1.+1.8*maneuver);
   const double rollRate = cfg_.max_roll_rate*(1.+.35*maneuver);
   const double responseTime = cfg_.response_time*(1.-.35*maneuver);
-  const double alphaLimit = cfg_.alpha_limit + maneuver*std::max(0.,80*kDeg2Rad-cfg_.alpha_limit);
+  const double alphaLimit = cfg_.alpha_limit + maneuver*std::max(0.,110*kDeg2Rad-cfg_.alpha_limit);
   double pitchCommand=(state_.pilot_pitch+controls_.elevator_trim-state_.trim_reference)*pitchRate;
   // Soft protections change the requested response; no attitude/rate clipping.
   if(pitchCommand>0) {
     pitchCommand-=.30*std::max(0.,load-cfg_.g_positive);
     pitchCommand-=2.5*std::max(0.,aero.alpha-alphaLimit);
   } else if(pitchCommand<0) pitchCommand+=.30*std::max(0.,cfg_.g_negative-load);
+  // Past the normal limit the nose is only held up by the stick. Let go and
+  // the law brings it back down by the shorter way round, which is what ends
+  // a Cobra; hold it and the aircraft goes on over.
+  if(maneuver>0) {
+    const double excess=aero.alpha>cfg_.alpha_limit?aero.alpha-cfg_.alpha_limit:
+        aero.alpha<-.5*cfg_.alpha_limit?aero.alpha+.5*cfg_.alpha_limit:0;
+    const double released=1-clamp(std::abs(state_.pilot_pitch)/.25,0.,1.);
+    pitchCommand-=maneuver*released*clamp(2.2*excess,-pitchRate,pitchRate);
+  }
   double roll,pitch,yaw;eulerFromQuat(state_.att,roll,pitch,yaw);
   const double coordinatedR=load*kG0*std::sin(roll)*std::cos(pitch)/std::max(60.,aero.vtas);
   const Vec3 commanded{state_.pilot_roll*rollRate,pitchCommand,

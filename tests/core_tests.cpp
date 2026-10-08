@@ -2,6 +2,10 @@
 #include "ofs/fixed_step.hpp"
 #include "ofs/c_api.h"
 #include "ofs/pilot.hpp"
+#include "ofs/aircraft_definition.hpp"
+#include "ofs/damage.hpp"
+#include "ofs/terrain.hpp"
+#include "ofs/water.hpp"
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -195,6 +199,56 @@ void pilotStrain() {
   bad.update(std::nan(""), 1); bad.update(9, -1); bad.update(9, std::nan(""));
   require(bad.strain == 0, "nonsense input changes nothing");
 }
+void water() {
+  using namespace ofs;
+  // Lakes stand in the low country, and nowhere near the runway.
+  const WaterMap& map = waterMap();
+  require(map.lakes > 10 && map.areaKm2 > 20 && map.areaKm2 < 1000, "there are lakes, and they are not the whole map");
+  require(waterSurfaceElevation(0, 0) == kNoWater && waterSurfaceElevation(1200, 0) == kNoWater &&
+          waterSurfaceElevation(1e6, 0) == kNoWater && waterSurfaceElevation(std::nan(""), 0) == kNoWater,
+          "the airfield is dry, and so is everywhere off the map");
+  double north = 0, east = 0, level = kNoWater;
+  for (double n = -20000; n <= 20000 && level == kNoWater; n += 250) for (double e = -20000; e <= 20000; e += 250) {
+    const double here = waterSurfaceElevation(n, e);
+    if (here > kNoWater + 1 && here - terrainElevation(n, e) > 8) { north = n; east = e; level = here; break; }
+  }
+  require(level > kNoWater + 1 && level < 600, "a lake several metres deep lies within 20 km of the field");
+  const auto arrive = [&](double speed, double sink, double height, double pitch) {
+    Simulator sim(su57Config());
+    State s = sim.state();
+    s.pos_ned = {north, east, -(level + height)};
+    s.vel_ned = {speed, 0, sink};
+    s.att = quatFromEuler(0, pitch, 0);
+    s.fcs_enabled = false;
+    sim.setState(s);
+    Controls c; c.gear01 = 0; sim.setControls(c);
+    bool splash = false; double deepest = -1e9;
+    for (int tick = 0; tick < 120 * 10; ++tick) {
+      sim.step(1. / 120);
+      require(std::isfinite(sim.state().pos_ned.norm2()) && std::isfinite(sim.state().vel_ned.norm2()) &&
+              std::isfinite(sim.state().omega_body.norm2()), "water keeps the state finite");
+      splash |= sim.groundImpact().water;
+      deepest = std::max(deepest, sim.state().pos_ned.z + level);
+    }
+    struct Result { State state; bool splash; double deepest; };
+    return Result{sim.state(), splash, deepest};
+  };
+  // Flown in at speed: stopped within the lake, broken up, and under the surface.
+  const auto dive = arrive(200, 60, 40, -.3);
+  require(dive.splash && aircraftCrashed(dive.state), "flying into a lake at speed destroys the aircraft");
+  require(dive.state.vel_ned.norm() < 3 && dive.state.pos_ned.z + level > .5, "and the wreck stops in the water");
+  require(std::hypot(dive.state.pos_ned.x - north, dive.state.pos_ned.y - east) < 400, "within a few hundred metres");
+  // Set down gently: it goes in rather than standing on the surface, the
+  // engines drown and it is lost once it is under.
+  const auto ditch = arrive(0, 0, 3, 0);
+  require(ditch.splash && ditch.deepest > 2.5, "an aircraft set down on a lake sinks into it");
+  require(ditch.state.engine_health[0] == 0 && aircraftCrashed(ditch.state), "its engines drown and it is lost");
+  // Nothing above the water feels it.
+  Simulator over(su57Config());
+  State s = over.state(); s.pos_ned = {north, east, -(level + 80)}; s.vel_ned = {150, 0, 0}; over.setState(s);
+  for (int tick = 0; tick < 120; ++tick) over.step(1. / 120);
+  require(!over.groundImpact().water && !aircraftCrashed(over.state()), "flying over a lake is flying");
+}
 int main(int argc, char** argv) {
   try {
     require(argc == 2, "expected suite name"); const std::string_view name = argv[1];
@@ -202,7 +256,7 @@ int main(int argc, char** argv) {
     else if(name == "aero") aero(); else if(name == "integration") integration();
     else if(name == "contact") contact(); else if(name == "clock") clockTest();
     else if(name == "coordinates") coordinates(); else if(name == "c_api") cApi();
-    else if(name == "pilot") pilotStrain();
+    else if(name == "pilot") pilotStrain(); else if(name == "water") water();
     else throw std::runtime_error("unknown suite");
     std::cout << "PASS " << name << '\n'; return 0;
   } catch(const std::exception& e) { std::cerr << "FAIL: " << e.what() << '\n'; return 1; }

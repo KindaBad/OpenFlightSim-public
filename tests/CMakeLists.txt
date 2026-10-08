@@ -27,7 +27,7 @@ endif()
 add_executable(ofs_core_tests core_tests.cpp)
 target_link_libraries(ofs_core_tests PRIVATE ofs_core)
 ofs_target_defaults(ofs_core_tests)
-foreach(suite math atmosphere aero integration contact clock coordinates c_api pilot)
+foreach(suite math atmosphere aero integration contact clock coordinates c_api pilot water)
   add_test(NAME core.${suite} COMMAND ofs_core_tests ${suite})
 endforeach()
 

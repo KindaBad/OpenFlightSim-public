@@ -26,7 +26,7 @@ inline void foliageLobe(std::vector<SurfaceVertex>& out,Vec3 center,Vec3 radii,
   // Closed ellipsoid with softly scalloped rings, smooth outward normals.
   const auto point=[&](int ring,int side){
     const double latitude=-kPi*.5+kPi*ring/rings,angle=2*kPi*side/sides;
-    const double ripple=1+.09*std::sin(angle*3+seed*.13)*std::cos(latitude);
+    const double ripple=1+(.09*std::sin(angle*3+seed*.13)+.05*std::sin(angle*5+latitude*4+seed*.29))*std::cos(latitude);
     const Vec3 sphere{std::cos(latitude)*std::cos(angle)*ripple,std::sin(latitude),std::cos(latitude)*std::sin(angle)*ripple};
     const Vec3 p=center+Vec3{sphere.x*radii.x,sphere.y*radii.y,sphere.z*radii.z};
     const Vec3 n=Vec3{sphere.x/radii.x,sphere.y/radii.y,sphere.z/radii.z}.normalized();
@@ -87,18 +87,27 @@ inline std::vector<SurfaceVertex> unitTree(bool conifer,bool distant) {
       }
     }
   } else {
-    treeBranch(wood,{0,0,0},{0,.56,0},.024,seed);
+    treeBranch(wood,{0,0,0},{0,.50,0},.026,seed);
     if(distant) {
-      foliageLobe(leaves,{0,.68,0},{.27,.30,.27},seed,6,3);
+      foliageLobe(leaves,{0,.64,0},{.29,.34,.29},seed,6,3);
     } else {
-      foliageLobe(leaves,{0,.69,0},{.23,.25,.23},seed,8,5);
-      foliageLobe(leaves,{.02,.87,.01},{.15,.12,.15},seed+3,6,4);
-      for(unsigned branch=0;branch<4;++branch) {
-        const double angle=branch*1.5708+.6+sceneryRandom(seed+branch)*.5;
-        const double reach=.15+sceneryRandom(seed+branch+9)*.04;
-        const Vec3 end{std::cos(angle)*reach,.56+sceneryRandom(seed+branch+5)*.10,std::sin(angle)*reach};
-        treeBranch(wood,{0,.40,0},end,.009,seed+branch);
-        foliageLobe(leaves,end,{.165,.145,.165},seed+branch*19,6,4);
+      // A crown is a heap of boughs, not a ball: a core, limbs reaching out
+      // from the fork, and smaller masses breaking the outline all over it.
+      foliageLobe(leaves,{0,.64,0},{.22,.25,.22},seed,8,5);
+      foliageLobe(leaves,{.02,.86,.01},{.15,.13,.15},seed+3,6,4);
+      for(unsigned branch=0;branch<5;++branch) {
+        const double angle=branch*1.2566+.6+sceneryRandom(seed+branch)*.5;
+        const double reach=.17+sceneryRandom(seed+branch+9)*.05;
+        const Vec3 end{std::cos(angle)*reach,.47+sceneryRandom(seed+branch+5)*.12,std::sin(angle)*reach};
+        treeBranch(wood,{0,.34,0},end,.010,seed+branch);
+        foliageLobe(leaves,end,{.150,.125,.150},seed+branch*19,6,4);
+      }
+      for(unsigned mass=0;mass<7;++mass) {
+        const double angle=mass*.8976+sceneryRandom(seed+mass+31)*.7;
+        const double rise=.56+sceneryRandom(seed+mass+47)*.30;
+        const double reach=(.20+sceneryRandom(seed+mass+53)*.05)*std::sqrt(std::max(.2,1-std::pow((rise-.62)/.34,2)));
+        const double size=.085+sceneryRandom(seed+mass+61)*.035;
+        foliageLobe(leaves,{std::cos(angle)*reach,rise,std::sin(angle)*reach},{size,size*.85,size},seed+mass*23+7,5,3);
       }
     }
   }

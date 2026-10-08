@@ -54,6 +54,7 @@ public:
     Vec3 position{}, normal{0,0,-1}, velocity{};
     double closingSpeed{}, damage{}, scrapeSpeed{};
     bool bodyContact{};
+    bool water{}; // struck a lake's surface, where `position` then lies
   };
   const GroundImpact& groundImpact() const { return ground_impact_; }
 

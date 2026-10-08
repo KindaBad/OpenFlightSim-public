@@ -650,7 +650,8 @@ void Renderer::drawTrees(bgfx::ViewId view, bgfx::ProgramHandle program, const C
       } else {
         bindFrame(viewProj_);
         bindLighting();
-        bgfx::setState(kOpaqueState | BGFX_STATE_MSAA);
+        // Coverage from the shader's leaf cut-out; the target's alpha is left alone.
+        bgfx::setState((kOpaqueState & ~BGFX_STATE_WRITE_A) | BGFX_STATE_MSAA | BGFX_STATE_BLEND_ALPHA_TO_COVERAGE);
       }
       bgfx::setUniform(uniforms_.model, glm::value_ptr(environment));
       bgfx::setVertexBuffer(0, mesh.vertices);

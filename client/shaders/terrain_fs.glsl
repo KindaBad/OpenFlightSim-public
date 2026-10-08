@@ -245,7 +245,7 @@ void main()
         // cover and gone within a kilometre.
         vec2 nearUv = p / 6.3;
         vec2 stoneUv = turned(p, vec2(0.9455, -0.3256)) / 143.0;
-        float nearWeight = detailLevel > 0.5 ? exp(-viewDistance / 520.0) : 0.0;
+        float nearWeight = detailLevel > 0.5 ? exp(-viewDistance / 700.0) : 0.0;
         // Past a few kilometres a tile is smaller than a pixel and only its
         // repeat would show; hand over to the layer's mean colour and let the
         // land-cover noise carry the variation.
@@ -253,7 +253,12 @@ void main()
         vec3 grain = vec3_splat(1.0);
         vec3 stone = mix(layerAlbedo(stoneUv, LAYER_ROCK), layerMean(LAYER_ROCK), distant * 0.6);
         if (nearWeight > 0.004) {
-            grain = mix(grain, layerGrain(nearUv, LAYER_GRASS), nearWeight);
+            // Blades at arm's length, tussocks at a stone's throw, and the
+            // patches where the sward grows rank or thin.
+            vec3 blades = layerGrain(nearUv, LAYER_GRASS);
+            vec3 tussocks = layerGrain(turned(p, vec2(0.8480, 0.5299)) / 29.0, LAYER_GRASS);
+            float patches = texture2D(s_noise, p / 37.0).g * 0.6 + texture2D(s_noise, p / 9.0).r * 0.4;
+            grain = mix(grain, blades * blades * mix(vec3_splat(1.0), tussocks, 0.7) * (0.74 + 0.52 * patches), nearWeight);
             stone *= mix(vec3_splat(1.0), layerGrain(p / 11.0, LAYER_ROCK), nearWeight);
         }
         vec3 soil = mix(layerBroad(p / 23.0, LAYER_SOIL, footprint * 512.0 / 23.0), layerMean(LAYER_SOIL), distant);
