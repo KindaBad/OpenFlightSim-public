@@ -1,12 +1,15 @@
-# OpenFlightSim network protocol v14
+# OpenFlightSim network protocol v15
 
 GameNetworkingSockets v1.6.0, pinned revision
 `2cb93a06350bb065db53abdb0d87cf297e0bfd34`, supplies encrypted direct IP
 transport and ordered reliable messages. Physics remains authoritative at 120 Hz.
-No networking worker threads, account service, discovery, relay, or lag compensation
-were introduced. Numeric IPv4/IPv6 endpoints are supported.
+No networking worker threads, account service, relay, or lag compensation
+were introduced. Numeric IPv4/IPv6 endpoints are supported. Games on the local
+network are found by a separate, unencrypted question and answer described under
+[LAN discovery](#lan-discovery); it only describes a game and carries no game state.
 
-Protocol 14 extends the owner-only RadarState with the selected weapon's target,
+Protocol 15 adds regional damage to what other viewers receive, pilot names and
+chat; see [v15 additions](#v15-additions). Protocol 14 extends the owner-only RadarState with the selected weapon's target,
 its lock progress and the stores visible on nearby aircraft; nothing else on the
 wire changed from v13. Protocol 13 retains the v12 Su-57 maneuver-mode input and v10 recovery/AOI
 architecture. It adds weapon actions, private radar tracks, missile lifecycle/state
@@ -21,7 +24,7 @@ pointers, renderer handles, particles and debug forces are never copied to packe
 | Offset | Bytes | Meaning |
 |---|---:|---|
 | 0 | 4 | magic `0x4f46534e` (OFSN) |
-| 4 | 2 | version **14**, incompatible versions rejected |
+| 4 | 2 | version **15**, incompatible versions rejected |
 | 6 | 1 | message type |
 | 7 | 1 | reserved zero |
 | 8 | 8 | authoritative tick or newest input target tick |
@@ -308,6 +311,53 @@ See `M3_7_NETWORKING_VALIDATION.md` for measured results and exact test outcomes
 M4 radar/missile state, bandwidth prioritization, lag compensation, Earth frame work
 and user/account authentication remain outside this protocol milestone.
 
+
+## v15 additions
+
+**Regional damage.** The non-owner surfaces field grows from 17 to 24 bytes:
+after the eight actuator positions and structural integrity come five surface
+healths (wings, pitch surfaces, fin) and two engine healths, each one byte at
+1/255. The owner projection already carried them exactly. Combat events name
+the part struck with one byte, 0 to 5 (fuselage, left wing, right wing, tail,
+left engine, right engine); other values are rejected.
+
+**Pilot names.** `Joined` carries the entity and its name (1 to 64 printable
+ASCII bytes, as in `Hello`). A newcomer is sent one `Joined` per pilot already
+in the game, bots included, before its own is broadcast.
+
+**Chat.** Type 21, ordered reliable: entity u64 and 1 to 120 printable ASCII
+bytes. From a client the entity is ignored and the server substitutes the
+sender; entity 0 marks a notice from the server (arrivals, departures, kills).
+A client is relayed at most four lines a second; the rest are dropped without
+a strike, since chat cannot affect the simulation. Lines are relayed to every
+pilot regardless of range.
+
+### LAN discovery
+
+A server started with a name (`ofs_server --lan-name NAME`, or Host and fly in
+the launcher) opens UDP port 27019 with address reuse, so several games on one
+computer can share it, and answers each eight-byte question `OFSLAN\x01Q` with:
+
+| Bytes | Meaning |
+|---:|---|
+| 8 | `OFSLAN\x01R` |
+| 2 | game protocol version |
+| 2 | game UDP port |
+| 1, 1, 1 | pilots in the game, pilot limit, bots |
+| 1 + n | name, n <= 48 printable ASCII |
+| 1 + n | game version, n <= 24 printable ASCII |
+
+A browser broadcasts the question to 255.255.255.255, to each local network's
+broadcast address and to loopback, and lists the answers by their source
+address. Answers are at most 128 bytes; anything malformed, with trailing
+bytes, a zero port, an empty name or more pilots than its limit is ignored. The
+server answers at most 30 questions in any second and drops the rest, so
+forged questions cannot make it a source of traffic. Discovery is plain UDP with no
+authentication: an answer can only put a line in a list, and joining goes
+through the ordinary encrypted connection and its version check. The launcher's
+decoder (`launcher/lan.py`) and the server's are pinned to the same bytes by
+`lan.wire` and `launcher/tests/test_lan.py`. A server without a name does not
+open the port.
 
 ## M4 weapon messages (v14)
 

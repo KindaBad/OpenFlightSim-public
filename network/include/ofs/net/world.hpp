@@ -26,11 +26,17 @@ struct Player {
   EntityId botTarget{};
   Tick evadeUntil{}, missileReady{};
   double lastHealth{100};
+  std::string name;
+  // Whoever last damaged this aircraft is credited if it then flies into the ground.
+  EntityId lastAttacker{};
+  Tick lastAttacked{};
 };
+// How long after a hit a crash still counts for the attacker.
+constexpr Tick killCreditTicks = 20 * 120;
 class World {
 public:
   explicit World(bool airborne = true, std::optional<GunConfig> gun = std::nullopt);
-  EntityId join(AircraftType type = AircraftType::A320);
+  EntityId join(AircraftType type = AircraftType::A320, std::string name = {});
   EntityId joinBot(AircraftType type = AircraftType::Typhoon);
   std::size_t botCount() const;
   void leave(EntityId);
@@ -59,6 +65,11 @@ private:
   MissileCombat missiles_;
   void spawn(EntityId, Player &);
   void controlBot(EntityId, Player &);
+  // A wing that has gone takes the stores under it along.
+  void loseStores(Player &, State &);
+  // Ends a life lost to the ground, or to a wing that snapped, rather than
+  // directly to a weapon.
+  void destroy(EntityId, Player &, Vec3 position, Vec3 velocity);
   bool airborne_;
   struct Spawn { State state; Controls controls; };
   std::map<AircraftType, Spawn> spawns_;

@@ -118,7 +118,7 @@ void MissileCombat::step(
           target->current.vel_ned,
           target->current.att,
           target->type,
-          (target->current.n1[0] + target->current.n1[1]) * .5,
+          heatPower(target->current),
           (target->current.afterburner[0] + target->current.afterburner[1]) *
               .5,
           true};
@@ -194,26 +194,19 @@ void MissileCombat::step(
             t.previous.pos_ned +
             (t.current.pos_ned - t.previous.pos_ned) * nearest;
         double distance = std::numeric_limits<double>::infinity();
+        HitRegion region{};
         const auto &definition = aircraftDefinition(t.type);
         const auto cg = loadedCg(definition.flight, t.current);
         for (std::size_t h = 0; h < aircraftHitboxes().size(); ++h) {
-          const auto &base = aircraftHitboxes()[h];
-          const auto scale = definition.hitboxScale;
-          const auto center =
-              definition.collision[0].radius > 0
-                  ? definition.collision[h].center
-                  : Vec3{base.center.x * scale.x, base.center.y * scale.y,
-                         base.center.z * scale.z};
-          const double radius =
-              definition.collision[0].radius > 0
-                  ? definition.collision[h].radius
-                  : base.radius * std::max({scale.x, scale.y, scale.z});
-          distance = std::min(
-              distance,
-              std::max(0., (position + t.current.att.rotate(center - cg) -
-                            s.position)
-                                   .norm() -
-                               radius));
+          const auto box = bodyHitbox(t.type, h);
+          const double gap = std::max(
+              0., (position + t.current.att.rotate(box.center - cg) - s.position)
+                          .norm() -
+                      box.radius);
+          if (gap < distance) {
+            distance = gap;
+            region = box.region;
+          }
         }
         if (distance > d.damageRadius)
           continue;
@@ -222,7 +215,12 @@ void MissileCombat::step(
         if (damage <= 0)
           continue;
         auto &life = *t.life;
-        life.health = std::max(0., life.health - damage);
+        // The blast wrecks the part it went off beside, and the whole aircraft
+        // takes it in full: a warhead is not absorbed by a wing.
+        const double before = life.health;
+        region = damageTarget(t, region, s.position, nearest, damage,
+                              missile.owner.id);
+        life.health = std::min(life.health, std::max(0., before - damage));
         ++stats_.hits;
         CombatEvent e;
         e.kind = CombatKind::Hit;
@@ -231,6 +229,7 @@ void MissileCombat::step(
         e.owner = missile.owner.id;
         e.target = t.id;
         e.generation = life.generation;
+        e.region = region;
         e.health = life.health;
         e.position = s.position;
         combat.emit(e);

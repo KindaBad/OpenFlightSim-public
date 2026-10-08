@@ -11,7 +11,7 @@ $input v_color, v_uv, v_surfacePos
 
 SAMPLER2D(s_sceneRange, 13);
 uniform vec4 u_flame;
-uniform vec4 u_effectParams; // y refraction strength, z target width, w target height
+uniform vec4 u_effectParams; // x 1 for a rocket motor's palette, y refraction strength, z target width, w target height
 
 float flowNoise(vec2 p) {
     vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -41,6 +41,8 @@ void main()
         vec2 p = v_uv * 2.0 - 1.0; float r2 = dot(p, p);
         float core = exp(-8.0 * r2), halo = exp(-3.5 * r2);
         vec3 color = mix(vec3(.22, .38, 1.4), vec3(3.2, 3.6, 4.0), exp(-6.0 * r2));
+        // A rocket's glare is white at the nozzle and orange around it.
+        color = mix(color, mix(vec3(2.6, .95, .22), vec3(5.5, 5.0, 4.2), exp(-6.0 * r2)), u_effectParams.x);
         float flicker = .96 + .04 * sin(u_flame.y * 57.0 + u_flame.w);
         float opacity = (.58 * core + .20 * halo) * (1.0 - smoothstep(.55, 1.0, r2)) * u_flame.x * flicker;
         gl_FragColor = vec4(color * u_sunDirection.w, opacity);
@@ -57,6 +59,16 @@ void main()
         vec3 hot = mix(nearColor, farColor, smoothstep(.14, .54, t));
         hot = mix(hot, vec3(1.0, .91, .72), cells * .30 * (1.0 - t));
         float opacity = mix(.28, .085, layer * .5) * fade * streak * flicker * (.82 + .18 * turbulence) * u_flame.x;
-        gl_FragColor = vec4(hot * (1.55 + .30 * cells) * u_sunDirection.w, opacity);
+        float gain = 1.55 + .30 * cells;
+        if (u_effectParams.x > 0.5) {
+            // Solid propellant burns white-hot and yellow, with no blue flame
+            // and a denser, brighter core than an afterburner.
+            vec3 rocketNear = layer < .5 ? vec3(1.0, .97, .88) : vec3(1.0, .82, .42);
+            vec3 rocketFar = layer < .5 ? vec3(1.0, .72, .30) : vec3(1.0, .40, .08);
+            hot = mix(rocketNear, rocketFar, smoothstep(.10, .60, t));
+            opacity *= 1.9;
+            gain = 2.6;
+        }
+        gl_FragColor = vec4(hot * gain * u_sunDirection.w, opacity);
     }
 }

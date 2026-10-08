@@ -151,7 +151,12 @@ void Renderer::drawStores(const CombatVisuals& combat, const Camera& camera, boo
     const glm::mat4 model = storeMatrix(store.position, store.attitude, origin_);
     for (std::size_t part = 0; part < parts.size(); ++part) {
       if (distance > kTrimRange && part > std::size_t(StorePart::Seeker)) continue;
-      submit(parts[part], model, storeMaterial(store.type, StorePart(part)));
+      Material material = storeMaterial(store.type, StorePart(part));
+      if (store.burning && StorePart(part) == StorePart::Nozzle) {
+        // White-hot inside the throat while the motor burns.
+        material.emissive[0] = 9; material.emissive[1] = 5.5f; material.emissive[2] = 2;
+      }
+      submit(parts[part], model, material);
     }
   }
   Material metal;
@@ -170,6 +175,24 @@ void Renderer::drawStores(const CombatVisuals& combat, const Camera& camera, boo
     model = glm::scale(model, glm::vec3(kPylonLength * static_cast<float>(definition.length), kPylonWidth, height + .03f));
     submit(pylonMesh_, model, metal);
   }
+}
+
+void Renderer::drawMissilePlumes(const CombatVisuals& combat) {
+  if (settings_.effects == EffectsQuality::Off || combat.missiles.empty()) return;
+  ensureFlameMesh();
+  if (!bgfx::isValid(flameMesh_)) return;
+  for (const auto& missile : combat.missiles) {
+    if (!missile.powered || (missile.position - lastCamera_.eye).norm() > 6000) continue;
+    // A rocket plume several body lengths long, narrower than a jet's and far
+    // brighter. It grows over the first instants as the motor comes up.
+    const float burn = static_cast<float>(std::clamp(missile.age * 6, .35, 1.));
+    const Vec3 nozzle = missile.position + missile.attitude.rotate({-missile.length * .5, 0, 0});
+    const float length = static_cast<float>(missile.length * .62), radius = static_cast<float>(missile.diameter * 3.6);
+    const glm::mat4 matrix = storeMatrix(nozzle, missile.attitude, origin_) * glm::scale(glm::mat4{1}, glm::vec3(length, radius, radius));
+    drawFlame(matrix, localPosition(nozzle, origin_), static_cast<float>(missile.diameter * 2.4), burn,
+              static_cast<float>(missile.id % 251), true);
+  }
+  bgfx::discard();
 }
 
 }  // namespace ofs::client

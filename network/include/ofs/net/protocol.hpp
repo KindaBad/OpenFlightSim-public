@@ -1,6 +1,7 @@
 #pragma once
 #include "ofs/aircraft.hpp"
 #include "ofs/aircraft_definition.hpp"
+#include "ofs/damage.hpp"
 #include <cstdint>
 #include <span>
 #include <string>
@@ -9,7 +10,7 @@ namespace ofs::net {
 using Tick = std::uint64_t;
 using EntityId = std::uint64_t;
 constexpr std::uint16_t protocolVersion =
-    14; // v13 plus seeker target, lock progress and visible stores
+    15; // v14 plus regional damage, pilot names and chat
 constexpr std::size_t maxPlayers = 64, maxPacket = 65536, maxBatch = 8;
 constexpr std::size_t applicationPayload = 1100;
 // Legacy full-world Snapshot is an offline measurement format only.
@@ -39,8 +40,11 @@ enum class Type : std::uint8_t {
   RadarState,
   MissileSpawn,
   MissileState,
-  MissileRemove
+  MissileRemove,
+  Chat
 };
+// Chat is printable ASCII, like pilot names, and short enough to read in flight.
+constexpr std::size_t maxChatText = 120;
 struct Command {
   std::uint64_t sequence{};
   Tick tick{};
@@ -61,7 +65,8 @@ struct FireCommand {
   std::uint8_t weapon{}; // Only gun 0 exists.
   bool held{};
 };
-enum class HitRegion : std::uint8_t { Fuselage, LeftWing, RightWing, Tail };
+// The part of the airframe a hit damaged.
+using HitRegion = ofs::DamagePart;
 enum class CombatKind : std::uint8_t { Shot = 1, Hit, Destroyed, Respawn };
 struct CombatEvent {
   std::uint64_t id{}; // Unique event ID, separate from projectile ID.
@@ -92,6 +97,8 @@ struct Message {
   Tick tick{};
   std::uint64_t sequence{};
   EntityId entity{};
+  // Hello and Joined: pilot name. Reject: reason. Chat: the line, from `entity`
+  // (zero for a notice from the server itself).
   std::string text;
   std::uint16_t snapshotHz{24};
   Aircraft aircraft;

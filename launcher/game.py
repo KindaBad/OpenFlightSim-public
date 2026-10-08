@@ -8,6 +8,7 @@ import subprocess
 import time
 from .config import PURSUIT_CAMERA_VERSION
 from .installation import active_directory
+from .lan import LAN_VERSION, lobby_name
 from .platform_process import spawn
 from .storage import LauncherError, read_json, safe_path, relative_name
 from .version import Version
@@ -122,6 +123,22 @@ def arguments(installation, preferences, graphics):
     return args
 
 
+def server_arguments(installation, preferences, lan=False):
+    """Command line of the server behind a hosted game: this computer only, or the local network."""
+    command = [str(installation.server_executable()), '--bind', '0.0.0.0' if lan else '127.0.0.1', '--port', str(preferences.port)]
+    if lan:
+        if Version(installation.catalog['version']) < Version(LAN_VERSION):
+            raise LauncherError(f'Hosting on the local network needs OpenFlightSim {LAN_VERSION} or newer. Update the game first.')
+        if type(preferences.lan_bots) is not int or not 0 <= preferences.lan_bots <= 8:
+            raise LauncherError('Choose 0–8 bots')
+        # The name is the only text of the player's that reaches the server's
+        # command line; lobby_name leaves printable ASCII of bounded length.
+        command += ['--lan-name', lobby_name(preferences.lobby, lobby_name(preferences.name + "'s game"))]
+        if preferences.lan_bots:
+            command += ['--bots', str(preferences.lan_bots)]
+    return command
+
+
 class Session:
     def __init__(self):
         self.client = None
@@ -131,7 +148,8 @@ class Session:
     def running(self):
         return self.client is not None and self.client.poll() is None
 
-    def start(self, installation, preferences, graphics, logs, runtime):
+    def start(self, installation, preferences, graphics, logs, runtime, lan=False):
+        """Start a flight. With `lan`, a hosted game is opened to the local network."""
         if self.running():
             raise LauncherError('The simulator is already running')
         missing = installation.missing_assets()
@@ -144,7 +162,7 @@ class Session:
             if preferences.mode == 'multiplayer' and preferences.host:
                 stream = open(Path(logs) / 'server.log', 'ab')
                 self.streams.append(stream)
-                server_args = [str(installation.server_executable()), '--bind', '127.0.0.1', '--port', str(preferences.port)]
+                server_args = server_arguments(installation, preferences, lan)
                 self.server = spawn(server_args, cwd=runtime, stdout=stream, stderr=subprocess.STDOUT)
                 # A busy port or missing library ends the server at once; report that
                 # instead of letting the client time out against nothing.
@@ -153,7 +171,7 @@ class Session:
                     raise LauncherError(f'Local server exited at startup (port {preferences.port} may be in use); see server.log')
                 except subprocess.TimeoutExpired:
                     pass
-                log.info('Started local server on port %s', preferences.port)
+                log.info('Started %s server on port %s', 'LAN' if lan else 'local', preferences.port)
             stream = open(Path(logs) / 'simulator.log', 'ab')
             self.streams.append(stream)
             # Player names are personal data; log the launch options with name redacted.

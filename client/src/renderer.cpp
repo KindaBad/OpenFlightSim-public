@@ -196,6 +196,7 @@ void Renderer::createUniforms() {
   uniforms_.normalMatrix = bgfx::createUniform("u_normalMatrix", bgfx::UniformType::Mat3);
   uniforms_.lightViewProj = bgfx::createUniform("u_lightViewProj", mat4);
   uniforms_.shadowMatrix = bgfx::createUniform("u_shadowMatrix", mat4, kMaxCascades);
+  uniforms_.damage = bgfx::createUniform("u_damage", vec4, 7);
   uniforms_.baseColor = bgfx::createUniform("u_baseColor", vec4);
   uniforms_.metallicRoughness = bgfx::createUniform("u_metallicRoughness", vec4);
   uniforms_.emissive = bgfx::createUniform("u_emissive", vec4);
@@ -868,6 +869,9 @@ void Renderer::applyMaterial(const Material& material, const Model* asset, float
                                             material.emissive[2], 0)));
   bgfx::setUniform(uniforms_.doubleSided,
                    glm::value_ptr(glm::vec4(material.doubleSided ? 1.0f : 0.0f, 0, 0, 0)));
+  // Undamaged unless the caller says otherwise: drawAircraft overrides this.
+  static const glm::vec4 kIntact[7]{};
+  bgfx::setUniform(uniforms_.damage, kIntact, 7);
 }
 
 void Renderer::drawGrid() {
@@ -888,6 +892,26 @@ void Renderer::drawAircraft(const Instance& instance, bool hide, bgfx::ViewId vi
   if (level.batches.empty() || !bgfx::isValid(level.vertexBuffer)) return;
   activeLod_ = lod;
   const glm::mat4 base = modelTransform(*instance.state, instance.type);
+  // Battle damage, in the layout pbr_fs.glsl documents for u_damage.
+  const DamageView& damage = instance.damage;
+  const bool damaged = damage.any();
+  // Torn wings and fins are open: their insides must be drawn too.
+  const bool torn = damage[DamagePart::LeftWing] > 0 || damage[DamagePart::RightWing] > 0 || damage[DamagePart::Tail] > 0;
+  glm::vec4 damageUniform[7]{};
+  if (damaged) {
+    const auto& definition = aircraftDefinition(instance.type);
+    const auto geometry = damageGeometry(instance.type);
+    const auto cg = definition.visual.assetCg;
+    const auto left = engineBay(definition, 0), right = engineBay(definition, 1);
+    damageUniform[0] = glm::vec4(damage[DamagePart::LeftWing], damage[DamagePart::RightWing], damage[DamagePart::Tail],
+                                 damage[DamagePart::Fuselage]);
+    damageUniform[1] = glm::vec4(damage[DamagePart::LeftEngine], damage[DamagePart::RightEngine], instance.damageSeed, 1);
+    damageUniform[2] = glm::vec4(cg.x, cg.y, cg.z, geometry.wingRoot);
+    damageUniform[3] = glm::vec4(geometry.wingTip, geometry.wingAft, geometry.wingFore, geometry.finFore);
+    damageUniform[4] = glm::vec4(geometry.finBase, geometry.finTop, left.fore.x - left.aft.x, left.radius);
+    damageUniform[5] = glm::vec4(left.aft.x, left.aft.y, left.aft.z, 0);
+    damageUniform[6] = glm::vec4(right.aft.x, right.aft.y, right.aft.z, 0);
+  }
   // Write all opaque depth before drawing thin transparent glass and decals.
   for (const bool translucent : {false,true}) for (const Batch& batch : level.batches) {
     if (batch.material >= asset.materials.size()) continue;
@@ -900,8 +924,10 @@ void Renderer::drawAircraft(const Instance& instance, bool hide, bgfx::ViewId vi
     bgfx::setUniform(uniforms_.normalMatrix, glm::value_ptr(glm::inverseTranspose(glm::mat3(modelMatrix))));
     Material material = asset.materials[batch.material];
     applyMaterial(material,&asset);
+    if (damaged) bgfx::setUniform(uniforms_.damage, damageUniform, 7);
     const auto renderState = material.alpha==Material::Alpha::Blend ? kBlendState : kOpaqueState;
-    bgfx::setState((material.doubleSided ? (renderState & ~BGFX_STATE_CULL_MASK) : renderState) | BGFX_STATE_MSAA | (settings_.wireframeAircraft ? BGFX_STATE_PT_LINES : 0));
+    const bool bothSides = material.doubleSided || (torn && !translucent);
+    bgfx::setState((bothSides ? (renderState & ~BGFX_STATE_CULL_MASK) : renderState) | BGFX_STATE_MSAA | (settings_.wireframeAircraft ? BGFX_STATE_PT_LINES : 0));
     bgfx::setIndexBuffer(level.indexBuffer, batch.firstIndex, batch.indexCount);
     bgfx::submit(view, programs_.pbr);
     stats_.triangles += batch.indexCount / 3;
@@ -916,7 +942,7 @@ void Renderer::drawEffects(const CombatVisuals& combat) {
   // Effects are camera-facing quads rebuilt every frame, so they go into a
   // transient vertex buffer: no persistent buffer, no upload call and nothing
   // to resize. The bounded pool bounds the vertex count.
-  const auto maxVertices = static_cast<std::uint32_t>((pool_.size() * 3 + combat.lines.size()) * 6);
+  const auto maxVertices = static_cast<std::uint32_t>((pool_.size() * 4 + combat.lines.size()) * 6);
   if (bgfx::getAvailTransientVertexBuffer(maxVertices, effectLayout_) < maxVertices) return;
 
   effectScratch_.clear();
@@ -957,24 +983,31 @@ void Renderer::drawEffects(const CombatVisuals& combat) {
       const float speed = glm::length(velocity);
       if (speed < .5f) continue;
       const glm::vec3 axis = velocity / speed;
-      const float halfLength = effect.stretch*.5f;
+      // A round is not drawn behind the muzzle it has only just left.
+      const float halfLength = std::min(effect.stretch, speed * effect.age + .5f) * .5f;
       glm::vec3 across=glm::cross(axis,cameraEye_-centre);
       if (glm::dot(across,across)<1e-8f) across=basisRight_;
       across=glm::normalize(across);
       // Minimum angular width keeps distant rounds legible at game resolution.
-      const float radius=std::max(effect.size*.5f,glm::length(cameraEye_-centre)*.00028f);
-      const auto glowAlpha=static_cast<std::uint32_t>(faded*.38f);
-      emitQuad(centre-axis*halfLength,axis,across,halfLength,radius*3.5f,
+      const float range=glm::length(cameraEye_-centre);
+      const float radius=std::max(effect.size*.5f,range*.00032f);
+      // The burning compound leaves a faint line of smoke that soon thins out.
+      const float wake=std::min(60.f,speed*effect.age);
+      if (wake>4.f && range<1500.f)
+        emitQuad(centre-axis*(halfLength*2+wake*.5f),axis,across,wake*.5f,radius*1.8f,
+                 0x00c8ccd0u|(static_cast<std::uint32_t>(faded*.10f)<<24),1);
+      const auto glowAlpha=static_cast<std::uint32_t>(faded*.42f);
+      emitQuad(centre-axis*halfLength,axis,across,halfLength,radius*4.2f,
                (color&0x00ffffffu)|(glowAlpha<<24),2);
       emitQuad(centre-axis*halfLength,axis,across,halfLength,radius,
-               0x00e8f4ffu|(faded<<24),2);
+               0x00d8f4ffu|(faded<<24),2);
       // A hot tip faces the camera even when the streak is seen end-on.
-      emitQuad(centre,basisRight_,basisUp_,radius*2,radius*2,
-               0x00c8e8ffu|(faded<<24),3);
+      emitQuad(centre,basisRight_,basisUp_,radius*2.6f,radius*2.6f,
+               0x00c8ecffu|(faded<<24),3);
       continue;
     }
     if (effect.kind == EffectKind::Trail) {
-      // One length of a motor trail: a soft tube that swells and thins as it
+      // One length of a smoke trail: a soft tube that swells and thins as it
       // ages, overlapping its neighbours so the whole reads as one plume.
       const glm::vec3 axis = glm::normalize(renderDirection(effect.axis));
       glm::vec3 across = glm::cross(axis, cameraEye_ - centre);
@@ -984,6 +1017,22 @@ void Renderer::drawEffects(const CombatVisuals& combat) {
       // Each length reaches well into the next, so their soft ends sum to an even column.
       emitQuad(centre, axis, glm::normalize(across), effect.stretch * 1.15f + radius, radius,
                (color & 0x00ffffffu) | (alphaNow << 24), 4);
+      continue;
+    }
+    if (effect.kind == EffectKind::Shockwave) {
+      // A thin ring racing outward and fading as it goes.
+      const float grown = 1.f - (1.f - t) * (1.f - t);
+      const auto ringAlpha = static_cast<std::uint32_t>(alpha * (1.f - t) * (1.f - t));
+      emitQuad(centre, basisRight_, basisUp_, effect.size * (.1f + .9f * grown), effect.size * (.1f + .9f * grown),
+               (color & 0x00ffffffu) | (ringAlpha << 24), 6);
+      continue;
+    }
+    if (effect.kind == EffectKind::Flash || effect.kind == EffectKind::MuzzleFlash) {
+      // A star of light, turned by its seed so no two flashes look alike.
+      const float turn = effect.seed * 6.2831853f, c = std::cos(turn), sn = std::sin(turn);
+      const float radius = effect.size * (effect.kind == EffectKind::Flash ? .45f + .55f * (1.f - t) : .55f + .95f * (1.f - t));
+      emitQuad(centre, basisRight_ * c + basisUp_ * sn, basisUp_ * c - basisRight_ * sn, radius, radius,
+               (color & 0x00ffffffu) | (faded << 24), 7);
       continue;
     }
     if (effect.kind == EffectKind::Debris || effect.kind == EffectKind::Spark) {
@@ -1077,30 +1126,62 @@ void Renderer::drawEffects(const CombatVisuals& combat) {
   submit(true);
 }
 
+void Renderer::ensureFlameMesh() {
+  if (bgfx::isValid(flameMesh_)) return;
+  // Fixed shared open volumetric shells: no per-frame vertex uploads or network
+  // particle stream. A unit cone of rings, shaped in the vertex shader, and
+  // one quad for the glow at the nozzle.
+  std::vector<float> data;
+  constexpr unsigned rings=24, sectors=24;
+  const auto vertex=[&](unsigned j,unsigned i) {
+    const float t=float(j)/rings, u=float(i)/sectors;
+    const float angle=u*float(2*kPi);
+    data.insert(data.end(),{-t,std::cos(angle),std::sin(angle),1,1,1,1,u,t});
+  };
+  for(unsigned j=0;j<rings;++j) for(unsigned i=0;i<sectors;++i) {
+    vertex(j,i);vertex(j+1,i);vertex(j+1,i+1);
+    vertex(j,i);vertex(j+1,i+1);vertex(j,i+1);
+  }
+  flameVertices_=static_cast<unsigned>(data.size()/kEffectVertexFloats);
+  for (const unsigned i:{0u,1u,2u,0u,2u,3u}) {
+    const glm::vec2 p[4]={{-1,-1},{1,-1},{1,1},{-1,1}};
+    data.insert(data.end(),{p[i].x,p[i].y,0,.72f,.65f,1,.18f,(p[i].x+1)*.5f,(p[i].y+1)*.5f});
+  }
+  flameMesh_=bgfx::createVertexBuffer(bgfx::copy(data.data(),static_cast<unsigned>(data.size()*sizeof(float))),effectLayout_);
+}
+
+void Renderer::drawFlame(const glm::mat4& matrix, const glm::vec3& glowCentre, float glowRadius, float intensity,
+                         float seed, bool rocket) {
+  // Three translucent layers per flame, drawn after the clouds against the
+  // world's depth. The palette is chosen per draw: uniforms keep whatever an
+  // earlier draw left in them.
+  const glm::vec4 palette(rocket ? 1.f : 0.f, 0, 0, 0);
+  for(unsigned layer=0;layer<3;++layer) {
+    bindFrame(viewProj_);
+    bgfx::setUniform(uniforms_.flame,glm::value_ptr(glm::vec4(intensity,float(flameTime_),float(layer),seed)));
+    bgfx::setUniform(uniforms_.effectParams,glm::value_ptr(palette));
+    bgfx::setUniform(uniforms_.model,glm::value_ptr(matrix));
+    bgfx::setVertexBuffer(0,flameMesh_,0,flameVertices_);
+    bgfx::setState(BGFX_STATE_WRITE_RGB|BGFX_STATE_WRITE_A|BGFX_STATE_DEPTH_TEST_LEQUAL|
+      BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,BGFX_STATE_BLEND_ONE)|BGFX_STATE_MSAA);
+    bgfx::submit(kViewAtmosphere,programs_.flame);
+    ++stats_.drawCalls;stats_.triangles+=flameVertices_/3;
+  }
+  glm::mat4 glow{1};glow[0]=glm::vec4(basisRight_*glowRadius,0);
+  glow[1]=glm::vec4(basisUp_*glowRadius,0);glow[3]=glm::vec4(glowCentre,1);
+  bindFrame(viewProj_);
+  bgfx::setUniform(uniforms_.flame,glm::value_ptr(glm::vec4(intensity,float(flameTime_),3,seed)));
+  bgfx::setUniform(uniforms_.effectParams,glm::value_ptr(palette));
+  bgfx::setUniform(uniforms_.model,glm::value_ptr(glow));
+  bgfx::setVertexBuffer(0,flameMesh_,flameVertices_,6);
+  bgfx::setState(BGFX_STATE_WRITE_RGB|BGFX_STATE_WRITE_A|BGFX_STATE_DEPTH_TEST_LEQUAL|
+    BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,BGFX_STATE_BLEND_ONE)|BGFX_STATE_MSAA);
+  bgfx::submit(kViewAtmosphere,programs_.flame);++stats_.drawCalls;stats_.triangles+=2;
+}
+
 void Renderer::drawAfterburners(bool localDestroyed) {
   if (settings_.effects==EffectsQuality::Off) return;
-  // Fixed shared open volumetric shells: no per-frame vertex uploads or network
-  // particle stream. Three translucent layers per engine, capped by world count.
-  // Drawn after the clouds, against the world's depth.
-  if (!bgfx::isValid(flameMesh_)) {
-    std::vector<float> data;
-    constexpr unsigned rings=24, sectors=24;
-    const auto vertex=[&](unsigned j,unsigned i) {
-      const float t=float(j)/rings, u=float(i)/sectors;
-      const float angle=u*float(2*kPi);
-      data.insert(data.end(),{-t,std::cos(angle),std::sin(angle),1,1,1,1,u,t});
-    };
-    for(unsigned j=0;j<rings;++j) for(unsigned i=0;i<sectors;++i) {
-      vertex(j,i);vertex(j+1,i);vertex(j+1,i+1);
-      vertex(j,i);vertex(j+1,i+1);vertex(j,i+1);
-    }
-    flameVertices_=static_cast<unsigned>(data.size()/kEffectVertexFloats);
-    for (const unsigned i:{0u,1u,2u,0u,2u,3u}) {
-      const glm::vec2 p[4]={{-1,-1},{1,-1},{1,1},{-1,1}};
-      data.insert(data.end(),{p[i].x,p[i].y,0,.72f,.65f,1,.18f,(p[i].x+1)*.5f,(p[i].y+1)*.5f});
-    }
-    flameMesh_=bgfx::createVertexBuffer(bgfx::copy(data.data(),static_cast<unsigned>(data.size()*sizeof(float))),effectLayout_);
-  }
+  ensureFlameMesh();
   if (!bgfx::isValid(flameMesh_)) return;
   for(const auto& [id,instance] : instances_) {
     if (!instance.state || (id==0 && localDestroyed) || aircraftCrashed(*instance.state)) continue;
@@ -1125,13 +1206,14 @@ void Renderer::drawAfterburners(bool localDestroyed) {
         glm::translate(glm::mat4{1},glm::vec3(relative.x,relative.y,relative.z))*
         glm::scale(glm::mat4{1},glm::vec3(definition.visual.exhaustLengthScale,
           definition.visual.exhaustRadiusScale,definition.visual.exhaustRadiusScale));
+      const float seed=float((id%97)*3+e*11);
       if (settings_.heatDistortion && settings_.engineHeat && sceneHasRefraction_ && spool>.25f) {
         // The hot exhaust column bends light: it is drawn as an image offset
         // into the refraction buffer, not as colour.
         const float density=static_cast<float>(isaAtAltitude(-instance.state->pos_ned.z).rho/1.225);
         const float heat=(.25f+.75f*intensity)*spool*std::sqrt(std::max(.04f,density));
         bindFrame(viewProj_);
-        bgfx::setUniform(uniforms_.flame,glm::value_ptr(glm::vec4(heat,float(flameTime_),4,float((id%97)*3+e*11))));
+        bgfx::setUniform(uniforms_.flame,glm::value_ptr(glm::vec4(heat,float(flameTime_),4,seed)));
         bgfx::setUniform(uniforms_.model,glm::value_ptr(matrix));
         bgfx::setUniform(uniforms_.effectParams,glm::value_ptr(glm::vec4(0,.035f,float(std::max(1,width_/2)),float(std::max(1,height_/2)))));
         bgfx::setTexture(13,uniforms_.sceneRange,bgfx::getTexture(hdrBuffer_,1),BGFX_SAMPLER_U_CLAMP|BGFX_SAMPLER_V_CLAMP|BGFX_SAMPLER_MIN_POINT|BGFX_SAMPLER_MAG_POINT);
@@ -1140,30 +1222,69 @@ void Renderer::drawAfterburners(bool localDestroyed) {
         bgfx::submit(kViewRefraction,programs_.flame);++stats_.drawCalls;stats_.triangles+=flameVertices_/3;
       }
       if (intensity<.005f) continue;
-      for(unsigned layer=0;layer<3;++layer) {
-        bindFrame(viewProj_);
-        bgfx::setUniform(uniforms_.flame,glm::value_ptr(glm::vec4(intensity,float(flameTime_),float(layer),float((id%97)*3+e*11))));
-        bgfx::setUniform(uniforms_.model,glm::value_ptr(matrix));
-        bgfx::setVertexBuffer(0,flameMesh_,0,flameVertices_);
-        bgfx::setState(BGFX_STATE_WRITE_RGB|BGFX_STATE_WRITE_A|BGFX_STATE_DEPTH_TEST_LEQUAL|
-          BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,BGFX_STATE_BLEND_ONE)|BGFX_STATE_MSAA);
-        bgfx::submit(kViewAtmosphere,programs_.flame);
-        ++stats_.drawCalls;stats_.triangles+=flameVertices_/3;
-      }
-      const auto center=localPosition(instance.state->pos_ned+instance.state->att.rotate(point),origin_);
-      const float radius=.68f*static_cast<float>(definition.visual.exhaustRadiusScale)*std::sqrt(intensity);
-      glm::mat4 glow{1};glow[0]=glm::vec4(basisRight_*radius,0);
-      glow[1]=glm::vec4(basisUp_*radius,0);glow[3]=glm::vec4(center,1);
-      bindFrame(viewProj_);
-      bgfx::setUniform(uniforms_.flame,glm::value_ptr(glm::vec4(intensity,float(flameTime_),3,float((id%97)*3+e*11))));
-      bgfx::setUniform(uniforms_.model,glm::value_ptr(glow));
-      bgfx::setVertexBuffer(0,flameMesh_,flameVertices_,6);
-      bgfx::setState(BGFX_STATE_WRITE_RGB|BGFX_STATE_WRITE_A|BGFX_STATE_DEPTH_TEST_LEQUAL|
-        BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,BGFX_STATE_BLEND_ONE)|BGFX_STATE_MSAA);
-      bgfx::submit(kViewAtmosphere,programs_.flame);++stats_.drawCalls;stats_.triangles+=2;
+      drawFlame(matrix,localPosition(instance.state->pos_ned+instance.state->att.rotate(point),origin_),
+                .68f*static_cast<float>(definition.visual.exhaustRadiusScale)*std::sqrt(intensity),intensity,seed,false);
     }
   }
   bgfx::discard();
+}
+
+void Renderer::drawBreakaways() {
+  for (const BreakawayPiece& piece : breakaways_.pieces()) {
+    const auto found = models_.find(piece.type);
+    if (found == models_.end() || !found->second.loaded || found->second.levels.empty()) continue;
+    const Model& asset = found->second;
+    const auto& definition = aircraftDefinition(piece.type);
+    const double distance = (piece.position - lastCamera_.eye).norm();
+    if (distance > 8000) continue;
+    const GpuLevel& level = asset.levels[std::min(asset.levels.size() - 1,
+        lodForDistance(static_cast<float>(definition.visual.radius), distance * std::exp2(settings_.lodBias)))];
+    if (level.batches.empty() || !bgfx::isValid(level.vertexBuffer)) continue;
+    // The mesh is placed as it was on the aircraft, about the piece's own centre.
+    State pose;
+    pose.pos_ned = piece.position;
+    pose.att = piece.attitude;
+    auto anchor = kAssetToBody;
+    const Vec3 cg = definition.visual.assetCg;
+    anchor[3] = glm::vec4(cg.x - piece.pivot.x, cg.z - piece.pivot.y, cg.y - piece.pivot.z, 1);
+    const glm::mat4 base = aircraftMatrix(pose, origin_) * anchor;
+    const auto geometry = damageGeometry(piece.type);
+    const auto left = engineBay(definition, 0), right = engineBay(definition, 1);
+    const bool fin = piece.part == DamagePart::Tail, wreck = piece.wreck();
+    if (wreck && piece.grounded) continue;
+    // u_damage in its broken-away form (see pbr_fs.glsl); a wreck is the
+    // ordinary form with every part destroyed.
+    const glm::vec4 damage[7]{
+        wreck ? glm::vec4(1) : glm::vec4(fin ? 2.f : piece.part == DamagePart::RightWing ? 1.f : 0.f, piece.inner, piece.outer, 0),
+        wreck ? glm::vec4(1, 1, piece.seed, 1) : glm::vec4(0, 0, piece.seed, 2),
+        glm::vec4(cg.x, cg.y, cg.z, geometry.wingRoot),
+        glm::vec4(geometry.wingTip, geometry.wingAft, geometry.wingFore, geometry.finFore),
+        glm::vec4(geometry.finBase, geometry.finTop, left.fore.x - left.aft.x, left.radius),
+        glm::vec4(left.aft.x, left.aft.y, left.aft.z, 0), glm::vec4(right.aft.x, right.aft.y, right.aft.z, 0)};
+    for (const Batch& batch : level.batches) {
+      if (batch.material >= asset.materials.size() || asset.materials[batch.material].alpha == Material::Alpha::Blend) continue;
+      // Skip the batches that cannot contain any of the piece. Body y is
+      // asset -z and body z is asset -y, about the asset's centre of gravity.
+      if (!wreck && (fin ? cg.y - batch.boundsMax[1] > -geometry.finBase
+                         : piece.part == DamagePart::RightWing ? cg.z - batch.boundsMin[2] < geometry.wingRoot
+                                                               : cg.z - batch.boundsMax[2] > -geometry.wingRoot))
+        continue;
+      bindFrame(viewProj_);
+      bindLighting();
+      bgfx::setVertexBuffer(0, level.vertexBuffer);
+      const bool posed = batch.transformNode >= 0 && static_cast<std::size_t>(batch.transformNode) < piece.deltas.size();
+      const auto modelMatrix = posed ? base * glm::make_mat4(piece.deltas[batch.transformNode].data()) : base;
+      bgfx::setUniform(uniforms_.model, glm::value_ptr(modelMatrix));
+      bgfx::setUniform(uniforms_.normalMatrix, glm::value_ptr(glm::inverseTranspose(glm::mat3(modelMatrix))));
+      applyMaterial(asset.materials[batch.material], &asset);
+      bgfx::setUniform(uniforms_.damage, damage, 7);
+      bgfx::setState((kOpaqueState & ~BGFX_STATE_CULL_MASK) | BGFX_STATE_MSAA);
+      bgfx::setIndexBuffer(level.indexBuffer, batch.firstIndex, batch.indexCount);
+      bgfx::submit(kViewWorld, programs_.pbr);
+      stats_.triangles += batch.indexCount / 3;
+      ++stats_.drawCalls;
+    }
+  }
 }
 
 void Renderer::ui() {
@@ -1257,21 +1378,33 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
   stats_.aircraftDrawn = 0;
   stats_.treesDrawn = 0;
   stats_.lodCounts = {};
+  // An aircraft that blew up throws its wings and fin clear. This comes before
+  // its instance is dropped, while the pose of its moving parts is still held.
+  for (const CombatVisuals::Destruction& destruction : combat.destructions) {
+    if (!destruction.airframe || !validAircraftType(destruction.type)) continue;
+    const auto instance = instances_.find(destruction.entity);
+    static const std::vector<AssetMatrix> kRestPose;
+    const bool posed = instance != instances_.end() && instance->second.type == destruction.type;
+    breakaways_.shatter(destruction.entity, destruction.type, destruction.state,
+                        posed ? instance->second.deltas : kRestPose, float(destruction.entity % 97) * .37f);
+  }
   std::erase_if(instances_,[&](const auto& entry) {
     return entry.first!=0 && std::none_of(remotes.begin(),remotes.end(),[&](const auto& remote){return remote.alive && remote.entity==entry.first;});
   });
-  const auto prepare=[&](std::uint64_t id,AircraftType type,const State& state,const Controls& input) {
+  const auto prepare=[&](std::uint64_t id,AircraftType type,const State& state,const Controls& input,double health) {
     auto& instance=instances_[id];
     if (instance.type!=type) { instance={}; instance.type=type; }
     instance.state=&state;
+    instance.damage=damageView(state,health);
+    instance.damageSeed=float(id%97)*.37f;
     instance.pose.update(state,input,aircraftDefinition(type),dt);
     evaluatePose(model(type).nodes,instance.pose,instance.deltas);
     const double distance=(camera.eye-state.pos_ned).norm();
     // Shorter full-detail range for million-triangle airliners; 15% hysteresis.
     instance.lod=stableAircraftLod(aircraftDefinition(type).visual.radius,distance*std::exp2(settings_.lodBias),instance.lod,model(type).levels.size());
   };
-  prepare(0,localType_,local,controls);
-  for (const auto& remote:remotes) if (remote.alive) prepare(remote.entity,remote.type,remote.state,remote.controls);
+  prepare(0,localType_,local,controls,combat.localHealth);
+  for (const auto& remote:remotes) if (remote.alive) prepare(remote.entity,remote.type,remote.state,remote.controls,remote.health);
 
   // Advance existing effects first, so newly arrived muzzle flashes survive
   // a long frame and shot/hit pairs retire the correct tracer immediately.
@@ -1279,8 +1412,9 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
   pool_.update(effectDt);
   // ---- Effects, driven by simulation combat events ----
   for (const CombatVisuals::Shot& shot : combat.shots)
-    combat_.onShot(shot.position, shot.velocity, shot.lifetime, shot.ownAircraft,shot.projectile);
-  for (const CombatVisuals::Hit& hit : combat.hits) combat_.onHit(hit.position, hit.ownAircraft,hit.projectile);
+    combat_.onShot(shot.position, shot.velocity, shot.lifetime, shot.ownAircraft,shot.projectile,shot.carrier);
+  for (const CombatVisuals::Hit& hit : combat.hits)
+    combat_.onHit(hit.position, hit.ownAircraft,hit.projectile,hit.targetVelocity);
   for (const CombatVisuals::Destruction& destruction : combat.destructions)
     combat_.onDestroyed(destruction.position, destruction.velocity);
   for(const auto& impact:combat.groundImpacts) combat_.onGroundImpact(impact);
@@ -1291,7 +1425,27 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
                           missile.diameter, missile.age, missile.powered, effectDt);
   combat_.retireMissiles(combat.missiles.size());
   for (const auto &position : combat.missileDetonations)
-    combat_.onDestroyed(position, {});
+    combat_.onDetonation(position);
+  // Wings and fins that have gone since the last frame leave as pieces.
+  const auto shed=[&](std::uint64_t id) {
+    const auto& instance=instances_.at(id);
+    const std::size_t released=breakaways_.observe(id,instance.type,*instance.state,instance.damage,instance.deltas,instance.damageSeed);
+    const auto& pieces=breakaways_.pieces();
+    for (std::size_t i=pieces.size()-std::min(released,pieces.size());i<pieces.size();++i)
+      combat_.onPartLost(pieces[i].position,pieces[i].velocity);
+  };
+  if (!combat.localDestroyed) shed(0);
+  for (const RemoteAircraft& remote : remotes) if (remote.alive) shed(remote.entity);
+  breakaways_.endFrame();
+  breakaways_.update(effectDt,weather.wind_ned);
+  for (BreakawayPiece& piece : breakaways_.pieces()) {
+    // A wreck burns until it reaches the ground, and goes up when it does.
+    if (piece.struck && piece.wreck()) combat_.onDestroyed(piece.position, {});
+    if (!piece.grounded && (piece.wreck() || piece.age<7) && piece.smoke>=(piece.wreck() ? .035 : .06)) {
+      piece.smoke=0;
+      combat_.onPieceSmoke(piece.position,piece.velocity,piece.wreck());
+    }
+  }
   flameTime_+=effectDt;
   if (!combat.localDestroyed) combat_.updateAircraft(local, effectDt, localType_, 0, load,combat.localHealth,weather);
   for (const RemoteAircraft& remote : remotes)
@@ -1366,12 +1520,14 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
     if (remote.alive && (remote.state.pos_ned-camera.eye).norm()<settings_.renderDistance)
       drawAircraft(instances_.at(remote.entity), false, kViewWorld, viewProj_);
   drawStores(combat, camera, false);
+  drawBreakaways();
 
   // ---- Atmosphere: clouds, particles, plumes, rain ----
   drawClouds();
   compositeClouds();
   drawEffects(combat);
   drawAfterburners(combat.localDestroyed);
+  drawMissilePlumes(combat);
   drawRain(local, weather);
 
   // ---- Flight deck ----

@@ -6,6 +6,8 @@
 // list so it costs no extra draw calls or font switching.
 
 #include "camera.hpp"
+#include "chat.hpp"
+#include "damage_visuals.hpp"
 #include "ofs/weapons.hpp"
 #include "renderer.hpp"
 #include "settings.hpp"
@@ -61,6 +63,32 @@ struct HudFrame {
   Vec3 mouseAimPoint{}, nosePoint{};
   // The full map is open, in place of the minimap.
   bool fullMap{};
+  // Battle damage to the pilot's own aircraft, and the cues that go with a
+  // fight: seconds left to show own rounds striking, a kill, and being hit.
+  DamageView damage;
+  DamagePart damagedPart{DamagePart::Fuselage};
+  double hitMarker{}, killMarker{}, damageFlash{};
+  // Chat lines to draw, oldest first, at the time `now`; `chatOpen` while the
+  // pilot is typing.
+  std::span<const ChatEntry* const> chat;
+  double now{};
+  bool chatOpen{};
+  // Everyone in the game, for the scoreboard, which is drawn while it is held.
+  struct Score {
+    std::string name;
+    AircraftType type{AircraftType::A320};
+    unsigned kills{}, deaths{};
+    bool self{}, alive{true};
+  };
+  std::span<const Score> scores;
+  bool showScores{};
+  int pingMs{-1};
+  // The Esc menu is up: the HUD keeps to itself underneath it.
+  bool menuOpen{};
+  // A notice across the middle of the view while a game is being joined, or
+  // after it could not be: a title and one line of explanation.
+  std::string bannerTitle, bannerDetail;
+  bool bannerProblem{};
 };
 
 struct HudSettings {

@@ -10,6 +10,8 @@ struct HitSphere {
   HitRegion region;
 };
 const std::array<HitSphere, 17> &aircraftHitboxes();
+// One sphere of an aircraft type's own chain, in its reference body axes.
+HitSphere bodyHitbox(AircraftType, std::size_t index);
 // Fraction of earliest segment/sphere entry; infinity means no intersection.
 double sweptSphere(Vec3 start, Vec3 end, Vec3 center, double radius);
 struct Projectile {
@@ -28,7 +30,14 @@ struct CombatTarget {
   State previous, current;
   Life *life{};
   AircraftType type{AircraftType::A320};
+  // Set when a hit changed the part health in `current`, with who caused it.
+  bool damaged{};
+  EntityId attacker{};
 };
+// Damages the part of `target` struck at world position `impact`, which entered
+// a collision sphere of `region` at `fraction` of the tick. Returns the part.
+HitRegion damageTarget(CombatTarget &target, HitRegion region, Vec3 impact,
+                       double fraction, double damage, EntityId attacker);
 struct CombatStats {
   std::uint64_t shots{}, hits{}, kills{}, respawns{}, rejectedFire{},
       cooldownBlocks{}, poolFull{}, droppedEvents{};

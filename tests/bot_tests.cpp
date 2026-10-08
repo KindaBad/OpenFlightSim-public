@@ -85,11 +85,16 @@ void dogfight() {
   check(opponent.life.health<health && opponent.life.alive() &&
         opponent.evadeUntil>world.tick() && !opponent.firing,
         "wounded bot breaks away and prepares to re-engage");
-  shooter = opponent.sim.state();
-  shooter.pos_ned -= shooter.att.rotate({10,0,0});
-  gun.damage=100;firing={};
-  check(world.combat().fire(world.tick()+1,human,shooter,firing,gun), "lethal player shot");
-  for(unsigned i=0;i<5 && opponent.life.alive();++i) world.step();
+  // The first heavy round wrecks whatever it strikes; the next one, into the
+  // wreckage, is lethal.
+  for(unsigned shot=0;shot<3 && opponent.life.alive();++shot) {
+    shooter = opponent.sim.state();
+    shooter.pos_ned -= shooter.att.rotate({10,0,0});
+    gun.damage=100;firing={};
+    check(world.combat().fire(world.tick()+1,human,shooter,firing,gun), "lethal player shot");
+    const double before=opponent.life.health;
+    for(unsigned i=0;i<5 && opponent.life.health==before;++i) world.step();
+  }
   check(!opponent.life.alive(), "player can destroy a bot");
   const auto generation = opponent.life.generation;
   const auto deadline = opponent.life.respawnTick;

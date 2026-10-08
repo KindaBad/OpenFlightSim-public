@@ -26,7 +26,7 @@ World::World(bool airborne, std::optional<GunConfig> gun)
 const GunConfig& World::gunFor(AircraftType type) const {
   return gunOverride_ ? *gunOverride_ : aircraftDefinition(type).gun.value();
 }
-EntityId World::join(AircraftType type) {
+EntityId World::join(AircraftType type, std::string name) {
   if (!validAircraftType(type) || players_.size() >= maxPlayers)
     return 0;
   unsigned slot = 0;
@@ -42,6 +42,7 @@ EntityId World::join(AircraftType type) {
   const auto id = nextId_++;
   auto &p = players_[id];
   p.type = type;
+  p.name = name.empty() ? "Pilot " + std::to_string(id) : std::move(name);
   p.sim = Simulator(aircraftDefinition(type).flight);
   p.spawnSlot = slot;
   p.life.ammo = aircraftDefinition(type).gun ? gunFor(type).ammo : 0;
@@ -55,6 +56,7 @@ EntityId World::joinBot(AircraftType type) {
   if (id) {
     auto &p = players_.at(id);
     p.bot = true;
+    p.name = "Bandit " + std::to_string(id);
     spawn(id, p);
   }
   return id;
@@ -94,6 +96,8 @@ void World::spawn(EntityId id, Player &p) {
     p.missileReady = tick_ + 960;
     p.lastHealth = 100;
   }
+  p.lastAttacker = 0;
+  p.lastAttacked = 0;
   // Existing slots supply the baseline; move back if a currently alive aircraft
   // occupies it. At most 64 exclusions, spaced candidates terminate in 65
   // tries.
@@ -169,6 +173,39 @@ void World::controlBot(EntityId id, Player &p) {
   } else {
     w.radar.selected = w.radar.locked = {};
   }
+}
+void World::loseStores(Player &p, State &state) {
+  bool lost = false;
+  for (auto &station : p.weapons.inventory.stations) {
+    const auto wing = station.position.y < 0 ? DamagePart::LeftWing
+                                             : DamagePart::RightWing;
+    if (station.mounted != WeaponType::None && partDestroyed(state, wing)) {
+      station.mounted = WeaponType::None;
+      lost = true;
+    }
+  }
+  if (lost)
+    p.weapons.inventory.applyPayload(p.sim.config(), state);
+}
+void World::destroy(EntityId id, Player &p, Vec3 position, Vec3 velocity) {
+  p.life.health = 0;
+  ++p.life.deaths;
+  p.life.respawnTick = tick_ + combat_.gun().respawnDelay;
+  CombatEvent event;
+  event.kind = CombatKind::Destroyed;
+  event.tick = tick_;
+  event.owner = event.target = id;
+  event.generation = p.life.generation;
+  event.position = position;
+  event.velocity = velocity;
+  const auto attacker = players_.find(p.lastAttacker);
+  if (attacker != players_.end() && p.lastAttacker != id &&
+      tick_ - p.lastAttacked <= killCreditTicks) {
+    ++attacker->second.life.kills;
+    ++combat_.stats().kills;
+    event.owner = p.lastAttacker;
+  }
+  combat_.emit(event);
 }
 void World::setWeather(const Weather& weather) {
   Simulator sanitizer;sanitizer.setWeather(weather);weather_=sanitizer.weather();
@@ -350,7 +387,7 @@ void World::step() {
                                s.vel_ned,
                                s.att,
                                p.type,
-                               (s.n1[0] + s.n1[1]) * .5,
+                               heatPower(s),
                                (s.afterburner[0] + s.afterburner[1]) * .5,
                                true});
     }
@@ -612,11 +649,20 @@ void World::step() {
         event.generation=p.life.generation;event.health=p.life.health;
         event.position=impact.position;event.velocity=impact.velocity;
         combat_.emit(event);
-        if(!p.life.alive()) {
-          ++p.life.deaths;
-          p.life.respawnTick=tick_+combat_.gun().respawnDelay;
-          event.kind=CombatKind::Destroyed;combat_.emit(event);
-        }
+        if(!p.life.alive()) destroy(id,p,impact.position,impact.velocity);
+      }
+    }
+    // A wing that has been shot up snaps if it is then loaded hard. Sound
+    // wings are never evaluated, so undamaged flight costs nothing here.
+    if (p.life.alive() &&
+        std::min(p.sim.state().surface_health[0],
+                 p.sim.state().surface_health[1]) < weakenedWingHealth) {
+      auto state = p.sim.state();
+      if (applyOverstress(state, p.sim.normalLoad())) {
+        loseStores(p, state);
+        p.sim.setState(state);
+        if (wingless(state))
+          destroy(id, p, state.pos_ned, state.vel_ned);
       }
     }
     targets[count++] = {id, previous, p.sim.state(), &p.life, p.type};
@@ -628,6 +674,24 @@ void World::step() {
       controllers[id] = &p.weapons;
   missiles_.step(tick_, std::span(targets).first(count), controllers, weather_,
                  combat_);
+  for (std::size_t i = 0; i < count; ++i) {
+    const auto &target = targets[i];
+    if (!target.damaged)
+      continue;
+    auto &p = players_.at(target.id);
+    // Combat changed nothing but the condition of the parts it struck.
+    auto state = p.sim.state();
+    for (unsigned e = 0; e < 2; ++e)
+      state.engine_health[e] = target.current.engine_health[e];
+    state.surface_health = target.current.surface_health;
+    state.surface_drag = target.current.surface_drag;
+    loseStores(p, state);
+    p.sim.setState(state);
+    if (target.attacker && target.attacker != target.id) {
+      p.lastAttacker = target.attacker;
+      p.lastAttacked = tick_;
+    }
+  }
   for (auto &[id, p] : players_)
     if (!p.life.alive()) {
       p.inputs.clear();

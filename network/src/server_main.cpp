@@ -1,5 +1,6 @@
 #include "ofs/net/cli.hpp"
 #include "ofs/net/server.hpp"
+#include "ofs_version.hpp"
 #include <chrono>
 #include <csignal>
 #include <cstdio>
@@ -30,17 +31,28 @@ int main(int argc, char **argv) {
         config.bots = number(argument(i, argc, argv), 0, 8);
       else if (a == "--ground")
         config.airborne = false;
+      else if (a == "--lan-name")
+        config.lobbyName = lobbyName(std::string(argument(i, argc, argv)));
       else
         throw std::invalid_argument(
             "ofs_server [--bind IP] [--port N] [--max-players 1..64] "
-            "[--snapshot-hz 1..60] [--bots 0..8] [--ground] [--seconds N]");
+            "[--snapshot-hz 1..60] [--bots 0..8] [--ground] [--seconds N] "
+            "[--lan-name NAME]");
     }
     std::signal(SIGINT, stop);
     std::signal(SIGTERM, stop);
+    config.version = OFS_VERSION;
     Server server(config);
     std::printf("[NET] listening %s:%u physics=120Hz snapshots=%uHz max=%u\n",
                 config.bind.c_str(), server.port(), config.snapshotHz,
                 config.maxClients);
+    if (server.announced())
+      std::printf("[NET] LAN game \"%s\" answers discovery on UDP %u\n",
+                  config.lobbyName.c_str(), config.discoveryPort);
+    else if (!config.lobbyName.empty())
+      std::printf("[NET] LAN game \"%s\" could not open discovery port %u; "
+                  "join by address\n",
+                  config.lobbyName.c_str(), config.discoveryPort);
     std::fflush(stdout);
     auto begin = std::chrono::steady_clock::now(), next = begin,
          lastLog = begin;

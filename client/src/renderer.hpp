@@ -20,7 +20,9 @@
 
 #include "animation.hpp"
 #include "atmosphere_model.hpp"
+#include "breakaway.hpp"
 #include "camera.hpp"
+#include "damage_visuals.hpp"
 #include "effects.hpp"
 #include "ofs/weapons.hpp"
 #include "gltf.hpp"
@@ -62,14 +64,24 @@ struct RemoteAircraft {
   AircraftType type{AircraftType::A320};
   Controls controls;
   double load{1};
+  unsigned kills{}, deaths{};
 };
 
 // Server-authoritative combat events for one frame. The renderer turns these
 // into effects and never derives combat state itself.
 struct CombatVisuals {
-  struct Shot { Vec3 position, velocity; double lifetime; bool ownAircraft; std::uint64_t projectile{}; };
-  struct Hit { Vec3 position; bool ownAircraft; std::uint64_t projectile{}; };
-  struct Destruction { Vec3 position, velocity; };
+  // `carrier` is the firing aircraft's velocity when it is known.
+  struct Shot { Vec3 position, velocity; double lifetime; bool ownAircraft; std::uint64_t projectile{}; Vec3 carrier{}; };
+  struct Hit { Vec3 position; bool ownAircraft; std::uint64_t projectile{}; Vec3 targetVelocity{}; };
+  // An aircraft blowing up. With `airframe` set, its wings and fin are thrown
+  // clear from where `state` last had it; `entity` is 0 for the pilot's own.
+  struct Destruction {
+    Vec3 position, velocity;
+    bool airframe{};
+    std::uint64_t entity{};
+    AircraftType type{AircraftType::A320};
+    State state{};
+  };
   struct Line {
     Vec3 start, end;
     std::uint32_t color;
@@ -91,6 +103,7 @@ struct CombatVisuals {
     Quat attitude;
     weapons::WeaponType type{weapons::WeaponType::Infrared};
     bool onLocalAircraft{}; // drawn with the pilot's own airframe from the flight deck
+    bool burning{};         // its motor is lit: the nozzle glows
   };
   // The pylon a station hangs from, which stays after its missile has gone.
   struct Pylon {
@@ -186,7 +199,10 @@ class Renderer {
   const std::string& aircraftName() const { return model(localType_).name; }
 
   // Applies settings that need a bgfx reset (size, MSAA, VSync).
-  void clearEffects() { pool_.clear(); }
+  void clearEffects() {
+    pool_.clear();
+    breakaways_.clear();
+  }
   void applySettings(const GraphicsSettings& settings, const Platform& platform);
   const GraphicsSettings& graphics() const { return settings_; }
   bool resize(SDL_Window* window);
@@ -283,6 +299,7 @@ class Renderer {
     bgfx::UniformHandle lightViewProj, shadowMatrix;
     bgfx::UniformHandle baseColor, metallicRoughness, emissive, doubleSided, normalSettings, textureFlags, alphaSettings;
     bgfx::UniformHandle surface, flame, effectParams, cloudRender, cloudResolve, postSettings, postStep, rain, rainSide;
+    bgfx::UniformHandle damage;
     // Samplers.
     bgfx::UniformHandle shadowAtlas, baseTexture, mrTexture, emissiveTexture, normalTexture, occlusionTexture;
     bgfx::UniformHandle transmittance, skyView, aerial, multiScatter, weatherMap, noise;
@@ -320,6 +337,8 @@ class Renderer {
     AircraftPose pose;
     std::vector<AssetMatrix> deltas;
     std::size_t lod{};
+    DamageView damage;
+    float damageSeed{};  // varies the pattern of holes between aircraft
   };
   // One cascade of the sun shadow atlas.
   struct Cascade {
@@ -374,6 +393,13 @@ class Renderer {
   // Missiles and pylons; `flightDeck` draws only those on the pilot's own aircraft.
   void drawStores(const CombatVisuals& combat, const Camera& camera, bool flightDeck);
   void drawAfterburners(bool localDestroyed);
+  // One engine's flame, or a rocket motor's: three nested shells and a glow.
+  void drawFlame(const glm::mat4& matrix, const glm::vec3& glowCentre, float glowRadius, float intensity, float seed,
+                 bool rocket);
+  void drawMissilePlumes(const CombatVisuals& combat);
+  // Wings and fins that have broken away, drawn from their aircraft's own mesh.
+  void drawBreakaways();
+  void ensureFlameMesh();
   void applyMaterial(const Material& material, const Model* model = nullptr, float detail = 0);
   std::uint32_t resetFlags() const;
   glm::mat4 modelTransform(const State& state, AircraftType type) const;
@@ -498,6 +524,7 @@ class Renderer {
   bgfx::TextureHandle font_{BGFX_INVALID_HANDLE};
   bgfx::UniformHandle uiSampler_{BGFX_INVALID_HANDLE};
 
+  Breakaways breakaways_;
   EffectPool pool_{4096};
   CombatEffects combat_{pool_, EffectsQuality::High};
   GraphicsSettings settings_;

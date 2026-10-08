@@ -6,7 +6,8 @@ research-only reference documents are separate from the source; see
 [the publication notes](docs/PUBLIC_SOURCE.md).
 
 The separate [OpenFlightSim Launcher](docs/LAUNCHER.md) provides a native
-Windows/Linux flight-planning UI, renderer presets, multiplayer launch options,
+Windows/Linux flight-planning UI, renderer presets, a Multiplayer page that hosts
+and joins games on the local network without typing addresses,
 verified HTTPS updates, selective repair and rollback. The same guide covers
 running it from source, packaging releases and publishing update manifests.
 
@@ -62,7 +63,7 @@ shared visual/force geometry and unsteady separation/vortex state. The
 held-out Airbus approach point passes; other fidelity limits and the takeoff
 discrepancy are recorded in [the aircraft audit](docs/AIRCRAFT_PHYSICS_AUDIT.md).
 The temporary Falcon is retired; stable wire ID 2 is rejected. Physics geometry
-can be displayed from the Effects panel. Current network peers require protocol 13.
+can be displayed from the Effects panel. Current network peers require protocol 15.
 
 M3.68.1 adds scenario metadata and explicit PASS/WARN/FAIL comparisons, load-dependent
 inertia corrections, physical nozzle/energy regressions, required content validation,
@@ -119,7 +120,9 @@ Windows has not yet produced a passing build; see BUILDING.md for the current CI
 | Map | N opens and closes the full map; the minimap is in the lower right corner |
 | Start flying / park | F2 for trimmed airborne flight; F3 to reset on runway |
 | Pause / parking brake | P pauses offline flight; Backspace toggles parking brake |
-| Settings / HUD | F1 shows diagnostics and graphics; F4 toggles HUD |
+| Menu | Esc opens the in-flight menu: resume, fly again, fight bots, settings, controls, quit |
+| Chat / scoreboard | In multiplayer, / or Enter opens chat (Enter sends, Esc cancels); hold K for pilots and scores |
+| Settings / HUD | Esc > Settings, or F1 for diagnostics and settings; F4 toggles HUD |
 | Orbit camera | Hold right mouse to orbit; mouse wheel zooms |
 | Free camera | WASD; R/F up/down; Shift faster |
 | Look | Hold right mouse and move |
@@ -132,11 +135,11 @@ Windows has not yet produced a passing build; see BUILDING.md for the current CI
 | Select gun / IR / active radar | 1 / 2 / 3 |
 | Radar lock | L locks the contact nearest the nose, L again unlocks; T / Y step the lock to the next or previous contact |
 | Heat seeker | Select 2 and point at a target: the seeker locks on its own; L or T / Y break lock and move to the next target |
-| Gun camera | V toggles flight-deck camera; armed aircraft have a gun sight |
+| Gun camera | V toggles flight-deck camera; armed aircraft have a gun sight in every flying view |
 | Gear / brakes | G toggles simulation gear; B wheel brakes; UI parking brake |
 | Flaps / airbrake | F cycles 0/25/50/75/100%; H toggles airbrake/spoilers |
-| Su-57 / Typhoon maneuver mode | M toggles; also available in the flight controls panel |
-| Fullscreen / quit | F11 / Escape, or window close |
+| Su-57 / Typhoon maneuver mode | M toggles; also available in the Esc menu |
+| Fullscreen / quit | F11 / Esc > Quit to desktop, or window close |
 | Simulation tooling | UI pause, reset on runway, reset airborne |
 
 The default **pursuit** view sits behind and above the aircraft and looks along
@@ -186,7 +189,7 @@ See [maneuver and condensation validation](docs/SU57_MANEUVER_MODE.md).
 The Typhoon has the same M-key **maneuver mode** on its canard control law, with
 smaller gains because it has no vectoring nozzles. See
 [Typhoon maneuver mode and model](docs/TYPHOON_MANEUVER_MODE.md).
-Both network peers now require protocol **13**; rebuild client and server together.
+Both network peers now require protocol **15**; rebuild client and server together.
 
 The elevator-trim slider keeps a persistent pitch offset when the stick is released.
 Airborne reset solves this offset and throttle from actual force/moment balance.
@@ -216,6 +219,15 @@ Launch directly with a chosen opponent count (1–8):
 ```sh
 ./build/release/client/ofs_client --aircraft su57 --bots 2
 ```
+
+Hits are regional: wings, tail, engines and fuselage are damaged separately,
+change how the aircraft flies and break away when destroyed; see
+[the damage model](docs/DAMAGE_MODEL.md).
+
+To play with others on the same network, use the launcher's Multiplayer page
+(Host and fly, then Join on the other computers), or start a named server
+yourself: `ofs_server --lan-name "My game" --bots 2` answers discovery on UDP
+27019 and takes connections on UDP 27020.
 
 A dedicated multiplayer server can also provide opponents:
 
@@ -301,7 +313,9 @@ are recorded in [docs/VALIDATION.md](docs/VALIDATION.md).
 - [Repository audit](docs/AUDIT.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [M3.7.1 networking hardening](docs/M3_7_1_NETWORKING_HARDENING.md)
-- [Network protocol v13](docs/NETWORK_PROTOCOL.md)
+- [Network protocol v15](docs/NETWORK_PROTOCOL.md)
+- [Regional damage model](docs/DAMAGE_MODEL.md)
+- [Flight interface](docs/BATTLE_UI.md)
 - [M3.66 advanced physics, measurements and limitations](docs/M3_66_ADVANCED_PHYSICS_VALIDATION.md)
 - [M3.6 aircraft, visual validation and performance](docs/M3_6_VISUAL_AIRCRAFT_VALIDATION.md)
 - [M2 multiplayer validation and capacity](docs/M2_MULTIPLAYER_VALIDATION.md)
@@ -369,7 +383,7 @@ The Eurofighter Typhoon is available with `--aircraft typhoon`.
 It has an independently configured twin-engine flight model, reheat above 85%
 throttle, articulated foreplanes/elevons/airbrake/gear/nozzles, Luftwaffe markings
 and four LODs. Its model is by bohmerang (CC BY-NC-SA 4.0); the original
-Austrian 7L-WA model described in the M3.65 report is retired from the runtime. M3.6 originally introduced protocol v5; current client/server builds require v13. Rebuild both together. See the inspected Blender
+Austrian 7L-WA model described in the M3.65 report is retired from the runtime. M3.6 originally introduced protocol v5; current client/server builds require v15. Rebuild both together. See the inspected Blender
 and native captures, measurements and approximations in
 [docs/M3_65_TYPHOON_VALIDATION.md](docs/M3_65_TYPHOON_VALIDATION.md).
 

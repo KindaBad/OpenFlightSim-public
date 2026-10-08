@@ -83,15 +83,25 @@ void unit() {
   targetState.pos_ned.x = 50;
   CombatTarget t{2, targetState, targetState, &target};
   fast.step(1, std::span(&t, 1));
-  check(target.health == 75 && fast.stats().hits == 1 &&
-            fast.projectiles().empty(),
+  // The round enters the fin, which absorbs half of it.
+  check(target.health == 87.5 && fast.stats().hits == 1 &&
+            fast.projectiles().empty() && t.damaged && t.attacker == 1 &&
+            partHealth(t.current, DamagePart::Tail) == 1 - 25. / 80,
         "swept damage");
   fast.step(2, std::span(&t, 1));
-  check(target.health == 75, "duplicate damage");
+  check(target.health == 87.5, "duplicate damage");
   auto events = fast.takeEvents();
-  check(events.size() == 2 && events[1].region == HitRegion::Tail,
+  check(events.size() == 2 && events[1].region == HitRegion::Tail &&
+            events[1].health == 87.5,
         "hit region/event");
+  // Three more rounds finish the fin; after that it protects nothing.
   for (unsigned i = 0; i < 3; ++i) {
+    fast.fire(13 + i * 12, 1, state, shooter);
+    fast.step(13 + i * 12, std::span(&t, 1));
+  }
+  check(target.health == 50 && partDestroyed(t.current, DamagePart::Tail),
+        "part destroyed before the aircraft");
+  for (unsigned i = 3; i < 5; ++i) {
     fast.fire(13 + i * 12, 1, state, shooter);
     fast.step(13 + i * 12, std::span(&t, 1));
   }
@@ -165,7 +175,7 @@ void unit() {
   gun = GunConfig{};
   gun.dispersion = 0;
   gun.muzzleVelocity = 5000;
-  gun.damage = 75;
+  gun.damage = 100;
   Combat multiple(gun);
   Life one, two;
   target = {};

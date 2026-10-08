@@ -1,6 +1,7 @@
 #pragma once
 #include "ofs/net/combat.hpp"
 #include "ofs/weapons.hpp"
+#include <algorithm>
 #include <map>
 namespace ofs::net {
 using weapons::EntityRef;
@@ -89,6 +90,16 @@ struct RadarNetState {
   std::vector<Loadout> loadouts;
 };
 std::uint8_t mountedMask(const weapons::Inventory &);
+// Mean engine power as a heat seeker sees it. An engine that was shot out
+// burns on while there is fuel to feed it, so it does not hide the aircraft.
+inline double heatPower(const State &state) {
+  double power = 0;
+  for (unsigned e = 0; e < 2; ++e)
+    power += state.engine_health[e] <= 0 && state.fuel_mass != 0
+                 ? std::max(state.n1[e], .55)
+                 : state.n1[e];
+  return power * .5;
+}
 MissileNetState projectMissile(const Missile &, EntityId viewer);
 bool missileInterest(const Missile &, EntityId viewer, Vec3 observer);
 class MissileCombat {

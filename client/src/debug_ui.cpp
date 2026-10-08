@@ -18,30 +18,42 @@ UiContext::UiContext(SDL_Window* window, bool smokeFont) {
   ImGui::CreateContext();
   ImGui::GetIO().IniFilename = nullptr;
   ImGui::StyleColorsDark();
+  // The same deep navy and blue as the launcher and the flight display.
   auto& style = ImGui::GetStyle();
-  style.WindowRounding = 1;
-  style.FrameRounding = 1;
-  style.PopupRounding = 1;
-  style.ScrollbarRounding = 1;
-  style.WindowPadding = {14,12};
-  style.FramePadding = {8,6};
+  style.WindowRounding = 6;
+  style.FrameRounding = 4;
+  style.PopupRounding = 4;
+  style.GrabRounding = 3;
+  style.ScrollbarRounding = 4;
+  style.WindowBorderSize = 1;
+  style.WindowPadding = {16,14};
+  style.FramePadding = {10,7};
   style.ItemSpacing = {8,8};
-  style.Colors[ImGuiCol_WindowBg] = {.09f,.095f,.09f,.94f};
-  style.Colors[ImGuiCol_Border] = {.42f,.41f,.36f,.5f};
-  style.Colors[ImGuiCol_TitleBg] = {.13f,.14f,.13f,1};
-  style.Colors[ImGuiCol_TitleBgActive] = {.24f,.25f,.21f,1};
-  style.Colors[ImGuiCol_Button] = {.43f,.16f,.12f,1};
-  style.Colors[ImGuiCol_ButtonHovered] = {.60f,.23f,.16f,1};
-  style.Colors[ImGuiCol_ButtonActive] = {.72f,.29f,.19f,1};
-  style.Colors[ImGuiCol_FrameBg] = {.20f,.21f,.18f,1};
-  style.Colors[ImGuiCol_FrameBgHovered] = {.30f,.31f,.26f,1};
-  style.Colors[ImGuiCol_FrameBgActive] = {.37f,.38f,.30f,1};
-  style.Colors[ImGuiCol_CheckMark] = {.78f,.72f,.48f,1};
-  style.Colors[ImGuiCol_SliderGrab] = {.68f,.63f,.43f,1};
-  style.Colors[ImGuiCol_SliderGrabActive] = {.89f,.81f,.54f,1};
-  style.Colors[ImGuiCol_Header] = {.30f,.31f,.25f,1};
-  style.Colors[ImGuiCol_HeaderHovered] = {.41f,.42f,.33f,1};
-  style.Colors[ImGuiCol_HeaderActive] = {.48f,.47f,.34f,1};
+  style.WindowTitleAlign = {.5f,.5f};
+  auto& colors = style.Colors;
+  colors[ImGuiCol_Text] = {.93f,.95f,.99f,1};
+  colors[ImGuiCol_TextDisabled] = {.62f,.70f,.80f,1};
+  colors[ImGuiCol_WindowBg] = {.035f,.063f,.098f,.95f};
+  colors[ImGuiCol_PopupBg] = {.055f,.094f,.14f,.98f};
+  colors[ImGuiCol_Border] = {.345f,.518f,.698f,.42f};
+  colors[ImGuiCol_TitleBg] = {.05f,.094f,.14f,1};
+  colors[ImGuiCol_TitleBgActive] = {.063f,.16f,.27f,1};
+  colors[ImGuiCol_Button] = {.094f,.17f,.25f,1};
+  colors[ImGuiCol_ButtonHovered] = {.11f,.33f,.56f,1};
+  colors[ImGuiCol_ButtonActive] = {.086f,.545f,1,1};
+  colors[ImGuiCol_FrameBg] = {.094f,.15f,.21f,1};
+  colors[ImGuiCol_FrameBgHovered] = {.13f,.23f,.33f,1};
+  colors[ImGuiCol_FrameBgActive] = {.14f,.30f,.46f,1};
+  colors[ImGuiCol_CheckMark] = {.25f,.64f,1,1};
+  colors[ImGuiCol_SliderGrab] = {.20f,.56f,.94f,1};
+  colors[ImGuiCol_SliderGrabActive] = {.40f,.72f,1,1};
+  colors[ImGuiCol_Header] = {.086f,.20f,.33f,1};
+  colors[ImGuiCol_HeaderHovered] = {.11f,.30f,.50f,1};
+  colors[ImGuiCol_HeaderActive] = {.12f,.38f,.64f,1};
+  colors[ImGuiCol_Separator] = {.345f,.518f,.698f,.35f};
+  colors[ImGuiCol_ScrollbarBg] = {.035f,.063f,.098f,.6f};
+  colors[ImGuiCol_ScrollbarGrab] = {.16f,.27f,.37f,1};
+  colors[ImGuiCol_NavHighlight] = {.25f,.64f,1,1};
   // A slightly larger default font keeps the diagnostics readable at 1280x800
   // without a separate atlas.
   ImGui::GetIO().FontGlobalScale = 1.0f;
@@ -64,36 +76,117 @@ UiContext::~UiContext() {
   ImGui::DestroyContext();
 }
 
+namespace {
+
+// A button as wide as the menu.
+bool wideButton(const char* label) { return ImGui::Button(label, {ImGui::GetContentRegionAvail().x, 0}); }
+
+// The menu behind Esc: everything a pilot does that is not flying.
+void gameMenu(const Simulator& sim, Controls& controls, const Renderer& renderer, UiSettings& ui,
+              GraphicsSettings& settings) {
+  const ImVec2 display = ImGui::GetIO().DisplaySize;
+  // Dim the flight behind the menu.
+  ImGui::GetBackgroundDrawList()->AddRectFilled({0, 0}, display, IM_COL32(3, 8, 14, 120));
+  ImGui::SetNextWindowPos({display.x * .5f, display.y * .46f}, ImGuiCond_Always, {.5f, .5f});
+  ImGui::SetNextWindowSize({340, 0});
+  ImGui::Begin("OpenFlightSim", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
+               ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
+  ImGui::TextDisabled("%s", ui.dogfight ? "Dogfight against bots" : ui.multiplayer ? "Multiplayer flight" :
+                      ui.paused ? "Free flight, paused" : "Free flight");
+  ImGui::Spacing();
+  if (wideButton("Resume   [Esc]")) ui.menuOpen = false;
+  if (!ui.multiplayer) {
+    if (wideButton("Fly again   [F2]")) { ui.resetAirborne = true; ui.menuOpen = false; }
+    if (wideButton("Back to the runway   [F3]")) { ui.resetParked = true; ui.menuOpen = false; }
+    if (wideButton(ui.paused ? "Unpause   [P]" : "Pause   [P]")) ui.paused = !ui.paused;
+  }
+  if (ui.botsAvailable && (!ui.multiplayer || ui.dogfight))
+    if (wideButton(ui.dogfight ? "End dogfight   [F5]" : "Fight bots   [F5]")) { ui.toggleDogfight = true; ui.menuOpen = false; }
+  ImGui::Separator();
+  if (ImGui::Checkbox("Mouse aim   [X]", &settings.mouseAim)) ui.saveSettings = true;
+  if (hasManeuverMode(sim.config().control_law)) ImGui::Checkbox("Maneuver mode   [M]", &controls.maneuver_mode);
+  ImGui::Checkbox("Flight display   [F4]", &ui.hud.show);
+  ImGui::Separator();
+  if (wideButton("Settings")) ui.showSettings = !ui.showSettings;
+  if (wideButton("Controls")) ui.showControls = !ui.showControls;
+  ImGui::Separator();
+  if (wideButton("Quit to desktop")) ui.quit = true;
+  if (!renderer.hasAircraft()) ImGui::TextColored({1,.5f,.3f,1}, "Aircraft model unavailable; see F1");
+  ImGui::End();
+}
+
+void controlsWindow(UiSettings& ui) {
+  ImGui::SetNextWindowPos({24, 24}, ImGuiCond_Appearing);
+  ImGui::SetNextWindowSize({400, 0});
+  if (ImGui::Begin("Controls", &ui.showControls, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
+    const auto section = [](const char* title) {
+      ImGui::Spacing();
+      ImGui::TextColored({.25f,.64f,1,1}, "%s", title);
+      ImGui::Separator();
+    };
+    const auto row = [](const char* keys, const char* action) {
+      ImGui::TextUnformatted(keys);
+      ImGui::SameLine(170);
+      ImGui::TextDisabled("%s", action);
+    };
+    section("FLYING");
+    row("W / S", "Pitch down / up");
+    row("A / D", "Roll left / right");
+    row("Q / E", "Rudder");
+    row("Shift / Ctrl", "Throttle up / down");
+    row("G    F    H", "Gear, flaps, airbrake");
+    row("B    Backspace", "Brakes, parking brake");
+    row("M", "Maneuver mode (Su-57, Typhoon)");
+    row("X", "Mouse aim on / off");
+    section("WEAPONS");
+    row("Space / left mouse", "Fire the selected weapon");
+    row("1    2    3", "Gun, heat seeker, radar missile");
+    row("L", "Lock, or break lock");
+    row("T / Y", "Next / previous target");
+    section("VIEW AND GAME");
+    row("Tab    V", "Next camera, flight deck");
+    row("Right mouse", "Look around");
+    row("N", "Map");
+    row("/  or  Enter", "Chat (multiplayer)");
+    row("K (hold)", "Pilots and scores");
+    row("F4    F11", "Flight display, full screen");
+    row("Esc", "This menu");
+  }
+  ImGui::End();
+}
+
+// The line a pilot is typing, at the foot of the chat.
+void chatBox(UiSettings& ui) {
+  const ImVec2 display = ImGui::GetIO().DisplaySize;
+  ImGui::SetNextWindowPos({18, display.y - 78}, ImGuiCond_Always);
+  ImGui::SetNextWindowSize({std::min(430.f, display.x - 36), 0});
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {10, 8});
+  ImGui::Begin("Chat", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
+  ImGui::AlignTextToFramePadding();
+  ImGui::TextDisabled("SAY");
+  ImGui::SameLine();
+  ImGui::SetNextItemWidth(-1);
+  if (ui.chatFocus) {
+    ImGui::SetKeyboardFocusHere();
+    ui.chatFocus = false;
+  }
+  if (ImGui::InputTextWithHint("##chat", "Enter to send, Esc to cancel", ui.chatBuffer.data(), ui.chatBuffer.size(),
+                               ImGuiInputTextFlags_EnterReturnsTrue))
+    ui.chatSubmit = true;
+  ImGui::End();
+  ImGui::PopStyleVar();
+}
+
+}  // namespace
+
 void debugUi(const Simulator& sim, Controls& controls, const Camera& camera,
              const FixedStepClock& clock, unsigned steps, double frameTime,
              double measuredTicks, const Renderer& renderer, const std::string& assetName,
              std::size_t aircraftCount, bool gamepad, UiSettings& ui, GraphicsSettings& settings) {
   const Renderer::Stats& stats = renderer.stats();
-  if (!settings.showDevOverlay) {
-    ImGui::SetNextWindowPos({std::max(16.f,ImGui::GetIO().DisplaySize.x-340),20}, ImGuiCond_Always);
-    ImGui::SetNextWindowBgAlpha(.86f);
-    ImGui::Begin("Flight controls", nullptr, ImGuiWindowFlags_NoDecoration |
-                 ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings);
-    ImGui::TextUnformatted("FLIGHT OPERATIONS");
-    ImGui::Separator();
-    if (!ui.multiplayer) {
-      if (ImGui::Button("Fly now [F2]")) ui.resetAirborne = true;
-      ImGui::SameLine();
-      if (ImGui::Button("Park [F3]")) ui.resetParked = true;
-      ImGui::SameLine();
-      if (ImGui::Button(ui.paused ? "Resume [P]" : "Pause [P]")) ui.paused = !ui.paused;
-    } else ImGui::TextUnformatted(ui.dogfight ? "DOGFIGHT / ENEMY BOTS" : "ONLINE FLIGHT");
-    if (ui.botsAvailable && (!ui.multiplayer || ui.dogfight)) {
-      if (ImGui::Button(ui.dogfight ? "End dogfight [F5]" : "Fight bots [F5]"))
-        ui.toggleDogfight = true;
-      if (ui.dogfight) ImGui::TextUnformatted("L lock / Space launch   T/Y target");
-    }
-    if (hasManeuverMode(sim.config().control_law))
-      ImGui::Checkbox("Maneuver mode [M]", &controls.maneuver_mode);
-    if (ImGui::Checkbox("Mouse aim [X]", &settings.mouseAim)) ui.saveSettings = true;
-    if (!renderer.hasAircraft()) ImGui::TextColored({1,.5f,.3f,1}, "Aircraft asset unavailable - open F1");
-    ImGui::End();
-  }
+  if (ui.chatOpen) chatBox(ui);
+  if (ui.menuOpen) gameMenu(sim, controls, renderer, ui, settings);
+  if (ui.showControls) controlsWindow(ui);
 
   // ---- Simulation diagnostics ----
   if (settings.showDevOverlay) {
@@ -209,11 +302,11 @@ void debugUi(const Simulator& sim, Controls& controls, const Camera& camera,
     ImGui::End();
   }
 
-  // ---- Graphics settings ----
-  if (!settings.showDevOverlay) return;
+  // ---- Settings: opened from the menu, and always part of the developer windows ----
+  if (!settings.showDevOverlay && !ui.showSettings) return;
   ImGui::SetNextWindowPos({398, 14}, ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize({360, 640}, ImGuiCond_FirstUseEver);
-  if (ImGui::Begin("Graphics", nullptr, ImGuiWindowFlags_NoSavedSettings)) {
+  if (ImGui::Begin("Settings", settings.showDevOverlay ? nullptr : &ui.showSettings, ImGuiWindowFlags_NoSavedSettings)) {
     // Any individual change below turns the preset into "Custom".
     const GraphicsSettings before = settings;
     int preset = static_cast<int>(settings.preset);

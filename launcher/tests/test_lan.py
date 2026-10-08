@@ -1,0 +1,211 @@
+"""Local-network discovery and LAN hosting; loopback sockets only, no Qt."""
+import os
+from pathlib import Path
+import socket
+import subprocess
+import tempfile
+import threading
+import time
+import unittest
+from unittest.mock import patch
+
+from launcher import lan
+from launcher.config import Graphics, Preferences
+from launcher.game import Installation, Session, arguments, server_arguments
+from launcher.storage import LauncherError, write_json
+from test_engine import fixture
+
+# The same lobby, byte for byte, as tests/lan_tests.cpp encodes with the server's code.
+GOLDEN = bytes.fromhex('4f46534c414e0152' '000f' '698c' '03' '10' '02' '0c' + b'Friday night'.hex() + '05' + b'0.5.0'.hex())
+FRIDAY = lan.Lobby('Friday night', '192.168.1.20', 27020, 15, 3, 16, 2, '0.5.0')
+
+
+class Responder(threading.Thread):
+    """Stands in for a hosting server: answers each question with `reply`."""
+    def __init__(self, reply):
+        super().__init__(daemon=True)
+        self.reply = reply
+        self.link = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.link.bind(('127.0.0.1', 0))
+        self.link.settimeout(.05)
+        self.port = self.link.getsockname()[1]
+        self.questions = []
+        self.stop = threading.Event()
+
+    def run(self):
+        while not self.stop.is_set():
+            try:
+                data, sender = self.link.recvfrom(256)
+            except OSError:
+                continue
+            self.questions.append(data)
+            for reply in self.reply if isinstance(self.reply, list) else [self.reply]:
+                self.link.sendto(reply, sender)
+
+    def close(self):
+        self.stop.set()
+        self.join(1)
+        self.link.close()
+
+
+class Wire(unittest.TestCase):
+    def test_reply_matches_the_server_byte_for_byte(self):
+        self.assertEqual(lan.encode_reply(FRIDAY), GOLDEN)
+        self.assertEqual(lan.parse_reply(GOLDEN, '192.168.1.20'), FRIDAY)
+
+    def test_malformed_replies_are_refused(self):
+        for size in range(len(GOLDEN)):
+            self.assertIsNone(lan.parse_reply(GOLDEN[:size], '10.0.0.1'), size)
+        self.assertIsNone(lan.parse_reply(GOLDEN + b'\0', '10.0.0.1'))
+        self.assertIsNone(lan.parse_reply(lan.QUERY, '10.0.0.1'))
+        self.assertIsNone(lan.parse_reply('text', '10.0.0.1'))
+        self.assertIsNone(lan.parse_reply(lan.encode_reply(lan.Lobby('bad\nname', '', 27020, 15, 0, 8, 0, '1')), '10.0.0.1'))
+        self.assertIsNone(lan.parse_reply(lan.encode_reply(lan.Lobby('Game', '', 0, 15, 0, 8, 0, '1')), '10.0.0.1'))
+        self.assertIsNone(lan.parse_reply(lan.encode_reply(lan.Lobby('Game', '', 27020, 15, 9, 8, 0, '1')), '10.0.0.1'))
+        self.assertIsNone(lan.parse_reply(lan.REPLY + bytes(7) + b'\x00\x00', '10.0.0.1'))
+        self.assertIsNone(lan.parse_reply(GOLDEN[:16] + b'\xff' * (len(GOLDEN) - 16), '10.0.0.1'))
+        # Any single corrupted byte is refused or still describes a well-formed game.
+        for index in range(len(GOLDEN)):
+            for value in range(0, 256, 7):
+                lobby = lan.parse_reply(GOLDEN[:index] + bytes((value,)) + GOLDEN[index + 1:], '10.0.0.1')
+                if lobby:
+                    self.assertTrue(lobby.name and lobby.port and lobby.players <= lobby.max_players)
+                    self.assertLessEqual(len(lobby.name), lan.MAX_LOBBY_NAME)
+
+    def test_names_are_made_printable_and_bounded(self):
+        self.assertEqual(lan.lobby_name("  Ace's game \t"), "Ace's game")
+        self.assertEqual(len(lan.lobby_name('x' * 200)), lan.MAX_LOBBY_NAME)
+        self.assertEqual(lan.lobby_name('✈✈', 'Fallback'), 'Fallback')
+        self.assertEqual(lan.lobby_name(''), 'OpenFlightSim game')
+        self.assertEqual(lan.lobby_name('--bots 8; rm -rf'), '--bots 8; rm -rf')  # one argument, never a shell
+
+    def test_description_and_compatibility(self):
+        self.assertIn('3/16 pilots + 2 bots', lan.describe(FRIDAY, 15))
+        self.assertIn('192.168.1.20', lan.describe(FRIDAY))
+        self.assertTrue(lan.joinable(FRIDAY, 15) and lan.joinable(FRIDAY))
+        self.assertFalse(lan.joinable(FRIDAY, 14))
+        self.assertIn('different game version', lan.describe(FRIDAY, 14))
+        full = lan.Lobby('Full', '10.0.0.2', 27020, 15, 4, 4, 0, '0.5.0')
+        self.assertFalse(lan.joinable(full, 15))
+        self.assertIn('full', lan.describe(full, 15))
+
+    def test_broadcast_targets_cover_every_network_and_this_computer(self):
+        targets = lan.broadcast_targets(['192.168.1.23', '10.0.5.9', '192.168.1.77'])
+        self.assertEqual(targets, ['255.255.255.255', '192.168.1.255', '10.0.5.255', '127.0.0.1'])
+        for address in lan.local_addresses():
+            parts = address.split('.')
+            self.assertEqual(len(parts), 4)
+            self.assertFalse(address.startswith('127.'))
+
+
+class Discovery(unittest.TestCase):
+    def test_finds_a_hosted_game_and_ignores_noise(self):
+        responder = Responder([b'not a lobby', lan.encode_reply(FRIDAY), lan.encode_reply(FRIDAY)])
+        responder.start()
+        try:
+            found = lan.discover(timeout=.4, port=responder.port, targets=['127.0.0.1'])
+        finally:
+            responder.close()
+        self.assertEqual(responder.questions, [lan.QUERY])
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0], lan.Lobby('Friday night', '127.0.0.1', 27020, 15, 3, 16, 2, '0.5.0'))
+
+    def test_nothing_hosted_finds_nothing(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as unused:
+            unused.bind(('127.0.0.1', 0))
+            port = unused.getsockname()[1]
+        start = time.monotonic()
+        self.assertEqual(lan.discover(timeout=.15, port=port, targets=['127.0.0.1', 'not an address']), [])
+        self.assertLess(time.monotonic() - start, 2)
+
+    def test_real_server_answers_when_built(self):
+        root = Path(__file__).resolve().parents[2]
+        suffix = '.exe' if os.name == 'nt' else ''
+        server = next((p for p in (root / 'build/release/network' / ('ofs_server' + suffix),
+                                   root / 'build/release/network/Release' / ('ofs_server' + suffix)) if p.is_file()), None)
+        if not server:
+            self.skipTest('ofs_server is not built here')
+        # Discovery is on a fixed port, so the real answer is only checked when nothing else holds it.
+        process = subprocess.Popen([str(server), '--bind', '127.0.0.1', '--port', '27991', '--lan-name', 'Launcher test',
+                                    '--seconds', '4'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        try:
+            found = []
+            deadline = time.monotonic() + 3
+            while not found and time.monotonic() < deadline:
+                found = [lobby for lobby in lan.discover(timeout=.3, targets=['127.0.0.1']) if lobby.port == 27991]
+        finally:
+            process.terminate()
+            output = process.communicate(timeout=5)[0]
+        if 'could not open discovery port' in output or 'Launcher test' not in output:
+            self.skipTest('this ofs_server predates LAN games, or the discovery port is in use')
+        self.assertEqual([(lobby.name, lobby.players, lobby.bots) for lobby in found], [('Launcher test', 0, 0)])
+
+
+class Hosting(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name).resolve()
+        fixture(self.root, '0.5.0')
+        suffix = '.exe' if os.name == 'nt' else ''
+        (self.root / ('ofs_server' + suffix)).write_bytes(b'server')
+        self.installation = Installation.discover(self.root)
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def test_lan_server_is_open_to_the_network_and_named(self):
+        prefs = Preferences(name='Ace', lan_bots=3, port=27100)
+        command = server_arguments(self.installation, prefs, lan=True)
+        self.assertEqual(command[1:], ['--bind', '0.0.0.0', '--port', '27100', '--lan-name', "Ace's game", '--bots', '3'])
+        prefs.lobby, prefs.lan_bots = 'Squadron night ✈ $(reboot)', 0
+        command = server_arguments(self.installation, prefs, lan=True)
+        self.assertEqual(command[-2:], ['--lan-name', 'Squadron night  $(reboot)'])
+        self.assertNotIn('--bots', command)
+
+    def test_private_server_stays_on_this_computer(self):
+        command = server_arguments(self.installation, Preferences(lobby='ignored', lan_bots=4))
+        self.assertEqual(command[1:], ['--bind', '127.0.0.1', '--port', '27020'])
+
+    def test_older_game_cannot_host_for_the_network(self):
+        self.installation.catalog['version'] = '0.4.7'
+        with self.assertRaises(LauncherError):
+            server_arguments(self.installation, Preferences(), lan=True)
+        self.assertIn('127.0.0.1', server_arguments(self.installation, Preferences()))
+        self.installation.catalog['version'] = '0.5.0'
+        with self.assertRaises(LauncherError):
+            server_arguments(self.installation, Preferences(lan_bots=9), lan=True)
+
+    def test_hosting_starts_the_server_then_joins_it_locally(self):
+        graphics = Graphics(self.root / 'user/graphics.cfg')
+        prefs = Preferences(aircraft='typhoon', mode='multiplayer', host=True, name='Ace', server='203.0.113.9')
+        session = Session()
+        with patch('launcher.game.spawn') as spawn:
+            spawn.return_value.wait.side_effect = subprocess.TimeoutExpired('server', .5)
+            session.start(self.installation, prefs, graphics, self.root / 'user', self.root / 'user/runtime', lan=True)
+        server, client = (call.args[0] for call in spawn.call_args_list)
+        self.assertEqual(server[1:5], ['--bind', '0.0.0.0', '--port', '27020'])
+        self.assertIn("Ace's game", server)
+        self.assertEqual(client[client.index('--server') + 1], '127.0.0.1')
+        self.assertEqual(client[client.index('--name') + 1], 'Ace')
+        session.client = None
+        session.server = None
+        session.cleanup()
+
+    def test_joining_uses_the_lobby_address(self):
+        prefs = Preferences(aircraft='a320', mode='multiplayer', server='192.168.1.20', port=27025, name='Wingman')
+        args = arguments(self.installation, prefs, Graphics(self.root / 'graphics.cfg'))
+        self.assertEqual(args[args.index('--server') + 1], '192.168.1.20')
+        self.assertEqual(args[args.index('--port') + 1], '27025')
+
+    def test_saved_settings_from_before_lan_games_still_load(self):
+        path = self.root / 'launcher.json'
+        write_json(path, {'schema': 1, 'name': 'Old pilot', 'port': 27020, 'bots': 2})
+        prefs = Preferences.load(path)
+        self.assertEqual((prefs.lobby, prefs.lan_bots, prefs.name), ('', 0, 'Old pilot'))
+        write_json(path, {'schema': 1, 'lan_bots': 12})
+        with self.assertRaises(LauncherError):
+            Preferences.load(path)
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -2,6 +2,9 @@
 // maintains a second list of supported aircraft or claims unavailable modes.
 #include "ofs/aircraft_definition.hpp"
 #include "ofs_version.hpp"
+#ifdef OFS_NETWORK_ENABLED
+#include "ofs/net/protocol.hpp"
+#endif
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -14,7 +17,12 @@ int main(int argc, char** argv) {
 #ifdef OFS_NETWORK_ENABLED
   out << ",\"multiplayer\",\"dogfight\"";
 #endif
-  out << "],\"aircraft\":[";
+  out << "]";
+#ifdef OFS_NETWORK_ENABLED
+  // Lets the launcher tell which games on the local network this build can join.
+  out << ",\"protocol\":" << ofs::net::protocolVersion;
+#endif
+  out << ",\"aircraft\":[";
   bool first = true;
   for (const auto& d : ofs::aircraftDefinitions()) {
     if (!first) out << ',';

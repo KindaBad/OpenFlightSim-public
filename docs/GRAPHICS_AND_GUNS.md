@@ -55,3 +55,28 @@ passes after selecting flat reference terrain. The remaining
 law source fingerprint and aircraft manifests are stale.
 
 The graphical captures use Linux/OpenGL. Windows/D3D11 runtime output is unverified.
+
+## Weapon effects (0.5.0)
+
+- **Gun.** Each round throws a rayed muzzle flash, a short tongue of flame, a
+  glow, a puff of grey gun gas and, every other round, a spent case, all
+  carried along with the firing aircraft so they stay at the muzzle. Tracers
+  are longer and brighter, are not drawn behind the muzzle they have just
+  left, and leave a faint smoke line near the camera.
+- **Hits.** A flash, twelve sparks and five dark fragments, carried along with
+  the struck aircraft, and a puff of smoke.
+- **Missiles.** The plume is drawn as a volume with the afterburner's flame
+  mesh in a rocket palette, scaled from the missile's length and diameter, with
+  a glow at the nozzle and a lit nozzle on the airframe. The smoke trail is
+  unchanged in construction. A warhead has its own effect: a white flash, a
+  small fireball, a shock ring, 36 fragments and a knot of grey smoke.
+- **Destruction.** A flash, fireball, shock ring, burning debris that trails
+  smoke as it falls, and the aircraft's own wings, fin and wreck leaving as
+  pieces; see [the damage model](DAMAGE_MODEL.md).
+- Smoke, flame and rings fade out within 14 m of the eye, so a camera following
+  an aircraft through its own trail is not filled by one sprite.
+
+`battle.effects` counts what each event emits and checks that everything
+expires and stays inside the pool. Visual scenarios `gun`, `missile` and
+`detonation` render them. The flame shader takes its palette per draw because
+bgfx uniforms keep the value an earlier draw left in them.

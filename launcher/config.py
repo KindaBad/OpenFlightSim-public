@@ -63,6 +63,10 @@ class Preferences:
     name: str = 'pilot'
     host: bool = False
     bots: int = 2
+    # A game hosted for the local network: its announced name ('' uses the
+    # pilot's) and how many AI opponents fly in it.
+    lobby: str = ''
+    lan_bots: int = 0
     channel: str = 'stable'
     manifest_url: str = ''  # Publisher configures a public HTTPS host; no guessed endpoint.
     auto_check: bool = True
@@ -87,7 +91,7 @@ class Preferences:
                 raise LauncherError(f'Invalid launcher setting: {key}')
         if prefs.channel not in ('stable', 'development') or prefs.camera not in CAMERAS:
             raise LauncherError('Invalid channel or camera')
-        if not 1 <= prefs.port <= 65535 or not 1 <= prefs.bots <= 8:
+        if not 1 <= prefs.port <= 65535 or not 1 <= prefs.bots <= 8 or not 0 <= prefs.lan_bots <= 8:
             raise LauncherError('Invalid port or bot count')
         return prefs
 

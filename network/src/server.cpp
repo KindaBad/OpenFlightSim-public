@@ -11,9 +11,36 @@ Server::Server(const ServerConfig &config)
     throw std::invalid_argument(
         "server limits: players plus bots <=64, bots 0..8, snapshot rate 1..60");
   transport_.listen(config.bind, config.port);
+  config_.lobbyName = lobbyName(config_.lobbyName);
+  if (!config_.lobbyName.empty())
+    discovery_ = std::make_unique<DiscoveryResponder>(config_.discoveryPort);
 }
 Server::~Server() { shutdown(); }
 std::uint16_t Server::port() const { return transport_.port(); }
+LobbyInfo Server::lobby() const {
+  LobbyInfo info;
+  info.name = config_.lobbyName;
+  info.version = config_.version;
+  info.port = port();
+  info.protocol = protocolVersion;
+  info.bots = std::uint8_t(world_.botCount());
+  info.players = std::uint8_t(world_.players().size() - world_.botCount());
+  info.maxPlayers = std::uint8_t(config_.maxClients);
+  return info;
+}
+std::string Server::pilot(EntityId id) const {
+  const auto player = world_.players().find(id);
+  return player == world_.players().end() ? "Pilot " + std::to_string(id)
+                                          : player->second.name;
+}
+void Server::notice(const std::string &text) {
+  Message m;
+  m.type = Type::Chat;
+  m.tick = world_.tick();
+  m.sequence = ++sequence_;
+  m.text = text.substr(0, maxChatText);
+  broadcast(m, true);
+}
 void Server::send(Connection c, const Message &m, bool reliable) {
   auto b = encode(m);
   if (transport_.send(c, b, reliable)) {
@@ -38,6 +65,7 @@ void Server::remove(Connection c, const std::string &reason, bool reject) {
   if (it == sessions_.end())
     return;
   const auto id = it->second.entity;
+  const auto name = id ? pilot(id) : std::string{};
   if (reject) {
     Message m;
     m.type = Type::Reject;
@@ -55,6 +83,7 @@ void Server::remove(Connection c, const std::string &reason, bool reject) {
     left.tick = world_.tick();
     left.sequence = ++sequence_;
     broadcast(left, true);
+    notice(name + " left the game");
   }
   ++stats_.disconnects;
 }
@@ -63,6 +92,8 @@ void Server::shutdown() {
     remove(sessions_.begin()->first, "server shutdown", true);
 }
 void Server::poll() {
+  if (discovery_)
+    discovery_->poll(lobby());
   for (const auto &e : transport_.poll()) {
     if (e.kind == TransportEvent::Kind::Connected) {
       if (sessions_.size() >= config_.maxClients) {
@@ -84,7 +115,7 @@ void Server::poll() {
     stats_.bytesIn += e.bytes.size();
     if (world_.tick() - s.window >= 120) {
       s.window = world_.tick();
-      s.messages = s.commands = s.fires = s.weaponActions = 0;
+      s.messages = s.commands = s.fires = s.weaponActions = s.chats = 0;
     }
     if (++s.messages > 240) {
       ++stats_.invalid;
@@ -114,7 +145,7 @@ void Server::poll() {
       continue;
     }
     if (ok && m.type == Type::Hello && !s.entity) {
-      s.entity = world_.join(m.aircraftType);
+      s.entity = world_.join(m.aircraftType, m.text);
       if (!s.entity) {
         remove(e.connection, "world full", true);
         continue;
@@ -131,12 +162,37 @@ void Server::poll() {
       welcome.aircraft = world_.aircraft(s.entity);
       welcome.weather = world_.weather();
       send(e.connection, welcome, true);
+      // The newcomer learns who is already here, then everyone learns of it.
       Message joined;
       joined.type = Type::Joined;
-      joined.entity = s.entity;
       joined.tick = world_.tick();
+      for (const auto &[id, player] : world_.players()) {
+        if (id == s.entity)
+          continue;
+        joined.entity = id;
+        joined.text = player.name;
+        joined.sequence = ++sequence_;
+        send(e.connection, joined, true);
+      }
+      joined.entity = s.entity;
+      joined.text = pilot(s.entity);
       joined.sequence = ++sequence_;
       broadcast(joined, true);
+      notice(joined.text + " joined the game");
+      continue;
+    }
+    if (ok && m.type == Type::Chat && s.entity) {
+      // A talkative client is ignored, not struck: chat is never an attack on
+      // the simulation.
+      if (++s.chats > 4 || m.text.find_first_not_of(' ') == std::string::npos)
+        continue;
+      Message line;
+      line.type = Type::Chat;
+      line.tick = world_.tick();
+      line.sequence = ++sequence_;
+      line.entity = s.entity;
+      line.text = m.text;
+      broadcast(line, true);
       continue;
     }
     if (ok && m.type == Type::Ping && s.entity) {
@@ -212,6 +268,11 @@ void Server::step() {
       }
     }
   auto events = world_.combat().takeEvents();
+  for (const auto &event : events)
+    if (event.kind == CombatKind::Destroyed)
+      notice(event.owner == event.target
+                 ? pilot(event.target) + " crashed"
+                 : pilot(event.owner) + " shot down " + pilot(event.target));
   stats_.combatSerializationUs = 0;
   for (std::size_t offset = 0; offset < events.size();
        offset += maxCombatEvents) {

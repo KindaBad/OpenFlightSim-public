@@ -39,6 +39,12 @@ QPushButton#play:hover { background: #168fff; border-color: #80c5ff; }
 QPushButton#play:disabled { background: #223b54; color: #879eb8; border-color: #35516c; }
 QPushButton#heroSettings { background: rgba(19, 33, 48, 210); font-size: 16px; padding: 17px 22px; }
 QPushButton#updateAction { background: #0d365d; border-color: #247fd2; }
+QPushButton#primary { background: #0a62d0; border-color: #37a4ff; color: white; padding: 12px 22px; }
+QPushButton#primary:hover { background: #168fff; border-color: #80c5ff; }
+QPushButton#primary:disabled { background: #223b54; color: #879eb8; border-color: #35516c; }
+QListWidget#lobbies { background: #0d1924; border: 1px solid #1e3041; border-radius: 6px; padding: 4px; }
+QListWidget#lobbies::item { padding: 11px 12px; margin: 1px 0; border-left: 3px solid transparent; }
+QListWidget#lobbies::item:disabled { color: #62788e; }
 QPushButton#link, QPushButton#profile { background: transparent; border-color: transparent; color: #b4c9e2; padding: 8px 4px; font-weight: 400; }
 QPushButton#link:hover, QPushButton#profile:hover { color: #55abff; }
 QPushButton#settingsTab { background: transparent; border: none; border-bottom: 2px solid transparent; border-radius: 0; color: #9db2cc; padding: 11px 13px; }
@@ -85,6 +91,7 @@ ICON_PATHS = {
     'pilot': '<circle cx="12" cy="8" r="4"/><path d="M4 22v-3a8 8 0 0 1 16 0v3"/>',
     'chevron': '<path d="m9 4 8 8-8 8"/>',
     'close': '<path d="m5 5 14 14M5 19 19 5"/>',
+    'network': '<circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M12 7.5v4.5l-5.3 5M12 12l5.3 5"/>',
 }
 
 

@@ -1,4 +1,5 @@
 #include "effects.hpp"
+#include "damage_visuals.hpp"
 #include "ofs/atmosphere.hpp"
 #include "ofs/ballistics.hpp"
 
@@ -93,6 +94,21 @@ void EffectPool::update(double dt) {
         effect.velocity=effect.velocity*std::exp(-5*dt);
       }
     }
+    if (effect.smokeInterval > 0) {
+      effect.smokeClock += static_cast<float>(dt);
+      if (effect.smokeClock >= effect.smokeInterval) {
+        effect.smokeClock = 0;
+        Effect puff;
+        puff.kind = EffectKind::Smoke;
+        puff.position = effect.position;
+        puff.velocity = effect.velocity * .08 + Vec3{0, 0, -1.2};
+        puff.size = effect.size * 1.6f;
+        puff.lifetime = 1.6f;
+        puff.drag = .6f;
+        puff.tint = 0xa0303438u;
+        contacts.push_back(puff);
+      }
+    }
     if (read == cursor_) cursor_ = write;
     effects_[write] = effect;
     ++write;
@@ -117,7 +133,7 @@ CombatEffects::CombatEffects(EffectPool& pool, EffectsQuality quality)
     : pool_(pool), quality_(quality) {}
 
 void CombatEffects::onShot(const Vec3& position, const Vec3& velocity, double lifetime,
-                           bool ownAircraft, std::uint64_t projectile) {
+                           bool ownAircraft, std::uint64_t projectile, const Vec3& carrier) {
   const std::size_t budget = budgetFor(quality_);
   if (budget == 0) return;
 
@@ -130,24 +146,72 @@ void CombatEffects::onShot(const Vec3& position, const Vec3& velocity, double li
   tracer.lifetime = static_cast<float>(std::min(lifetime, 3.0));
   // A tracer is a stretched quad along its own velocity, not a billboard.
   tracer.billboard = false;
-  tracer.stretch = 10.0f;
-  tracer.size = 0.38f;
-  tracer.tint = ownAircraft ? 0xffbfe8ffu : 0xff609affu;
+  tracer.stretch = 14.0f;
+  tracer.size = 0.34f;
+  tracer.tint = ownAircraft ? 0xff58c4ffu : 0xff3478ffu;
   pool_.spawn(tracer);
 
-  {
-    Effect flash;
-    flash.kind = EffectKind::MuzzleFlash;
-    flash.position = position;
-    flash.velocity = velocity.normalized()*12.;
-    flash.lifetime = 0.075f;
-    flash.size = 0.85f;
-    flash.tint = 0xff7ad2ffu;
-    pool_.spawn(flash);
-  }
+  const double speed = velocity.norm();
+  if (speed < 1e-6) return;
+  const Vec3 along = velocity / speed;
+  // Everything at the muzzle stays with the gun for the instant it lasts.
+  const Vec3 ride = carrier.norm2() > 0 ? carrier : velocity - along * std::min(speed, 950.);
+  const auto seed = static_cast<std::uint32_t>(projectile * 2654435761u + ++shots_);
+  const float a = hashUnit(seed), b = hashUnit(seed + 101);
+
+  Effect flash;
+  flash.kind = EffectKind::MuzzleFlash;
+  flash.position = position + along * .35;
+  flash.velocity = ride;
+  flash.lifetime = 0.055f;
+  flash.size = 0.55f + 0.5f * a;
+  flash.seed = a;
+  flash.tint = 0xff6ac8ffu;
+  pool_.spawn(flash);
+  if (budget < 2) return;
+  // The jet of flame ahead of the barrel, and the light it throws.
+  Effect tongue = flash;
+  tongue.kind = EffectKind::Fire;
+  tongue.position = position + along * (.9 + .5 * b);
+  tongue.velocity = ride + along * 25.;
+  tongue.size = 0.3f + 0.2f * b;
+  tongue.lifetime = 0.05f;
+  tongue.tint = 0xff58b8ffu;
+  pool_.spawn(tongue);
+  Effect glow = flash;
+  glow.kind = EffectKind::Light;
+  glow.size = 1.5f;
+  glow.tint = 0x403c96ffu;
+  pool_.spawn(glow);
+  // Gun gas hangs behind the aircraft as a thin grey line of puffs.
+  Effect gas;
+  gas.kind = EffectKind::Smoke;
+  gas.position = position + along * .5;
+  gas.velocity = ride * .9 + along * 6. + Vec3{0, 0, -.6};
+  gas.drag = 1.4f;
+  gas.lifetime = 0.55f + 0.3f * b;
+  gas.size = 0.45f + 0.3f * a;
+  gas.seed = a;
+  gas.tint = 0x34888c90u;
+  pool_.spawn(gas);
+  if (budget < 4 || shots_ % 2) return;
+  // A spent case tumbling away under the wing.
+  Effect brass;
+  brass.kind = EffectKind::Debris;
+  brass.position = position - along * 1.2;
+  brass.velocity = ride + Vec3{(a - .5) * 6, (b - .5) * 6, 5 + 4 * a};
+  brass.billboard = false;
+  brass.stretch = 0.16f;
+  brass.size = 0.05f;
+  brass.gravity = static_cast<float>(kG0);
+  brass.drag = 0.9f;
+  brass.lifetime = 0.8f;
+  brass.tint = 0xff58b4dcu;
+  pool_.spawn(brass);
 }
 
-void CombatEffects::onHit(const Vec3& position, bool ownAircraft, std::uint64_t projectile) {
+void CombatEffects::onHit(const Vec3& position, bool ownAircraft, std::uint64_t projectile,
+                          const Vec3& targetVelocity) {
   pool_.retireProjectile(projectile);
   const std::size_t budget = budgetFor(quality_);
   if (budget == 0) return;
@@ -155,34 +219,53 @@ void CombatEffects::onHit(const Vec3& position, bool ownAircraft, std::uint64_t 
   Effect spark;
   spark.kind = EffectKind::Impact;
   spark.position = position;
-  spark.velocity = Vec3{0, 0, 0};
+  spark.velocity = targetVelocity;
   spark.lifetime = 0.16f;
-  spark.size = 0.9f;
+  spark.size = ownAircraft ? 1.3f : 0.9f;
   spark.tint = 0xffc0f0ffu;
   pool_.spawn(spark);
+  Effect flash = spark;
+  flash.kind = EffectKind::Flash;
+  flash.lifetime = 0.09f;
+  flash.size = ownAircraft ? 2.6f : 1.9f;
+  flash.seed = hashUnit(static_cast<std::uint32_t>(projectile) + 7);
+  flash.tint = 0xff8cdcffu;
+  pool_.spawn(flash);
 
   if (budget < 2) return;
   Effect smoke;
   smoke.kind = EffectKind::Smoke;
   smoke.position = position;
-  smoke.velocity = Vec3{0, 0, -1.2};
-  smoke.lifetime = 0.55f;
-  smoke.size = 0.7f;
-  smoke.tint = 0x90909090u;
+  smoke.velocity = targetVelocity * .7 + Vec3{0, 0, -1.2};
+  smoke.drag = 1.2f;
+  smoke.lifetime = 0.9f;
+  smoke.size = 1.0f;
+  smoke.tint = 0xa0484c50u;
   pool_.spawn(smoke);
 
   if (budget < 4) return;
-  (void)ownAircraft;
   // A radial spray retains a white-hot core and slower orange spark tails.
   const auto seed=static_cast<std::uint32_t>(std::abs(position.x*31+position.y*17));
   for (unsigned i=0;i<12;++i) {
     const float a=hashUnit(seed+i*7919), b=hashUnit(seed+i*3571+3);
     Effect debris=spark; debris.kind=EffectKind::Spark;
     debris.lifetime=.3f+b*.45f; debris.size=.045f+b*.06f;
-    debris.velocity={std::cos(a*6.283)* (5+14*b), std::sin(a*6.283)*(5+14*b),-3-9*b};
+    debris.velocity=targetVelocity*.85+Vec3{std::cos(a*6.283)* (5+14*b), std::sin(a*6.283)*(5+14*b),-3-9*b};
     debris.billboard=false; debris.stretch=.5f+b*1.1f;
     debris.gravity=float(kG0); debris.drag=1.3f; debris.tint=0xff60baffu;
     pool_.spawn(debris);
+  }
+  // Torn skin: a few dark fragments left tumbling in the slipstream.
+  for (unsigned i=0;i<5;++i) {
+    const float a=hashUnit(seed+i*1291+11), b=hashUnit(seed+i*2909+5);
+    Effect chip;
+    chip.kind=EffectKind::Debris;
+    chip.position=position;
+    chip.velocity=targetVelocity*.6+Vec3{(a-.5)*16,(b-.5)*16,-2-8*a};
+    chip.billboard=false; chip.stretch=.25f+.3f*b; chip.size=.07f+.08f*a;
+    chip.gravity=float(kG0); chip.drag=.8f; chip.lifetime=.9f+b;
+    chip.tint=0xff34383cu;
+    pool_.spawn(chip);
   }
 }
 
@@ -230,33 +313,15 @@ void CombatEffects::updateMissile(std::uint64_t id, Vec3 position, Vec3 velocity
     }
   }
   emitter.lit = true;
-  // The flame and its glow ride with the missile for one frame each.
-  Effect flame;
-  flame.kind = EffectKind::Fire;
-  flame.position = nozzle + aft * (diameter * 5);
-  flame.velocity = velocity;
-  flame.lifetime = float(std::clamp(dt * 1.5, .02, .08));
-  flame.size = float(diameter * 4.5);
-  flame.tint = 0xff90d0ffu;
-  pool_.spawn(flame);
-  // The plume itself: a bright tapered streak several body lengths long.
-  Effect plume;
-  plume.kind = EffectKind::Tracer;
-  plume.position = nozzle;
-  plume.velocity = velocity;
-  plume.billboard = false;
-  plume.lifetime = flame.lifetime;
-  plume.stretch = float(length * 2.2);
-  plume.size = float(diameter * 2.4);
-  plume.tint = 0xff70c4ffu;
-  pool_.spawn(plume);
+  // The plume itself is drawn by the renderer as a volume; here is the light
+  // it throws, which rides with the missile for one frame at a time.
   Effect glow;
   glow.kind = EffectKind::Light;
-  glow.position = nozzle + aft * (diameter * 2);
+  glow.position = nozzle + aft * (diameter * 3);
   glow.velocity = velocity;
-  glow.lifetime = flame.lifetime;
-  glow.size = float(diameter * 9);
-  glow.tint = 0xffa8e4ffu;
+  glow.lifetime = float(std::clamp(dt * 1.5, .02, .08));
+  glow.size = float(diameter * 4.5);
+  glow.tint = 0x7090d8ffu;
   pool_.spawn(glow);
   // Smoke is laid in lengths between successive nozzle positions, so the trail
   // is unbroken at any speed and frame rate.
@@ -274,9 +339,9 @@ void CombatEffects::updateMissile(std::uint64_t id, Vec3 position, Vec3 velocity
     smoke.stretch = float(distance);
     smoke.velocity = aft * 6 + Vec3{0, 0, -.4};
     smoke.drag = 1.5f;
-    smoke.size = float(diameter * 3.2);
-    smoke.lifetime = quality_ == EffectsQuality::High ? 5.5f : 3.f;
-    smoke.tint = 0x9ce6e4e0u;
+    smoke.size = float(diameter * 3.4);
+    smoke.lifetime = quality_ == EffectsQuality::High ? 6.5f : 3.5f;
+    smoke.tint = 0xa8e8e6e2u;
     pool_.spawn(smoke);
     emitter.nozzle = nozzle;
     emitter.sinceSegment = 0;
@@ -299,60 +364,226 @@ void CombatEffects::onDestroyed(const Vec3& position, const Vec3& velocity) {
   Effect fireball;
   fireball.kind = EffectKind::Explosion;
   fireball.position = position;
-  fireball.velocity = Vec3{0, 0, 0};
-  fireball.lifetime = 1.15f;
-  fireball.size = 14.0f;
+  fireball.velocity = velocity * .25;
+  fireball.drag = 1.5f;
+  fireball.lifetime = 1.25f;
+  fireball.size = 15.0f;
   fireball.tint = 0xff40a0ffu;
   pool_.spawn(fireball);
+  Effect flash;
+  flash.kind = EffectKind::Flash;
+  flash.position = position;
+  flash.lifetime = 0.14f;
+  flash.size = 24.0f;
+  flash.tint = 0xffa0e0ffu;
+  pool_.spawn(flash);
 
-  if (budget >= 2) for (unsigned i=0;i<16;++i) {
-    const float a=hashUnit(i*3571+19), b=hashUnit(i*7919+41);
-    Effect flame=fireball; flame.kind=EffectKind::Fire;
-    flame.position+=Vec3{(a-.5)*5,(b-.5)*5,-a*3};
-    flame.velocity=velocity*.12+Vec3{(a-.5)*22,(b-.5)*22,-4-b*12};
-    flame.size=2+a*3; flame.lifetime=.5f+b*.9f; flame.seed=a;
-    flame.drag=1.8f; pool_.spawn(flame);
+  if (budget >= 2) {
+    Effect ring;
+    ring.kind = EffectKind::Shockwave;
+    ring.position = position;
+    ring.lifetime = 0.5f;
+    ring.size = 55.0f;
+    ring.tint = 0x40ffffffu;
+    pool_.spawn(ring);
+    // Fuel burning off in ragged tongues around the main fireball.
+    for (unsigned i=0;i<18;++i) {
+      const float a=hashUnit(i*3571+19), b=hashUnit(i*7919+41);
+      Effect flame=fireball; flame.kind=EffectKind::Fire;
+      flame.position+=Vec3{(a-.5)*6,(b-.5)*6,-a*3};
+      flame.velocity=velocity*.3+Vec3{(a-.5)*26,(b-.5)*26,-4-b*14};
+      flame.size=2+a*3.5f; flame.lifetime=.6f+b*1.1f; flame.seed=a;
+      flame.drag=1.8f; pool_.spawn(flame);
+    }
   }
   if (budget < 2) return;
-  // A short column of smoke, each puff rising and expanding.
-  const int puffs = budget >= 4 ? 24 : 8;
+  // A column of smoke carried on with the wreck, each puff rising and spreading.
+  const int puffs = budget >= 4 ? 26 : 9;
   for (int i = 0; i < puffs; ++i) {
     const float phase = hashUnit(static_cast<std::uint32_t>(i * 7919 + 13));
     Effect smoke;
     smoke.kind = EffectKind::Smoke;
     smoke.position = position + velocity * (0.015 * i) + Vec3{(phase-.5)*7, std::sin(i*2.4)*3,-phase*5};
-    smoke.velocity = Vec3{(phase - 0.5) * 3.0, (phase - 0.5) * 3.0, -2.2 - phase * 1.6};
-    smoke.lifetime = 5.0f + phase * 3.0f;
-    smoke.size = 3.0f + phase * 3.0f;
+    smoke.velocity = velocity * .12 + Vec3{(phase - 0.5) * 3.0, (phase - 0.5) * 3.0, -2.2 - phase * 1.6};
+    smoke.lifetime = 5.5f + phase * 3.5f;
+    smoke.size = 3.2f + phase * 3.4f;
     smoke.seed = phase;
-    smoke.tint = 0xa04e5358u;
-    smoke.drag = 0.12f;
+    smoke.tint = 0xb03c4046u;
+    smoke.drag = 0.25f;
     pool_.spawn(smoke);
   }
   if (budget < 4) return;
-  // Debris streaks. Direction is arbitrary but bounded; a real breakup model is
-  // explicitly out of scope for this milestone.
-  for (int i = 0; i < 24; ++i) {
+  // Wreckage thrown clear. The larger pieces are alight and trail smoke as they fall.
+  for (int i = 0; i < 28; ++i) {
     const float a = hashUnit(static_cast<std::uint32_t>(i * 2654435761u));
     const float b = hashUnit(static_cast<std::uint32_t>(i * 40503u + 7));
     const double theta = a * 6.2831853;
-    const double elevation = (b - 0.5) * 1.2;
-    const double speed = 25.0 + a * 45.0;
+    const double elevation = (b - 0.5) * 1.6;
+    const double speed = 20.0 + a * 50.0;
     Effect debris;
     debris.kind = EffectKind::Debris;
     debris.position = position;
     debris.velocity = Vec3{std::cos(theta) * speed * std::cos(elevation),
-                           std::sin(theta) * speed * std::cos(elevation), -std::abs(std::sin(elevation)) * speed-8};
-    debris.velocity = debris.velocity + velocity * 0.35;
-    debris.lifetime = 1.6f + b * 0.8f;
-    debris.size = 0.5f + a * 0.7f;
-    debris.stretch = 3.0f;
+                           std::sin(theta) * speed * std::cos(elevation), -std::sin(elevation) * speed - 6};
+    debris.velocity = debris.velocity + velocity * 0.7;
+    debris.lifetime = 2.6f + b * 2.2f;
+    debris.size = 0.4f + a * 0.8f;
+    debris.stretch = 2.2f + 2 * b;
     debris.billboard = false;
-    debris.tint = 0xff404040u;
+    debris.tint = i % 3 == 0 ? 0xff2878ffu : 0xff383a3cu;
     debris.gravity = 9.81f;
-    debris.drag = 0.3f;
+    debris.drag = 0.35f;
+    if (i % 3 == 0) debris.smokeInterval = 0.07f;
     pool_.spawn(debris);
   }
+}
+
+void CombatEffects::onDetonation(const Vec3& position) {
+  const std::size_t budget = budgetFor(quality_);
+  if (budget == 0) return;
+  // A warhead is a sharp white flash and a ball of fragments, gone in a moment,
+  // leaving a knot of grey smoke.
+  Effect flash;
+  flash.kind = EffectKind::Flash;
+  flash.position = position;
+  flash.lifetime = 0.1f;
+  flash.size = 13.0f;
+  flash.tint = 0xffc8f0ffu;
+  pool_.spawn(flash);
+  Effect fireball;
+  fireball.kind = EffectKind::Explosion;
+  fireball.position = position;
+  fireball.lifetime = 0.55f;
+  fireball.size = 6.5f;
+  fireball.tint = 0xff58b0ffu;
+  pool_.spawn(fireball);
+  if (budget < 2) return;
+  Effect ring;
+  ring.kind = EffectKind::Shockwave;
+  ring.position = position;
+  ring.lifetime = 0.32f;
+  ring.size = 30.0f;
+  ring.tint = 0x38ffffffu;
+  pool_.spawn(ring);
+  const auto seed = static_cast<std::uint32_t>(std::abs(position.x * 13 + position.y * 7 + position.z * 3));
+  const unsigned puffs = budget >= 4 ? 12 : 5;
+  for (unsigned i = 0; i < puffs; ++i) {
+    const float a = hashUnit(seed + i * 977), b = hashUnit(seed + i * 613 + 9), c = hashUnit(seed + i * 389 + 21);
+    Effect smoke;
+    smoke.kind = EffectKind::Smoke;
+    smoke.position = position + Vec3{(a - .5) * 4, (b - .5) * 4, (c - .5) * 4};
+    smoke.velocity = Vec3{(a - .5) * 14, (b - .5) * 14, (c - .5) * 14 - 1};
+    smoke.drag = 2.2f;
+    smoke.lifetime = 2.6f + 2 * c;
+    smoke.size = 2.4f + 2.2f * a;
+    smoke.seed = b;
+    smoke.tint = 0xa8585c60u;
+    pool_.spawn(smoke);
+  }
+  if (budget < 4) return;
+  // Fragments leave in every direction as short hot streaks.
+  for (unsigned i = 0; i < 36; ++i) {
+    const float a = hashUnit(seed + i * 7919), b = hashUnit(seed + i * 3571 + 3);
+    const double theta = a * 6.2831853, z = b * 2 - 1, r = std::sqrt(std::max(0., 1 - z * z));
+    const double speed = 90 + 110 * hashUnit(seed + i * 131 + 5);
+    Effect fragment;
+    fragment.kind = EffectKind::Spark;
+    fragment.position = position;
+    fragment.velocity = Vec3{r * std::cos(theta), r * std::sin(theta), z} * speed;
+    fragment.billboard = false;
+    fragment.stretch = 2.4f;
+    fragment.size = 0.09f;
+    fragment.gravity = float(kG0);
+    fragment.drag = 2.4f;
+    fragment.lifetime = 0.35f + 0.4f * b;
+    fragment.tint = 0xff70c8ffu;
+    pool_.spawn(fragment);
+  }
+}
+
+void CombatEffects::onPartLost(const Vec3& position, const Vec3& velocity) {
+  const std::size_t budget = budgetFor(quality_);
+  if (budget == 0) return;
+  Effect flash;
+  flash.kind = EffectKind::Flash;
+  flash.position = position;
+  flash.velocity = velocity;
+  flash.lifetime = 0.1f;
+  flash.size = 3.0f;
+  flash.tint = 0xff80d0ffu;
+  pool_.spawn(flash);
+  Effect puff;
+  puff.kind = EffectKind::Smoke;
+  puff.position = position;
+  puff.velocity = velocity * .5;
+  puff.drag = 1.2f;
+  puff.lifetime = 1.8f;
+  puff.size = 2.6f;
+  puff.tint = 0xa0585c62u;
+  pool_.spawn(puff);
+  if (budget < 2) return;
+  const auto seed = static_cast<std::uint32_t>(std::abs(position.x * 29 + position.y * 11));
+  const unsigned count = budget >= 4 ? 16 : 7;
+  for (unsigned i = 0; i < count; ++i) {
+    const float a = hashUnit(seed + i * 811), b = hashUnit(seed + i * 499 + 3);
+    Effect fragment;
+    fragment.kind = i % 2 ? EffectKind::Spark : EffectKind::Debris;
+    fragment.position = position;
+    fragment.velocity = velocity * .8 + Vec3{(a - .5) * 22, (b - .5) * 22, -3 - 10 * a};
+    fragment.billboard = false;
+    fragment.stretch = i % 2 ? .9f : .5f + .6f * b;
+    fragment.size = i % 2 ? .06f : .12f + .14f * a;
+    fragment.gravity = float(kG0);
+    fragment.drag = .9f;
+    fragment.lifetime = .7f + 1.2f * b;
+    fragment.tint = i % 2 ? 0xff60baffu : 0xff3a3e42u;
+    pool_.spawn(fragment);
+  }
+}
+
+void CombatEffects::onPieceSmoke(const Vec3& position, const Vec3& velocity, bool burning) {
+  if (budgetFor(quality_) < 2) return;
+  Effect puff;
+  puff.kind = EffectKind::Smoke;
+  puff.position = position;
+  puff.velocity = {0, 0, -.8};
+  puff.lifetime = burning ? 4.5f : 2.2f;
+  puff.size = burning ? 3.2f : 1.3f;
+  puff.seed = hashUnit(++shots_);
+  puff.tint = burning ? 0xc02a2c30u : 0x80484c52u;
+  pool_.spawn(puff);
+  if (!burning) return;
+  // A wreck burns all the way down.
+  Effect flame;
+  flame.kind = EffectKind::Fire;
+  flame.position = position;
+  flame.velocity = velocity * .9;
+  flame.lifetime = .22f;
+  flame.size = 2.2f + 1.6f * puff.seed;
+  flame.seed = puff.seed;
+  flame.tint = 0xff48a8ffu;
+  pool_.spawn(flame);
+}
+
+void CombatEffects::laySmoke(Vec3& from, const Vec3& to, const Vec3& drift, float size, float lifetime,
+                             std::uint32_t tint) {
+  const Vec3 run = to - from;
+  const double distance = run.norm();
+  // A jump is a respawn or a correction, not flight: nothing is drawn across it.
+  if (distance > .05 && distance < 300) {
+    Effect smoke;
+    smoke.kind = EffectKind::Trail;
+    smoke.position = from + run * .5;
+    smoke.axis = run / distance;
+    smoke.stretch = float(distance);
+    smoke.velocity = drift;
+    smoke.drag = .8f;
+    smoke.size = size;
+    smoke.lifetime = lifetime;
+    smoke.tint = tint;
+    pool_.spawn(smoke);
+  }
+  from = to;
 }
 
 void CombatEffects::onGroundImpact(const Simulator::GroundImpact& impact) {
@@ -439,6 +670,95 @@ void CombatEffects::updateAircraft(const State& aircraft, double dt, AircraftTyp
       }
     }
   }
+  // ---- Battle damage: smoke and fire from the parts that were hit ----
+  const DamageView damage = damageView(aircraft, health);
+  if (!aircraftCrashed(aircraft)) {
+    const bool underway = (aircraft.pos_ned - emitter.previous).norm2() > .0004;
+    const Vec3 drift = weather.wind_ned + Vec3{0, 0, -.5};
+    emitter.smokeClock += std::min(dt, .1);
+    const bool lay = emitter.smokeClock >= (quality_ == EffectsQuality::High ? 1. / 40 : 1. / 20);
+    if (lay) emitter.smokeClock = 0;
+    const bool lasting = quality_ == EffectsQuality::High;
+    for (std::size_t index = 0; index < damagePartCount; ++index) {
+      const DamagePart part = DamagePart(index);
+      const float hurt = damage.parts[index];
+      const bool isEngine = part == DamagePart::LeftEngine || part == DamagePart::RightEngine;
+      const bool isWing = part == DamagePart::LeftWing || part == DamagePart::RightWing;
+      // A torn wing smokes from where it now ends.
+      const Vec3 body = isWing ? wingPoint(type, part == DamagePart::RightWing,
+                                           std::clamp(wingRemaining(hurt) - .1, .05, .5))
+                               : damagePoint(type, part);
+      const Vec3 source = aircraft.pos_ned + aircraft.att.rotate(body - cg);
+      // An engine going from running to wrecked is seen: a flash and a belch of flame.
+      if (isEngine && hurt >= 1 && emitter.damage[index] < 1 && emitter.damageKnown && budget >= 2) {
+        Effect burst;
+        burst.kind = EffectKind::Flash;
+        burst.position = source;
+        burst.velocity = aircraft.vel_ned;
+        burst.lifetime = .12f;
+        burst.size = 3.5f;
+        burst.tint = 0xff70c0ffu;
+        pool_.spawn(burst);
+        burst.kind = EffectKind::Explosion;
+        burst.lifetime = .3f;
+        burst.size = 1.8f;
+        burst.tint = 0xff48a0ffu;
+        pool_.spawn(burst);
+      }
+      emitter.damage[index] = hurt;
+      // What each part gives off, once it is hurt enough to show.
+      const float threshold = isEngine ? .3f : part == DamagePart::Fuselage ? .35f : .3f;
+      if (hurt < threshold || budget < 2 || !underway) {
+        emitter.smoking[index] = false;
+        continue;
+      }
+      if (!emitter.smoking[index]) {
+        emitter.smoking[index] = true;
+        emitter.smokeFrom[index] = source;
+      }
+      if (!lay) continue;
+      const float strength = std::clamp((hurt - threshold) / (1 - threshold), 0.f, 1.f);
+      if (isEngine && hurt >= 1) {
+        // Burnt out: oily black smoke, with flame at the jet pipe while fuel remains.
+        laySmoke(emitter.smokeFrom[index], source, drift, float(visual.radius * .075), lasting ? 5.5f : 3.f, 0xd0202226u);
+        if (aircraft.fuel_mass != 0) {
+          Effect flame;
+          flame.kind = EffectKind::Fire;
+          flame.position = source + aircraft.att.rotate({-visual.radius * .05 * (1 + hashUnit(emitter.sequence + 5)), 0, 0});
+          flame.velocity = aircraft.vel_ned * .97;
+          flame.lifetime = .09f;
+          flame.size = float(visual.radius * (.05 + .035 * hashUnit(emitter.sequence + 9)));
+          flame.seed = hashUnit(emitter.sequence + 13);
+          flame.tint = 0xff48a8ffu;
+          pool_.spawn(flame);
+        }
+      } else if (isEngine) {
+        laySmoke(emitter.smokeFrom[index], source, drift, float(visual.radius * .045), lasting ? 3.f : 2.f,
+                 (std::uint32_t(70 + 110 * strength) << 24) | 0x00585c60u);
+      } else if (isWing) {
+        // Fuel and vapour streaming from a holed wing; darker smoke from a stub.
+        const bool gone = hurt >= 1;
+        laySmoke(emitter.smokeFrom[index], source, drift, float(visual.radius * (gone ? .05 : .028)),
+                 lasting ? (gone ? 3.5f : 1.8f) : 1.4f,
+                 gone ? 0xb0484a50u : (std::uint32_t(28 + 46 * strength) << 24) | 0x00d8dadcu);
+      } else {
+        laySmoke(emitter.smokeFrom[index], source, drift, float(visual.radius * (.03 + .03 * strength)), lasting ? 3.f : 2.f,
+                 (std::uint32_t(60 + 110 * strength) << 24) | 0x00505458u);
+        if (part == DamagePart::Fuselage && hurt > .7f && aircraft.fuel_mass != 0 && budget >= 4) {
+          Effect flame;
+          flame.kind = EffectKind::Fire;
+          flame.position = source;
+          flame.velocity = aircraft.vel_ned * .97;
+          flame.lifetime = .08f;
+          flame.size = float(visual.radius * .04);
+          flame.seed = hashUnit(emitter.sequence + 17);
+          flame.tint = 0xff48a8ffu;
+          pool_.spawn(flame);
+        }
+      }
+    }
+  }
+  emitter.damageKnown = true;
   auto nozzleRotate=[&](unsigned engine,const Vec3& v){const auto axis=definition.flight.engines[engine].vector_axis.normalized();const double a=aircraft.nozzle_angle[engine];return v*std::cos(a)+axis.cross(v)*std::sin(a)+axis*(axis.dot(v)*(1-std::cos(a)));};
   auto nozzleExit=[&](unsigned engine){const auto& physical=definition.flight.engines[engine];const auto hinge=physical.articulated_nozzle?physical.nozzle_pivot:physical.position;return hinge-cg+nozzleRotate(engine,visual.exhaust[engine]-hinge);};
   // Shared interval per aircraft, never per rendered frame. Contrail particles
@@ -454,6 +774,8 @@ void CombatEffects::updateAircraft(const State& aircraft, double dt, AircraftTyp
     emitter.time -= interval;
     const float variation = hashUnit(++emitter.sequence + static_cast<std::uint32_t>(id));
     for (unsigned side=0;side<2;++side) {
+      // A wingtip that has been shot away takes its light with it.
+      if (wingRemaining(damage[side==0 ? DamagePart::LeftWing : DamagePart::RightWing])<1) continue;
       Effect light;
       light.kind=EffectKind::Light;
       light.position=aircraft.pos_ned+aircraft.att.rotate(visual.wingtip[side]-cg);
@@ -463,14 +785,6 @@ void CombatEffects::updateAircraft(const State& aircraft, double dt, AircraftTyp
       if (definition.type==AircraftType::A320 && emitter.sequence%28<2) {
         light.size=.65f; light.tint=0xc0ffffffu; pool_.spawn(light);
       }
-    }
-    if (health<65 || airframeIntegrity(aircraft)<.65) {
-      Effect smoke;
-      smoke.kind=EffectKind::Smoke;
-      smoke.position=aircraft.pos_ned+aircraft.att.rotate(visual.exhaust[0]-cg);
-      smoke.velocity={variation-.5,0,-1.2}; smoke.lifetime=3+variation;
-      smoke.size=1+variation; smoke.tint=0x90505560u; smoke.drag=.1f;
-      pool_.spawn(smoke);
     }
     // Broad cold-layer envelope, not a humidity/Schmidt-Appleman model. The
     // warm upper stratosphere no longer produces permanent trails.

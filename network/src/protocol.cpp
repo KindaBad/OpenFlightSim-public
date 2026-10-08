@@ -18,9 +18,9 @@ struct Writer {
   void small(double n) {
     integer(std::bit_cast<std::uint32_t>(static_cast<float>(n)), 4);
   }
-  void string(const std::string &s) {
-    if (s.size() > 64)
-      throw std::invalid_argument("text exceeds 64 bytes");
+  void string(const std::string &s, std::size_t limit = 64) {
+    if (s.size() > limit)
+      throw std::invalid_argument("text exceeds its wire limit");
     integer(s.size(), 1);
     bytes.insert(bytes.end(), s.begin(), s.end());
   }
@@ -43,9 +43,9 @@ struct Reader {
   double small() {
     return std::bit_cast<float>(static_cast<std::uint32_t>(integer(4)));
   }
-  std::string string() {
+  std::string string(std::size_t limit = 64) {
     auto n = integer(1);
-    if (n > 64 || n > bytes.size() - pos) {
+    if (n > limit || n > bytes.size() - pos) {
       ok = false;
       return {};
     }
@@ -410,9 +410,16 @@ std::vector<std::uint8_t> encode(const Message &m) {
     aircraft(w, m.aircraft);
     break;
   case Type::Despawn:
-  case Type::Joined:
   case Type::Left:
     w.integer(m.entity, 8);
+    break;
+  case Type::Joined:
+    w.integer(m.entity, 8);
+    w.string(m.text);
+    break;
+  case Type::Chat:
+    w.integer(m.entity, 8);
+    w.string(m.text, maxChatText);
     break;
   case Type::Input:
     if (m.commands.empty() || m.commands.size() > maxBatch)
@@ -529,10 +536,21 @@ bool decode(std::span<const std::uint8_t> bytes, Message &output,
     m.aircraft = aircraft(r);
     break;
   case Type::Despawn:
-  case Type::Joined:
   case Type::Left:
     m.entity = r.integer(8);
     if (!m.entity)
+      r.ok = false;
+    break;
+  case Type::Joined:
+    m.entity = r.integer(8);
+    m.text = r.string();
+    if (!m.entity || m.text.empty())
+      r.ok = false;
+    break;
+  case Type::Chat:
+    m.entity = r.integer(8);
+    m.text = r.string(maxChatText);
+    if (m.text.empty())
       r.ok = false;
     break;
   case Type::Input: {
@@ -608,7 +626,7 @@ bool decode(std::span<const std::uint8_t> bytes, Message &output,
       e.position = vec(r);
       e.velocity = vec(r);
       if (!e.id || !e.owner || e.tick > m.tick || unsigned(e.kind) < 1 ||
-          unsigned(e.kind) > 4 || unsigned(e.region) > 3 ||
+          unsigned(e.kind) > 4 || unsigned(e.region) >= damagePartCount ||
           !std::isfinite(e.health) || e.health < 0 || e.health > 100 ||
           !std::isfinite(e.lifetime) || e.lifetime < 0 || e.lifetime > 10 ||
           !std::isfinite(e.position.norm2()) ||

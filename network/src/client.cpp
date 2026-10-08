@@ -229,6 +229,8 @@ void Client::connect(const std::string &address, std::uint16_t port) {
   stats_ = {};
   replication_ = ReplicationReceiver{};
   remotes_.clear();
+  pilots_.clear();
+  chat_.clear();
   tombstones_.clear();
   lastSnapshotSequence_ = lastSnapshots_ = lastInputs_ = 0;
   serverTime_ = renderTime_ = pingTimer_ = metricsTime_ = 0;
@@ -447,11 +449,22 @@ void Client::poll(double elapsed) {
       continue;
     }
     if (m.type == Type::Joined) {
-      ++stats_.joined;
+      // The roster is replayed to a newcomer, so only new names are arrivals.
+      if (!pilots_.contains(m.entity))
+        ++stats_.joined;
+      if (pilots_.size() < maxPlayers * 2)
+        pilots_[m.entity] = m.text;
+      continue;
+    }
+    if (m.type == Type::Chat) {
+      if (chat_.size() < 64)
+        chat_.push_back({m.entity, m.entity ? pilot(m.entity) : std::string{},
+                         m.text});
       continue;
     }
     if (m.type == Type::Left) {
       ++stats_.left;
+      pilots_.erase(m.entity);
       replication_.despawn(m.entity, m.tick);
       remotes_.erase(m.entity);
       tombstones_[m.entity] = m.tick;
@@ -645,6 +658,29 @@ void Client::predict(const Controls &c) {
       m.commands.push_back(p[i]);
     send(m, false);
   }
+}
+void Client::chat(std::string text) {
+  std::erase_if(text, [](unsigned char c) { return c < 32 || c > 126; });
+  if (text.size() > maxChatText)
+    text.resize(maxChatText);
+  if (!ready() || text.find_first_not_of(' ') == std::string::npos)
+    return;
+  Message m;
+  m.type = Type::Chat;
+  m.tick = stats_.serverTick;
+  m.entity = entity_;
+  m.text = std::move(text);
+  send(m, true);
+}
+std::vector<ChatLine> Client::takeChat() {
+  auto lines = std::move(chat_);
+  chat_.clear();
+  return lines;
+}
+const std::string &Client::pilot(EntityId id) const {
+  static const std::string unknown;
+  const auto found = pilots_.find(id);
+  return found == pilots_.end() ? unknown : found->second;
 }
 void Client::weaponAction(WeaponActionKind kind, unsigned station) {
   if (!ready() || !life_.alive() || station > 7)

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(OpenFlightSim VERSION 0.4.7 LANGUAGES C CXX)
+project(OpenFlightSim VERSION 0.5.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -47,6 +47,8 @@ target_include_directories(ofs_catalog PRIVATE "${CMAKE_BINARY_DIR}/generated")
 ofs_target_defaults(ofs_catalog)
 if(OFS_BUILD_NETWORK)
   target_compile_definitions(ofs_catalog PRIVATE OFS_NETWORK_ENABLED=1)
+  # Only the protocol number is read; the catalogue does not link the network library.
+  target_include_directories(ofs_catalog PRIVATE "${CMAKE_SOURCE_DIR}/network/include")
 endif()
 add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/launcher-catalog.json"
   COMMAND ofs_catalog "${CMAKE_BINARY_DIR}/launcher-catalog.json"

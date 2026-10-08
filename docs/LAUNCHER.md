@@ -96,7 +96,7 @@ previews after building the game:
 Captures use an isolated graphics configuration and do not change the player's
 settings. Missing optional previews use the launcher's aircraft icon. Cards are
 derived from the compiled registry, and layouts scroll/stack on smaller windows.
-The header's pilot name opens multiplayer settings; local flight requires no
+The header's pilot name opens the Multiplayer page; local flight requires no
 account. Support opens the public project's issue page.
 
 | Section | Working controls / information |
@@ -107,17 +107,44 @@ account. Support opens the public project's issue page.
 | Graphics | Low/Medium/High/Ultra/Custom/Auto presets, MSAA, texture cap, shadows, effects/particles, clouds, anisotropic sampling, bloom, cloud shadows, vegetation |
 | Display | Detected resolutions, window dimensions, desktop fullscreen, VSync, cockpit vertical FOV, desktop refresh information |
 | Controls / Input | Current built-in keyboard/mouse/gamepad bindings; automatic SDL gamepad detection in the simulator |
-| Multiplayer | Numeric IPv4/IPv6, UDP port, 1–64 printable ASCII pilot name, locally managed loopback dedicated server |
+| Multiplayer (navigation) | Pilot name; Host and fly with a game name and 0–8 AI opponents; a live list of games on the local network with Join; join by address |
+| Network (settings tab) | Numeric IPv4/IPv6, UDP port, 1–64 printable ASCII pilot name, locally managed loopback dedicated server, as used by Play in Multiplayer flight mode |
 | Advanced | Starting camera, draw/scenery distance, model LOD bias, shadow resolution/extent, bloom strength, fog, contrails, wing vapour, exhaust bands, HUD/player labels, hardware report |
 | Downloads | Stable/development channel, HTTPS publisher endpoint, startup check, opt-in automatic installation, release notes, progress/speed/cancel/retry/resume, rollback |
 | Installation / Repair | Location, version/commit/channel, active release size/free disk, folder links, file verification, staged selective repair |
 
 Local Dogfight requires an armed registry aircraft. The launcher rejects an
 unarmed choice instead of silently switching it. Multiplayer spawn state comes
-from the server; local host binds loopback and is stopped when the managed client
-ends. Direct connect launches the existing transport, with actual connection
-errors recorded by the simulator. DNS names, server browsing, NAT traversal and
-public hosting setup are outside the current transport's capabilities.
+from the server. Direct connect launches the existing transport, and the
+simulator shows why a connection failed. DNS names, NAT traversal and public
+hosting setup are outside the current transport's capabilities.
+
+### Playing on the local network
+
+**Host and fly** starts the installed `ofs_server` bound to every interface
+with `--lan-name` (the game name, or "<pilot>'s game"; printable ASCII, at most
+48 characters, passed as one argument and never through a shell) and the chosen
+number of bots, then joins it over loopback. The server stops when the host's
+flight ends. Hosting needs a simulator of version 0.5.0 or newer; an older
+installed or rolled-back game reports that instead of starting.
+
+While the Multiplayer page is open and no flight is running, the launcher asks
+the network for games every three seconds on a worker thread
+(`launcher/lan.py`, mirroring `network/include/ofs/net/discovery.hpp`): one
+broadcast question on UDP 27019 to each local network and to this computer,
+answers collected for 0.6 s. A game is listed with its pilots, bots, address
+and version. Games built for another network protocol, compared with the
+`protocol` in the installed `launcher-catalog.json`, and full games are shown
+but cannot be joined. **Join** starts the simulator against the listed address
+and port. Hosting and joining are for one flight: the saved flight mode is not
+changed.
+
+Discovery needs broadcast UDP between the computers. It does not cross
+routers, guest-network isolation or a firewall that blocks UDP 27019/27020; a
+Windows host has to allow OpenFlightSim on private networks when first asked.
+The page shows this computer's address so others can **join by address**
+instead. Nothing received by discovery is trusted beyond being displayed; the
+game connection does its own version and identity checks.
 
 Settings pages are disabled while a flight or background operation is active,
 so they cannot race simulator saves or installation changes. Closing during a
@@ -430,7 +457,8 @@ stay under ignored build/.cache directories.
 The public release feed is
 `https://github.com/KindaBad/OpenFlightSim-public/releases/download/launcher-updates/manifest.json`.
 Signing/publishing credentials stay in CI. Player downloads need no GitHub account.
-Shared internet multiplayer requires separate server setup.
+Multiplayer on one local network needs no setup (see the Multiplayer page);
+shared internet multiplayer requires separate server setup.
 
 ## Verification and limitations
 
@@ -462,7 +490,7 @@ checks should follow the existing suite's serial scheduling and BUILDING.md.
 
 Current limits: x64 Windows/Linux; Ubuntu 24.04 ABI baseline for CI Linux bundles;
 best-effort hardware/display detection; capacity-based presets rather than GPU
-benchmarks; loopback launcher-managed hosting; no input rebinding; no signed
+benchmarks; launcher-managed hosting on loopback or the local network only; no input rebinding; no signed
 manifests/code signatures yet; stable bootstrap changes require a distribution
 refresh; previous releases/downloads consume disk until explicitly removed by
 an administrator while idle. Full-package updates download the release rather

@@ -50,6 +50,19 @@ assert f'sizeof(FrameConstants) == {size} * sizeof(glm::vec4)' in header, 'Frame
 members = re.findall(r'glm::vec4 (\w+)(?:\[(\d+)\])?;', body(header, 'struct FrameConstants {', '};'))
 assert sum(int(count or 1) for _, count in members) == size, members
 
+# --- Battle damage: the shader cuts the mesh where the C++ says it ends --------
+pbr = (SHADERS / 'pbr_fs.glsl').read_text(encoding='utf-8')
+damage_size = int(re.search(r'uniform vec4 u_damage\[(\d+)\];', pbr).group(1))
+source = (ROOT / 'client/src/renderer.cpp').read_text(encoding='utf-8')
+assert f'createUniform("u_damage", vec4, {damage_size})' in source, 'u_damage size differs between pbr_fs.glsl and the renderer'
+assert source.count(f'damageUniform[{damage_size}]') == 1 and source.count(f'damage[{damage_size}]{{') == 1, 'renderer fills a different u_damage size'
+visuals = (ROOT / 'client/src/damage_visuals.hpp').read_text(encoding='utf-8')
+# Wing: mix(1.25, 0.08, smoothstep(0.4, 1.0, d)); fin: mix(1.25, 0.1, ...).
+for name, stub in (('wingRemaining', '.08'), ('finRemaining', '.1')):
+    cpp = body(visuals, f'inline double {name}', '}')
+    assert numbers(cpp) == [0.4, 0.6, 0.0, 1.0, 1.25, float(stub), 1.25, 3.0, 2.0], f'{name} changed: {numbers(cpp)}'
+    assert re.search(rf'mix\(1\.25, {float(stub)}\d*, smoothstep\(0\.4, 1\.0, \w+\)\)', pbr), f'pbr_fs.glsl no longer cuts where {name} ends'
+
 # --- Sampler stages are fixed per program on Direct3D -------------------------
 for path in sorted(SHADERS.glob('*.glsl')):
     stages = {}

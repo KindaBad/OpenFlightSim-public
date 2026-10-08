@@ -9,9 +9,11 @@
 
 #include "ofs/aircraft.hpp"  // Vec3, State, Quat
 #include "ofs/aircraft_definition.hpp"
+#include "ofs/damage.hpp"
 #include "ofs/simulator.hpp"
 #include "settings.hpp"      // EffectsQuality
 
+#include <array>
 #include <cstdint>
 #include <vector>
 #include <map>
@@ -33,7 +35,9 @@ enum class EffectKind : std::uint8_t {
   Dust,
   Fire,
   Spark,
-  Trail,         // one length of a rocket motor's smoke trail, along `axis`
+  Trail,         // one length of a smoke trail, along `axis`
+  Flash,         // a burst of light with rays: gun muzzle, warhead, impact
+  Shockwave,     // the expanding ring of a detonation
   Count
 };
 
@@ -54,6 +58,8 @@ struct Effect {
   bool billboard{true};
   float drag{}, gravity{};
   std::uint64_t projectile{};
+  // Burning wreckage leaves smoke behind it: seconds between puffs, 0 for none.
+  float smokeInterval{}, smokeClock{};
 };
 
 // Fixed-capacity pool. Exceeding capacity replaces effects round-robin rather than
@@ -100,13 +106,23 @@ class CombatEffects {
   void setQuality(EffectsQuality quality) { quality_ = quality; }
   void setEmissions(bool contrails, bool heat) { contrails_ = contrails; heat_ = heat; }
 
-  // A gun shot: a tracer plus a muzzle flash at the server's muzzle position.
+  // A gun shot: a tracer, and at the muzzle a flash, a puff of gun gas and a
+  // spent case. `carrier` is the firing aircraft's velocity, which the muzzle
+  // effects ride along with; left at zero it is estimated from the round.
   void onShot(const Vec3& position, const Vec3& velocity, double lifetime,
-              bool ownAircraft, std::uint64_t projectile = 0);
-  // A server-confirmed hit: spark plus a brief smoke puff.
-  void onHit(const Vec3& position, bool ownAircraft, std::uint64_t projectile = 0);
-  // An aircraft destroyed: fireball, smoke column and debris.
+              bool ownAircraft, std::uint64_t projectile = 0, const Vec3& carrier = {});
+  // A server-confirmed hit: flash, sparks, fragments and a puff of smoke,
+  // carried along by the struck aircraft at `targetVelocity`.
+  void onHit(const Vec3& position, bool ownAircraft, std::uint64_t projectile = 0,
+             const Vec3& targetVelocity = {});
+  // An aircraft destroyed: fireball, shock ring, smoke column and burning debris.
   void onDestroyed(const Vec3& position, const Vec3& velocity);
+  // A warhead going off: smaller and sharper than an aircraft blowing up.
+  void onDetonation(const Vec3& position);
+  // A wing or fin breaking away: fragments and a puff where it parted.
+  void onPartLost(const Vec3& position, const Vec3& velocity);
+  // Smoke left by a piece that is falling away; a burning wreck adds flame.
+  void onPieceSmoke(const Vec3& position, const Vec3& velocity, bool burning);
   void onGroundImpact(const Simulator::GroundImpact& impact);
   // A missile in flight: motor flame and glow, a smoke trail laid along its
   // path, and a burst of exhaust the moment the motor lights.
@@ -125,7 +141,23 @@ class CombatEffects {
   bool contrails_{true}, heat_{true}, vapor_{true};
   double humidity_{.75};
   double scrapeClock_{};
-  struct Emitter { double time{}, groundTime{}; std::uint32_t sequence{}; Vec3 previous{}; bool primed{}; double integrity{1}; };
+  std::uint32_t shots_{};
+  // Lays one length of a smoke trail from where its source was to where it is.
+  void laySmoke(Vec3& from, const Vec3& to, const Vec3& drift, float size, float lifetime, std::uint32_t tint);
+  struct Emitter {
+    double time{}, groundTime{};
+    std::uint32_t sequence{};
+    Vec3 previous{};
+    bool primed{};
+    double integrity{1};
+    // Battle damage: where each part's smoke was last laid, and what the
+    // damage was, so an engine being shot out is seen as an event.
+    std::array<Vec3, damagePartCount> smokeFrom{};
+    std::array<bool, damagePartCount> smoking{};
+    std::array<float, damagePartCount> damage{};
+    double smokeClock{};
+    bool damageKnown{};  // false until an aircraft has been seen once
+  };
   std::map<std::uint64_t, Emitter> emitters_; // at most 64 aircraft
   struct MissileEmitter { Vec3 nozzle{}; double sinceSegment{}; bool primed{}, lit{}, seen{}; };
   std::map<std::uint64_t, MissileEmitter> missiles_; // at most the server's pool of 128

@@ -8,6 +8,7 @@
 #include "weapon_visuals.hpp"
 #include "log.hpp"
 #include "camera.hpp"
+#include "chat.hpp"
 #include "settings.hpp"
 #include "local_gun.hpp"
 #include "ofs/fixed_step.hpp"
@@ -151,7 +152,7 @@ Options parse(int argc, char** argv) {
     throw std::runtime_error("gun smoke requires ordinary offline flight");
   if (!result.scenario.empty()) {
     if (!result.server.empty()) throw std::runtime_error("visual scenarios are offline fixtures only");
-    const std::vector<std::string> names{"parked","surfaces","flaps","gear","flight","high-altitude","high-mach","exhaust","contrail","gun","impact","destruction","mixed","idle","military","afterburner","afterburner-multiple","afterburner-transition","vectoring","high-aoa","condensation","environment","forest","grass","clouds","above-clouds","lake","mountains"};
+    const std::vector<std::string> names{"parked","surfaces","flaps","gear","flight","high-altitude","high-mach","exhaust","contrail","gun","impact","destruction","mixed","idle","military","afterburner","afterburner-multiple","afterburner-transition","vectoring","high-aoa","condensation","environment","forest","grass","clouds","above-clouds","lake","mountains","damage","damage-heavy","breakup","missile","detonation","menu","controls","chat"};
     if (std::find(names.begin(), names.end(), result.scenario) == names.end())
       throw std::runtime_error("Unknown visual scenario");
     if (result.screenshot.empty() || !result.frames) throw std::runtime_error("visual scenarios require --frames and --screenshot");
@@ -503,6 +504,17 @@ int main(int argc, char** argv) {
         fixture.att=quatFromEuler(25*kDeg2Rad,25*kDeg2Rad,0);
         controls.maneuver_mode=hasManeuverMode(simulation().config().control_law);
       }
+      if(options.scenario.starts_with("damage")) {
+        // One of everything: a holed wing, a torn fin and a shot-out engine,
+        // or the same aircraft a moment before it comes apart.
+        const bool heavy=options.scenario=="damage-heavy";
+        applyPartDamage(simulation().config(),fixture,DamagePart::LeftWing,heavy?100:60);
+        applyPartDamage(simulation().config(),fixture,DamagePart::RightWing,heavy?75:20);
+        applyPartDamage(simulation().config(),fixture,DamagePart::Tail,heavy?80:45);
+        applyPartDamage(simulation().config(),fixture,DamagePart::RightEngine,100);
+        if(heavy) applyPartDamage(simulation().config(),fixture,DamagePart::LeftEngine,30);
+        fixture.afterburner[0]=heavy?0:.8;fixture.afterburner[1]=0;fixture.n1[1]=0;
+      }
       simulation().setState(fixture); simulation().setControls(controls); previous = fixture;
       ui.parkingBrake = fixture.pos_ned.z > -10;
     }
@@ -551,6 +563,9 @@ int main(int argc, char** argv) {
     CombatVisuals combat;
 #ifdef OFS_NETWORK_ENABLED
     bool missileSelected = false, missileFireHeld = false;
+    // Brief HUD cues: own rounds striking, a kill, and being hit.
+    double hitMarkerSeconds = 0, killMarkerSeconds = 0, damageFlashSeconds = 0;
+    DamagePart lastDamagedPart = DamagePart::Fuselage;
     StoreDisplay storeDisplay;
     std::vector<HudFrame::Station> hudStations;
     std::vector<Vec3> hudMissiles;
@@ -559,6 +574,9 @@ int main(int argc, char** argv) {
     bool dogfightReturnedSolo=false;
     std::uint64_t dogfightSmokeShots=0;
 #endif
+    ChatLog chatLog;
+    std::vector<HudFrame::Score> scores;
+    double uiClock = 0;  // seconds of wall time, for chat ages
     int benchCount = 1;
     double benchTimer = 0;
     double benchSeconds=0, benchCpu=0, benchGpu=0, benchPrep=0;
@@ -711,7 +729,14 @@ int main(int argc, char** argv) {
         }
         if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) sawFocusRelease = true;
         if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat) {
-          if (event.key.scancode == SDL_SCANCODE_ESCAPE) running = false;
+          // Esc backs out one step at a time: the chat box, then an open
+          // window, then the menu itself. Scripted runs have no menu to open.
+          if (event.key.scancode == SDL_SCANCODE_ESCAPE) {
+            if (ui.chatOpen) ui.chatOpen = false;
+            else if (automated) running = false;
+            else if (ui.menuOpen && (ui.showSettings || ui.showControls)) ui.showSettings = ui.showControls = false;
+            else ui.menuOpen = !ui.menuOpen;
+          }
           if (event.key.scancode == SDL_SCANCODE_F11) {
             platform.toggleFullscreen();
             ++fullscreenSwitches;
@@ -734,6 +759,15 @@ int main(int argc, char** argv) {
             if (event.key.scancode == SDL_SCANCODE_V)
               cameraMode = cameraMode == CameraMode::FirstPerson ? CameraMode::Pursuit : CameraMode::FirstPerson;
             if (event.key.scancode == SDL_SCANCODE_N) fullMap = !fullMap;
+#ifdef OFS_NETWORK_ENABLED
+            // Chat opens on the slash, or on Enter as in most games.
+            if ((event.key.scancode == SDL_SCANCODE_SLASH || event.key.scancode == SDL_SCANCODE_RETURN ||
+                 event.key.scancode == SDL_SCANCODE_KP_ENTER) && network && network->ready() && !automated &&
+                !ui.menuOpen) {
+              ui.chatOpen = ui.chatFocus = true;
+              ui.chatBuffer.fill(0);
+            }
+#endif
             if (event.key.scancode == SDL_SCANCODE_F4) ui.hud.show = !ui.hud.show;
             if (event.key.scancode == SDL_SCANCODE_X && !automated) {
               graphics.mouseAim = !graphics.mouseAim;
@@ -778,7 +812,7 @@ int main(int argc, char** argv) {
 #endif
         const bool wasAiming = input.aiming();
         input.setAiming(platform.window(), graphics.mouseAim && !automated && flightView && flying &&
-            !graphics.showDevOverlay && !ui.paused &&
+            !graphics.showDevOverlay && !ui.paused && !ui.menuOpen &&
             (SDL_GetWindowFlags(platform.window()) & SDL_WINDOW_INPUT_FOCUS));
         if (input.aiming() && !wasAiming) ImGui::GetIO().AddMousePosEvent(-FLT_MAX, -FLT_MAX);
         mouseAim.sync(input.aiming(), simulation().state());
@@ -902,9 +936,13 @@ int main(int argc, char** argv) {
       ui.toggleFullscreen = false;
       if (ui.frameAircraft) { camera.frameAircraft(simulation().state().pos_ned); ui.frameAircraft = false; }
 
+      // A solo flight waits while the menu is up; a shared one cannot.
+      const bool held = ui.paused || (ui.menuOpen && !ui.multiplayer);
+      if (ui.quit) running = false;
+      uiClock += realElapsed;
       std::vector<Simulator::GroundImpact> frameImpacts;
       unsigned steps = 0;
-      if (!ui.paused)
+      if (!held)
         steps = clock.advance(options.flightDemo.empty()?elapsed:1./60., [&](double dt) {
           previous = simulation().state();
 #ifdef OFS_NETWORK_ENABLED
@@ -972,7 +1010,7 @@ int main(int argc, char** argv) {
       }
 
 
-      State aircraft = interpolate(previous, simulation().state(), ui.paused ? 1.0 : clock.alpha());
+      State aircraft = interpolate(previous, simulation().state(), held ? 1.0 : clock.alpha());
       remotes.clear();
 #ifdef OFS_NETWORK_ENABLED
       if (network && network->ready()) {
@@ -985,20 +1023,42 @@ int main(int argc, char** argv) {
           remote.state = sample.state;
           remote.controls = sample.controls;
           remote.type = sample.type;
-          remote.name = dogfight && dogfight->world().players().contains(id) &&
-              dogfight->world().players().at(id).bot ? "Bandit " + std::to_string(id) :
-              std::string(aircraftDefinition(sample.type).displayName);
+          // Known by the pilot's name; by the aircraft until the server has said.
+          remote.name = network->pilot(id).empty() ? std::string(aircraftDefinition(sample.type).key) : network->pilot(id);
           remote.entity = id;
           remote.health = sample.life.health;
           remote.alive = sample.life.alive();
+          remote.kills = sample.life.kills;
+          remote.deaths = sample.life.deaths;
           remotes.push_back(remote);
         }
         if (!remotes.empty()) ++remoteFrames;
+        // Chat, and everyone in the game for the scoreboard, own row first.
+        for (auto& line : network->takeChat())
+          chatLog.add({std::move(line.name), std::move(line.text), uiClock, line.from == 0, line.from == network->entity()});
+        if (ui.chatSubmit) {
+          ui.chatSubmit = false;
+          ui.chatOpen = false;
+          network->chat(chatText(ui.chatBuffer.data(), ofs::net::maxChatText));
+        }
+        scores.clear();
+        scores.push_back({network->pilot(network->entity()).empty() ? network->name() : network->pilot(network->entity()),
+                          options.aircraft, network->life().kills, network->life().deaths, true, network->life().alive()});
+        for (const auto& [id, track] : network->remotes()) {
+          if (!track.size()) continue;
+          const auto latest = track.sampleAircraft(network->stats().renderTick);
+          scores.push_back({network->pilot(id).empty() ? std::string(aircraftDefinition(latest.type).key) : network->pilot(id),
+                            latest.type, latest.life.kills, latest.life.deaths, false, latest.life.alive()});
+        }
+        std::stable_sort(scores.begin() + 1, scores.end(), [](const auto& a, const auto& b) { return a.kills > b.kills; });
+      } else {
+        ui.chatOpen = ui.chatSubmit = false;
+        scores.clear();
       }
 #endif
       combat = {};
       for (const auto& event : localGun.takeEvents()) {
-        if (event.shot) combat.shots.push_back({event.position,event.velocity,event.lifetime,true,event.projectile});
+        if (event.shot) combat.shots.push_back({event.position,event.velocity,event.lifetime,true,event.projectile,aircraft.vel_ned});
         else combat.hits.push_back({event.position,false,event.projectile});
       }
       combat.groundImpacts=std::move(frameImpacts);
@@ -1015,12 +1075,23 @@ int main(int argc, char** argv) {
       // generations come straight from the server; nothing is re-derived.
 #ifdef OFS_NETWORK_ENABLED
       if (network && network->ready()) {
+        // Where an aircraft is flying, so effects on it are carried along with it.
+        const auto velocityOf = [&](ofs::net::EntityId entity) {
+          if (entity == network->entity()) return aircraft.vel_ned;
+          for (const auto& remote : remotes) if (remote.entity == entity) return remote.state.vel_ned;
+          return Vec3{};
+        };
         for (const auto& event : network->takeVisualEvents()) {
           switch (event.kind) {
             case ofs::net::CombatKind::Shot:
-              combat.shots.push_back({event.position,event.velocity,event.lifetime,event.owner==network->entity(),event.projectile}); break;
+              combat.shots.push_back({event.position,event.velocity,event.lifetime,event.owner==network->entity(),event.projectile,velocityOf(event.owner)}); break;
             case ofs::net::CombatKind::Hit:
-              combat.hits.push_back({event.position,event.target==network->entity(),event.projectile});
+              combat.hits.push_back({event.position,event.target==network->entity(),event.projectile,velocityOf(event.target)});
+              if (event.owner == network->entity() && event.target != network->entity()) hitMarkerSeconds = .25;
+              if (event.target == network->entity() && event.owner != network->entity()) {
+                damageFlashSeconds = .6;
+                lastDamagedPart = event.region;
+              }
               if (event.owner == network->entity() &&
                   (event.projectile & (std::uint64_t{1} << 63))) {
                 const auto pending = std::find_if(
@@ -1039,8 +1110,26 @@ int main(int argc, char** argv) {
                 }
               }
               break;
-            case ofs::net::CombatKind::Destroyed:
-              combat.destructions.push_back({event.position,event.velocity}); break;
+            case ofs::net::CombatKind::Destroyed: {
+              // The wings and fin are thrown clear from where the aircraft was last seen.
+              CombatVisuals::Destruction destruction{event.position,event.velocity};
+              const auto track = network->remotes().find(event.target);
+              if (event.target == network->entity()) {
+                destruction.airframe = true;
+                destruction.type = options.aircraft;
+                destruction.state = aircraft;
+              } else if (track != network->remotes().end() && track->second.size()) {
+                const auto last = track->second.sampleAircraft(network->stats().renderTick);
+                destruction.airframe = true;
+                destruction.entity = event.target;
+                destruction.type = last.type;
+                destruction.state = last.state;
+              }
+              if (destruction.airframe && destruction.velocity.norm2() == 0) destruction.velocity = destruction.state.vel_ned;
+              combat.destructions.push_back(destruction);
+              if (event.owner == network->entity() && event.target != network->entity()) killMarkerSeconds = 1.2;
+              break;
+            }
             case ofs::net::CombatKind::Respawn: break;
           }
         }
@@ -1066,7 +1155,8 @@ int main(int argc, char** argv) {
           combat.missiles.push_back(
               {missile.id, position, missile.velocity, missile.attitude, d.length, d.diameter, missile.age,
                missile.motor == weapons::MotorPhase::Boost || missile.motor == weapons::MotorPhase::Sustain});
-          combat.stores.push_back({position, missile.attitude, missile.type, false});
+          combat.stores.push_back({position, missile.attitude, missile.type, false,
+                                   missile.motor == weapons::MotorPhase::Boost || missile.motor == weapons::MotorPhase::Sustain});
         }
         presentedMissiles = std::move(presented);
         // Stores on the pylons of every armed aircraft close enough to see.
@@ -1077,8 +1167,14 @@ int main(int argc, char** argv) {
           if (loadout.stations.empty()) return;
           const std::uint8_t shown = storeDisplay.update(entity, generation, loadout, mounted,
                                                          launched[entity], elapsed);
+          const DamageView damage = damageView(state, 100);
+          const auto geometry = damageGeometry(type);
           for (std::size_t i = 0; i < loadout.stations.size() && i < 8; ++i) {
             const auto &station = loadout.stations[i];
+            // A pylon out on a wing that has been torn away went with it.
+            const double span = (std::abs(station.position.y) - geometry.wingRoot) / (geometry.wingTip - geometry.wingRoot);
+            if (span > wingRemaining(damage[station.position.y < 0 ? DamagePart::LeftWing : DamagePart::RightWing]) - .05)
+              continue;
             const Vec3 position = stationPosition(state, type, station.position);
             combat.pylons.push_back({position, state.att, type, std::uint8_t(i), station.mounted, local});
             if (shown & (1u << i))
@@ -1180,8 +1276,51 @@ int main(int argc, char** argv) {
         const double fixtureTime = frame / 60.0;
         if (options.scenario == "gear") controls.gear01 = frame < 20 ? 1 : 0;
         if (options.scenario == "flaps") controls.flap01 = frame < 20 ? 0 : 1;
-        if (options.scenario == "contrail" || options.scenario == "condensation" || options.scenario == "high-aoa") {
+        if (options.scenario == "contrail" || options.scenario == "condensation" || options.scenario == "high-aoa" ||
+            options.scenario == "breakup" || options.scenario == "missile" || options.scenario == "detonation") {
           aircraft.pos_ned.x += fixtureTime * aircraft.vel_ned.x;
+        }
+        if (options.scenario == "missile" || options.scenario == "detonation") {
+          // One missile of each kind flying in formation off the right wing,
+          // motors burning, so the airframes, plumes and trails can be judged.
+          for (unsigned i = 0; i < 2; ++i) {
+            const auto type = i ? weapons::WeaponType::ActiveRadar : weapons::WeaponType::Infrared;
+            const auto& d = weapons::missileDefinition(type);
+            const Vec3 position = aircraft.pos_ned + aircraft.att.rotate({4. + 3 * i, 7. + 3.5 * i, -1.5 + .8 * i});
+            combat.missiles.push_back({1000 + i, position, aircraft.vel_ned, aircraft.att, d.length, d.diameter, fixtureTime, true});
+            combat.stores.push_back({position, aircraft.att, type, false, true});
+          }
+          if (options.scenario == "detonation" && frame == 36)
+            combat.missileDetonations.push_back(aircraft.pos_ned + aircraft.att.rotate({70, 26, -4}));
+        }
+        // The menu and its reference window, for a look at them without a keyboard.
+        if (options.scenario == "menu" || options.scenario == "controls") {
+          ui.menuOpen = true;
+          ui.showControls = options.scenario == "controls";
+        }
+        if (options.scenario == "chat") {
+          // A conversation and the box it is typed in, as a multiplayer pilot sees them.
+          if (frame == 1) {
+            chatLog.add({"", "Maya joined the game", uiClock, true, false});
+            chatLog.add({"Maya", "anyone up for a 2 v 2?", uiClock, false, false});
+            chatLog.add({"pilot", "in. give me a minute to climb", uiClock, false, true});
+            chatLog.add({"", "Maya shot down Bandit 3", uiClock, true, false});
+            std::snprintf(ui.chatBuffer.data(), ui.chatBuffer.size(), "on your six");
+          }
+          ui.chatOpen = true;
+        }
+        if (options.scenario == "breakup") {
+          // A wing is shot through, snaps, and the aircraft then blows up.
+          if (frame >= 20) applyPartDamage(simulation().config(), aircraft, DamagePart::LeftWing, frame >= 40 ? 100 : 60);
+          if (frame >= 40) applyPartDamage(simulation().config(), aircraft, DamagePart::RightEngine, 100);
+          if (frame >= 55) applyPartDamage(simulation().config(), aircraft, DamagePart::Tail, 100);
+          combat.localHealth = frame >= 40 ? 40 : frame >= 20 ? 75 : 100;
+          const unsigned finale = 80;
+          if (frame == finale) {
+            CombatVisuals::Destruction destruction{aircraft.pos_ned, aircraft.vel_ned, true, 0, options.aircraft, aircraft};
+            combat.destructions.push_back(destruction);
+          }
+          if (frame >= finale) combat.localDestroyed = true;
         }
         if (options.scenario == "mixed") {
           const std::array<Vec3,3> offsets{{{12,30,0},{-4,-26,0},{-10,-60,0}}};
@@ -1212,6 +1351,8 @@ int main(int argc, char** argv) {
         if (options.scenario == "destruction" && frame == 60)
           combat.destructions.push_back({aircraft.pos_ned,aircraft.vel_ned*.15});
         if (options.scenario == "destruction" && frame >=60) combat.localDestroyed=true;
+        if (options.scenario == "damage") combat.localHealth=55;
+        if (options.scenario == "damage-heavy") combat.localHealth=20;
       }
       if ((options.networkSmoke || options.combatSmoke) && !remotes.empty()) {
         const Vec3 center = (aircraft.pos_ned + remotes.front().state.pos_ned) * .5;
@@ -1231,10 +1372,10 @@ int main(int argc, char** argv) {
       camera.update(cameraMode, aircraft, renderDt, firstFrame, options.aircraft, mouseAim.active ? &aimView : nullptr);
       if(cameraMode==CameraMode::FirstPerson)camera.fov=graphics.cockpitFov;
       if (simulation().origin().rebaseIfNeeded(camera.eye)) log("RENDER", "Render origin rebased");
-      combat.gunPointValid = definition.gun.has_value() && cameraMode == CameraMode::FirstPerson;
+      combat.gunPointValid = definition.gun.has_value() && cameraMode != CameraMode::Free && cameraMode != CameraMode::Orbit;
       if (combat.gunPointValid)
         combat.gunPoint = aircraft.pos_ned + aircraft.att.rotate(definition.gun->muzzle-loadedCg(definition.flight,aircraft) + definition.gun->direction*1000);
-      renderer.render(camera, aircraft, controls, remotes, combat, simulation().origin().origin_ned, ui.paused && options.scenario.empty() ? 0. : renderDt, simulation().instruments().g_load, simulation().weather());
+      renderer.render(camera, aircraft, controls, remotes, combat, simulation().origin().origin_ned, held && options.scenario.empty() ? 0. : renderDt, simulation().instruments().g_load, simulation().weather());
       if (options.visualBench>0 && benchCount==options.visualBench && benchTimer>1) {
         const auto& stats=renderer.stats(); ++benchSamples; benchSeconds+=realElapsed;
         benchCpu+=stats.cpuFrameMs; benchGpu+=stats.gpuFrameMs; benchPrep+=stats.preparationMs;
@@ -1261,6 +1402,9 @@ int main(int argc, char** argv) {
       hud.fullMap = fullMap;
       hud.alive = !aircraftCrashed(aircraft);
       hud.health = airframeIntegrity(aircraft)*100;
+      hud.damage = damageView(aircraft, combat.localHealth);
+      hud.now = uiClock;
+      hud.menuOpen = ui.menuOpen;
       hud.ammo = localGun.ammo();
       hud.gunReady = localGun.ready();
       hud.firing = input.firing(captureKeyboard, ImGui::GetIO().WantCaptureMouse);
@@ -1310,11 +1454,38 @@ int main(int argc, char** argv) {
         }
         hud.alive = network->life().alive();
         hud.health = network->life().health;
+        hud.damagedPart = lastDamagedPart;
+        hud.hitMarker = hitMarkerSeconds;
+        hud.killMarker = killMarkerSeconds;
+        hud.damageFlash = damageFlashSeconds;
+        hitMarkerSeconds = std::max(0., hitMarkerSeconds - elapsed);
+        killMarkerSeconds = std::max(0., killMarkerSeconds - elapsed);
+        damageFlashSeconds = std::max(0., damageFlashSeconds - elapsed);
+        hud.scores = scores;
+        hud.showScores = !captureKeyboard && input.key(SDL_SCANCODE_K);
+        hud.pingMs = network->stats().pingMs;
         hud.ammo = network->life().ammo;
         hud.gunReady = network->stats().serverTick >= network->life().readyTick;
         hud.respawnSeconds = combat.localRespawnSeconds;
       }
 #endif
+#ifdef OFS_NETWORK_ENABLED
+      if (network && !network->ready()) {
+        // Never a silent, frozen aircraft: say what the connection is doing.
+        const std::string& status = network->status();
+        const bool joining = status == "connecting" || status == "handshaking";
+        hud.bannerProblem = !joining;
+        hud.bannerTitle = joining ? "JOINING GAME" : "NOT CONNECTED";
+        hud.bannerDetail = status == "connecting" ? "Contacting " + (dogfight ? std::string("the local game") : options.server) + " ..."
+            : status == "handshaking" ? "Waiting for the host ..."
+            : status == "protocol version mismatch" ? "The host is running a different version of the game.   Esc for the menu"
+            : status == "server full" || status == "world full" ? "That game is full.   Esc for the menu"
+            : (status.empty() || status == "offline" ? std::string("The game could not be reached.") : status) + "   Esc for the menu";
+      }
+#endif
+      const auto chatLines = chatLog.visible(uiClock, ui.chatOpen, ui.chatOpen ? 12 : 6);
+      hud.chat = chatLines;
+      hud.chatOpen = ui.chatOpen;
       drawHud(hud, ui.hud, renderer);
 
       debugUi(simulation(), controls, camera, clock, steps, realElapsed, measuredTicks, renderer, assetName,

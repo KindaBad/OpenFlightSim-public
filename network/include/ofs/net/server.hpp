@@ -1,9 +1,12 @@
 #pragma once
+#include "ofs/net/discovery.hpp"
 #include "ofs/net/replication.hpp"
 #include "ofs/net/transport.hpp"
 #include "ofs/net/weapons_protocol.hpp"
 #include "ofs/net/world.hpp"
 #include <map>
+#include <memory>
+#include <optional>
 namespace ofs::net {
 struct ServerConfig {
   std::string bind{"0.0.0.0"};
@@ -13,6 +16,10 @@ struct ServerConfig {
   unsigned bots{}; // Server-owned opponents; reserve at least one human slot.
   std::optional<GunConfig>
       gun; // Scenario/server override; never client editable.
+  // A named game answers discovery on the local network; an unnamed one is
+  // reachable by address only.
+  std::string lobbyName, version;
+  std::uint16_t discoveryPort{ofs::net::discoveryPort};
 };
 struct ServerStats {
   std::uint64_t received{}, sent{}, bytesIn{}, bytesOut{}, invalid{},
@@ -39,6 +46,9 @@ public:
   World &world() { return world_; }
   const ServerStats &stats() const { return stats_; }
   std::uint16_t port() const;
+  // What this game tells the local network about itself.
+  LobbyInfo lobby() const;
+  bool announced() const { return discovery_ && discovery_->available(); }
 
 private:
   struct Session {
@@ -50,7 +60,7 @@ private:
     LinkStats link;
     ReplicationSender replication;
     WeaponReplicationSender weapons;
-    unsigned weaponActions{};
+    unsigned weaponActions{}, chats{};
     bool reliableFailure{};
   };
   ServerConfig config_;
@@ -63,5 +73,9 @@ private:
   void send(Connection, const Message &, bool);
   void broadcast(const Message &, bool);
   void remove(Connection, const std::string &, bool reject = false);
+  // A line from the server itself: arrivals, departures and kills.
+  void notice(const std::string &);
+  std::string pilot(EntityId) const;
+  std::unique_ptr<DiscoveryResponder> discovery_;
 };
 } // namespace ofs::net

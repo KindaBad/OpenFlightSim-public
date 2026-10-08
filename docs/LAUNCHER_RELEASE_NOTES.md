@@ -1,3 +1,38 @@
+OpenFlightSim 0.5.0 Launcher
+
+- Damage now happens where you are hit. Each wing, the tail, each engine and
+  the fuselage take damage separately. A holed wing lifts less and drags more,
+  so the aircraft pulls to that side; a shot-up tail loses its rudder; a hit
+  engine loses thrust and a second hit stops it, leaving it burning and
+  smoking. Wings and fins tear away as they are destroyed and the piece
+  tumbles off behind you. A badly damaged wing also snaps if you pull too hard
+  on it, taking its missiles with it. An aircraft that crashes after being hit
+  counts as a kill for whoever hit it.
+- You see it all: holes and soot on the skin, torn wings and fins, smoke from
+  the part that was hit, and fire in a dead engine, on your own aircraft and on
+  everyone else's. An aircraft that is destroyed breaks up and its wreck falls
+  burning. A new airframe diagram beside the map shows what is damaged.
+- Multiplayer on your own network is now two clicks. Open the new Multiplayer
+  page in the launcher: one player presses Host and fly, everyone else on the
+  same Wi-Fi or network sees the game in the list and presses Join. No
+  addresses to type; you can add AI opponents to a hosted game. Joining by
+  address is still there for networks that block discovery. If the host runs
+  Windows, allow OpenFlightSim on private networks when the firewall asks.
+- Chat in multiplayer: press / (or Enter), type, Enter to send. Pilots are
+  shown by name on labels, in chat and on the scoreboard (hold K); arrivals,
+  departures and kills are announced.
+- New weapon effects. The gun has a proper muzzle flash, gun smoke, spent
+  cases and brighter tracers with a faint smoke line; hits throw a flash,
+  sparks and fragments. Missiles have a white-hot rocket plume, a glowing
+  nozzle and a cleaner smoke trail, and a warhead goes off with a flash, a
+  shock ring and fragments instead of an aircraft-sized fireball.
+- Redesigned flight display: a clear panel for speed, height, thrust and fuel,
+  a gunsight in every flying view, hit and kill markers, lit switches for gear,
+  flaps and airbrake, and a matching blue style in every window. Esc now opens
+  a menu (resume, fly again, fight bots, settings, controls, quit) instead of
+  closing the game at once.
+- Online play uses network protocol 15: everyone in a game needs 0.5.0.
+
 OpenFlightSim 0.4.7 Launcher
 
 - Mouse aim climbs faster. When the ring is above the nose, the instructor now

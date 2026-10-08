@@ -1,7 +1,8 @@
 #pragma once
-// Developer windows: simulation diagnostics, graphics settings and renderer
-// statistics. Kept entirely separate from the gameplay HUD so a clean
-// screenshot is one keypress away.
+// Windows the pilot clicks and types in: the Esc menu, settings, the controls
+// reference and the chat box, plus the developer diagnostics behind F1. Kept
+// entirely separate from the gameplay HUD so a clean screenshot is one
+// keypress away.
 
 #include "camera.hpp"
 #include "hud.hpp"
@@ -10,6 +11,8 @@
 #include "settings.hpp"
 
 #include <SDL3/SDL.h>
+
+#include <array>
 
 namespace ofs::client {
 
@@ -42,6 +45,12 @@ struct UiSettings {
   CameraMode cameraMode{CameraMode::Free};
   bool frameAircraft{false};
   float resetAirborneX{190}, resetAirborneY{645}; // Observed UI target for smoke automation.
+  // The Esc menu and the windows it opens. `quit` asks the caller to leave.
+  bool menuOpen{}, showSettings{}, showControls{}, quit{};
+  // Chat: open while the pilot types. `chatFocus` puts the cursor in the box
+  // on the frame it opens, and `chatSubmit` reports that Enter was pressed.
+  bool chatOpen{}, chatFocus{}, chatSubmit{};
+  std::array<char, 121> chatBuffer{};
 };
 
 // Draws every developer window. `settings` is edited in place and the caller

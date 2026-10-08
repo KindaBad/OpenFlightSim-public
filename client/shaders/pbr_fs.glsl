@@ -18,11 +18,134 @@ SAMPLER2D(s_occlusion, 5);
 uniform vec4 u_normalSettings;    // x normal scale, y glass reflectance, z occlusion strength
 uniform vec4 u_textureFlags;      // base, metallic-roughness, emissive, normal present
 uniform vec4 u_alphaSettings;     // x alpha mask, y cutoff, z alpha blended
+// Battle damage on an aircraft, in its body axes (x forward, y right, z down).
+// Damage runs from 0 intact to 1 destroyed.
+//   [0] left wing, right wing, tail, fuselage damage
+//   [1] left engine, right engine damage, pattern seed, 1 when anything is
+//       damaged, or 2 for a part that has broken away (see main)
+//   [2] asset centre of gravity xyz, |y| of the wing stub that always remains
+//   [3] wingtip |y|, aft and fore x of the outer wings, x the fins stand aft of
+//   [4] fin base and top height, engine bay length and radius
+//   [5] left engine bay aft end xyz
+//   [6] right engine bay aft end xyz
+uniform vec4 u_damage[7];
+uniform mat4 u_ofsModel;
+
+float damageHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+
+float damageNoise(vec2 p)
+{
+    vec2 cell = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(damageHash(cell), damageHash(cell + vec2(1.0, 0.0)), f.x),
+               mix(damageHash(cell + vec2(0.0, 1.0)), damageHash(cell + vec2(1.0, 1.0)), f.x), f.y);
+}
+
+// Shell holes scattered over a surface whose first axis points forward: x is 1
+// inside a hole, y the soot around it, drawn out behind the hole by the
+// airflow. `density` is the fraction of cells that have been hit.
+vec2 damageHoles(vec2 p, float cellSize, float density, float seed)
+{
+    vec2 cell = floor(p / cellSize) + seed * 13.0;
+    vec2 f = fract(p / cellSize) - 0.5;
+    float hit = step(1.0 - density, damageHash(cell));
+    vec2 q = f - (vec2(damageHash(cell + 17.0), damageHash(cell + 43.0)) - 0.5) * 0.5;
+    float radius = 0.07 + 0.11 * damageHash(cell + 71.0);
+    // An uneven rim reads as torn metal instead of a drilled circle.
+    float ragged = 1.0 + 0.7 * (damageNoise(p * 11.0 / cellSize + seed) - 0.5);
+    float core = length(q) / (radius * ragged);
+    q.x *= q.x < 0.0 ? 0.3 : 1.0;
+    float trail = length(q) / radius;
+    return hit * vec2(1.0 - step(1.0, core), (1.0 - smoothstep(0.9, 2.6, trail)) * 0.85);
+}
+
+// Soot and heat around one engine bay: x darkening, y how deep inside a
+// burnt-out jet pipe the surface is, z,w the outward direction from the bay
+// axis in the body's y and z.
+vec4 damageEngine(vec3 body, vec3 aft, float damage, float seed)
+{
+    float along = clamp(body.x - aft.x, -0.5, u_damage[4].z);
+    vec3 fromAxis = body - (aft + vec3(along, 0.0, 0.0));
+    float d = length(fromAxis);
+    float reach = u_damage[4].w * (1.3 + 1.5 * damage);
+    float streaks = 0.6 + 0.4 * damageNoise(vec2(body.x * 1.3, (body.y + body.z) * 7.0) + seed);
+    float soot = damage * (1.0 - smoothstep(reach * 0.35, reach, d)) * streaks;
+    float pipe = step(0.99, damage) * (1.0 - smoothstep(u_damage[4].w * 0.5, u_damage[4].w, d))
+               * smoothstep(-0.1, 0.25, body.x - aft.x) * (1.0 - smoothstep(0.6, 2.2, body.x - aft.x));
+    return vec4(soot, pipe, fromAxis.yz);
+}
 
 void main()
 {
     vec3 geometric = normalize(v_normal);
     vec3 n = geometric;
+    // Missing structure is cut away before any texture is read.
+    float soot = 0.0;
+    float pipeGlow = 0.0;
+    vec2 pipeOutward = vec2_splat(0.0);
+    bool damaged = u_damage[1].w > 0.5;
+    if (damaged) {
+        vec3 body = vec3(u_damage[2].x - v_surfacePos.x, u_damage[2].z - v_surfacePos.z, u_damage[2].y - v_surfacePos.y);
+        float seed = u_damage[1].z;
+        float side = step(0.0, body.y);
+        float span = (abs(body.y) - u_damage[2].w) / max(u_damage[3].x - u_damage[2].w, 0.1);
+        float height = (-body.z - u_damage[4].x) / max(u_damage[4].y - u_damage[4].x, 0.1);
+        bool onWing = span > 0.0 && body.x > u_damage[3].y && body.x < u_damage[3].z;
+        bool onFin = height > 0.0 && body.x < u_damage[3].w;
+        // The break is ragged, and the same on the aircraft and on the piece
+        // that left it, so the two fit where they parted.
+        float wingBreak = (damageNoise(vec2(body.x * 2.3, seed + side * 9.0)) - 0.5) * 0.16;
+        float finBreak = (damageNoise(vec2(body.x * 2.9, seed + 3.0)) - 0.5) * 0.2;
+        if (u_damage[1].w > 1.5) {
+            // A part that has broken away, drawn on its own: [0] is the part
+            // (0 left wing, 1 right wing, 2 fin) and the inner and outer edge
+            // of the slab that left. Everything else is cut.
+            float part = u_damage[0].x;
+            bool fin = part > 1.5;
+            float along = fin ? height - finBreak : span - wingBreak;
+            bool present = fin ? onFin : (onWing && abs(side - part) < 0.5);
+            vec2 holes = fin ? damageHoles(body.xz, 0.45, 0.4, seed + 5.0) : damageHoles(body.xy, 0.5, 0.4, seed + side);
+            if (!present || along <= u_damage[0].y || along > u_damage[0].z || (holes.x > 0.5 && gl_FrontFacing)) {
+                discard;
+            }
+            soot = max(holes.y, 1.0 - smoothstep(0.0, 0.3, along - u_damage[0].y));
+        } else {
+            float wing = mix(u_damage[0].x, u_damage[0].y, side);
+            if (wing > 0.0 && onWing) {
+                // The outer panel goes first; a destroyed wing is a ragged stub.
+                float remaining = mix(1.25, 0.08, smoothstep(0.4, 1.0, wing)) + wingBreak;
+                vec2 holes = damageHoles(body.xy, 0.5, wing * 0.4, seed + side);
+                // A hole is cut in the skin facing the viewer only, so the dark
+                // inside of the wing shows through it instead of the sky beyond.
+                if (span > remaining || (holes.x > 0.5 && gl_FrontFacing)) {
+                    discard;
+                }
+                soot = max(soot, max(holes.y, smoothstep(remaining - 0.28, remaining, span) * step(0.4, wing)));
+            }
+            float tail = u_damage[0].z;
+            if (tail > 0.0 && onFin) {
+                float remaining = mix(1.25, 0.1, smoothstep(0.4, 1.0, tail)) + finBreak;
+                vec2 holes = damageHoles(body.xz, 0.45, tail * 0.4, seed + 5.0);
+                if (height > remaining || (holes.x > 0.5 && gl_FrontFacing)) {
+                    discard;
+                }
+                soot = max(soot, max(holes.y, smoothstep(remaining - 0.3, remaining, height) * step(0.4, tail)));
+            }
+            vec4 left = damageEngine(body, u_damage[5].xyz, u_damage[1].x, seed);
+            vec4 right = damageEngine(body, u_damage[6].xyz, u_damage[1].y, seed + 2.0);
+            soot = max(soot, max(left.x, right.x));
+            pipeGlow = max(left.y, right.y);
+            pipeOutward = left.y > right.y ? left.zw : right.zw;
+            // The fuselage is not hollowed out: its holes show as blackened pits.
+            float fuselage = u_damage[0].w * step(abs(body.y), u_damage[2].w);
+            if (fuselage > 0.0) {
+                vec2 flank = damageHoles(body.xz, 0.6, fuselage * 0.3, seed + 11.0);
+                vec2 back = damageHoles(body.xy, 0.6, fuselage * 0.3, seed + 17.0);
+                soot = max(soot, max(max(flank.x, back.x), max(flank.y, back.y) * 0.8));
+            }
+        }
+    }
     // Authored tangent frame takes precedence; derivative frame is the fallback.
     if (u_textureFlags.w > 0.5) {
         vec3 t = vec3_splat(0.0);
@@ -52,7 +175,10 @@ void main()
     }
     // Reverse the complete mapped normal: this is equivalent to reversing
     // all three TBN basis vectors for the back face, including tangential tilt.
-    if (u_doubleSided.x > 0.5 && !gl_FrontFacing) {
+    // A damaged airframe is drawn without culling, so the inside of a torn
+    // skin is visible; it is shaded as bare, blackened structure below.
+    bool interior = damaged && u_doubleSided.x < 0.5 && !gl_FrontFacing;
+    if ((u_doubleSided.x > 0.5 || damaged) && !gl_FrontFacing) {
         n = -n;
         geometric = -geometric;
     }
@@ -75,6 +201,12 @@ void main()
     if (u_alphaSettings.x > 0.5 && alpha < u_alphaSettings.y) {
         discard;
     }
+    if (interior) {
+        soot = 1.0;
+    }
+    albedo = mix(albedo, vec3_splat(0.012), soot * 0.94);
+    metallic *= 1.0 - soot;
+    roughness = mix(roughness, 0.92, soot);
 
     vec3 world = v_worldPos + u_worldOrigin.xyz;
     float occlusion = mix(1.0, texture2D(s_occlusion, v_uv).r, u_normalSettings.z);
@@ -123,7 +255,16 @@ void main()
         alpha = opacity;
     }
     color += u_emissive.rgb * mix(vec3_splat(1.0), srgbToLinear(texture2D(s_emissive, v_uv).rgb), u_textureFlags.z)
-           * u_sunDirection.w;
+           * u_sunDirection.w * (1.0 - soot);
+    if (pipeGlow > 0.0) {
+        // Fire still burning inside a shot-out engine lights the wall of its
+        // jet pipe: only surfaces that face the engine's axis, never the cowl.
+        // Body y and z are asset -z and -y.
+        vec3 outward = mul(u_ofsModel, vec4(0.0, -pipeOutward.y, -pipeOutward.x, 0.0)).xyz;
+        float facing = ofsSaturate(-dot(geometric, normalize(outward + vec3(0.0, 1.0e-6, 0.0))) * 2.0);
+        float flicker = 0.65 + 0.35 * sin(u_cameraPos.w * 19.0 + v_surfacePos.x * 9.0);
+        color += vec3(2.6, 0.62, 0.07) * (pipeGlow * facing * flicker * u_sunDirection.w);
+    }
 
     color = ofsApplyAerial(color, ofsScreenUv(gl_FragCoord), -v, viewDistance);
 

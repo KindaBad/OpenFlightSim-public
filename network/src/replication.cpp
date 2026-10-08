@@ -259,6 +259,11 @@ AircraftNetState projectAircraft(const Aircraft &a, bool owner, Tier tier,
         a.state.spoiler, a.state.canard, a.state.elevon_l, a.state.elevon_r})
     q(surfaces, x, 32767, 2);
   unit(surfaces, airframeIntegrity(a.state));
+  // Battle damage other players can see: wings, tailplanes, fin and engines.
+  for (unsigned i = 0; i < 5; ++i)
+    unit(surfaces, a.state.surface_health[i]);
+  for (double health : a.state.engine_health)
+    unit(surfaces, health);
   s.fields[6] = std::move(surfaces.b);
   Writer life;
   life.u(unsigned(a.type) | (a.state.fuel_mass > 0 ? 0x80 : 0) |
@@ -305,7 +310,7 @@ bool expandAircraft(EntityId id, const AircraftNetState &s, Vec3 ref,
     if (!decodeAircraft(w.b, a) || a.id != id)
       return false;
   } else {
-    constexpr std::array<unsigned, 9> sizes{0, 7, 6, 6, 7, 10, 17, 33, 36};
+    constexpr std::array<unsigned, 9> sizes{0, 7, 6, 6, 7, 10, 24, 33, 36};
     for (unsigned i = 1; i < 9; ++i)
       if (s.fields[i].size() != sizes[i])
         return false;
@@ -368,6 +373,10 @@ bool expandAircraft(EntityId id, const AircraftNetState &s, Vec3 ref,
                       &a.state.elevon_l, &a.state.elevon_r})
       *p = q(surf, 32767, 2);
     a.state.surface_health[5] = unit(surf);
+    for (unsigned i = 0; i < 5; ++i)
+      a.state.surface_health[i] = unit(surf);
+    for (double &health : a.state.engine_health)
+      health = unit(surf);
     a.state.actuators_initialized = true;
     Reader life{s.fields[7]};
     const auto typeFlags = life.u(1);

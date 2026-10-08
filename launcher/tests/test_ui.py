@@ -46,9 +46,9 @@ class UI(unittest.TestCase):
         self.temp.cleanup()
 
     def test_all_sections_render_and_aircraft_discovered(self):
-        self.assertEqual(self.window.stack.count(), 10)
+        self.assertEqual(self.window.stack.count(), 11)
         self.assertEqual(self.window.aircraft_combo.count(), 2)
-        for row, index in enumerate((0, 1, 2, 8, 9)):
+        for row, index in enumerate((0, 1, 10, 2, 8, 9)):
             self.window.navigation.setCurrentRow(row)
             self.app.processEvents()
             self.assertEqual(self.window.stack.currentIndex(), index)
@@ -57,7 +57,7 @@ class UI(unittest.TestCase):
             tab.click()
             self.app.processEvents()
             self.assertEqual(self.window.stack.currentIndex(), index)
-            self.assertEqual(self.window.navigation.currentRow(), 2)
+            self.assertEqual(self.window.navigation.currentRow(), 3)
         self.window.show_page(0)
         self.assertTrue(self.window.play_button.isEnabled())
 
@@ -191,6 +191,103 @@ class UI(unittest.TestCase):
         self.assertEqual(results, ['complete'])
         self.assertIsNone(self.window.job)
         self.assertFalse(self.window.progress.isVisible())
+
+    def lobby(self, **changes):
+        from launcher.lan import Lobby
+        return Lobby(**{**dict(name='Friday night', address='192.168.1.20', port=27025, protocol=15, players=1,
+                               max_players=16, bots=2, version='0.5.0'), **changes})
+
+    def test_multiplayer_page_lists_games_and_joins_the_selected_one(self):
+        self.window.installation.catalog['protocol'] = 15
+        self.window.show_page(10)
+        self.assertEqual(self.window.navigation.currentRow(), 2)
+        self.assertFalse(self.window.join_button.isEnabled())
+        self.window.show_lobbies([self.lobby(name='Old build', address='192.168.1.9', protocol=14), self.lobby()], ['192.168.1.23'])
+        self.assertEqual(self.window.lobby_list.count(), 2)
+        self.assertIn('different game version', self.window.lobby_list.item(0).text())
+        # The first game that can be joined is selected; the incompatible one cannot be.
+        self.assertEqual(self.window.selected_lobby().name, 'Friday night')
+        self.assertTrue(self.window.join_button.isEnabled())
+        self.assertIn('192.168.1.23', self.window.lan_address.text())
+        self.assertIn('2 games found', self.window.lan_status.text())
+        with patch.object(self.window.session, 'start') as start:
+            self.window.join_button.click()
+            prefs = start.call_args.args[1]
+            self.assertEqual((prefs.mode, prefs.host, prefs.server, prefs.port), ('multiplayer', False, '192.168.1.20', 27025))
+            self.assertFalse(start.call_args.kwargs['lan'])
+        # Joining a game is for one flight; the saved flight mode is untouched.
+        self.assertEqual(self.window.prefs.mode, 'free')
+        # A refresh keeps the selection, and an empty network says what to do.
+        self.window.show_lobbies([self.lobby(name='Another', address='192.168.1.30'), self.lobby()])
+        self.assertEqual(self.window.selected_lobby().address, '192.168.1.20')
+        self.window.show_lobbies([])
+        self.assertFalse(self.window.join_button.isEnabled())
+        self.assertIn('No games found', self.window.lan_status.text())
+        with patch.object(self.window.session, 'start') as start, patch.object(self.window, 'error') as error:
+            self.window.join_selected()
+            start.assert_not_called()
+            error.assert_called_once()
+
+    def test_host_and_fly_opens_the_game_to_the_network(self):
+        self.window.show_page(10)
+        self.window.lan_pilot.setText('Ace')
+        self.window.lan_pilot.editingFinished.emit()
+        self.assertEqual(self.window.prefs.name, 'Ace')
+        self.assertEqual(self.window.pilot_field.text(), 'Ace')
+        self.assertEqual(self.window.pilot_button.text(), 'Ace')
+        self.assertEqual(self.window.lobby_field.placeholderText(), "Ace's game")
+        self.window.lobby_field.setText('Squadron night')
+        self.window.lobby_field.editingFinished.emit()
+        self.window.lan_bots.setValue(3)
+        with patch.object(self.window.session, 'start') as start:
+            self.window.host_button.click()
+            prefs = start.call_args.args[1]
+            self.assertEqual((prefs.mode, prefs.host, prefs.lobby, prefs.lan_bots), ('multiplayer', True, 'Squadron night', 3))
+            self.assertTrue(start.call_args.kwargs['lan'])
+        saved = read_json(self.data / 'launcher.json')
+        self.assertEqual((saved['name'], saved['lobby'], saved['lan_bots'], saved['mode']), ('Ace', 'Squadron night', 3, 'free'))
+
+    def test_join_by_address_and_shared_network_fields(self):
+        self.window.show_page(10)
+        self.window.direct_address.setText(' 192.168.1.44 ')
+        self.window.direct_port.setValue(27033)
+        with patch.object(self.window.session, 'start') as start:
+            self.window.direct_button.click()
+            prefs = start.call_args.args[1]
+            self.assertEqual((prefs.mode, prefs.host, prefs.server, prefs.port), ('multiplayer', False, '192.168.1.44', 27033))
+        self.assertEqual(self.window.server_field.text(), '192.168.1.44')
+        self.assertEqual(self.window.port_field.value(), 27033)
+        self.window.port_field.setValue(27020)
+        self.assertEqual(self.window.direct_port.value(), 27020)
+
+    def test_games_are_not_looked_for_behind_the_players_back(self):
+        with patch('launcher.ui.lan.discover', return_value=[]) as discover:
+            self.window.show_page(0)
+            self.window.scan_lan()
+            self.assertIsNone(self.window.scan)
+            self.window.show_page(10)
+            deadline = time.monotonic() + 3
+            while self.window.scan and time.monotonic() < deadline:
+                self.app.processEvents()
+                time.sleep(.01)
+            self.assertIsNone(self.window.scan)
+            discover.assert_called_once()
+            with patch.object(self.window.session, 'running', return_value=True):
+                self.window.scan_lan()
+                self.assertIsNone(self.window.scan)
+
+    def test_multiplayer_actions_wait_for_a_flight_in_progress(self):
+        self.window.show_page(10)
+        self.window.show_lobbies([self.lobby()])
+        with patch.object(self.window.session, 'running', return_value=True):
+            self.window.refresh_summary()
+            self.assertFalse(self.window.host_button.isEnabled())
+            self.assertFalse(self.window.join_button.isEnabled())
+            with patch.object(self.window.session, 'start') as start, patch.object(self.window, 'error'):
+                self.window.host_lan()
+                start.assert_not_called()
+        self.window.refresh_summary()
+        self.assertTrue(self.window.host_button.isEnabled())
 
     def test_play_hands_real_settings_to_session(self):
         self.window.aircraft_combo.setCurrentIndex(1)

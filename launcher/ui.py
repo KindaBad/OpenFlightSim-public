@@ -1,4 +1,5 @@
 """Native aviation-styled Qt Widgets UI. Long operations run off the UI thread."""
+import dataclasses
 import logging
 import os
 from pathlib import Path
@@ -14,6 +15,7 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, Q
     QCheckBox, QSpinBox, QDoubleSpinBox, QLineEdit, QProgressBar, QMessageBox,
     QFileDialog, QScrollArea, QPlainTextEdit, QListWidgetItem, QSizePolicy)
 
+from . import lan
 from .config import Preferences, Graphics, GRAPHICS, PRESETS, CUSTOM_PRESET
 from .download import download, fetch_manifest, Cancelled
 from .game import Installation, Session, MODES, arguments
@@ -102,6 +104,18 @@ class Job(QThread):
             self.failed.emit(re.sub(r'https?://[^\s]+', '[HTTPS endpoint]', str(exc)))
 
 
+class Scan(QThread):
+    """One look for games on the local network, off the UI thread."""
+    found = Signal(object, object)
+
+    def run(self):
+        try:
+            self.found.emit(lan.discover(), lan.local_addresses())
+        except OSError as exc:
+            log.info('LAN discovery unavailable: %s', exc)
+            self.found.emit([], [])
+
+
 def label(text, name=None, wrap=True):
     widget = QLabel(text)
     if name:
@@ -145,6 +159,8 @@ class Window(QMainWindow):
         self.installation = None
         self.release = None
         self.job = None
+        self.scan = None
+        self.lobbies = []
         self.updating = True
         self.pending_close = False
         self.setWindowTitle('OpenFlightSim Launcher')
@@ -161,6 +177,10 @@ class Window(QMainWindow):
         self.poll = QTimer(self)
         self.poll.timeout.connect(self.poll_session)
         self.poll.start(500)
+        # The list of games keeps itself current while its page is open.
+        self.lan_timer = QTimer(self)
+        self.lan_timer.timeout.connect(self.scan_lan)
+        self.lan_timer.start(3000)
         QTimer.singleShot(0, self.start_background)
 
     def make_ui(self):
@@ -185,7 +205,7 @@ class Window(QMainWindow):
         self.connection_label.setToolTip('Free flight works offline. No account is required.')
         top.addWidget(self.connection_label)
         top.addSpacing(25)
-        self.pilot_button = button(self.prefs.name, lambda: self.show_page(6))
+        self.pilot_button = button(self.prefs.name, lambda: self.show_page(10))
         self.pilot_button.setObjectName('profile')
         self.pilot_button.setIcon(icon('pilot', '#95b6da', 22))
         self.pilot_button.setIconSize(QSize(22, 22))
@@ -203,9 +223,9 @@ class Window(QMainWindow):
         self.navigation = QListWidget()
         self.navigation.setIconSize(QSize(24, 24))
         self.navigation.setSpacing(2)
-        self.nav_pages = [0, 1, 2, 8, 9]
-        for title, symbol in [('Home', 'home'), ('Aircraft', 'aircraft'), ('Settings', 'settings'),
-                              ('Downloads', 'download'), ('Installation', 'repair')]:
+        self.nav_pages = [0, 1, 10, 2, 8, 9]
+        for title, symbol in [('Home', 'home'), ('Aircraft', 'aircraft'), ('Multiplayer', 'network'),
+                              ('Settings', 'settings'), ('Downloads', 'download'), ('Installation', 'repair')]:
             self.navigation.addItem(QListWidgetItem(icon(symbol), '  ' + title))
         self.navigation.currentRowChanged.connect(self.navigate)
         side.addWidget(self.navigation, 1)
@@ -238,7 +258,7 @@ class Window(QMainWindow):
         tabs.setContentsMargins(0, 0, 0, 0)
         tabs.setSpacing(4)
         self.tab_buttons = {}
-        for index, text in enumerate(('Flight mode', 'Graphics', 'Display', 'Controls', 'Multiplayer', 'Advanced'), 2):
+        for index, text in enumerate(('Flight mode', 'Graphics', 'Display', 'Controls', 'Network', 'Advanced'), 2):
             tab = button(text, lambda checked=False, page=index: self.show_page(page))
             tab.setObjectName('settingsTab')
             tab.setCheckable(True)
@@ -299,6 +319,7 @@ class Window(QMainWindow):
         self.make_advanced()
         self.make_updates()
         self.make_installation()
+        self.make_lan()
         self.show_page(0)
 
     def navigate(self, row):
@@ -312,8 +333,10 @@ class Window(QMainWindow):
         for page, tab in self.tab_buttons.items():
             tab.setChecked(page == index)
         self.navigation.blockSignals(True)
-        self.navigation.setCurrentRow(2 if settings else self.nav_pages.index(index))
+        self.navigation.setCurrentRow(self.nav_pages.index(2 if settings else index))
         self.navigation.blockSignals(False)
+        if index == 10:
+            self.scan_lan()
 
     def open_support(self):
         if not QDesktopServices.openUrl(QUrl('https://github.com/KindaBad/OpenFlightSim-public/issues')):
@@ -653,37 +676,225 @@ class Window(QMainWindow):
         box = self.page('Flight deck', 'Controls / Input', 'The simulator detects SDL gamepads automatically. These are the current built-in bindings.')
         form = self.form(box)
         for title, text in [('Pitch / roll', 'W / S · A / D'), ('Rudder', 'Q / E'), ('Throttle', 'Shift / Ctrl'),
-                            ('Camera', 'Tab cycles camera · right mouse looks · wheel zooms'),
+                            ('Gear, flaps, airbrake', 'G · F · H'),
+                            ('Camera', 'Tab cycles camera · V flight deck · right mouse looks · wheel zooms'),
                             ('Map', 'N opens and closes the full map'),
-                            ('Weapons', 'Space / left mouse / gamepad right trigger'),
-                            ('Missiles', 'Use the in-flight combat HUD controls'), ('Gamepad', 'SDL compatible gamepads are discovered in flight')]:
+                            ('Weapons', 'Space / left mouse / gamepad right trigger · 1 gun · 2 heat seeker · 3 radar missile'),
+                            ('Targets', 'L locks or breaks lock · T / Y next and previous target'),
+                            ('Chat', '/ or Enter opens chat in multiplayer · Enter sends · Esc cancels'),
+                            ('Pilots and scores', 'Hold K in multiplayer'),
+                            ('Menu', 'Esc opens the in-flight menu: settings, controls, quit'),
+                            ('Gamepad', 'SDL compatible gamepads are discovered in flight')]:
             form.addRow(title, label(text, 'muted'))
         box.addWidget(label('Binding remapping and sensitivity profiles are not yet supported by the simulator.', 'muted'))
         box.addStretch()
 
     def make_multiplayer(self):
-        box = self.page('Flight network', 'Multiplayer', 'Direct connect uses GameNetworkingSockets. Configure your flight mode before connecting.')
+        box = self.page('Flight network', 'Network', 'These settings are used by Play in Multiplayer flight mode. To play with friends on your own network, use the Multiplayer page instead.')
         form = self.form(box)
         self.server_field = QLineEdit(self.prefs.server)
         self.server_field.setPlaceholderText('Numeric IPv4 or IPv6 address')
-        self.server_field.editingFinished.connect(lambda: self.set_pref('server', self.server_field.text()))
+        self.server_field.editingFinished.connect(lambda: self.set_network(server=self.server_field.text()))
         form.addRow('Server address', self.server_field)
-        port = QSpinBox()
-        port.setRange(1, 65535)
-        port.setValue(self.prefs.port)
-        port.valueChanged.connect(lambda v: self.set_pref('port', v))
-        form.addRow('UDP port', port)
-        pilot = QLineEdit(self.prefs.name)
-        pilot.setMaxLength(64)
-        pilot.editingFinished.connect(lambda: self.set_pref('name', pilot.text()))
-        form.addRow('Pilot name', pilot)
+        self.port_field = QSpinBox()
+        self.port_field.setRange(1, 65535)
+        self.port_field.setValue(self.prefs.port)
+        self.port_field.valueChanged.connect(lambda v: self.set_network(port=v))
+        form.addRow('UDP port', self.port_field)
+        self.pilot_field = QLineEdit(self.prefs.name)
+        self.pilot_field.setMaxLength(64)
+        self.pilot_field.editingFinished.connect(lambda: self.set_network(name=self.pilot_field.text()))
+        form.addRow('Pilot name', self.pilot_field)
         self.host = QCheckBox('Start a dedicated server on this computer (loopback)')
         self.host.setChecked(self.prefs.host)
         self.host.toggled.connect(lambda v: (self.server_field.setEnabled(not v), self.set_pref('host', v)))
         self.server_field.setEnabled(not self.prefs.host)
         form.addRow('Local host', self.host)
-        box.addWidget(label('Local hosting binds 127.0.0.1 for flights on this computer. LAN/public hosting uses the standalone ofs_server; see networking documentation for binding and firewall setup.', 'muted'))
+        box.addWidget(label('This loopback server is for flights on this computer only. The Multiplayer page hosts a game the whole local network can join; a public server uses the standalone ofs_server, see the networking documentation.', 'muted'))
         box.addStretch()
+
+    def set_network(self, **changes):
+        """Pilot name, address and port are each edited in two places; keep them the same.
+
+        Only what changed is copied across, so text still being typed in another field is left alone.
+        """
+        if self.updating:
+            return
+        for key, value in changes.items():
+            setattr(self.prefs, key, value)
+        before, self.updating = self.updating, True
+        if 'name' in changes:
+            for field in (self.pilot_field, self.lan_pilot):
+                if field.text() != self.prefs.name:
+                    field.setText(self.prefs.name)
+            self.lobby_field.setPlaceholderText(lan.lobby_name(self.prefs.name + "'s game"))
+        if 'server' in changes:
+            for field in (self.server_field, self.direct_address):
+                if field.text() != self.prefs.server:
+                    field.setText(self.prefs.server)
+        if 'port' in changes:
+            for field in (self.port_field, self.direct_port):
+                if field.value() != self.prefs.port:
+                    field.setValue(self.prefs.port)
+        self.updating = before
+        self.save()
+        self.refresh_summary()
+
+    def card(self, title, symbol):
+        frame = QFrame()
+        frame.setObjectName('card')
+        box = QVBoxLayout(frame)
+        box.setContentsMargins(18, 16, 18, 18)
+        box.setSpacing(12)
+        heading = QHBoxLayout()
+        mark = QLabel()
+        mark.setPixmap(icon(symbol, '#9bbde2', 24).pixmap(QSize(24, 24)))
+        heading.addWidget(mark)
+        heading.addWidget(label(title, 'sectionTitle'))
+        heading.addStretch()
+        box.addLayout(heading)
+        return frame, box, heading
+
+    def make_lan(self):
+        box = self.page('Fly together', 'Multiplayer', 'Play with friends on the same Wi-Fi or network. One of you hosts a game; everyone else picks it from the list. No addresses to type.')
+        form = self.form(box)
+        self.lan_pilot = QLineEdit(self.prefs.name)
+        self.lan_pilot.setMaxLength(64)
+        self.lan_pilot.setToolTip('Shown to other pilots in chat, on labels and on the scoreboard.')
+        self.lan_pilot.editingFinished.connect(lambda: self.set_network(name=self.lan_pilot.text()))
+        form.addRow('Pilot name', self.lan_pilot)
+        row = ResponsiveRow()
+        host, host_box, _ = self.card('Host a game', 'play')
+        host_form = QFormLayout()
+        host_form.setVerticalSpacing(10)
+        host_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        self.lobby_field = QLineEdit(self.prefs.lobby)
+        self.lobby_field.setMaxLength(lan.MAX_LOBBY_NAME)
+        self.lobby_field.setPlaceholderText(lan.lobby_name(self.prefs.name + "'s game"))
+        self.lobby_field.editingFinished.connect(lambda: self.set_pref('lobby', self.lobby_field.text()))
+        host_form.addRow(label('Game name', 'muted'), self.lobby_field)
+        self.lan_bots = QSpinBox()
+        self.lan_bots.setRange(0, 8)
+        self.lan_bots.setValue(self.prefs.lan_bots)
+        self.lan_bots.setToolTip('AI opponents that fly in your game. They need an armed aircraft to fight.')
+        self.lan_bots.valueChanged.connect(lambda v: self.set_pref('lan_bots', v))
+        host_form.addRow(label('AI opponents', 'muted'), self.lan_bots)
+        host_box.addLayout(host_form)
+        self.host_button = button('Host and fly', self.host_lan)
+        self.host_button.setObjectName('primary')
+        self.host_button.setIcon(icon('play', '#ffffff', 18))
+        host_box.addWidget(self.host_button)
+        self.lan_address = label('Your game appears on other computers on this network as soon as you take off.', 'muted')
+        host_box.addWidget(self.lan_address)
+        host_box.addStretch()
+        row.box.addWidget(host, 2)
+        join, join_box, heading = self.card('Games on your network', 'network')
+        refresh = button('Refresh', self.scan_lan)
+        refresh.setObjectName('link')
+        refresh.setIcon(icon('refresh'))
+        heading.addWidget(refresh)
+        self.lobby_list = QListWidget()
+        self.lobby_list.setObjectName('lobbies')
+        self.lobby_list.setMinimumHeight(150)
+        self.lobby_list.itemSelectionChanged.connect(self.lobby_selected)
+        self.lobby_list.itemDoubleClicked.connect(lambda _: self.join_selected())
+        join_box.addWidget(self.lobby_list, 1)
+        self.lan_status = label('Looking for games…', 'muted')
+        join_box.addWidget(self.lan_status)
+        self.join_button = button('Join', self.join_selected)
+        self.join_button.setObjectName('primary')
+        self.join_button.setEnabled(False)
+        join_box.addWidget(self.join_button)
+        row.box.addWidget(join, 3)
+        box.addWidget(row)
+        direct, direct_box, _ = self.card('Join by address', 'chevron')
+        line = QHBoxLayout()
+        line.setSpacing(10)
+        self.direct_address = QLineEdit(self.prefs.server)
+        self.direct_address.setPlaceholderText('Address shown on the host, such as 192.168.1.20')
+        self.direct_address.editingFinished.connect(lambda: self.set_network(server=self.direct_address.text()))
+        line.addWidget(self.direct_address, 3)
+        self.direct_port = QSpinBox()
+        self.direct_port.setRange(1, 65535)
+        self.direct_port.setValue(self.prefs.port)
+        self.direct_port.setToolTip('UDP port of the game; 27020 unless the host changed it.')
+        self.direct_port.valueChanged.connect(lambda v: self.set_network(port=v))
+        line.addWidget(self.direct_port, 1)
+        self.direct_button = button('Connect', self.join_address)
+        line.addWidget(self.direct_button)
+        direct_box.addLayout(line)
+        direct_box.addWidget(label('Use this if a game does not show in the list. If the host runs Windows, it must allow OpenFlightSim through the firewall on private networks when asked.', 'muted'))
+        box.addWidget(direct)
+        box.addStretch()
+
+    def scan_lan(self):
+        """Look for games, unless a look is already under way or nobody is watching."""
+        if self.scan or self.stack.currentIndex() != 10 or not self.isVisible() or self.session.running():
+            return
+        self.scan = Scan(self)
+        self.scan.found.connect(self.show_lobbies)
+        self.scan.finished.connect(self.scan_finished)
+        self.scan.start()
+
+    def scan_finished(self):
+        self.scan.deleteLater()
+        self.scan = None
+
+    def protocol(self):
+        value = self.installation.catalog.get('protocol') if self.installation else None
+        return value if type(value) is int else None
+
+    def show_lobbies(self, lobbies, addresses=()):
+        chosen = self.selected_lobby()
+        self.lobbies = list(lobbies)
+        protocol = self.protocol()
+        self.lobby_list.blockSignals(True)
+        self.lobby_list.clear()
+        for lobby in self.lobbies:
+            item = QListWidgetItem(lan.describe(lobby, protocol))
+            item.setData(Qt.ItemDataRole.UserRole, lobby)
+            if not lan.joinable(lobby, protocol):
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
+            self.lobby_list.addItem(item)
+            if chosen and (lobby.address, lobby.port) == (chosen.address, chosen.port):
+                self.lobby_list.setCurrentItem(item)
+        if self.lobby_list.currentRow() < 0:
+            first = next((i for i, lobby in enumerate(self.lobbies) if lan.joinable(lobby, protocol)), -1)
+            self.lobby_list.setCurrentRow(first)
+        self.lobby_list.blockSignals(False)
+        count = len(self.lobbies)
+        self.lan_status.setText(f'{count} game{"" if count == 1 else "s"} found. Select one and press Join.' if count else
+                                'No games found yet. Ask the host to press Host and fly, and check that you are on the same network.')
+        if addresses:
+            self.lan_address.setText('Your game appears on other computers on this network as soon as you take off. '
+                                     f'If someone has to join by address, yours is {addresses[0]}.')
+        self.lobby_selected()
+
+    def selected_lobby(self):
+        item = self.lobby_list.currentItem()
+        return item.data(Qt.ItemDataRole.UserRole) if item else None
+
+    def lobby_selected(self):
+        lobby = self.selected_lobby()
+        busy = bool(self.job) or self.session.running()
+        self.join_button.setEnabled(bool(lobby) and lan.joinable(lobby, self.protocol()) and not busy)
+
+    def host_lan(self):
+        self.fly(dataclasses.replace(self.prefs, mode='multiplayer', host=True), lan=True,
+                 message='Hosting your game · friends on this network can join from their Multiplayer page')
+
+    def join_selected(self):
+        lobby = self.selected_lobby()
+        if not lobby or not lan.joinable(lobby, self.protocol()):
+            self.error('Select a game you can join first.')
+            return
+        self.fly(dataclasses.replace(self.prefs, mode='multiplayer', host=False, server=lobby.address, port=lobby.port),
+                 message=f'Joining {lobby.name}')
+
+    def join_address(self):
+        self.set_network(server=self.direct_address.text().strip(), port=self.direct_port.value())
+        self.fly(dataclasses.replace(self.prefs, mode='multiplayer', host=False),
+                 message=f'Connecting to {self.prefs.server}')
 
     def make_advanced(self):
         box = self.page('Fine tuning', 'Advanced', 'Adjust renderer settings with clear units. Longer distances and denser forest increase GPU cost.')
@@ -866,6 +1077,11 @@ class Window(QMainWindow):
             self.stack.widget(index).setEnabled(not busy)
         self.stop_button.setVisible(self.session.running())
         self.play_button.setEnabled(bool(self.installation) and not busy and not self.graphics_error)
+        if hasattr(self, 'host_button'):
+            ready = bool(self.installation) and not busy and not self.graphics_error and 'multiplayer' in self.installation.catalog['modes']
+            self.host_button.setEnabled(ready)
+            self.direct_button.setEnabled(ready)
+            self.lobby_selected()
         self.play_button.setText('In flight' if self.session.running() else 'Play')
         update = bool(self.release and self.installation and self.installation.managed) and not busy and Version(self.release.version) > Version(self.installation.build['version'])
         self.install_update_button.setEnabled(update)
@@ -978,12 +1194,19 @@ class Window(QMainWindow):
             QMessageBox.warning(self, 'OpenFlightSim', text)
 
     def play(self):
+        self.fly(self.prefs)
+
+    def fly(self, preferences, lan=False, message='Simulator started · launcher remains open to manage this flight'):
+        """Start a flight with `preferences`, which a multiplayer action may have adjusted for one flight."""
         if not self.installation:
             self.error('Choose a valid installation first.')
             return
+        if self.job or self.session.running():
+            self.error('Finish the current flight or operation first.')
+            return
         try:
-            self.session.start(self.installation, self.prefs, self.graphics, self.logs, self.data / 'runtime')
-            self.status.setText('Simulator started · launcher remains open to manage this flight')
+            self.session.start(self.installation, preferences, self.graphics, self.logs, self.data / 'runtime', lan=lan)
+            self.status.setText(message)
             self.refresh_summary()
         except (LauncherError, OSError) as exc:
             self.error(str(exc))
@@ -1006,7 +1229,7 @@ class Window(QMainWindow):
             if self.pending_close:
                 self.close()
         if self.session.running() and self.session.server and self.session.server.poll() is not None:
-            self.error('Local server stopped unexpectedly. Review server.log.')
+            self.error('The game server on this computer stopped unexpectedly. Review server.log.')
             self.session.server = None
 
     def stop_flight(self):
@@ -1170,6 +1393,10 @@ class Window(QMainWindow):
             self.status.setText('The launcher will close when your flight ends.')
             event.ignore()
             return
+        self.lan_timer.stop()
+        if self.scan:
+            # A look for games takes well under a second; let it finish cleanly.
+            self.scan.wait(3000)
         self.session.cleanup()
         if self.lease:
             self.lease.close()

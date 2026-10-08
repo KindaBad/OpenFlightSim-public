@@ -25,6 +25,7 @@ add_library(ofs_core STATIC
   src/dynamics_evaluation.cpp
   src/flight_control_system.cpp
   src/simulator.cpp
+  src/damage.cpp
   src/trim.cpp
   src/c_api.cpp
 )

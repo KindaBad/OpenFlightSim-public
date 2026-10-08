@@ -55,16 +55,36 @@ void main()
         // Lumpy smoke and dust: denser cores stay darker than their sunlit rims.
         falloff = exp(-2.0 * r2) * (1.0 - smoothstep(0.25 + grain * 0.4, 1.0, r2)) * (0.55 + grain * 0.65);
         radiance *= mix(0.55, 1.25, grain);
-    } else if (style > 4.5) {
+    } else if (style > 4.5 && style < 5.5) {
+        // Fire: a white-hot heart inside ragged orange flame.
         falloff = exp(-2.8 * r2) * (1.0 - smoothstep(0.22 + grain * 0.5, 1.0, r2));
         radiance = mix(vec3(1.5, 0.13, 0.015), vec3(8.0, 3.2, 0.6), ofsSaturate(grain * 1.4 - r2 * 0.5))
                  * v_color.rgb * u_sunDirection.w;
+        radiance += vec3(6.0, 5.0, 3.2) * (exp(-9.0 * r2) * u_sunDirection.w);
+    } else if (style > 5.5 && style < 6.5) {
+        // Shock ring: a thin bright band at the rim of the quad.
+        float rim = sqrt(r2) - 0.86;
+        falloff = exp(-rim * rim * 180.0) * (1.0 - smoothstep(0.92, 1.0, r2));
+        radiance = v_color.rgb * 3.0 * u_sunDirection.w;
+    } else if (style > 6.5) {
+        // Flash: a hot core, a soft halo and a few uneven rays.
+        float angle = atan2(p.y, p.x);
+        float rays = pow(abs(cos(angle * 2.5)), 14.0) * 0.6 + pow(abs(cos(angle * 3.5 + 0.9)), 22.0) * 0.4;
+        float radius = sqrt(r2);
+        falloff = (exp(-22.0 * r2) + exp(-5.0 * r2) * 0.10 + rays * exp(-5.5 * radius) * 0.55)
+                * (1.0 - smoothstep(0.5, 1.0, r2));
+        radiance = mix(v_color.rgb, vec3_splat(1.0), exp(-30.0 * r2)) * 8.0 * u_sunDirection.w;
     }
 
     // Soft intersection with opaque geometry, from the resolved scene range.
     float sceneRange = texture2DLod(s_sceneRange, screenUv, 0.0).r * u_cameraForward.w;
     float softness = max(1.2, viewDistance * 0.004);
     float fade = ofsSaturate((sceneRange - viewDistance) / softness + 0.35);
+    // Smoke and flame thin out right at the eye, so a camera following an
+    // aircraft through its own trail is not blinded by one enormous sprite.
+    if (style < 1.5 || (style > 3.5 && style < 6.5)) {
+        fade *= smoothstep(2.0, 14.0, viewDistance);
+    }
     // Hidden by whatever cloud lies in front of it.
     if (u_effectParams.x > 0.5) {
         vec4 cloud = texture2DLod(s_cloudLayer, screenUv, 0.0);

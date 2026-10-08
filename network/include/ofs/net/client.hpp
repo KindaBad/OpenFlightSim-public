@@ -80,6 +80,11 @@ struct ClientStats {
   std::size_t networkMemoryBytes{};
   int unfragmentedPayload{};
 };
+// One line of chat. `from` is zero for a notice from the server itself.
+struct ChatLine {
+  EntityId from{};
+  std::string name, text;
+};
 struct VisualRound {
   CombatEvent event;
 };
@@ -115,6 +120,12 @@ public:
   std::vector<MissileEvent> takeMissileTerminations() {
     return weapons_.takeMissileTerminations();
   }
+  // Sends a line to everyone in the game; over-long text is cut to fit.
+  void chat(std::string text);
+  std::vector<ChatLine> takeChat();
+  // The pilot flying an aircraft, or an empty name before the server said.
+  const std::string &pilot(EntityId) const;
+  const std::string &name() const { return name_; }
   const Life &life() const { return life_; }
   const CombatEvent &latestHit() const { return latestHit_; }
   std::size_t visualCount() const { return visualRounds_.size(); }
@@ -143,6 +154,8 @@ private:
   EntityId entity_{};
   Prediction prediction_;
   std::map<EntityId, RemoteTrack> remotes_;
+  std::map<EntityId, std::string> pilots_;
+  std::vector<ChatLine> chat_;
   std::map<EntityId, Tick> tombstones_;
   ClientStats stats_;
   double serverTime_{}, renderTime_{}, pingTimer_{}, metricsTime_{};

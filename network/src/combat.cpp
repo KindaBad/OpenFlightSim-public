@@ -29,7 +29,6 @@ const std::array<HitSphere, 17> &aircraftHitboxes() {
        {{-18, 0, -2}, 3.0, HitRegion::Tail}}};
   return boxes;
 }
-namespace {
 HitSphere bodyHitbox(AircraftType type,std::size_t index) {
   const auto& definition=aircraftDefinition(type);
   const auto& base=aircraftHitboxes()[index];
@@ -39,6 +38,25 @@ HitSphere bodyHitbox(AircraftType type,std::size_t index) {
   return {{base.center.x*s.x,base.center.y*s.y,base.center.z*s.z},
           base.radius*std::max({s.x,s.y,s.z}),base.region};
 }
+HitRegion damageTarget(CombatTarget &target, HitRegion region, Vec3 impact,
+                       double fraction, double damage, EntityId attacker) {
+  const auto &definition = aircraftDefinition(target.type);
+  // The aircraft moved during the tick as well; the impact is placed on the
+  // airframe where it was at that instant.
+  const Vec3 origin = target.previous.pos_ned +
+                      (target.current.pos_ned - target.previous.pos_ned) * fraction;
+  const Vec3 point = target.current.att.inverseRotate(impact - origin) +
+                     loadedCg(definition.flight, target.current);
+  const auto part = classifyHit(definition, region, point);
+  auto &life = *target.life;
+  life.health = std::max(
+      0.0, life.health - applyPartDamage(definition.flight, target.current, part, damage));
+  // An aircraft with no wings left is finished, whatever its hit points say.
+  if (wingless(target.current))
+    life.health = 0;
+  target.damaged = true;
+  target.attacker = attacker;
+  return part;
 }
 double sweptSphere(Vec3 start, Vec3 end, Vec3 center, double radius) {
   const auto offset = start - center, delta = end - start;
@@ -209,7 +227,8 @@ void Combat::step(Tick tick, std::span<CombatTarget> targets) {
       continue; // Terrain occludes aircraft behind the hill and consumes the round.
     if (hit && nearest <= validFraction) {
       auto &life = *hit->life;
-      life.health = std::max(0.0, life.health - p.damage);
+      const Vec3 impact = previous[i] + (p.position - previous[i]) * nearest;
+      region = damageTarget(*hit, region, impact, nearest, p.damage, p.owner);
       ++stats_.hits;
       CombatEvent e;
       e.kind = CombatKind::Hit;
@@ -220,7 +239,7 @@ void Combat::step(Tick tick, std::span<CombatTarget> targets) {
       e.generation = life.generation;
       e.region = region;
       e.health = life.health;
-      e.position = previous[i] + (p.position - previous[i]) * nearest;
+      e.position = impact;
       emit(e);
       if (!life.alive()) {
         ++life.deaths;
