@@ -91,6 +91,22 @@ surface and gear animation:
 Sun shadows are still cast by the whole airframe: a torn wing keeps its full
 shadow.
 
+## Turn-round
+
+An aircraft that lands and stands still for ten seconds is repaired, refuelled
+and rearmed (`core/include/ofs/ground_service.hpp`). Standing means within a
+few metres of the ground, in one piece, and moving at no more than 2 m/s:
+anywhere on the ground will do, not only the airfield. Every part's health and
+drag is restored, the tanks are filled, and the gun, pylons and countermeasure
+dispensers are refilled; the selected weapon is kept. An aircraft that needs
+nothing is left alone, and one that has already stood ten seconds is served the
+moment it does need something. Moving off abandons the wait.
+
+On a server the world counts the wait and does the work, and announces it with
+a Serviced combat event. A solo flight serves itself. In both, the display
+counts the wait down from the aircraft's own state, so the bar is a prediction
+and the server's event is what ends it.
+
 ## Tests
 
 - `damage.parts`, `damage.flight`, `damage.combat`, `damage.world`: the rules,
@@ -100,5 +116,8 @@ shadow.
 - `battle.view`, `battle.breakaway`, `battle.effects`: display mapping and
   model geometry, piece release and kinematics, and the effects.
 - `combat.unit`, `bots.dogfight`: updated for part-dependent hit points.
+- `environment.service`, `environment.turnround`: what counts as standing,
+  what is noticed as wear, that repair restores it all, and the server's ten
+  seconds, rearming and announcement.
 - Visual scenarios `damage`, `damage-heavy` and `breakup`
   (`ofs_client --visual-scenario ...`) render the states for inspection.

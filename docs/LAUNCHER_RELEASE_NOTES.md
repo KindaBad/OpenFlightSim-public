@@ -1,3 +1,41 @@
+OpenFlightSim 0.5.1 Launcher
+
+- New afterburner. Reheat is now a long, nearly parallel jet of pale blue
+  flame with a chain of pink shock diamonds down its middle, an orange root
+  where it leaves the nozzle and a white-hot throat inside the jet pipe. It
+  glows brighter at dusk without burning out to white.
+- Guns fire from the gun in multiplayer. Tracers, muzzle flash and gun smoke
+  used to appear tens of metres behind your own aircraft and ahead of everyone
+  else's; they now leave the muzzle of the aircraft you see.
+- Flares and chaff. R drops a flare, C a bundle of chaff; you carry 16 of
+  each. A missile warning shows where a missile fired at you is coming from,
+  how far away it is, and what answers it. Countermeasures reward doing it
+  properly: a flare only draws a heat seeker off an engine that is out of
+  reheat, dropped too early it has burnt out before the missile arrives, and
+  you still have to break away while the missile looks at it. Chaff only hides
+  you from a radar missile while you fly across its line of sight, so turn the
+  missile onto your wingtip first. Bots use them too.
+- A brake on Ctrl. Ctrl still takes the throttle off; keep holding it at idle
+  and it brakes: wheel brakes on the ground, airbrake in the air. Let go and
+  the airbrake goes back to where you had it.
+- Land to repair and rearm. Stop anywhere on the ground for ten seconds and
+  the aircraft is repaired, refuelled and given back its gun ammunition,
+  missiles, flares and chaff. A countdown shows the wait. It works in solo
+  flight, against bots and online.
+- A much bigger airfield: a properly marked and lit runway (numbers, touchdown
+  zones, threshold and approach lights, PAPI), a parallel taxiway with five
+  exits, a large apron with four open hangars, a terminal, a control tower, a
+  fire station, a fuel farm, warehouses, a radar, a car park and vehicles, six
+  hardened shelters on their own taxiway loop, windsocks, floodlights and a
+  fenced perimeter with a road.
+- Finding games on awkward networks. The launcher now asks for games on every
+  network adapter, not only the one the system prefers, so a hosted game is
+  not missed because the question went out through a VPN or a virtual
+  machine's adapter. On Linux the Multiplayer page also says so when the
+  firewall would turn other players away, with the command that opens it. Your
+  address and port are shown for anyone who has to join by address.
+- Online play uses network protocol 16: everyone in a game needs 0.5.1.
+
 OpenFlightSim 0.5.0 Launcher
 
 - Damage now happens where you are hit. Each wing, the tail, each engine and

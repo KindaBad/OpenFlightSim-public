@@ -1,4 +1,5 @@
 #include "effects.hpp"
+#include "airfield.hpp"
 #include "damage_visuals.hpp"
 #include "ofs/atmosphere.hpp"
 #include "ofs/ballistics.hpp"
@@ -94,7 +95,30 @@ void EffectPool::update(double dt) {
         effect.velocity=effect.velocity*std::exp(-5*dt);
       }
     }
-    if (effect.smokeInterval > 0) {
+    if (effect.kind == EffectKind::Flare && effect.smokeInterval > 0) {
+      // A flare lays its smoke in lengths between where it was and where it
+      // is, so the thread behind it is unbroken at any frame rate.
+      effect.smokeClock += static_cast<float>(dt);
+      const Vec3 run = effect.position - effect.axis;
+      const double distance = run.norm();
+      if (effect.smokeClock >= effect.smokeInterval && distance > .05) {
+        effect.smokeClock = 0;
+        if (distance < 200) {
+          Effect smoke;
+          smoke.kind = EffectKind::Trail;
+          smoke.position = effect.axis + run * .5;
+          smoke.axis = run / distance;
+          smoke.stretch = float(distance);
+          smoke.velocity = {0, 0, -.6};
+          smoke.drag = .8f;
+          smoke.size = effect.size * .42f;
+          smoke.lifetime = 2.8f;
+          smoke.tint = 0x98e8e6e2u;
+          contacts.push_back(smoke);
+        }
+        effect.axis = effect.position;
+      }
+    } else if (effect.smokeInterval > 0) {
       effect.smokeClock += static_cast<float>(dt);
       if (effect.smokeClock >= effect.smokeInterval) {
         effect.smokeClock = 0;
@@ -501,6 +525,69 @@ void CombatEffects::onDetonation(const Vec3& position) {
   }
 }
 
+void CombatEffects::onDecoy(weapons::DecoyType type, const Vec3& position, const Vec3& velocity) {
+  const std::size_t budget = budgetFor(quality_);
+  if (budget == 0) return;
+  const auto& definition = weapons::decoyDefinition(type);
+  const auto seed = static_cast<std::uint32_t>(++shots_ * 2654435761u);
+  if (type == weapons::DecoyType::Flare) {
+    Effect flare;
+    flare.kind = EffectKind::Flare;
+    flare.position = position;
+    flare.velocity = velocity;
+    flare.axis = position;  // where its smoke was last laid
+    flare.drag = float(definition.drag);
+    flare.gravity = float(definition.gravity * kG0);
+    flare.lifetime = float(definition.lifetime);
+    flare.size = 2.4f;
+    flare.seed = hashUnit(seed);
+    flare.tint = 0xff9ad8ffu;
+    flare.smokeInterval = budget >= 4 ? 1.f / 40 : budget >= 2 ? 1.f / 20 : 0.f;
+    pool_.spawn(flare);
+    // The pop of the cartridge.
+    Effect pop;
+    pop.kind = EffectKind::Flash;
+    pop.position = position;
+    pop.velocity = velocity;
+    pop.lifetime = .08f;
+    pop.size = 2.2f;
+    pop.seed = flare.seed;
+    pop.tint = 0xffa0e0ffu;
+    pool_.spawn(pop);
+    return;
+  }
+  // Chaff: a bright burst of strips that slows almost at once and thins into
+  // a faint silver haze.
+  Effect cloud;
+  cloud.kind = EffectKind::Smoke;
+  cloud.position = position;
+  cloud.velocity = velocity;
+  cloud.drag = float(definition.drag);
+  cloud.gravity = float(definition.gravity * kG0);
+  cloud.lifetime = float(definition.lifetime) * .7f;
+  cloud.size = 5.5f;
+  cloud.seed = hashUnit(seed);
+  cloud.tint = 0x38dcdee4u;
+  pool_.spawn(cloud);
+  const unsigned strips = budget >= 4 ? 26 : budget >= 2 ? 12 : 5;
+  for (unsigned i = 0; i < strips; ++i) {
+    const float a = hashUnit(seed + i * 7919), b = hashUnit(seed + i * 3571 + 3), c = hashUnit(seed + i * 131 + 7);
+    const double theta = a * 6.2831853, z = b * 2 - 1, r = std::sqrt(std::max(0., 1 - z * z));
+    Effect strip;
+    strip.kind = EffectKind::Spark;
+    strip.position = position;
+    strip.velocity = velocity + Vec3{r * std::cos(theta), r * std::sin(theta), z} * (6 + 16 * c);
+    strip.billboard = false;
+    strip.stretch = .5f + .5f * c;
+    strip.size = .07f;
+    strip.drag = float(definition.drag);
+    strip.gravity = float(definition.gravity * kG0) * 4;
+    strip.lifetime = .9f + 1.6f * b;
+    strip.tint = 0xffe6e8f0u;
+    pool_.spawn(strip);
+  }
+}
+
 void CombatEffects::onPartLost(const Vec3& position, const Vec3& velocity) {
   const std::size_t budget = budgetFor(quality_);
   if (budget == 0) return;
@@ -593,7 +680,8 @@ void CombatEffects::onGroundImpact(const Simulator::GroundImpact& impact) {
     if(scrapeClock_<.1)return;
     scrapeClock_=0;
   }
-  const bool asphalt=std::abs(impact.position.y)<25 && std::abs(impact.position.x)<1300;
+  // Paving throws up tyre smoke and sparks; open ground throws up dust.
+  const bool asphalt=airfieldUse(impact.position.x,impact.position.y)==AirfieldUse::Paved;
   const unsigned count=unsigned(budget)*(impact.damage>.05?6:2);
   const std::uint32_t seed=static_cast<std::uint32_t>(std::abs(impact.position.x*31+impact.position.y*17));
   for(unsigned i=0;i<count;++i) {

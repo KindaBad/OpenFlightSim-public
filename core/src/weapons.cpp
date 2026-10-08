@@ -210,6 +210,22 @@ MissileState launchState(const MissileDefinition &d, const State &aircraft,
                                                      : SeekerPhase::Searching;
   return s;
 }
+namespace {
+// What a seeker at `position` receives from a source, relative to the least it
+// can follow: heat falls off with the square of the range, a radar echo with
+// the fourth power.
+double seekerSignal(const MissileDefinition &d, Vec3 position,
+                    const SensorTarget &source) {
+  const double range = std::max((source.position - position).norm(), 1.);
+  if (d.type == WeaponType::Infrared)
+    return (source.signature >= 0 ? source.signature
+                                  : infraredSignal(source, position)) *
+           std::pow(d.seeker.signalRange / range, 2);
+  return (source.signature >= 0 ? source.signature
+                                : targetRcs(source, position)) *
+         std::pow(d.seeker.signalRange / range, 4);
+}
+} // namespace
 bool seekerDetects(const MissileDefinition &d, Vec3 position, Vec3 forward,
                    Vec3 boresight, const SensorTarget &target) {
   if (!target.alive)
@@ -218,16 +234,135 @@ bool seekerDetects(const MissileDefinition &d, Vec3 position, Vec3 forward,
   const double range = los.norm();
   if (range <= 1e-3)
     return false;
-  const double snr =
-      d.type == WeaponType::Infrared
-          ? infraredSignal(target, position) *
-                std::pow(d.seeker.signalRange / std::max(range, 1.), 2)
-          : targetRcs(target, position) *
-                std::pow(d.seeker.signalRange / std::max(range, 1.), 4);
+  const double snr = seekerSignal(d, position, target);
   return range <= d.seeker.signalRange * 3 && snr >= 1 &&
          angle(forward, los) <= d.seeker.gimbal &&
          angle(boresight, los) <= d.seeker.fov / 2 &&
          lineOfSight(position, target.position);
+}
+const DecoyDefinition &decoyDefinition(DecoyType type) {
+  // A flare outshines an engine at military power seen from behind (1.0) but
+  // not one in reheat (up to 4.0). Chaff blooms to several times the echo of a
+  // fighter seen side-on.
+  static const DecoyDefinition flare{3.6, .12, 1.4, 1.5, .9, 1.};
+  static const DecoyDefinition chaff{6., .35, 2.5, 45., 3.5, .06};
+  return type == DecoyType::Flare ? flare : chaff;
+}
+unsigned decoyCapacity(AircraftType type) {
+  return aircraftDefinition(type).gun ? 16 : 0;
+}
+double decoyStrength(DecoyType type, double age) {
+  const auto &d = decoyDefinition(type);
+  if (!(age >= 0) || age >= d.lifetime)
+    return 0;
+  if (age < d.rise)
+    return d.peak * age / d.rise;
+  if (age < d.hold)
+    return d.peak;
+  return d.peak * (d.lifetime - age) / (d.lifetime - d.hold);
+}
+Decoy releaseDecoy(DecoyType type, EntityRef owner, const AircraftConfig &cfg,
+                   const State &aircraft, unsigned count) {
+  Decoy decoy;
+  decoy.type = type;
+  decoy.owner = owner;
+  // The dispensers sit between the engines, under the tail.
+  const Vec3 dispenser = (cfg.engine_pos_l + cfg.engine_pos_r) * .5 +
+                         Vec3{0, 0, .5} - loadedCg(cfg, aircraft);
+  decoy.position = aircraft.pos_ned + aircraft.att.rotate(dispenser);
+  decoy.velocity = aircraft.vel_ned +
+                   aircraft.att.rotate({-8, count % 2 ? 12. : -12., 22});
+  return decoy;
+}
+void advanceDecoy(Decoy &decoy, const Weather &weather, double dt) {
+  if (!(dt > 0) || !std::isfinite(dt))
+    return;
+  const auto &d = decoyDefinition(decoy.type);
+  // The air soon stops it; after that it drifts with the wind and sinks.
+  const Vec3 slip = (decoy.velocity - weather.wind_ned) * std::exp(-d.drag * dt);
+  const Vec3 next = weather.wind_ned + slip + Vec3{0, 0, d.gravity * kG0 * dt};
+  decoy.position += (decoy.velocity + next) * (.5 * dt);
+  decoy.velocity = next;
+  decoy.age += dt;
+}
+SensorTarget decoySensor(const Decoy &decoy) {
+  SensorTarget sensor;
+  sensor.entity = {};
+  sensor.position = decoy.position;
+  sensor.velocity = decoy.velocity;
+  sensor.signature = decoyStrength(decoy.type, decoy.age);
+  sensor.alive = sensor.signature > 0;
+  return sensor;
+}
+const Decoy *seekerDecoy(const MissileDefinition &d, const MissileState &s,
+                         const SensorTarget *target,
+                         std::span<const Decoy> decoys, std::uint64_t held,
+                         const Weather &weather) {
+  // Nearly always there is nothing in the air to be fooled by.
+  if (decoys.empty())
+    return nullptr;
+  // A radar missile still flying on its launch aircraft's guidance has its own
+  // seeker switched off: there is nothing to fool yet.
+  if (d.type == WeaponType::ActiveRadar && !s.autonomous && s.midcourse.valid &&
+      (s.midcourse.position - s.position).norm() > d.seeker.activationRange)
+    return nullptr;
+  const DecoyType wanted =
+      d.type == WeaponType::Infrared ? DecoyType::Flare : DecoyType::Chaff;
+  const Vec3 forward = s.attitude.rotate({1, 0, 0});
+  const auto seen = [&](const SensorTarget &source) {
+    return seekerDetects(d, s.position, forward, s.seeker.boresight, source);
+  };
+  // What the seeker is following now.
+  const Decoy *following = nullptr;
+  for (const auto &decoy : decoys)
+    if (held && decoy.id == held && decoy.type == wanted &&
+        seen(decoySensor(decoy)))
+      following = &decoy;
+  const bool onTarget = !following && target && seen(*target);
+  if (!following && !onTarget)
+    return nullptr;
+  const SensorTarget current = following ? decoySensor(*following) : *target;
+  // Sources in the same field of view are told apart by how strong they are,
+  // not by which happens to be nearer: a flare falling behind does not grow
+  // brighter to a missile coming up from astern.
+  const auto strength = [&](const SensorTarget &source) {
+    return source.signature >= 0              ? source.signature
+           : d.type == WeaponType::Infrared ? infraredSignal(source, s.position)
+                                            : targetRcs(source, s.position);
+  };
+  // A source the seeker already follows is not given up for one barely
+  // stronger.
+  constexpr double kHold = 1.25;
+  const double threshold = strength(current) * kHold;
+  const Vec3 line = (current.position - s.position).normalized();
+  // Chaff stops in the air almost at once, so to a radar it closes at the
+  // missile's own speed. An aircraft looks the same only while it flies across
+  // the line of sight; one coming or going stands clear of the cloud.
+  const auto competes = [&](Vec3 a, Vec3 b) {
+    return d.type == WeaponType::Infrared ||
+           std::abs((a - b).dot(line)) <= d.seeker.dopplerGate;
+  };
+  const Vec3 currentSpeed = following ? weather.wind_ned : current.velocity;
+  const Decoy *best = nullptr;
+  double strongest = threshold;
+  for (const auto &decoy : decoys) {
+    if (decoy.type != wanted || &decoy == following ||
+        !competes(weather.wind_ned, currentSpeed))
+      continue;
+    const auto sensor = decoySensor(decoy);
+    const double signal = strength(sensor);
+    if (signal > strongest && seen(sensor)) {
+      strongest = signal;
+      best = &decoy;
+    }
+  }
+  if (best)
+    return best;
+  // Back to the aircraft once it outshines a fading decoy it is still beside.
+  if (following && target && competes(target->velocity, currentSpeed) &&
+      strength(*target) > threshold && seen(*target))
+    return nullptr;
+  return following;
 }
 Measurement updateSeeker(const MissileDefinition &d, MissileState &s,
                          const SensorTarget *target, double dt) {

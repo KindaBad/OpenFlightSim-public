@@ -517,10 +517,14 @@ void radarProtocol() {
   m.radar.lockProgress = .6;
   for (unsigned i = 0; i < maxLoadouts; ++i)
     m.radar.loadouts.push_back({{i + 2, 3}, std::uint8_t(i)});
+  m.radar.flares = 13;
+  m.radar.chaff = 255;
   auto bytes = encodeWeapon(m);
   WeaponMessage decoded;
-  check(bytes.size() == 814 && decodeWeapon(bytes, decoded),
+  check(bytes.size() == 816 && decodeWeapon(bytes, decoded),
         "maximum radar packet");
+  check(decoded.radar.flares == 13 && decoded.radar.chaff == 255,
+        "countermeasure stock round trip");
   check(decoded.radar.seekerTarget == m.radar.seekerTarget &&
             std::abs(decoded.radar.lockProgress - .6) < .005 &&
             decoded.radar.loadouts.size() == maxLoadouts &&
@@ -554,7 +558,7 @@ void radarProtocol() {
     bounded = true;
   }
   check(bounded, "radar track cap");
-  std::printf("maxRadar=814 tracks=16 stations=8 loadouts=16\n");
+  std::printf("maxRadar=816 tracks=16 stations=8 loadouts=16\n");
 }
 void presentation() {
   WeaponReplicationReceiver receiver;
@@ -704,6 +708,354 @@ void protocol() {
   }
   std::printf("missileRecord=63 maxState=1033 action=38 mutations=10000\n");
 }
+// A heat seeker fired from two and a half kilometres astern, and what the
+// aircraft in front does about it. Returns the hit points it has left.
+double chased(unsigned flares, bool reheat, bool breakAway,
+              double *miss = nullptr, double flareRange = 1300) {
+  World world;
+  const auto a = world.join(AircraftType::Typhoon),
+             b = world.join(AircraftType::Typhoon);
+  auto &owner = fixture(world, a);
+  auto &target = fixture(world, b);
+  auto own = owner.sim.state();
+  own.pos_ned = {0, 0, -3000};
+  own.vel_ned = {250, 0, 0};
+  owner.sim.setState(own);
+  auto ahead = target.sim.state();
+  ahead.pos_ned = {2500, 0, -3000};
+  ahead.vel_ned = {250, 0, 0};
+  target.sim.setState(ahead);
+  auto controls = target.sim.controls();
+  controls.throttle[0] = controls.throttle[1] = reheat ? 1 : .8;
+  // Engines settle at the chosen power before the shot.
+  for (unsigned i = 0; i < 360; ++i) {
+    owner.lastInput = target.lastInput = world.tick() + 1;
+    target.sim.setControls(controls);
+    world.step();
+  }
+  const auto &flown = target.sim.state();
+  check(world.missiles().launch(
+            world.tick(), {a, owner.life.generation}, owner.sim.state(), {},
+            WeaponType::Infrared,
+            {{b, target.life.generation}, flown.pos_ned, flown.vel_ned, 0, 1, 0}),
+        "chase launch");
+  double nearest = 1e9;
+  Tick flareTick = 0;
+  for (unsigned i = 0; i < 120 * 14 && !world.missiles().missiles().empty() &&
+                       target.life.alive();
+       ++i) {
+    const auto &missile = world.missiles().missiles()[0];
+    const double range =
+        (missile.state.position - target.sim.state().pos_ned).norm();
+    nearest = std::min(nearest, range);
+    if (range < flareRange && flares && world.tick() >= flareTick) {
+      world.releaseDecoy(b, DecoyType::Flare);
+      flareTick = world.tick() + 48;
+      --flares;
+    }
+    if (range < 1300) {
+      if (breakAway) {
+        controls.throttle[0] = controls.throttle[1] = reheat ? 1 : .1;
+        const double bank = target.sim.instruments().roll_deg;
+        controls.aileron_stick = bank < 75 ? 1 : 0;
+        controls.elevator_stick = bank > 55 ? 1 : 0;
+      }
+    }
+    owner.lastInput = target.lastInput = world.tick() + 1;
+    target.sim.setControls(controls);
+    world.step();
+  }
+  if (miss)
+    *miss = nearest;
+  return target.life.health;
+}
+void countermeasures() {
+  for (auto type : {DecoyType::Flare, DecoyType::Chaff}) {
+    const auto &d = decoyDefinition(type);
+    check(decoyStrength(type, 0) == 0 && decoyStrength(type, -1) == 0 &&
+              decoyStrength(type, d.rise) == d.peak &&
+              decoyStrength(type, d.hold) == d.peak &&
+              decoyStrength(type, (d.hold + d.lifetime) / 2) < d.peak &&
+              decoyStrength(type, (d.hold + d.lifetime) / 2) > 0 &&
+              decoyStrength(type, d.lifetime) == 0 &&
+              decoyStrength(type, std::numeric_limits<double>::quiet_NaN()) == 0,
+          "a decoy comes up, holds and fades to nothing");
+  }
+  check(decoyCapacity(AircraftType::Typhoon) == 16 &&
+            decoyCapacity(AircraftType::Su57) == 16 &&
+            decoyCapacity(AircraftType::A320) == 0 &&
+            decoyCapacity(AircraftType::SR71) == 0,
+        "armed aircraft carry decoys");
+  // Release and flight: thrown down and out to alternate sides from behind the
+  // centre of gravity, left behind by the aircraft and sinking.
+  const auto &cfg = aircraftDefinition(AircraftType::Typhoon).flight;
+  const auto aircraft = launchAircraft();
+  auto flare = releaseDecoy(DecoyType::Flare, {1, 0}, cfg, aircraft, 0);
+  const auto other = releaseDecoy(DecoyType::Flare, {1, 0}, cfg, aircraft, 1);
+  check(flare.velocity.y < 0 && other.velocity.y > 0 && flare.velocity.z > 15 &&
+            flare.position.x < -2 && flare.position.z > aircraft.pos_ned.z &&
+            flare.owner.id == 1 && flare.age == 0,
+        "decoys leave from under the tail to alternate sides");
+  auto chaff = releaseDecoy(DecoyType::Chaff, {1, 0}, cfg, aircraft, 0);
+  Weather wind;
+  wind.wind_ned = {0, 12, 0};
+  for (unsigned i = 0; i < 120; ++i) {
+    advanceDecoy(flare, {}, tickSeconds);
+    advanceDecoy(chaff, wind, tickSeconds);
+  }
+  check(std::abs(flare.age - 1) < 1e-9 && flare.position.x < 250 - 60 &&
+            flare.position.x > 60 && flare.position.z > aircraft.pos_ned.z + 12 &&
+            flare.velocity.norm() < 140,
+        "a flare is left behind and falls");
+  check((chaff.velocity - wind.wind_ned).norm() < 12 && chaff.velocity.z < 1.5,
+        "chaff stops in the air and drifts with it");
+  auto untouched = flare;
+  advanceDecoy(untouched, {}, 0);
+  advanceDecoy(untouched, {}, std::numeric_limits<double>::infinity());
+  check(untouched.age == flare.age && untouched.position.x == flare.position.x,
+        "a bad time step moves nothing");
+
+  // ---- Heat seeker: the brightest source in view wins ----
+  const auto &ir = missileDefinition(WeaponType::Infrared);
+  auto s = launchState(ir, launchAircraft(), {}, {});
+  auto target = targetAt({2000, 0, -3000}, {250, 0, 0}); // seen from astern
+  for (unsigned i = 0; i < 30; ++i)
+    updateSeeker(ir, s, &target, tickSeconds);
+  check(s.seeker.phase == SeekerPhase::Tracking, "seeker on the target");
+  const auto dropped = [&](DecoyType type, Vec3 position, double age) {
+    Decoy decoy;
+    decoy.id = 7;
+    decoy.type = type;
+    decoy.position = position;
+    decoy.velocity = {120, 0, 10};
+    decoy.age = age;
+    return std::vector<Decoy>{decoy};
+  };
+  auto decoys = dropped(DecoyType::Flare, {1990, 0, -2998}, .3);
+  check(seekerDecoy(ir, s, &target, decoys, 0) == &decoys[0],
+        "a flare outshines an engine at military power");
+  target.afterburner = 1;
+  check(!seekerDecoy(ir, s, &target, decoys, 0),
+        "a flare does not outshine reheat");
+  check(!seekerDecoy(ir, s, &target, decoys, 7),
+        "and lighting reheat beside a flare takes the seeker back");
+  target.afterburner = 0;
+  check(!seekerDecoy(ir, s, &target, dropped(DecoyType::Chaff, {1990, 0, -2998}, .5), 0),
+        "chaff means nothing to a heat seeker");
+  check(!seekerDecoy(ir, s, &target, dropped(DecoyType::Flare, {2000, 800, -3000}, .3), 0),
+        "a flare outside the seeker's view is not seen");
+  check(!seekerDecoy(ir, s, &target, dropped(DecoyType::Flare, {1990, 0, -2998}, 3.5), 0),
+        "a spent flare fools nothing");
+  check(!seekerDecoy(ir, s, nullptr, decoys, 0),
+        "a seeker with nothing to follow does not go looking for flares");
+  // Following a flare: it is kept while it burns, then given up for the
+  // aircraft if that is still beside it.
+  decoys = dropped(DecoyType::Flare, {1990, 0, -2998}, 2.0);
+  check(seekerDecoy(ir, s, &target, decoys, 7) == &decoys[0],
+        "a held flare is kept while it is nearly as bright");
+  decoys = dropped(DecoyType::Flare, {1990, 0, -2998}, 3.0);
+  check(!seekerDecoy(ir, s, &target, decoys, 7),
+        "the aircraft is retaken as the flare fades");
+  check(!seekerDecoy(ir, s, &target, {}, 7), "a flare that is gone is let go");
+  auto second = dropped(DecoyType::Flare, {1990, 0, -2998}, 2.4);
+  second.push_back(second[0]);
+  second[1].id = 8;
+  second[1].age = .4;
+  check(seekerDecoy(ir, s, &target, second, 7) == &second[1],
+        "a fresh flare takes over from a fading one");
+
+  // ---- Radar seeker: chaff only hides an aircraft crossing the beam ----
+  const auto &ar = missileDefinition(WeaponType::ActiveRadar);
+  auto r = launchState(ar, launchAircraft(), {}, {{5000, 0, -3000}, {}, true});
+  auto fleeing = targetAt({5000, 0, -3000}, {250, 0, 0});
+  auto cloud = dropped(DecoyType::Chaff, {4990, 0, -2998}, 1.);
+  check(!seekerDecoy(ar, r, &fleeing, cloud, 0),
+        "chaff does not hide an aircraft flying away");
+  auto crossing = targetAt({5000, 0, -3000}, {0, 250, 0});
+  crossing.attitude = quatFromEuler(0, 0, kPi / 2);
+  check(seekerDecoy(ar, r, &crossing, cloud, 0) == &cloud[0],
+        "chaff hides an aircraft crossing the line of sight");
+  auto slanting = targetAt({5000, 0, -3000}, {177, 177, 0});
+  slanting.attitude = quatFromEuler(0, 0, kPi / 4);
+  check(!seekerDecoy(ar, r, &slanting, cloud, 0),
+        "half a turn is not enough");
+  check(!seekerDecoy(ar, r, &crossing, dropped(DecoyType::Flare, {4990, 0, -2998}, .3), 0),
+        "flares mean nothing to a radar seeker");
+  check(seekerDecoy(ar, r, &fleeing, cloud, 7) == &cloud[0],
+        "a seeker on the cloud stays there when the aircraft runs");
+  auto guided = launchState(ar, launchAircraft(), {}, {{30000, 0, -3000}, {}, true});
+  auto far = targetAt({30000, 0, -3000}, {0, 250, 0});
+  far.attitude = crossing.attitude;
+  check(!seekerDecoy(ar, guided, &far, dropped(DecoyType::Chaff, {29990, 0, -2998}, 1.), 0),
+        "a missile still on guidance from its launch aircraft is not listening");
+
+  // ---- The whole thing: a shot from astern ----
+  // ---- In a game: released by request, counted, paced and announced ----
+  {
+    World world;
+    const auto a = world.join(AircraftType::Typhoon),
+               liner = world.join(AircraftType::A320);
+    auto &p = fixture(world, a);
+    std::uint64_t sequence = 0;
+    const auto ask = [&](EntityId id, WeaponActionKind kind) {
+      return world.enqueueWeapon(id, {++sequence, world.tick(),
+                                      fixture(world, id).life.generation, kind, 0});
+    };
+    const auto released = [&](unsigned ticks) {
+      std::vector<CombatEvent> events;
+      for (unsigned i = 0; i < ticks; ++i) {
+        world.step();
+        for (const auto &event : world.combat().takeEvents())
+          if (event.kind == CombatKind::Flare || event.kind == CombatKind::Chaff)
+            events.push_back(event);
+      }
+      return events;
+    };
+    check(p.weapons.flares == 16 && p.weapons.chaff == 16 &&
+              fixture(world, liner).weapons.flares == 0,
+          "dispensers are full at spawn");
+    check(ask(a, WeaponActionKind::Flare), "flare request admitted");
+    auto events = released(2);
+    check(events.size() == 1 && events[0].kind == CombatKind::Flare &&
+              events[0].owner == a && events[0].target == a &&
+              events[0].projectile == world.decoys()[0].id &&
+              world.decoys().size() == 1 && p.weapons.flares == 15 &&
+              p.weapons.chaff == 16,
+          "a flare is released, counted and announced");
+    check((events[0].position - p.sim.state().pos_ned).norm() < 30 &&
+              (events[0].velocity - p.sim.state().vel_ned).norm() > 15,
+          "it leaves the aircraft that asked");
+    // The dispenser cycles: a request made before it is ready is lost,
+    // whichever kind of decoy it asks for.
+    check(ask(a, WeaponActionKind::Chaff), "chaff request too soon");
+    check(released(4).empty() && p.weapons.chaff == 16,
+          "the dispenser is still cycling");
+    released(unsigned(decoyInterval * 120));
+    check(ask(a, WeaponActionKind::Chaff) && ask(a, WeaponActionKind::Chaff),
+          "two chaff requests");
+    events = released(4);
+    check(events.size() == 1 && events[0].kind == CombatKind::Chaff &&
+              p.weapons.chaff == 15,
+          "the dispenser releases one at a time");
+    released(unsigned(decoyInterval * 120) + 2);
+    // An empty dispenser releases nothing; an unarmed aircraft has none.
+    p.weapons.flares = 0;
+    check(ask(a, WeaponActionKind::Flare), "request with nothing left");
+    check(released(4).empty() && p.weapons.flares == 0, "nothing left to release");
+    check(!ask(liner, WeaponActionKind::Flare),
+          "an unarmed aircraft cannot ask for countermeasures");
+    check(!world.releaseDecoy(liner, DecoyType::Flare) &&
+              !world.releaseDecoy(99, DecoyType::Flare),
+          "nor release them");
+    // Decoys burn out and are forgotten; a new life starts with full dispensers.
+    released(unsigned(decoyDefinition(DecoyType::Chaff).lifetime * 120) + 4);
+    check(world.decoys().empty(), "spent decoys are removed");
+    p.life.health = 0;
+    p.life.respawnTick = world.tick() + 1;
+    world.step();
+    check(p.weapons.flares == 16 && p.weapons.chaff == 16,
+          "a new life has full dispensers");
+    // The sky never holds more than its share.
+    for (unsigned i = 0; i < maxDecoys + 40; ++i) {
+      p.weapons.chaff = 16;
+      p.weapons.decoyReady = 0;
+      check(world.releaseDecoy(a, DecoyType::Chaff), "release for the bound");
+    }
+    check(world.decoys().size() == maxDecoys, "decoys in the air are bounded");
+    // The new requests and announcements cross the wire.
+    WeaponMessage m, out;
+    m.tick = 10;
+    m.sequence = 1;
+    m.entity = 1;
+    for (const auto kind : {WeaponActionKind::Flare, WeaponActionKind::Chaff}) {
+      m.action = {1, 10, 0, kind, 0};
+      check(decodeWeapon(encodeWeapon(m), out) && out.action.kind == kind,
+            "countermeasure request round trip");
+    }
+    auto bytes = encodeWeapon(m);
+    bytes[36] = std::uint8_t(unsigned(WeaponActionKind::Chaff) + 1);
+    check(!decodeWeapon(bytes, out), "unknown request rejected");
+    Message combat;
+    combat.type = Type::Combat;
+    combat.tick = 50;
+    combat.sequence = 3;
+    std::uint64_t id = 0;
+    for (const auto kind :
+         {CombatKind::Flare, CombatKind::Chaff, CombatKind::Serviced}) {
+      CombatEvent event;
+      event.id = ++id;
+      event.tick = 40;
+      event.kind = kind;
+      event.projectile = 77;
+      event.owner = event.target = 5;
+      event.health = kind == CombatKind::Serviced ? 100 : 0;
+      event.position = {1000, -200, -3000};
+      event.velocity = {240, 3, 20};
+      combat.events.push_back(event);
+    }
+    Message received;
+    std::string reason;
+    check(decode(encode(combat), received, reason) &&
+              received.events.size() == 3 &&
+              received.events[0].kind == CombatKind::Flare &&
+              received.events[1].kind == CombatKind::Chaff &&
+              received.events[2].kind == CombatKind::Serviced &&
+              received.events[0].projectile == 77 &&
+              (received.events[1].velocity - Vec3{240, 3, 20}).norm() < .1,
+          "countermeasure and turn-round events round trip");
+    auto packet = encode(combat);
+    combat.events[0].kind = CombatKind(unsigned(CombatKind::Serviced) + 1);
+    check(!decode(encode(combat), received, reason), "unknown event rejected");
+  }
+  // A bot answers a missile that is nearly on it with the matching decoy,
+  // and is inattentive to every other missile.
+  {
+    World world;
+    const auto human = world.join(AircraftType::Typhoon);
+    const auto bot = world.joinBot(AircraftType::Typhoon);
+    check(human && bot, "pilot and bot");
+    auto &b = fixture(world, bot);
+    unsigned flares = 0, chaff = 0;
+    for (unsigned shot = 0; shot < 4; ++shot) {
+      const auto own = fixture(world, human).sim.state();
+      auto near = b.sim.state();
+      near.pos_ned = own.pos_ned + own.att.rotate({900, 0, 0});
+      b.sim.setState(near);
+      b.botDecoyReady = 0;
+      const auto type =
+          shot < 2 ? WeaponType::Infrared : WeaponType::ActiveRadar;
+      check(world.missiles().launch(
+                world.tick(), {human, fixture(world, human).life.generation},
+                own, {}, type,
+                {{bot, b.life.generation}, near.pos_ned, near.vel_ned, 0, 1, 0}),
+            "shot at the bot");
+      const auto before = std::pair{b.weapons.flares, b.weapons.chaff};
+      for (unsigned i = 0; i < 12; ++i)
+        world.step();
+      flares += before.first - b.weapons.flares;
+      chaff += before.second - b.weapons.chaff;
+      world.missiles().removeOwner(human, world.tick());
+      check(world.missiles().missiles().empty(), "shot withdrawn");
+    }
+    check(flares == 1 && chaff == 1,
+          "a bot answers every other missile, each with the right decoy");
+  }
+  // Flares are an answer only to a pilot who uses them well: out of reheat,
+  // with the missile close, and breaking away while it looks at the flare.
+  double miss = 0;
+  const double unanswered = chased(0, false, false);
+  const double lit = chased(16, true, true);
+  const double early = chased(2, false, false, nullptr, 2600);
+  const double timed = chased(2, false, true, &miss);
+  std::printf("countermeasures: unanswered=%.0f in reheat=%.0f too early=%.0f "
+              "timed=%.0f miss=%.0f m\n",
+              unanswered, lit, early, timed, miss);
+  check(unanswered < 100, "an unanswered shot from astern hits");
+  check(lit < 100, "no number of flares saves an aircraft that stays in reheat");
+  check(early < 100, "flares dropped too early have burnt out when it arrives");
+  check(timed == 100 && miss > 30,
+        "two flares, cold engines and a break turn defeat the shot");
+}
 void lifecycle() {
   WeaponReplicationSender sender;
   WeaponReplicationReceiver receiver;
@@ -742,7 +1094,17 @@ void lifecycle() {
   packets = sender.build(4, 2, {100000, 0, 0}, radar, missiles, {});
   check(!packets.empty(), "target priority outside AOI");
   decodeWeapon(packets[0].bytes, decoded);
-  check(decoded.missiles[0].target.id == 0, "target identity owner only");
+  check(decoded.missiles[0].target.id == 2, "the target is warned of its missile");
+  WeaponReplicationSender bystander;
+  packets = bystander.build(4, 3, {1000, 0, -3000}, radar, missiles, {});
+  check(!packets.empty() && decodeWeapon(packets[0].bytes, decoded) &&
+            decoded.missiles[0].target.id == 0,
+        "nobody else learns who a missile is meant for");
+  missiles[0].decoy = 9;
+  check(projectMissile(missiles[0], 2).seeker == SeekerPhase::Decoyed &&
+            missiles[0].state.seeker.phase != SeekerPhase::Decoyed,
+        "a decoyed missile is reported as such");
+  missiles[0].decoy = 0;
   receiver.receive(decoded, 4);
   receiver.expire(245);
   check(receiver.missiles().empty(), "watchdog expiry");
@@ -773,6 +1135,8 @@ int main(int argc, char **argv) {
       acquisition();
     else if (suite == "protocol")
       protocol();
+    else if (suite == "countermeasures")
+      countermeasures();
     else if (suite == "lifecycle")
       lifecycle();
     else if (suite == "energy")

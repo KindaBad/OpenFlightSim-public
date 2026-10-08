@@ -13,7 +13,9 @@ enum class WeaponActionKind : std::uint8_t {
   SelectIR,
   SelectRadar,
   Launch,
-  Unlock
+  Unlock,
+  Flare,
+  Chaff
 };
 struct WeaponAction {
   std::uint64_t sequence{};
@@ -28,6 +30,8 @@ struct Missile {
   WeaponType type{WeaponType::Infrared};
   Tick born{};
   weapons::MissileState state;
+  // The decoy its seeker is following in place of its target, or zero.
+  std::uint64_t decoy{};
 };
 struct MissileNetState {
   std::uint64_t id{};
@@ -67,6 +71,10 @@ struct AircraftWeapons {
   EntityRef seekerRejected;
   Tick seekerRejectedUntil{};
   weapons::Envelope envelope;
+  // Countermeasures left, how many have gone, and when the next may go.
+  std::uint8_t flares{}, chaff{};
+  unsigned decoysReleased{};
+  Tick decoyReady{};
 };
 // Stores still hanging on a nearby aircraft, for presentation only.
 struct Loadout {
@@ -88,6 +96,7 @@ struct RadarNetState {
   double lockProgress{};
   weapons::Envelope envelope;
   std::vector<Loadout> loadouts;
+  std::uint8_t flares{}, chaff{};
 };
 std::uint8_t mountedMask(const weapons::Inventory &);
 // Mean engine power as a heat seeker sees it. An engine that was shot out
@@ -108,9 +117,11 @@ public:
   MissileCombat();
   bool launch(Tick, EntityRef owner, const State &, Vec3 station, WeaponType,
               const weapons::Track &target);
+  // `decoys` are the flares and chaff in the air, which seekers may follow
+  // instead of their targets.
   void step(Tick, std::span<CombatTarget>,
             const std::map<EntityId, AircraftWeapons *> &, const Weather &,
-            Combat &);
+            Combat &, std::span<const weapons::Decoy> decoys = {});
   void removeOwner(EntityId, Tick);
   const std::vector<Missile> &missiles() const { return missiles_; }
   std::vector<MissileEvent> takeEvents();

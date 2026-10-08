@@ -132,7 +132,12 @@ While the Multiplayer page is open and no flight is running, the launcher asks
 the network for games every three seconds on a worker thread
 (`launcher/lan.py`, mirroring `network/include/ofs/net/discovery.hpp`): one
 broadcast question on UDP 27019 to each local network and to this computer,
-answers collected for 0.6 s. A game is listed with its pilots, bots, address
+answers collected for 0.6 s. A system sends a broadcast out through one
+network only, which on a computer with a VPN, a virtual machine's adapter or
+both wired and wireless connections is often not the network the game is on.
+The question is therefore asked again from each of the computer's own
+addresses, which sends it out on that address's network and reaches every
+computer there whatever subnet it has been given. A game is listed with its pilots, bots, address
 and version. Games built for another network protocol, compared with the
 `protocol` in the installed `launcher-catalog.json`, and full games are shown
 but cannot be joined. **Join** starts the simulator against the listed address
@@ -142,8 +147,12 @@ changed.
 Discovery needs broadcast UDP between the computers. It does not cross
 routers, guest-network isolation or a firewall that blocks UDP 27019/27020; a
 Windows host has to allow OpenFlightSim on private networks when first asked.
-The page shows this computer's address so others can **join by address**
-instead. Nothing received by discovery is trusted beyond being displayed; the
+A Linux firewall turns players away without asking anyone, so the page looks
+(`lan.firewall_advice`): firewalld is asked whether the two ports are open,
+which needs no privileges, and ufw can only be seen to be switched on. When
+either would be in the way the page says so with the command that opens the
+ports. Nothing is changed for the player. The page shows this computer's
+address and port so others can **join by address** instead. Nothing received by discovery is trusted beyond being displayed; the
 game connection does its own version and identity checks.
 
 Settings pages are disabled while a flight or background operation is active,

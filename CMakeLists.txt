@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(OpenFlightSim VERSION 0.5.0 LANGUAGES C CXX)
+project(OpenFlightSim VERSION 0.5.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -60,7 +60,8 @@ install(DIRECTORY data/launcher/ DESTINATION data/launcher)
 if(OFS_BUILD_CLIENT OR OFS_BUILD_TESTS)
   add_library(ofs_visual_core STATIC client/src/gltf.cpp client/src/json.cpp
     client/src/protected_asset.cpp client/src/mesh.cpp client/src/effects.cpp client/src/animation.cpp client/src/texture.cpp
-    client/src/atmosphere_model.cpp client/src/procedural.cpp client/src/landscape.cpp client/src/map.cpp)
+    client/src/atmosphere_model.cpp client/src/procedural.cpp client/src/landscape.cpp client/src/map.cpp
+    client/src/airfield.cpp)
   target_include_directories(ofs_visual_core PUBLIC client/src)
   target_include_directories(ofs_visual_core SYSTEM PRIVATE client/thirdparty)
   # Procedural environment synthesis spreads its rows across the available cores.

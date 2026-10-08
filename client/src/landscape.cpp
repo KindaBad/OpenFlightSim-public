@@ -1,5 +1,7 @@
 #include "landscape.hpp"
 
+#include "airfield.hpp"
+
 #include "ofs/terrain.hpp"
 #include "procedural.hpp"
 
@@ -41,12 +43,10 @@ float slopeAt(double north, double east) {
 }  // namespace
 
 bool insideAirfieldClearway(double north, double east) {
-  // Render axes used by the airfield layout: x east, z south.
-  const double x = east, z = -north;
-  return (std::abs(x) < 130 && std::abs(z) < 1900) ||          // runway strip
-         (x > -640 && x < -40 && z > -1480 && z < 680) ||       // apron, terminal, hangars
-         (x > 410 && x < 500 && std::abs(z) < 2880) ||          // service road
-         (x > -700 && x < 510 && z > 250 && z < 350);           // cross road
+  // Nothing grows inside the fence, on the roads that lead to it, or under
+  // either approach, where the trees would stand in the way of the lights.
+  return airfieldUse(north, east) != AirfieldUse::Outside ||
+         (std::abs(east) < 130 && std::abs(north) < 1900);
 }
 
 Landscape::Landscape(int landSize, int lakeSize) : landSize_(landSize), lakeSize_(lakeSize) {

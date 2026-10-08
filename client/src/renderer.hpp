@@ -18,6 +18,7 @@
 // effects), renderer_atmosphere.cpp (sky, clouds, shadows, post) and
 // renderer_environment.cpp (terrain, airfield, trees).
 
+#include "airfield.hpp"
 #include "animation.hpp"
 #include "atmosphere_model.hpp"
 #include "breakaway.hpp"
@@ -118,6 +119,9 @@ struct CombatVisuals {
   std::vector<Store> stores;
   std::vector<Pylon> pylons;
   std::vector<Vec3> missileDetonations;
+  // A flare or a bundle of chaff released this frame.
+  struct Decoy { weapons::DecoyType type{weapons::DecoyType::Flare}; Vec3 position, velocity; };
+  std::vector<Decoy> decoys;
   std::vector<Line> lines;
   std::vector<Shot> shots;
   std::vector<Hit> hits;
@@ -509,12 +513,22 @@ class Renderer {
   bgfx::TextureHandle terrainAlbedo_{BGFX_INVALID_HANDLE}, terrainNormal_{BGFX_INVALID_HANDLE};
   bgfx::TextureHandle landMap_{BGFX_INVALID_HANDLE}, lakeMap_{BGFX_INVALID_HANDLE}, waterNormal_{BGFX_INVALID_HANDLE};
   bgfx::TextureHandle mapTexture_{BGFX_INVALID_HANDLE};
-  bgfx::VertexBufferHandle runway_{BGFX_INVALID_HANDLE}, runwayPaint_{BGFX_INVALID_HANDLE};
-  bgfx::VertexBufferHandle apron_{BGFX_INVALID_HANDLE}, taxiPaint_{BGFX_INVALID_HANDLE};
-  bgfx::VertexBufferHandle roads_{BGFX_INVALID_HANDLE};
-  bgfx::VertexBufferHandle buildings_{BGFX_INVALID_HANDLE}, windows_{BGFX_INVALID_HANDLE};
-  bgfx::VertexBufferHandle lights_{BGFX_INVALID_HANDLE}, props_{BGFX_INVALID_HANDLE}, houses_{BGFX_INVALID_HANDLE};
-  std::uint32_t buildingVertices_{}, houseVertices_{}, propVertices_{};
+  // The airfield (airfield.hpp): layers of paving and paint drawn into the
+  // terrain, and one batch of solid structure per material.
+  struct GroundLayer {
+    bgfx::VertexBufferHandle buffer{BGFX_INVALID_HANDLE};
+    float kind{}, layer{};
+    glm::vec3 tint{1};
+  };
+  struct StructureBatch {
+    bgfx::VertexBufferHandle buffer{BGFX_INVALID_HANDLE};
+    AirfieldMaterial material{AirfieldMaterial::Concrete};
+    std::uint32_t vertices{};
+  };
+  std::vector<GroundLayer> airfieldGround_;
+  std::vector<StructureBatch> airfieldParts_;
+  bgfx::VertexBufferHandle houses_{BGFX_INVALID_HANDLE};
+  std::uint32_t houseVertices_{};
   // Tree meshes: [species][0 near, 1 far].
   TreeMesh treeMeshes_[2][2]{};
   std::map<std::pair<int, int>, TreeChunk> treeChunks_;

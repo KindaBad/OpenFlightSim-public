@@ -65,7 +65,8 @@ class Landscape {
   double lakeAreaKm2_{};
 };
 
-// True inside the airfield's paved and built-up footprint, where nothing grows.
+// True inside the airfield's fence and on the roads and approaches around it,
+// where nothing grows.
 bool insideAirfieldClearway(double north, double east);
 
 }  // namespace ofs::client

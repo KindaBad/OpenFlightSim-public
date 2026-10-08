@@ -39,10 +39,43 @@ int main() {
     key(input, SDL_SCANCODE_LSHIFT, true);
     key(input, SDL_SCANCODE_RCTRL, true);
     input.update(c, 1, false);
-    check(std::abs(c.throttle[0] - .36) < 1e-12,
+    check(std::abs(c.throttle[0] - .36) < 1e-12 && !input.braking(),
           "opposed throttle inputs cancel");
     key(input, SDL_SCANCODE_LSHIFT, false);
     key(input, SDL_SCANCODE_RCTRL, false);
+    // Ctrl takes the throttle off first; held on at idle, it brakes.
+    for (auto code : {SDL_SCANCODE_LCTRL, SDL_SCANCODE_RCTRL}) {
+      Controls slowing;
+      slowing.throttle[0] = slowing.throttle[1] = .3;
+      key(input, code, true);
+      input.update(slowing, .2, false);
+      check(slowing.throttle[0] > .1 && !input.braking(),
+            "Ctrl above idle only reduces throttle");
+      input.update(slowing, .5, false);
+      check(slowing.throttle[0] == 0 && input.braking(),
+            "Ctrl held at idle brakes");
+      input.update(slowing, .1, true);
+      check(!input.braking(), "a captured keyboard does not brake");
+      input.update(slowing, .1, false);
+      key(input, SDL_SCANCODE_LSHIFT, true);
+      input.update(slowing, .01, false);
+      check(!input.braking(), "throttle up and down together do not brake");
+      key(input, SDL_SCANCODE_LSHIFT, false);
+      key(input, code, false);
+      input.update(slowing, .1, false);
+      check(!input.braking() && slowing.throttle[0] < .02,
+            "releasing Ctrl releases the brake");
+    }
+    {
+      Controls idle;
+      key(input, SDL_SCANCODE_LCTRL, true);
+      input.update(idle, .1, false);
+      check(input.braking(), "brake held");
+      SDL_Event lost{};
+      lost.type = SDL_EVENT_WINDOW_FOCUS_LOST;
+      input.event(lost, nullptr);
+      check(!input.braking(), "losing focus releases the brake");
+    }
     auto trim = solveTrim();
     Simulator sim;
     sim.setState(trim.state);

@@ -515,7 +515,8 @@ void Client::poll(double elapsed) {
                      v.event.generation < event.generation;
             });
           }
-          if (!staleLife && event.kind != CombatKind::Respawn &&
+          if (!staleLife && (event.kind == CombatKind::Hit ||
+                             event.kind == CombatKind::Destroyed) &&
               visualEffects_.size() < 256)
             visualEffects_.push_back({event});
         }

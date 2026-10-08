@@ -106,14 +106,23 @@ class Job(QThread):
 
 class Scan(QThread):
     """One look for games on the local network, off the UI thread."""
-    found = Signal(object, object)
+    found = Signal(object, object, object)
+
+    def __init__(self, parent, firewall_port=None):
+        super().__init__(parent)
+        # Asking the firewall starts other programs, so it is done when the
+        # caller wants it and not on every look.
+        self.firewall_port = firewall_port
 
     def run(self):
+        advice = False  # not asked
         try:
-            self.found.emit(lan.discover(), lan.local_addresses())
+            if self.firewall_port:
+                advice = lan.firewall_advice(self.firewall_port)
+            self.found.emit(lan.discover(), lan.local_addresses(), advice)
         except OSError as exc:
             log.info('LAN discovery unavailable: %s', exc)
-            self.found.emit([], [])
+            self.found.emit([], [], advice)
 
 
 def label(text, name=None, wrap=True):
@@ -178,6 +187,7 @@ class Window(QMainWindow):
         self.poll.timeout.connect(self.poll_session)
         self.poll.start(500)
         # The list of games keeps itself current while its page is open.
+        self.firewall, self.firewall_port = None, None
         self.lan_timer = QTimer(self)
         self.lan_timer.timeout.connect(self.scan_lan)
         self.lan_timer.start(3000)
@@ -676,11 +686,14 @@ class Window(QMainWindow):
         box = self.page('Flight deck', 'Controls / Input', 'The simulator detects SDL gamepads automatically. These are the current built-in bindings.')
         form = self.form(box)
         for title, text in [('Pitch / roll', 'W / S · A / D'), ('Rudder', 'Q / E'), ('Throttle', 'Shift / Ctrl'),
+                            ('Brake', 'Hold Ctrl with the throttle at idle: wheel brakes on the ground, airbrake in the air'),
                             ('Gear, flaps, airbrake', 'G · F · H'),
                             ('Camera', 'Tab cycles camera · V flight deck · right mouse looks · wheel zooms'),
                             ('Map', 'N opens and closes the full map'),
                             ('Weapons', 'Space / left mouse / gamepad right trigger · 1 gun · 2 heat seeker · 3 radar missile'),
                             ('Targets', 'L locks or breaks lock · T / Y next and previous target'),
+                            ('Countermeasures', 'R flare against heat seekers (come out of reheat first) · C chaff against radar missiles (turn them onto your wingtip first)'),
+                            ('Repair and rearm', 'Land, stop and wait ten seconds'),
                             ('Chat', '/ or Enter opens chat in multiplayer · Enter sends · Esc cancels'),
                             ('Pilots and scores', 'Hold K in multiplayer'),
                             ('Menu', 'Esc opens the in-flight menu: settings, controls, quit'),
@@ -823,7 +836,7 @@ class Window(QMainWindow):
         self.direct_button = button('Connect', self.join_address)
         line.addWidget(self.direct_button)
         direct_box.addLayout(line)
-        direct_box.addWidget(label('Use this if a game does not show in the list. If the host runs Windows, it must allow OpenFlightSim through the firewall on private networks when asked.', 'muted'))
+        direct_box.addWidget(label('Use this if a game does not show in the list, as happens on large networks such as a school or an office. The host\'s address is shown on their Multiplayer page. A Windows host must allow OpenFlightSim through the firewall on private networks when asked; a Linux host is told on that page if its firewall is in the way.', 'muted'))
         box.addWidget(direct)
         box.addStretch()
 
@@ -831,7 +844,10 @@ class Window(QMainWindow):
         """Look for games, unless a look is already under way or nobody is watching."""
         if self.scan or self.stack.currentIndex() != 10 or not self.isVisible() or self.session.running():
             return
-        self.scan = Scan(self)
+        # The firewall is asked about once, and again if the game's port changes.
+        ask = self.prefs.port if self.firewall_port != self.prefs.port else None
+        self.firewall_port = self.prefs.port
+        self.scan = Scan(self, ask)
         self.scan.found.connect(self.show_lobbies)
         self.scan.finished.connect(self.scan_finished)
         self.scan.start()
@@ -844,7 +860,9 @@ class Window(QMainWindow):
         value = self.installation.catalog.get('protocol') if self.installation else None
         return value if type(value) is int else None
 
-    def show_lobbies(self, lobbies, addresses=()):
+    def show_lobbies(self, lobbies, addresses=(), firewall=False):
+        if firewall is not False:
+            self.firewall = firewall  # None when nothing is in the way
         chosen = self.selected_lobby()
         self.lobbies = list(lobbies)
         protocol = self.protocol()
@@ -867,7 +885,8 @@ class Window(QMainWindow):
                                 'No games found yet. Ask the host to press Host and fly, and check that you are on the same network.')
         if addresses:
             self.lan_address.setText('Your game appears on other computers on this network as soon as you take off. '
-                                     f'If someone has to join by address, yours is {addresses[0]}.')
+                                     f'If someone has to join by address, yours is {addresses[0]}, port {self.prefs.port}.'
+                                     + (f'\n\n{self.firewall}' if self.firewall else ''))
         self.lobby_selected()
 
     def selected_lobby(self):

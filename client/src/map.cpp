@@ -1,5 +1,7 @@
 #include "map.hpp"
 
+#include "airfield.hpp"
+
 #include "ofs/terrain.hpp"
 
 #include <array>
@@ -50,7 +52,17 @@ MapImage buildMapImage(const Landscape& landscape, int size) {
       const float shade = std::clamp(1.f + .45f * float(slopeNorth - slopeEast), .74f, 1.2f);
       colour = {colour.r * shade, colour.g * shade, colour.b * shade};
       if (landscape.underWater(north, east)) colour = {.24f, .42f, .58f};
-      if (insideAirfieldClearway(north, east)) colour = mix(colour, {.50f, .50f, .50f}, .6f);
+      // The airfield: its mown grass a little paler than the country, and its
+      // paving grey. A cell is paved if any of it is, so the runway shows.
+      bool paved = false, field = false;
+      for (const double dn : {-.35, 0., .35})
+        for (const double de : {-.35, 0., .35}) {
+          const auto use = airfieldUse(north + dn * cell, east + de * cell);
+          paved = paved || use == AirfieldUse::Paved;
+          field = field || use != AirfieldUse::Outside;
+        }
+      if (field) colour = mix(colour, {.56f, .62f, .42f}, .35f);
+      if (paved) colour = mix(colour, {.56f, .56f, .55f}, .8f);
       std::uint8_t* texel = &image.rgba[(std::size_t(row) * size + column) * 4];
       texel[0] = std::uint8_t(std::clamp(colour.r, 0.f, 1.f) * 255.f + .5f);
       texel[1] = std::uint8_t(std::clamp(colour.g, 0.f, 1.f) * 255.f + .5f);

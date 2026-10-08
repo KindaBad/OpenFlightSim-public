@@ -35,6 +35,9 @@ class UI(unittest.TestCase):
         fixture(self.directory)
         self.data = root / 'user'
         self.data.mkdir()
+        # No test asks this computer's real firewall anything.
+        self.firewall = patch('launcher.ui.lan.firewall_advice', return_value=None)
+        self.firewall_advice = self.firewall.start()
         with patch.object(Window, 'start_background', lambda self: None):
             self.window = Window(self.directory, self.data, self.data / 'logs', {'version': '0.3.0'})
             self.window.show()
@@ -43,6 +46,7 @@ class UI(unittest.TestCase):
     def tearDown(self):
         self.window.close()
         self.app.processEvents()
+        self.firewall.stop()
         self.temp.cleanup()
 
     def test_all_sections_render_and_aircraft_discovered(self):
@@ -275,6 +279,35 @@ class UI(unittest.TestCase):
             with patch.object(self.window.session, 'running', return_value=True):
                 self.window.scan_lan()
                 self.assertIsNone(self.window.scan)
+
+    def wait_for_scan(self):
+        deadline = time.monotonic() + 3
+        while self.window.scan and time.monotonic() < deadline:
+            self.app.processEvents()
+            time.sleep(.01)
+        self.assertIsNone(self.window.scan)
+
+    def test_a_linux_host_is_told_when_its_firewall_is_in_the_way(self):
+        advice = 'This computer\'s firewall will turn other players away. To let them in until the next restart, run:  sudo firewall-cmd --add-port=27020/udp'
+        self.firewall_advice.return_value = advice
+        with patch('launcher.ui.lan.discover', return_value=[]), patch('launcher.ui.lan.local_addresses', return_value=['192.168.1.23']):
+            self.window.show_page(10)
+            self.wait_for_scan()
+            self.assertIn('192.168.1.23, port 27020', self.window.lan_address.text())
+            self.assertIn('sudo firewall-cmd --add-port=27020/udp', self.window.lan_address.text())
+            # The firewall is asked once, not on every look, and the advice stays up.
+            self.window.scan_lan()
+            self.wait_for_scan()
+            self.firewall_advice.assert_called_once_with(27020)
+            self.assertIn('sudo firewall-cmd', self.window.lan_address.text())
+            # A different port is a different question; an open firewall clears the advice.
+            self.firewall_advice.return_value = None
+            self.window.set_network(port=27031)
+            self.window.scan_lan()
+            self.wait_for_scan()
+            self.assertEqual(self.firewall_advice.call_count, 2)
+            self.assertNotIn('firewall', self.window.lan_address.text())
+            self.assertIn('port 27031', self.window.lan_address.text())
 
     def test_multiplayer_actions_wait_for_a_flight_in_progress(self):
         self.window.show_page(10)

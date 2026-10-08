@@ -94,7 +94,9 @@ MissileNetState missile(Reader &r) {
   m.seeker = weapons::SeekerPhase(r.u(1));
   m.age = double(r.u(2)) / 100;
   if (!m.id || !m.owner.id || unsigned(m.type) < 1 || unsigned(m.type) > 2 ||
-      unsigned(m.motor) > 3 || unsigned(m.seeker) > 3 || m.age > 75)
+      unsigned(m.motor) > 3 ||
+      unsigned(m.seeker) > unsigned(weapons::SeekerPhase::Decoyed) ||
+      m.age > 75)
     r.ok = false;
   return m;
 }
@@ -150,6 +152,8 @@ std::vector<std::uint8_t> encodeWeapon(const WeaponMessage &m) {
       w.ref(loadout.entity);
       w.u(loadout.mounted, 1);
     }
+    w.u(n.flares, 1);
+    w.u(n.chaff, 1);
     break;
   }
   case Type::MissileSpawn:
@@ -197,7 +201,7 @@ bool decodeWeapon(std::span<const std::uint8_t> bytes, WeaponMessage &out) {
     m.action = {m.sequence, m.tick, std::uint32_t(r.u(4)),
                 WeaponActionKind(r.u(1)), std::uint8_t(r.u(1))};
     if (!m.entity ||
-        unsigned(m.action.kind) > unsigned(WeaponActionKind::Unlock) ||
+        unsigned(m.action.kind) > unsigned(WeaponActionKind::Chaff) ||
         m.action.station > 7)
       r.ok = false;
     break;
@@ -264,6 +268,8 @@ bool decodeWeapon(std::span<const std::uint8_t> bytes, WeaponMessage &out) {
         r.ok = false;
       n.loadouts.push_back(loadout);
     }
+    n.flares = std::uint8_t(r.u(1));
+    n.chaff = std::uint8_t(r.u(1));
     break;
   }
   case Type::MissileSpawn:

@@ -26,6 +26,12 @@ struct HudFrame {
   CameraMode cameraMode{CameraMode::Chase};
   AircraftType type{AircraftType::A320};
   bool parkingBrake{}, paused{};
+  // The wheel brakes are being held on.
+  bool braking{};
+  // Standing on the ground to be repaired and rearmed: how far through the
+  // wait, 0..1, or negative when there is nothing to wait for; and the seconds
+  // left to say that it has just been done.
+  double serviceProgress{-1}, serviced{};
   std::span<const RemoteAircraft> remotes;
   // Empty in offline mode, in which case the HUD hides the combat block.
   bool multiplayer{};
@@ -48,6 +54,16 @@ struct HudFrame {
   unsigned activeMissiles{};
   double missileSpeed{}, missileAge{};
   std::string missileOutcome;
+  // Flares and chaff left, or negative for an aircraft that carries none.
+  int flares{-1}, chaff{-1};
+  // Missiles flying at this pilot. One that has gone after a decoy is still
+  // shown, marked as defeated, until it is seen to be gone.
+  struct Threat {
+    Vec3 position, velocity;
+    weapons::WeaponType type{weapons::WeaponType::Infrared};
+    bool decoyed{};
+  };
+  std::span<const Threat> threats;
   bool alive{true};
   double health{100};
   std::uint16_t ammo{600};

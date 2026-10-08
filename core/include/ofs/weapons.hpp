@@ -19,10 +19,15 @@ struct SensorTarget {
   AircraftType type{AircraftType::Typhoon};
   double power{.5}, afterburner{};
   bool alive{true};
+  // A decoy has no aspect or engines: when this is not negative it is the
+  // source's strength outright, in place of the aircraft signature models.
+  double signature{-1};
 };
 enum class WeaponType : std::uint8_t { None, Infrared, ActiveRadar };
 enum class MotorPhase : std::uint8_t { Ignition, Boost, Sustain, Burnout };
-enum class SeekerPhase : std::uint8_t { Searching, Tracking, Lost, Midcourse };
+// Decoyed is reported to players for a missile that is following a decoy; the
+// seeker itself is simply tracking, and never holds this phase.
+enum class SeekerPhase : std::uint8_t { Searching, Tracking, Lost, Midcourse, Decoyed };
 struct MotorDefinition {
   double propellant{}, boostThrust{}, boostTime{}, sustainThrust{},
       sustainTime{};
@@ -39,6 +44,9 @@ struct SeekerDefinition {
       activationRange{12000};
   // Seconds a mounted seeker holds its target before the launch is released.
   double lockTime{.55};
+  // A radar seeker tells returns apart by closing speed: only those within
+  // this many m/s of the one it is following compete with it.
+  double dopplerGate{80};
 };
 struct MissileDefinition {
   WeaponType type;
@@ -113,6 +121,47 @@ bool seekerDetects(const MissileDefinition &, Vec3 position, Vec3 forward,
                    Vec3 boresight, const SensorTarget &);
 Measurement updateSeeker(const MissileDefinition &, MissileState &,
                          const SensorTarget *, double dt);
+
+// Countermeasures. A flare is a hot point that burns for a few seconds and a
+// chaff bundle a cloud of radar-reflecting strips that hangs in the air. A
+// seeker follows the strongest source in its field of view, so a decoy only
+// works while it outshines the aircraft that dropped it: a flare beats an
+// engine at military power but not one in reheat, and chaff beats an aircraft
+// only while that aircraft crosses the seeker's line of sight, where its
+// closing speed matches the cloud's. Engineering values, not any real system.
+enum class DecoyType : std::uint8_t { Flare, Chaff };
+struct DecoyDefinition {
+  double lifetime{}, rise{}, hold{}; // seconds: gone, at full strength, starts to fade
+  double peak{};                     // infraredSignal units, or square metres
+  double drag{}, gravity{};          // 1/s toward the air's own speed; fraction of g
+};
+const DecoyDefinition &decoyDefinition(DecoyType);
+struct Decoy {
+  std::uint64_t id{};
+  DecoyType type{DecoyType::Flare};
+  EntityRef owner;
+  Vec3 position, velocity;
+  double age{};
+};
+// How many of each an aircraft carries; unarmed aircraft carry none.
+unsigned decoyCapacity(AircraftType);
+// Seconds between releases from one aircraft.
+inline constexpr double decoyInterval = .25;
+// Strength `age` seconds after release: zero once the decoy is spent.
+double decoyStrength(DecoyType, double age);
+// A decoy as it leaves `aircraft`, thrown down and out from under the tail to
+// alternate sides. `count` is how many this aircraft has released before.
+Decoy releaseDecoy(DecoyType, EntityRef owner, const AircraftConfig &,
+                   const State &aircraft, unsigned count);
+void advanceDecoy(Decoy &, const Weather &, double dt);
+// The decoy as a seeker's sensor sees it.
+SensorTarget decoySensor(const Decoy &);
+// The decoy a missile's seeker follows this step, or null when it follows its
+// target or nothing. `held` is the decoy it followed last step, or zero. A
+// decoy is only ever taken from something the seeker is already following.
+const Decoy *seekerDecoy(const MissileDefinition &, const MissileState &,
+                         const SensorTarget *target, std::span<const Decoy>,
+                         std::uint64_t held, const Weather &weather = {});
 void advanceMissile(const MissileDefinition &, MissileState &,
                     const SensorTarget *, const Measurement *support,
                     const Weather &, double dt);

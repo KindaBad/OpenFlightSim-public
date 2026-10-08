@@ -5,8 +5,10 @@
 #include "damage_visuals.hpp"
 #include "effects.hpp"
 #include "ofs/trim.hpp"
+#include "weapon_visuals.hpp"
 #include <cmath>
 #include <cstdio>
+#include <limits>
 #include <stdexcept>
 #include <string>
 using namespace ofs;
@@ -284,6 +286,97 @@ void effects() {
   }
   std::puts("battle effects: gun, hit, warhead, destruction, part loss, damage smoke and fire, bounds PASS");
 }
+// Shots and decoys are reported on the server's clock but drawn on the
+// aircraft as this client sees it, and decoys look like what a seeker follows.
+void weaponVisuals() {
+  using weapons::DecoyType;
+  const auto type = AircraftType::Typhoon;
+  const auto& definition = aircraftDefinition(type);
+  // The pilot's own aircraft is drawn a fifth of a second ahead of the server.
+  State shown = flying(type, 250);
+  shown.att = quatFromEuler(.6, .15, 1.1);
+  const Vec3 muzzle = shown.pos_ned + shown.att.rotate(definition.gun->muzzle - loadedCg(definition.flight, shown));
+  const Vec3 behind = muzzle - Vec3{250, 0, 0} * .2;
+  check((shotOrigin(behind, shown, type) - muzzle).norm() < 1e-9, "a round leaves the gun of the aircraft as it is drawn");
+  const Vec3 ahead = muzzle + Vec3{250, 0, 0} * .1;  // another aircraft, drawn in the past
+  check((shotOrigin(ahead, shown, type) - muzzle).norm() < 1e-9, "also for an aircraft drawn behind the server");
+  check((muzzle - shown.pos_ned).norm() > 3 && (muzzle - shown.pos_ned).norm() < 8, "the muzzle is on the airframe");
+  const Vec3 elsewhere = muzzle + Vec3{0, kPresentationReach + 50, 0};
+  check((shotOrigin(elsewhere, shown, type) - elsewhere).norm() == 0, "a report from an earlier life is left where it is");
+  check((shotOrigin(behind, shown, AircraftType::A320) - behind).norm() == 0, "an unarmed aircraft has no muzzle to move it to");
+  // A hit is carried to where the struck aircraft is drawn.
+  const Vec3 struck{1000, 0, -3000}, speed{250, 0, 0};
+  check((hitOrigin(struck, speed, .2) - Vec3{1050, 0, -3000}).norm() < 1e-9 &&
+            (hitOrigin(struck, speed, -.1) - Vec3{975, 0, -3000}).norm() < 1e-9 && (hitOrigin(struck, speed, 0) - struck).norm() == 0,
+        "a hit follows its target forward or back in time");
+  check((hitOrigin(struck, speed, 30) - Vec3{1150, 0, -3000}).norm() < 1e-9 &&
+            (hitOrigin(struck, speed, std::numeric_limits<double>::quiet_NaN()) - struck).norm() == 0,
+        "the correction is bounded");
+  for (const auto decoy : {DecoyType::Flare, DecoyType::Chaff}) {
+    const Vec3 dispenser = weapons::releaseDecoy(decoy, {}, definition.flight, shown, 3).position;
+    check((decoyOrigin(decoy, dispenser - Vec3{250, 0, 0} * .2, shown, type, 3) - dispenser).norm() < 1e-9,
+          "a decoy leaves the aircraft as it is drawn");
+    check((decoyOrigin(decoy, elsewhere, shown, type, 3) - elsewhere).norm() == 0, "a far report is left alone");
+  }
+  // A flare is one bright point that falls behind on an unbroken thread of smoke.
+  {
+    EffectPool pool(1024);
+    CombatEffects fx(pool, EffectsQuality::High);
+    State aircraft = flying(type, 250);
+    auto decoy = weapons::releaseDecoy(DecoyType::Flare, {}, definition.flight, aircraft, 0);
+    fx.onDecoy(DecoyType::Flare, decoy.position, decoy.velocity);
+    check(pool.countOf(EffectKind::Flare) == 1 && pool.countOf(EffectKind::Flash) == 1, "a flare lights with a pop");
+    double farthest = 0;
+    for (unsigned i = 0; i < 120; ++i) {
+      pool.update(1. / 60);
+      weapons::advanceDecoy(decoy, {}, 1. / 60);
+      for (const auto& effect : pool.effects())
+        if (effect.kind == EffectKind::Flare) farthest = std::max(farthest, (effect.position - decoy.position).norm());
+    }
+    check(farthest < 3, "the flare that is drawn is where the seeker's flare is");
+    check(pool.countOf(EffectKind::Flare) == 1 && pool.countOf(EffectKind::Trail) > 40, "it trails smoke as it goes");
+    double longest = 0;
+    for (const auto& effect : pool.effects())
+      if (effect.kind == EffectKind::Trail) longest = std::max(longest, double(effect.stretch));
+    check(longest > .5 && longest < 12, "the smoke is laid in lengths along its path");
+    for (unsigned i = 0; i < 130; ++i) pool.update(1. / 60);
+    check(pool.countOf(EffectKind::Flare) == 0, "a flare burns out when the decoy does");
+    pool.update(10);
+    check(pool.size() == 0, "and its smoke clears");
+  }
+  // Chaff is a burst of strips that stops in the air and thins away.
+  {
+    EffectPool pool(512);
+    CombatEffects fx(pool, EffectsQuality::High);
+    fx.onDecoy(DecoyType::Chaff, {0, 0, -3000}, {250, 0, 0});
+    check(pool.countOf(EffectKind::Smoke) == 1 && pool.countOf(EffectKind::Spark) == 26 && pool.countOf(EffectKind::Flare) == 0,
+          "chaff bursts into strips and a haze");
+    for (unsigned i = 0; i < 90; ++i) pool.update(1. / 60);
+    for (const auto& effect : pool.effects()) check(effect.velocity.norm() < 12, "chaff stops in the air");
+    pool.update(10);
+    check(pool.size() == 0, "chaff clears");
+    // Fewer strips at lower quality, nothing with effects off.
+    EffectPool low(512), off(64);
+    CombatEffects modest(low, EffectsQuality::Low), silent(off, EffectsQuality::Off);
+    modest.onDecoy(DecoyType::Chaff, {0, 0, -3000}, {250, 0, 0});
+    modest.onDecoy(DecoyType::Flare, {0, 0, -3000}, {250, 0, 0});
+    silent.onDecoy(DecoyType::Chaff, {0, 0, -3000}, {250, 0, 0});
+    silent.onDecoy(DecoyType::Flare, {0, 0, -3000}, {250, 0, 0});
+    check(low.countOf(EffectKind::Spark) == 5 && low.countOf(EffectKind::Flare) == 1 && off.size() == 0,
+          "decoy effects scale with the quality setting");
+    low.update(1.);
+    check(low.countOf(EffectKind::Trail) == 0, "a low-quality flare leaves no trail");
+    // A salvo stays inside the pool.
+    EffectPool small(256);
+    CombatEffects busy(small, EffectsQuality::High);
+    for (unsigned i = 0; i < 64; ++i) {
+      busy.onDecoy(i % 2 ? DecoyType::Flare : DecoyType::Chaff, {double(i) * 20, 0, -3000}, {250, 0, 0});
+      small.update(1. / 60);
+    }
+    check(small.size() <= small.capacity(), "decoy effects stay bounded");
+  }
+  std::puts("battle weapons: shot and decoy origins, flare and chaff effects PASS");
+}
 void chat() {
   check(chatText("  hello there  ", 120) == "hello there" && chatText("\t\n", 120).empty() && chatText("   ", 120).empty() &&
             chatText("a\x01" "b\xc3\xa9" "c", 120) == "abc" && chatText(std::string(300, 'x'), 120).size() == 120 &&
@@ -322,6 +415,7 @@ int main(int argc, char** argv) {
     else if (suite == "breakaway") breakaway();
     else if (suite == "effects") effects();
     else if (suite == "chat") chat();
+    else if (suite == "weapons") weaponVisuals();
     else throw std::invalid_argument("suite");
     return 0;
   } catch (const std::exception& error) {

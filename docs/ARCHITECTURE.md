@@ -326,10 +326,10 @@ are outside this approximate flight model.
 
 Canard/elevon/door/nozzle/suspension channels extend the existing extras rig.
 Simulation controls drive pose, never the reverse. Oleo translation keeps tires
-at the ground plane. Reheat uses one shared fixed flame mesh: three animated,
-translucent tapered shells and a soft hot-core glow per engine, eight draws and
-6,916 triangles per visible Typhoon. No flame particles or particle coordinates
-are networked. Effects cull at 1,200 m and disappear with destroyed aircraft.
+at the ground plane. Reheat uses one shared fixed flame mesh: per engine three
+animated, translucent shells (shock diamonds, flame and sheath), the hot throat
+of the jet pipe and a glow at the nozzle, ten draws and 16,136 triangles per
+visible Typhoon. No flame particles or particle coordinates are networked. Effects cull at 1,200 m and disappear with destroyed aircraft.
 Scene-color refraction, physical volumetrics and dynamic exhaust lighting remain
 future rendering work. See the M3.65 report for inspected evidence and budgets.
 

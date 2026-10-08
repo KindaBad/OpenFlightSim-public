@@ -390,8 +390,8 @@ void Renderer::drawShadowAtlas(const std::vector<const Instance*>& casters) {
       ++stats_.drawCalls;
       stats_.triangles += count / 3;
     };
-    scenery(buildings_, buildingVertices_, {-280, 20, -600}, 900);
-    scenery(props_, propVertices_, {-20, 2, 0}, 2800);
+    for (const auto& part : airfieldParts_)
+      if (airfieldCastsShadow(part.material)) scenery(part.buffer, part.vertices, {-200, 10, 0}, 2100);
     scenery(houses_, houseVertices_, {0, 100, 0}, 9000);
     if (settings_.vegetation) drawTrees(view, programs_.shadowTree, &cascade);
   }

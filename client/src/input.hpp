@@ -1,6 +1,6 @@
 #pragma once
 // Input: keyboard, mouse and gamepad. M3.66 uses WASD flight controls,
-// Q/E rudder and either Shift/Ctrl for throttle.
+// Q/E rudder and either Shift/Ctrl for throttle. Ctrl held at idle brakes.
 
 #include "camera.hpp"
 #include "settings.hpp"
@@ -30,6 +30,9 @@ struct Input {
   void freeCamera(Camera& camera, double dt, bool captureKeyboard);
   // Held fire input: space, left mouse or the gamepad right trigger.
   bool firing(bool captureKeyboard, bool captureMouse) const;
+  // The throttle-down key held with the throttle already at idle: the pilot
+  // wants to slow down, which is the wheel brakes and the airbrake.
+  bool braking() const { return braking_; }
   // Raw key state, for the free camera.
   bool key(SDL_Scancode code) const { return keys_[static_cast<std::size_t>(code)]; }
 
@@ -58,6 +61,7 @@ struct Input {
   bool aiming_{};
   bool leftMouse_{};
   bool rightMouse_{};
+  bool braking_{};
   double orbitZoom_{};
 };
 

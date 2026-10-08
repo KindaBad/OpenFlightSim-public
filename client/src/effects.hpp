@@ -11,6 +11,7 @@
 #include "ofs/aircraft_definition.hpp"
 #include "ofs/damage.hpp"
 #include "ofs/simulator.hpp"
+#include "ofs/weapons.hpp"
 #include "settings.hpp"      // EffectsQuality
 
 #include <array>
@@ -38,6 +39,7 @@ enum class EffectKind : std::uint8_t {
   Trail,         // one length of a smoke trail, along `axis`
   Flash,         // a burst of light with rays: gun muzzle, warhead, impact
   Shockwave,     // the expanding ring of a detonation
+  Flare,         // a decoy flare: a falling point of light that trails smoke
   Count
 };
 
@@ -119,6 +121,10 @@ class CombatEffects {
   void onDestroyed(const Vec3& position, const Vec3& velocity);
   // A warhead going off: smaller and sharper than an aircraft blowing up.
   void onDetonation(const Vec3& position);
+  // A countermeasure leaving an aircraft. A flare burns bright as it falls
+  // behind on a thread of white smoke; chaff bursts into a glittering cloud.
+  // The motion is the decoy's own, so what is seen is what a seeker follows.
+  void onDecoy(weapons::DecoyType type, const Vec3& position, const Vec3& velocity);
   // A wing or fin breaking away: fragments and a puff where it parted.
   void onPartLost(const Vec3& position, const Vec3& velocity);
   // Smoke left by a piece that is falling away; a burning wreck adds flame.

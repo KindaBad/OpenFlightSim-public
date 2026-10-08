@@ -38,6 +38,7 @@ void Input::release(SDL_Window* window) {
   previous_.fill(false);
   looking_ = false;
   aiming_ = false;
+  braking_ = false;
   leftMouse_ = false;
   rightMouse_ = false;
   orbitZoom_ = 0;
@@ -127,8 +128,12 @@ void Input::update(Controls& c, double dt, bool captureKeyboard) {
   c.elevator_stick = key(SDL_SCANCODE_S) - key(SDL_SCANCODE_W);
   c.aileron_stick = key(SDL_SCANCODE_D) - key(SDL_SCANCODE_A);
   c.rudder_pedal = key(SDL_SCANCODE_E) - key(SDL_SCANCODE_Q);
-  const double throttle = c.throttle[0] + ((key(SDL_SCANCODE_LSHIFT) || key(SDL_SCANCODE_RSHIFT)) - (key(SDL_SCANCODE_LCTRL) || key(SDL_SCANCODE_RCTRL))) * dt * .72;
+  const bool faster = key(SDL_SCANCODE_LSHIFT) || key(SDL_SCANCODE_RSHIFT);
+  const bool slower = key(SDL_SCANCODE_LCTRL) || key(SDL_SCANCODE_RCTRL);
+  const double throttle = c.throttle[0] + (faster - slower) * dt * .72;
   c.throttle[0] = c.throttle[1] = clamp(throttle, 0, 1);
+  // With nothing left to take off the throttle, the same key brakes.
+  braking_ = slower && !faster && c.throttle[0] <= .02;
   // Keyboard brakes are momentary; the parking brake is a UI control.
   if (key(SDL_SCANCODE_B)) c.brake01 = 1;
   if (pad_ && !captureKeyboard) {

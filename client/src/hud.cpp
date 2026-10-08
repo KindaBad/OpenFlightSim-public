@@ -1,5 +1,6 @@
 #include "hud.hpp"
 #include "map.hpp"
+#include "ofs/ground_service.hpp"
 #include "ofs/units.hpp"
 #include <imgui.h>
 #include <algorithm>
@@ -231,6 +232,76 @@ float ease(float t) {
   return t * t * (3 - 2 * t);
 }
 
+// What is left in the dispensers, with the keys that empty them.
+void countermeasures(ImDrawList* draw, ImVec2 at, const HudFrame& frame) {
+  const auto stock = [&](float x, const char* key, const char* name, int left) {
+    text(draw, {x, at.y}, std::string(key) + "  " + name, kMuted, 12);
+    textRight(draw, {x + 118, at.y}, number(left), left > 4 ? kText : left > 0 ? kAmber : kDanger, 12);
+  };
+  stock(at.x, "R", "FLARES", frame.flares);
+  stock(at.x + 144, "C", "CHAFF", frame.chaff);
+}
+
+// A missile on its way in: where it is coming from, how long it has left, and
+// what answers it. The ring is the aircraft seen from above, nose to the top.
+void drawThreats(ImDrawList* draw, ImVec2 display, const HudFrame& frame, const Renderer& renderer) {
+  if (frame.threats.empty() || !frame.alive) return;
+  const State& own = *frame.local;
+  const float cx = display.x * .5f, cy = display.y * .5f;
+  const float ring = std::min(display.x, display.y) * .31f;
+  const float pulse = .5f + .5f * float(std::sin(ImGui::GetTime() * 16));
+  const HudFrame::Threat* worst = nullptr;
+  double worstTime = 1e9;
+  for (const auto& threat : frame.threats) {
+    const Vec3 offset = threat.position - own.pos_ned;
+    const double range = offset.norm();
+    const Vec3 body = own.att.inverseRotate(offset);
+    const double bearing = std::atan2(body.y, body.x);
+    const ImU32 color = threat.decoyed ? kAmber : kDanger;
+    // On the ring: a wedge on the side the missile is coming from.
+    const ImVec2 out{float(std::sin(bearing)), float(-std::cos(bearing))}, across{-out.y, out.x};
+    const ImVec2 tip{cx + out.x * (ring + 16), cy + out.y * (ring + 16)};
+    const ImVec2 left{cx + out.x * ring + across.x * 11, cy + out.y * ring + across.y * 11};
+    const ImVec2 right{cx + out.x * ring - across.x * 11, cy + out.y * ring - across.y * 11};
+    draw->AddTriangleFilled(tip, left, right, faded(color, threat.decoyed ? .55f : .55f + .45f * pulse));
+    draw->AddTriangle(tip, left, right, IM_COL32(0, 0, 0, 200), 1.4f);
+    centred(draw, {cx + out.x * (ring - 22), cy + out.y * (ring - 22) - 7},
+            range >= 1000 ? number(range / 1000, 1) + " km" : number(range) + " m", color, 12);
+    // In the world, when it is in view.
+    ImVec2 point;
+    float depth;
+    if (renderer.projectToScreen(threat.position, point.x, point.y, depth)) {
+      diamond(draw, point, 9, IM_COL32(0, 0, 0, 160), 3.5f);
+      diamond(draw, point, 9, color, 1.8f);
+    }
+    if (threat.decoyed) continue;
+    const double closing = range > 1 ? -(threat.velocity - own.vel_ned).dot(offset / range) : 0;
+    const double time = closing > 30 ? range / closing : 1e8;
+    if (time < worstTime) { worstTime = time; worst = &threat; }
+  }
+  draw->AddCircle({cx, cy}, ring, faded(worst ? kDanger : kAmber, .22f), 96, 1.2f);
+  if (!worst) {
+    centred(draw, {cx, 96}, "MISSILE DECOYED", kAmber, 18);
+    return;
+  }
+  const Vec3 body = own.att.inverseRotate(worst->position - own.pos_ned);
+  int clock = int(std::lround(std::atan2(body.y, body.x) / (30 * kDeg2Rad)));
+  clock = ((clock % 12) + 12) % 12;
+  const bool heat = worst->type == weapons::WeaponType::Infrared;
+  const double range = (worst->position - own.pos_ned).norm();
+  const std::string detail = std::string(heat ? "HEAT SEEKER" : "RADAR MISSILE") + "     " + number(clock ? clock : 12) + " O'CLOCK     " +
+      (range >= 1000 ? number(range / 1000, 1) + " km" : number(range) + " m") +
+      (worstTime < 60 ? "     " + number(worstTime, 1) + " s" : "");
+  const std::string answer = heat ? "R  FLARE     OUT OF REHEAT     BREAK AWAY"
+                                  : "C  CHAFF     TURN IT ONTO YOUR WINGTIP";
+  const float width = std::max({textWidth("MISSILE", 26), textWidth(detail, 13), textWidth(answer, 12)}) + 44;
+  panel(draw, {cx - width * .5f, 84}, {cx + width * .5f, 164}, IM_COL32(40, 10, 12, 215));
+  draw->AddRect({cx - width * .5f, 84}, {cx + width * .5f, 164}, faded(kDanger, .45f + .55f * pulse), 5, 0, 2.f);
+  centred(draw, {cx, 90}, "MISSILE", faded(kDanger, .7f + .3f * pulse), 26);
+  centred(draw, {cx, 122}, detail, kText, 13);
+  centred(draw, {cx, 142}, answer, kAmber, 12);
+}
+
 // When the current lock began, so its marker can close in on the target.
 struct LockAnimation {
   weapons::EntityRef target{};
@@ -300,7 +371,11 @@ void drawWeapons(ImDrawList* draw, ImVec2 display, const HudFrame& frame, const 
   // ---- Weapon strip ----
   {
     const float x = 20, y = 176;
-    panel(draw, {x, y}, {x + 290, y + 84});
+    panel(draw, {x, y}, {x + 290, y + (frame.flares >= 0 ? 106.f : 84.f)});
+    if (frame.flares >= 0) {
+      draw->AddLine({x + 14, y + 84}, {x + 276, y + 84}, kBorder);
+      countermeasures(draw, {x + 14, y + 88}, frame);
+    }
     const auto slot = [&](float sx, const char* key, const char* name, weapons::WeaponType type, bool selected) {
       const ImU32 color = selected ? kText : kMuted;
       if (selected) draw->AddRectFilled({sx - 6, y + 6}, {sx + 84, y + 44}, IM_COL32(64, 164, 255, 46), 3);
@@ -739,7 +814,8 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
     const bool gear = controls.gear01 > .5;
     const std::string flaps = "FLAPS " + number(controls.flap01 * 100) + "%";
     const std::string phase = frame.paused ? "PAUSED" : frame.parkingBrake ? "PARKING BRAKE" : "";
-    float width = textWidth("GEAR", 12) + 24 + textWidth(flaps, 12) + 24 + textWidth("AIRBRAKE", 12) + 24;
+    float width = textWidth("GEAR", 12) + 24 + textWidth(flaps, 12) + 24 + textWidth("AIRBRAKE", 12) + 24 +
+                  textWidth("BRAKE", 12) + 24;
     const bool maneuver = hasManeuverMode(definition.flight.control_law);
     if (maneuver) width += textWidth("MANEUVER", 12) + 24;
     if (!phase.empty()) width += textWidth(phase, 12) + 24;
@@ -748,6 +824,7 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
     x += pill(draw, {x, y}, "GEAR", gear, gear && flight.ias > 140 ? kAmber : kAccent);
     x += pill(draw, {x, y}, flaps, controls.flap01 > .01);
     x += pill(draw, {x, y}, "AIRBRAKE", controls.spoiler01 > .5, kAmber);
+    x += pill(draw, {x, y}, "BRAKE", frame.braking, kAmber);
     if (maneuver)
       x += pill(draw, {x, y}, "MANEUVER", controls.maneuver_mode,
                 controls.gear01 >= .5 || flight.tas >= 300 || !state.fcs_enabled ? kMuted : kAmber);
@@ -772,7 +849,34 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
   }
   if (settings.showFps) textRight(draw,{display.x-24,display.y-26},number(renderer.stats().fps)+" FPS",kMuted,11);
 
+  // Standing on the ground: the wait to be repaired and rearmed, then word of it.
+  if (frame.alive && (frame.serviceProgress >= 0 || frame.serviced > 0)) {
+    const bool done = frame.serviceProgress < 0;
+    const std::string work = armed ? "REARMED" : "REFUELLED";
+    const std::string title = done ? "REPAIRED AND " + work
+        : std::string("REPAIRING AND ") + (armed ? "REARMING" : "REFUELLING");
+    const float width = 300, top = display.y - 112;
+    panel(draw, {cx - width * .5f, top}, {cx + width * .5f, top + 50}, IM_COL32(9, 16, 25, 225));
+    centred(draw, {cx, top + 8}, title, done ? kAccent : kText, 14);
+    if (done) {
+      centred(draw, {cx, top + 29}, "Ready to fly", kMuted, 12);
+    } else {
+      bar(draw, {cx - width * .5f + 16, top + 34}, {cx + width * .5f - 60, top + 40}, float(frame.serviceProgress), kAccent);
+      textRight(draw, {cx + width * .5f - 16, top + 28},
+                number(std::max(0., (1 - frame.serviceProgress) * serviceSeconds), 0) + " s", kText, 13);
+    }
+  }
+  drawThreats(draw, display, frame, renderer);
+
   if (frame.multiplayer && armed && display.x > 760) drawWeapons(draw, display, frame, renderer);
+  else if (frame.flares >= 0 && !frame.fullMap && display.x > 760) {
+    // A solo flight has no radar or missiles to show, only what it carries.
+    const float x = 20, y = 176;
+    panel(draw, {x, y}, {x + 290, y + 50});
+    text(draw, {x + 14, y + 8}, "GUN", kMuted, 12);
+    textRight(draw, {x + 132, y + 8}, number(frame.ammo), frame.ammo ? kText : kDanger, 12);
+    countermeasures(draw, {x + 14, y + 28}, frame);
+  }
   if (!frame.alive) {
     panel(draw,{cx-170,cy-40},{cx+170,cy+44},IM_COL32(9,16,25,235));
     centred(draw,{cx,cy-28},frame.multiplayer?"AIRCRAFT DESTROYED":"AIRCRAFT CRASHED",kDanger,22);

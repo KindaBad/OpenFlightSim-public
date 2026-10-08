@@ -1,5 +1,6 @@
 #include "ofs/net/world.hpp"
 #include "ofs/net/bot_ai.hpp"
+#include "ofs/ground_service.hpp"
 #include "ofs/trim.hpp"
 #include "ofs/weapons.hpp"
 #include "ofs/terrain.hpp"
@@ -118,6 +119,12 @@ void World::spawn(EntityId id, Player &p) {
   p.weapons.acquisition = {};
   p.weapons.acquisitionTarget = {};
   p.weapons.lockProgress = 0;
+  p.weapons.flares = p.weapons.chaff =
+      std::uint8_t(weapons::decoyCapacity(p.type));
+  p.weapons.decoysReleased = 0;
+  p.weapons.decoyReady = tick_;
+  p.standing = 0;
+  p.botDecoyReady = tick_;
   p.weapons.inventory.applyPayload(p.sim.config(), s);
   s.time = double(tick_) * tickSeconds;
   if(airborne_ || p.bot) s.vel_ned+=weather_.wind_ned;
@@ -173,6 +180,92 @@ void World::controlBot(EntityId id, Player &p) {
   } else {
     w.radar.selected = w.radar.locked = {};
   }
+  // A bot answers a missile that is nearly on it with the matching decoy, one
+  // every second or so. It is inattentive to every other missile, and like any
+  // pilot it is only saved if its engines are cool enough or it is crossing.
+  if (tick_ >= p.botDecoyReady)
+    for (const auto &missile : missiles_.missiles()) {
+      if (missile.target != EntityRef{id, p.life.generation} || missile.decoy ||
+          (missile.id + id) % 2 ||
+          (missile.state.position - p.sim.state().pos_ned).norm() > 1800)
+        continue;
+      if (releaseDecoy(id, missile.type == WeaponType::Infrared
+                               ? weapons::DecoyType::Flare
+                               : weapons::DecoyType::Chaff))
+        p.botDecoyReady = tick_ + 110;
+      break;
+    }
+}
+bool World::releaseDecoy(EntityId id, weapons::DecoyType type) {
+  const auto found = players_.find(id);
+  if (found == players_.end() || !found->second.life.alive())
+    return false;
+  auto &p = found->second;
+  auto &w = p.weapons;
+  auto &stock = type == weapons::DecoyType::Flare ? w.flares : w.chaff;
+  if (!stock || tick_ < w.decoyReady)
+    return false;
+  --stock;
+  w.decoyReady =
+      tick_ + Tick(std::ceil(weapons::decoyInterval / tickSeconds));
+  auto decoy = weapons::releaseDecoy(type, {id, p.life.generation},
+                                     p.sim.config(), p.sim.state(),
+                                     w.decoysReleased++);
+  decoy.id = nextDecoy_++;
+  if (decoys_.size() >= maxDecoys)
+    decoys_.erase(decoys_.begin());
+  decoys_.push_back(decoy);
+  CombatEvent event;
+  event.kind = type == weapons::DecoyType::Flare ? CombatKind::Flare
+                                                 : CombatKind::Chaff;
+  event.tick = tick_;
+  event.projectile = decoy.id;
+  event.owner = event.target = id;
+  event.generation = p.life.generation;
+  event.position = decoy.position;
+  event.velocity = decoy.velocity;
+  combat_.emit(event);
+  return true;
+}
+Tick World::serviceTicks() {
+  return Tick(std::llround(serviceSeconds / tickSeconds));
+}
+bool World::needsService(const Player &p) const {
+  const auto &w = p.weapons;
+  const bool armed = aircraftDefinition(p.type).gun.has_value();
+  weapons::Inventory full;
+  full.reset(p.type);
+  for (std::size_t i = 0; i < full.stations.size(); ++i)
+    if (i >= w.inventory.stations.size() ||
+        w.inventory.stations[i].mounted != full.stations[i].mounted)
+      return true;
+  const auto decoys = weapons::decoyCapacity(p.type);
+  return needsRepair(p.sim.config(), p.sim.state()) || p.life.health < 100 ||
+         (armed && p.life.ammo < gunFor(p.type).ammo) || w.flares < decoys ||
+         w.chaff < decoys;
+}
+void World::service(EntityId id, Player &p) {
+  auto state = p.sim.state();
+  repairAndRefuel(p.sim.config(), state);
+  auto &w = p.weapons;
+  const auto selected = w.inventory.selected;
+  w.inventory.reset(p.type);
+  w.inventory.selected = selected;
+  w.inventory.applyPayload(p.sim.config(), state);
+  w.flares = w.chaff = std::uint8_t(weapons::decoyCapacity(p.type));
+  p.sim.setState(state);
+  p.life.health = 100;
+  p.life.ammo = aircraftDefinition(p.type).gun ? gunFor(p.type).ammo : 0;
+  p.lastHealth = 100;
+  p.lastAttacker = 0;
+  CombatEvent event;
+  event.kind = CombatKind::Serviced;
+  event.tick = tick_;
+  event.owner = event.target = id;
+  event.generation = p.life.generation;
+  event.health = 100;
+  event.position = state.pos_ned;
+  combat_.emit(event);
 }
 void World::loseStores(Player &p, State &state) {
   bool lost = false;
@@ -349,7 +442,7 @@ bool World::enqueueWeapon(EntityId id, const WeaponAction &action) {
     return false;
   };
   if (it == players_.end() || !action.sequence ||
-      unsigned(action.kind) > unsigned(WeaponActionKind::Unlock) ||
+      unsigned(action.kind) > unsigned(WeaponActionKind::Chaff) ||
       action.tick > tick_ + 120 ||
       (action.tick < tick_ && tick_ - action.tick > 120))
     return reject();
@@ -567,6 +660,12 @@ void World::step() {
       case WeaponActionKind::SelectRadar:
         w.inventory.selected = WeaponType::ActiveRadar;
         break;
+      case WeaponActionKind::Flare:
+        releaseDecoy(id, weapons::DecoyType::Flare);
+        break;
+      case WeaponActionKind::Chaff:
+        releaseDecoy(id, weapons::DecoyType::Chaff);
+        break;
       case WeaponActionKind::Launch: {
         auto &station = w.inventory.stations[action.station];
         weapons::Track target;
@@ -665,15 +764,30 @@ void World::step() {
           destroy(id, p, state.pos_ned, state.vel_ned);
       }
     }
+    // Landing and standing still is a turn-round. The count runs whenever the
+    // aircraft stands, so one that needs nothing is served the moment it does.
+    if (p.life.alive() && standingOnGround(p.sim.config(), p.sim.state())) {
+      if (++p.standing >= serviceTicks() && needsService(p)) {
+        service(id, p);
+        p.standing = 0;
+      }
+    } else
+      p.standing = 0;
     targets[count++] = {id, previous, p.sim.state(), &p.life, p.type};
   }
+  for (auto &decoy : decoys_)
+    weapons::advanceDecoy(decoy, weather_, tickSeconds);
+  std::erase_if(decoys_, [](const auto &decoy) {
+    return decoy.age >= weapons::decoyDefinition(decoy.type).lifetime ||
+           decoy.position.z >= groundHeightNed(decoy.position.x, decoy.position.y);
+  });
   combat_.step(tick_, std::span(targets).first(count));
   std::map<EntityId, AircraftWeapons *> controllers;
   for (auto &[id, p] : players_)
     if (p.life.alive())
       controllers[id] = &p.weapons;
   missiles_.step(tick_, std::span(targets).first(count), controllers, weather_,
-                 combat_);
+                 combat_, decoys_);
   for (std::size_t i = 0; i < count; ++i) {
     const auto &target = targets[i];
     if (!target.damaged)

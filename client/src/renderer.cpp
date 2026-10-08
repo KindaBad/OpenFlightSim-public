@@ -1019,6 +1019,23 @@ void Renderer::drawEffects(const CombatVisuals& combat) {
                (color & 0x00ffffffu) | (alphaNow << 24), 4);
       continue;
     }
+    if (effect.kind == EffectKind::Flare) {
+      // A magnesium flare: a white-hot point inside a wide flickering glare,
+      // dimming as it burns out. It stays a visible spark at any range.
+      const float burn = float(weapons::decoyStrength(weapons::DecoyType::Flare, effect.age) /
+                               weapons::decoyDefinition(weapons::DecoyType::Flare).peak);
+      const float flicker = .78f + .22f * std::sin(effect.age * 71.f + effect.seed * 40.f);
+      const float range = glm::length(cameraEye_ - centre);
+      const float glare = std::max(effect.size * (.55f + .45f * burn) * flicker, range * .0030f);
+      const auto glareAlpha = static_cast<std::uint32_t>(alpha * std::min(1.f, burn * 1.3f) * .85f);
+      const float turn = effect.seed * 6.2831853f + effect.age * 2.f, c = std::cos(turn), sn = std::sin(turn);
+      emitQuad(centre, basisRight_ * c + basisUp_ * sn, basisUp_ * c - basisRight_ * sn, glare, glare,
+               (color & 0x00ffffffu) | (glareAlpha << 24), 7);
+      const float core = std::max(effect.size * .22f, range * .0011f);
+      emitQuad(centre, basisRight_, basisUp_, core, core,
+               0x00e6f6ffu | (static_cast<std::uint32_t>(alpha * std::min(1.f, burn * 2.f)) << 24), 3);
+      continue;
+    }
     if (effect.kind == EffectKind::Shockwave) {
       // A thin ring racing outward and fading as it goes.
       const float grown = 1.f - (1.f - t) * (1.f - t);
@@ -1129,10 +1146,11 @@ void Renderer::drawEffects(const CombatVisuals& combat) {
 void Renderer::ensureFlameMesh() {
   if (bgfx::isValid(flameMesh_)) return;
   // Fixed shared open volumetric shells: no per-frame vertex uploads or network
-  // particle stream. A unit cone of rings, shaped in the vertex shader, and
-  // one quad for the glow at the nozzle.
+  // particle stream. A unit tube of rings, shaped in the vertex shader, and
+  // one quad for the glow at the nozzle. The rings are close enough together
+  // to draw each shock diamond of a reheat plume as a smooth swelling.
   std::vector<float> data;
-  constexpr unsigned rings=24, sectors=24;
+  constexpr unsigned rings=56, sectors=24;
   const auto vertex=[&](unsigned j,unsigned i) {
     const float t=float(j)/rings, u=float(i)/sectors;
     const float angle=u*float(2*kPi);
@@ -1166,6 +1184,21 @@ void Renderer::drawFlame(const glm::mat4& matrix, const glm::vec3& glowCentre, f
       BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,BGFX_STATE_BLEND_ONE)|BGFX_STATE_MSAA);
     bgfx::submit(kViewAtmosphere,programs_.flame);
     ++stats_.drawCalls;stats_.triangles+=flameVertices_/3;
+  }
+  if (!rocket) {
+    // The throat of the jet pipe, a disc across the nozzle just inside its lip.
+    glm::mat4 throat{0};
+    throat[0]=glm::vec4(0,.40f,0,0);throat[1]=glm::vec4(0,0,.40f,0);
+    throat[2]=glm::vec4(1,0,0,0);throat[3]=glm::vec4(.04f,0,0,1);
+    throat=matrix*throat;
+    bindFrame(viewProj_);
+    bgfx::setUniform(uniforms_.flame,glm::value_ptr(glm::vec4(intensity,float(flameTime_),5,seed)));
+    bgfx::setUniform(uniforms_.effectParams,glm::value_ptr(palette));
+    bgfx::setUniform(uniforms_.model,glm::value_ptr(throat));
+    bgfx::setVertexBuffer(0,flameMesh_,flameVertices_,6);
+    bgfx::setState(BGFX_STATE_WRITE_RGB|BGFX_STATE_WRITE_A|BGFX_STATE_DEPTH_TEST_LEQUAL|
+      BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,BGFX_STATE_BLEND_ONE)|BGFX_STATE_MSAA);
+    bgfx::submit(kViewAtmosphere,programs_.flame);++stats_.drawCalls;stats_.triangles+=2;
   }
   glm::mat4 glow{1};glow[0]=glm::vec4(basisRight_*glowRadius,0);
   glow[1]=glm::vec4(basisUp_*glowRadius,0);glow[3]=glm::vec4(glowCentre,1);
@@ -1424,6 +1457,8 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
     combat_.updateMissile(missile.id, missile.position, missile.velocity, missile.attitude, missile.length,
                           missile.diameter, missile.age, missile.powered, effectDt);
   combat_.retireMissiles(combat.missiles.size());
+  for (const auto &decoy : combat.decoys)
+    combat_.onDecoy(decoy.type, decoy.position, decoy.velocity);
   for (const auto &position : combat.missileDetonations)
     combat_.onDetonation(position);
   // Wings and fins that have gone since the last frame leave as pieces.

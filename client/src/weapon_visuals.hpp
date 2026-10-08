@@ -10,6 +10,7 @@
 #include "ofs/weapons.hpp"
 
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <map>
 
@@ -28,6 +29,37 @@ inline Vec3 stationPosition(const State& state, AircraftType type, const Vec3& s
 inline Vec3 launchLead(const Vec3& ownVelocity, double lagSeconds, double age) {
   const double t = clamp((age - .4) / 1.2, 0, 1);
   return ownVelocity * (clamp(lagSeconds, 0, .4) * (1 - t * t * (3 - 2 * t)));
+}
+
+// The server reports where a round left the gun, or a decoy its dispenser, on
+// its own clock. The pilot's own aircraft is drawn ahead of that clock and
+// every other aircraft behind it, by tens of metres at fighting speeds. Such a
+// report is therefore shown at the aircraft as it is drawn; one far from that
+// aircraft belongs to an earlier life and is left where the server put it.
+inline constexpr double kPresentationReach = 600;
+
+// Where a round is shown leaving the gun of the aircraft drawn in `shown`.
+inline Vec3 shotOrigin(const Vec3& reported, const State& shown, AircraftType type) {
+  const auto& definition = aircraftDefinition(type);
+  if (!definition.gun) return reported;
+  const Vec3 muzzle = shown.pos_ned + shown.att.rotate(definition.gun->muzzle - loadedCg(definition.flight, shown));
+  return (muzzle - reported).norm() <= kPresentationReach ? muzzle : reported;
+}
+
+// Where a flare or chaff bundle is shown leaving the aircraft drawn in `shown`.
+// `count` only decides which side it is thrown to.
+inline Vec3 decoyOrigin(weapons::DecoyType decoy, const Vec3& reported, const State& shown, AircraftType type,
+                        unsigned count) {
+  const Vec3 dispenser = weapons::releaseDecoy(decoy, {}, aircraftDefinition(type).flight, shown, count).position;
+  return (dispenser - reported).norm() <= kPresentationReach ? dispenser : reported;
+}
+
+// A hit is reported where the server's aircraft was struck. The same aircraft
+// is drawn `leadSeconds` later (the pilot's own) or earlier (anyone else's,
+// a negative lead), having moved on at `velocity` meanwhile; the sparks are
+// shown where that puts the struck part of the airframe that is seen.
+inline Vec3 hitOrigin(const Vec3& reported, const Vec3& velocity, double leadSeconds) {
+  return std::isfinite(leadSeconds) ? reported + velocity * clamp(leadSeconds, -.6, .6) : reported;
 }
 
 class StoreDisplay {

@@ -134,8 +134,9 @@ void controlsWindow(UiSettings& ui) {
     row("A / D", "Roll left / right");
     row("Q / E", "Rudder");
     row("Shift / Ctrl", "Throttle up / down");
+    row("Ctrl held at idle", "Brake: wheels and airbrake");
     row("G    F    H", "Gear, flaps, airbrake");
-    row("B    Backspace", "Brakes, parking brake");
+    row("B    Backspace", "Wheel brakes, parking brake");
     row("M", "Maneuver mode (Su-57, Typhoon)");
     row("X", "Mouse aim on / off");
     section("WEAPONS");
@@ -143,6 +144,9 @@ void controlsWindow(UiSettings& ui) {
     row("1    2    3", "Gun, heat seeker, radar missile");
     row("L", "Lock, or break lock");
     row("T / Y", "Next / previous target");
+    row("R    C", "Flare, chaff");
+    section("ON THE GROUND");
+    row("Land and stop", "Repaired and rearmed after 10 s");
     section("VIEW AND GAME");
     row("Tab    V", "Next camera, flight deck");
     row("Right mouse", "Look around");
@@ -275,7 +279,7 @@ void debugUi(const Simulator& sim, Controls& controls, const Camera& camera,
           "up/down, Shift fast, hold right mouse to look. Orbit: right mouse to orbit, "
           "wheel to zoom. Home frames the aircraft.");
       ImGui::TextWrapped(
-          "Aircraft: W/S pitch; A/D bank; Q/E rudder; Shift/Ctrl throttle; G gear; F flaps; H airbrake; B "
+          "Aircraft: W/S pitch; A/D bank; Q/E rudder; Shift/Ctrl throttle, Ctrl at idle brakes; G gear; F flaps; H airbrake; B "
           "brakes. Space or left mouse fires. F11 fullscreen, F1 hides the developer "
           "windows, Esc quits.");
     }

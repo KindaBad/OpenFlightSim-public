@@ -10,7 +10,7 @@
 | M3.68.1 (complete) | Realism, validation and packaging closure: provenance, load/engine/nozzle regressions, measured local assets/texture costs and exact test reporting; see [M3_68_1_VALIDATION_REPORT.md](M3_68_1_VALIDATION_REPORT.md) |
 | M3.7 (complete) | Protocol v9: spatial interest and update tiers, compact inputs/remote state, acknowledged deltas, bounded keyframe recovery and MTU-aware chunks; see [M3_7_NETWORKING_VALIDATION.md](M3_7_NETWORKING_VALIDATION.md) |
 | M4 (complete) | Reusable radar/tracks, IR and active-radar 6-DOF missiles, stores mass/CG/inertia, authoritative launch/fuse/damage, compact AOI replication; [measured 16-player validation](M4_RADAR_MISSILES_VALIDATION.md) |
-| M4.5 (next candidate) | Fighter defensive systems: warnings/countermeasures/ECM, with their own signature, authority and network validation |
+| M4.5 (in part, 0.5.1) | Flares, chaff and a missile warning, decided by the server's seekers; see [COUNTERMEASURES.md](COUNTERMEASURES.md). A radar warning receiver and jamming remain |
 | Later terrain | Terrain streaming and local chunks; asset import/LOD and origin integration |
 | M5 | Improved aerodynamics and aircraft handling |
 | M7 | Multiple configurable aircraft |

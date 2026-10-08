@@ -12,6 +12,7 @@
 #include "settings.hpp"
 #include "local_gun.hpp"
 #include "ofs/fixed_step.hpp"
+#include "ofs/ground_service.hpp"
 #include "ofs/trim.hpp"
 #include "ofs_version.hpp"
 #include <imgui.h>
@@ -152,7 +153,7 @@ Options parse(int argc, char** argv) {
     throw std::runtime_error("gun smoke requires ordinary offline flight");
   if (!result.scenario.empty()) {
     if (!result.server.empty()) throw std::runtime_error("visual scenarios are offline fixtures only");
-    const std::vector<std::string> names{"parked","surfaces","flaps","gear","flight","high-altitude","high-mach","exhaust","contrail","gun","impact","destruction","mixed","idle","military","afterburner","afterburner-multiple","afterburner-transition","vectoring","high-aoa","condensation","environment","forest","grass","clouds","above-clouds","lake","mountains","damage","damage-heavy","breakup","missile","detonation","menu","controls","chat"};
+    const std::vector<std::string> names{"parked","surfaces","flaps","gear","flight","high-altitude","high-mach","exhaust","contrail","gun","impact","destruction","mixed","idle","military","afterburner","afterburner-multiple","afterburner-transition","vectoring","high-aoa","condensation","environment","forest","grass","clouds","above-clouds","lake","mountains","damage","damage-heavy","breakup","missile","detonation","menu","controls","chat","airfield","apron","shelters","threshold","decoys","warning","service"};
     if (std::find(names.begin(), names.end(), result.scenario) == names.end())
       throw std::runtime_error("Unknown visual scenario");
     if (result.screenshot.empty() || !result.frames) throw std::runtime_error("visual scenarios require --frames and --screenshot");
@@ -461,12 +462,21 @@ int main(int argc, char** argv) {
       fixture.pos_ned.z = -(simulation().config().gear_nose.z - .15);
       controls = {};
       controls.gear01 = 1;
-      if (options.scenario != "parked" && options.scenario != "surfaces" && options.scenario != "flaps" && options.scenario != "mixed") {
+      const bool onGround = options.scenario == "parked" || options.scenario == "surfaces" || options.scenario == "flaps" ||
+          options.scenario == "mixed" || options.scenario == "apron" || options.scenario == "shelters" ||
+          options.scenario == "threshold" || options.scenario == "service";
+      if (!onGround) {
         fixture.pos_ned.z = options.scenario == "contrail" ? -8500 : -1200;
         fixture.vel_ned = {options.aircraft == AircraftType::Typhoon ? 200.0 : 140.0,0,0};
         controls.gear01 = 0;
       }
       if(options.scenario=="environment") {fixture.pos_ned={6000,1800,-1100};fixture.vel_ned={};}
+      // The airfield from above, and from three places on it: a stand in front
+      // of the terminal, the mouth of a shelter and the southern threshold.
+      if(options.scenario=="airfield") {fixture.pos_ned={150,-260,-420};fixture.vel_ned={};}
+      if(options.scenario=="apron" || options.scenario=="service") {fixture.pos_ned.x=330;fixture.pos_ned.y=-318;}
+      if(options.scenario=="shelters") {fixture.pos_ned.x=-700;fixture.pos_ned.y=-436;fixture.att=quatFromEuler(0,0,kPi*.5);}
+      if(options.scenario=="threshold") fixture.pos_ned.x=-1270;
       if(options.scenario=="forest") {fixture.pos_ned={-625,580,-26};fixture.vel_ned={};}
       if(options.scenario=="grass") {fixture.pos_ned={-350,165,-6};fixture.vel_ned={};}
       if(options.scenario=="clouds") {fixture.pos_ned={-2000,3200,-double(graphics.cloudBase+graphics.cloudThickness*.4f)};fixture.vel_ned={};}
@@ -574,6 +584,18 @@ int main(int argc, char** argv) {
     bool dogfightReturnedSolo=false;
     std::uint64_t dogfightSmokeShots=0;
 #endif
+    // Countermeasures. Each key releases one decoy and repeats while held; a
+    // solo flight carries its own stock, which only makes the light show.
+    double flareClock = 0, chaffClock = 0;
+    unsigned decoysReleased = 0;
+    int soloFlares = int(weapons::decoyCapacity(options.aircraft)), soloChaff = soloFlares;
+    std::vector<CombatVisuals::Decoy> releasedDecoys;
+    std::vector<HudFrame::Threat> threats;
+    // Ctrl at idle brakes; the airbrake goes back to where the pilot had it.
+    bool brakeHeld = false;
+    double airbrakeBefore = 0;
+    // Seconds stood on the ground toward a turn-round, and left to say it is done.
+    double standing = 0, servicedSeconds = 0;
     ChatLog chatLog;
     std::vector<HudFrame::Score> scores;
     double uiClock = 0;  // seconds of wall time, for chat ages
@@ -656,6 +678,8 @@ int main(int argc, char** argv) {
         missileOutcomeSeconds = 0;
         missileOutcomeId = 0;
         localGun = LocalGun(options.aircraft);
+        soloFlares = soloChaff = int(weapons::decoyCapacity(options.aircraft));
+        standing = servicedSeconds = 0;
         renderer.clearEffects();
         clock.reset(); serverClock.reset();
       }
@@ -779,8 +803,11 @@ int main(int argc, char** argv) {
               controls.flap01 = controls.flap01 >= .99 ? 0 : std::min(1., controls.flap01 + .25);
             if (event.key.scancode == SDL_SCANCODE_M && hasManeuverMode(simulation().config().control_law))
               controls.maneuver_mode = !controls.maneuver_mode;
-            if (event.key.scancode == SDL_SCANCODE_H)
-              controls.spoiler01 = controls.spoiler01 > .5 ? 0 : 1;
+            if (event.key.scancode == SDL_SCANCODE_H) {
+              // While the brake holds the airbrake out, H changes where it returns to.
+              double& airbrake = brakeHeld ? airbrakeBefore : controls.spoiler01;
+              airbrake = airbrake > .5 ? 0 : 1;
+            }
           }
         }
       }
@@ -825,13 +852,49 @@ int main(int argc, char** argv) {
 
       const bool captureKeyboard = ImGui::GetIO().WantCaptureKeyboard;
       controls.brake01 = ui.parkingBrake ? 1 : 0;
-      if (options.scenario.empty() && options.flightDemo.empty()) input.update(controls, std::min(elapsed, .1), captureKeyboard || cameraMode == CameraMode::Free);
+      if (options.scenario.empty() && options.flightDemo.empty()) {
+        input.update(controls, std::min(elapsed, .1), captureKeyboard || cameraMode == CameraMode::Free);
+        // Ctrl held with the throttle at idle: wheel brakes, and the airbrake out.
+        const bool braking = input.braking();
+        if (braking) controls.brake01 = 1;
+        if (braking && !brakeHeld) airbrakeBefore = controls.spoiler01;
+        if (braking) controls.spoiler01 = 1;
+        else if (brakeHeld) controls.spoiler01 = airbrakeBefore;
+        brakeHeld = braking;
+      }
       // The instructor takes only the axes the keys and the gamepad left neutral.
       if (mouseAim.active) applyMouseAim(controls, mouseAimCommand(simulation(), mouseAim.direction()));
       if (cameraMode == CameraMode::Free) {
         input.freeCamera(camera, std::min(realElapsed, .1), captureKeyboard);
       }
       if (cameraMode == CameraMode::Orbit) camera.zoomOrbit(input.orbitZoom());
+      {
+        // R drops a flare and C a bundle of chaff, again every third of a
+        // second for as long as the key is held.
+        const bool flying = !captureKeyboard && cameraMode != CameraMode::Free && !ui.paused && !ui.menuOpen;
+        const auto wanted = [&](SDL_Scancode key, double& clock) {
+          clock = std::max(0., clock - realElapsed);
+          if (!flying || !input.key(key)) { clock = 0; return false; }
+          if (clock > 0) return false;
+          clock = .33;
+          return true;
+        };
+        for (const auto type : {weapons::DecoyType::Flare, weapons::DecoyType::Chaff}) {
+          const bool flare = type == weapons::DecoyType::Flare;
+          if (!wanted(flare ? SDL_SCANCODE_R : SDL_SCANCODE_C, flare ? flareClock : chaffClock)) continue;
+#ifdef OFS_NETWORK_ENABLED
+          if (network) {
+            network->weaponAction(flare ? ofs::net::WeaponActionKind::Flare : ofs::net::WeaponActionKind::Chaff);
+            continue;
+          }
+#endif
+          int& stock = flare ? soloFlares : soloChaff;
+          if (stock <= 0 || aircraftCrashed(simulation().state())) continue;
+          --stock;
+          const auto decoy = weapons::releaseDecoy(type, {}, simulation().config(), simulation().state(), decoysReleased++);
+          releasedDecoys.push_back({type, decoy.position, decoy.velocity});
+        }
+      }
 #ifdef OFS_NETWORK_ENABLED
       if (network) {
         using ofs::net::WeaponActionKind;
@@ -913,6 +976,8 @@ int main(int argc, char** argv) {
         sawAirborneReset = sawAirborneReset || ui.resetAirborne;
         reset(simulation(), controls, previous, camera, clock, ui.resetAirborne);
         localGun.reset();
+        soloFlares = soloChaff = int(weapons::decoyCapacity(options.aircraft));
+        standing = servicedSeconds = 0;
         renderer.clearEffects();
         ui.parkingBrake = !ui.resetAirborne;
         ui.paused = false;
@@ -1057,6 +1122,9 @@ int main(int argc, char** argv) {
       }
 #endif
       combat = {};
+      combat.decoys = std::move(releasedDecoys);
+      releasedDecoys.clear();
+      threats.clear();
       for (const auto& event : localGun.takeEvents()) {
         if (event.shot) combat.shots.push_back({event.position,event.velocity,event.lifetime,true,event.projectile,aircraft.vel_ned});
         else combat.hits.push_back({event.position,false,event.projectile});
@@ -1081,12 +1149,42 @@ int main(int argc, char** argv) {
           for (const auto& remote : remotes) if (remote.entity == entity) return remote.state.vel_ned;
           return Vec3{};
         };
+        // The aircraft as it is drawn this frame, and its type, when it is drawn at all.
+        const auto shownAircraft = [&](ofs::net::EntityId entity, AircraftType& type) -> const State* {
+          if (entity == network->entity()) { type = options.aircraft; return &aircraft; }
+          for (const auto& remote : remotes) if (remote.entity == entity) { type = remote.type; return &remote.state; }
+          return nullptr;
+        };
         for (const auto& event : network->takeVisualEvents()) {
           switch (event.kind) {
-            case ofs::net::CombatKind::Shot:
-              combat.shots.push_back({event.position,event.velocity,event.lifetime,event.owner==network->entity(),event.projectile,velocityOf(event.owner)}); break;
-            case ofs::net::CombatKind::Hit:
-              combat.hits.push_back({event.position,event.target==network->entity(),event.projectile,velocityOf(event.target)});
+            case ofs::net::CombatKind::Shot: {
+              // The round keeps its true velocity and leaves the gun that is seen.
+              AircraftType type{};
+              const State* shown = shownAircraft(event.owner, type);
+              combat.shots.push_back({shown ? shotOrigin(event.position, *shown, type) : event.position, event.velocity,
+                                      event.lifetime, event.owner == network->entity(), event.projectile, velocityOf(event.owner)});
+              break;
+            }
+            case ofs::net::CombatKind::Flare:
+            case ofs::net::CombatKind::Chaff: {
+              const auto decoy = event.kind == ofs::net::CombatKind::Flare ? weapons::DecoyType::Flare : weapons::DecoyType::Chaff;
+              AircraftType type{};
+              const State* shown = shownAircraft(event.owner, type);
+              combat.decoys.push_back({decoy, shown ? decoyOrigin(decoy, event.position, *shown, type, unsigned(event.projectile))
+                                                    : event.position, event.velocity});
+              break;
+            }
+            case ofs::net::CombatKind::Serviced:
+              if (event.target == network->entity()) { servicedSeconds = 4; standing = 0; }
+              break;
+            case ofs::net::CombatKind::Hit: {
+              // Sparks land on the aircraft as it is drawn: ahead of the
+              // server's for this pilot, behind it for everyone else.
+              const Vec3 carried = velocityOf(event.target);
+              const double shownTick = event.target == network->entity() ? double(network->prediction().tick())
+                                                                         : network->stats().renderTick;
+              combat.hits.push_back({hitOrigin(event.position, carried, (shownTick - double(event.tick)) * ofs::net::tickSeconds),
+                                     event.target==network->entity(),event.projectile,carried});
               if (event.owner == network->entity() && event.target != network->entity()) hitMarkerSeconds = .25;
               if (event.target == network->entity() && event.owner != network->entity()) {
                 damageFlashSeconds = .6;
@@ -1110,6 +1208,7 @@ int main(int argc, char** argv) {
                 }
               }
               break;
+            }
             case ofs::net::CombatKind::Destroyed: {
               // The wings and fin are thrown clear from where the aircraft was last seen.
               CombatVisuals::Destruction destruction{event.position,event.velocity};
@@ -1126,6 +1225,9 @@ int main(int argc, char** argv) {
                 destruction.state = last.state;
               }
               if (destruction.airframe && destruction.velocity.norm2() == 0) destruction.velocity = destruction.state.vel_ned;
+              // It blows up where it is seen, not where the server last had it.
+              if (destruction.airframe && (destruction.state.pos_ned - event.position).norm() <= kPresentationReach)
+                destruction.position = destruction.state.pos_ned;
               combat.destructions.push_back(destruction);
               if (event.owner == network->entity() && event.target != network->entity()) killMarkerSeconds = 1.2;
               break;
@@ -1140,10 +1242,15 @@ int main(int argc, char** argv) {
         std::set<std::uint64_t> presented;
         std::vector<double> sampledTicks;
         const auto flying = network->missilePresentation(&sampledTicks);
+        threats.clear();
         for (std::size_t i = 0; i < flying.size(); ++i) {
           const auto &missile = flying[i];
           const auto &d = weapons::missileDefinition(missile.type);
           presented.insert(missile.id);
+          // A missile fired at this pilot, for the warning.
+          if (missile.target.id == self && missile.target.generation == network->life().generation && network->life().alive())
+            threats.push_back({missile.position, missile.velocity, missile.type,
+                               missile.seeker == weapons::SeekerPhase::Decoyed});
           if (!presentedMissiles.contains(missile.id) && missile.age < 1)
             ++launched[missile.owner.id][std::size_t(missile.type)];
           Vec3 position = missile.position;
@@ -1234,6 +1341,45 @@ int main(int argc, char** argv) {
                 : 0.0;
       }
 #endif
+      // ---- Turn-round: standing on the ground repairs, refuels and rearms ----
+      // A shared game does the work on the server; here the wait is counted
+      // down from what this client can see, and a solo flight serves itself.
+      double serviceProgress = -1;
+      {
+        const auto& config = simulation().config();
+        const int decoyStock = int(weapons::decoyCapacity(options.aircraft));
+        bool needs = needsRepair(config, aircraft), solo = true;
+#ifdef OFS_NETWORK_ENABLED
+        solo = !network;
+        if (network && network->ready()) {
+          const auto& radar = network->radar();
+          needs = network->life().alive() &&
+              (needs || network->life().health < 100 || (definition.gun && network->life().ammo < definition.gun->ammo) ||
+               std::count(radar.stations.begin(), radar.stations.end(), weapons::WeaponType::None) > 0 ||
+               (!radar.stations.empty() && (radar.flares < decoyStock || radar.chaff < decoyStock)));
+        }
+#endif
+        if (solo)
+          needs = needs || (definition.gun && localGun.ammo() < definition.gun->ammo) || soloFlares < decoyStock ||
+                  soloChaff < decoyStock;
+        if (!held) standing = standingOnGround(config, aircraft) ? standing + elapsed : 0;
+        if (standing > 0 && needs) {
+          serviceProgress = std::min(1., standing / serviceSeconds);
+          if (solo && standing >= serviceSeconds) {
+            auto mended = simulation().state();
+            repairAndRefuel(config, mended);
+            simulation().setState(mended);
+            previous = simulation().state();
+            localGun.reset();
+            soloFlares = soloChaff = decoyStock;
+            servicedSeconds = 4;
+            standing = 0;
+            serviceProgress = -1;
+            log("SIM", "Repaired, refuelled and rearmed on the ground");
+          }
+        }
+        servicedSeconds = std::max(0., servicedSeconds - realElapsed);
+      }
       if(graphics.showPhysicsGeometry)
         for(const auto& line:geometryDebugLines(simulation(),options.aircraft))
           combat.lines.push_back({line.start,line.end,line.color,true});
@@ -1277,8 +1423,32 @@ int main(int argc, char** argv) {
         if (options.scenario == "gear") controls.gear01 = frame < 20 ? 1 : 0;
         if (options.scenario == "flaps") controls.flap01 = frame < 20 ? 0 : 1;
         if (options.scenario == "contrail" || options.scenario == "condensation" || options.scenario == "high-aoa" ||
-            options.scenario == "breakup" || options.scenario == "missile" || options.scenario == "detonation") {
+            options.scenario == "breakup" || options.scenario == "missile" || options.scenario == "detonation" ||
+            options.scenario == "decoys" || options.scenario == "warning") {
           aircraft.pos_ned.x += fixtureTime * aircraft.vel_ned.x;
+        }
+        if (options.scenario == "decoys" || options.scenario == "warning") {
+          // A string of flares with a bundle of chaff among them, left behind
+          // as the aircraft flies on.
+          if (frame % 9 == 3 && frame < 60) {
+            const auto type = frame % 27 == 12 ? weapons::DecoyType::Chaff : weapons::DecoyType::Flare;
+            const auto decoy = weapons::releaseDecoy(type, {}, simulation().config(), aircraft, frame / 9);
+            combat.decoys.push_back({type, decoy.position, decoy.velocity});
+          }
+        }
+        if (options.scenario == "warning") {
+          // A heat seeker closing from the right rear quarter, and a radar
+          // missile that has gone after chaff.
+          threats.push_back({aircraft.pos_ned + aircraft.att.rotate({-1100, 650, 120}),
+                             aircraft.vel_ned + aircraft.att.rotate({520, -300, -50}), weapons::WeaponType::Infrared, false});
+          threats.push_back({aircraft.pos_ned + aircraft.att.rotate({900, -2100, -300}),
+                             aircraft.vel_ned + aircraft.att.rotate({-200, 600, 80}), weapons::WeaponType::ActiveRadar, true});
+        }
+        if (options.scenario == "service") {
+          // Stopped on a stand with a wing shot through, part-way through the wait.
+          applyPartDamage(simulation().config(), aircraft, DamagePart::RightWing, 45);
+          serviceProgress = frame < 60 ? .62 : -1;
+          servicedSeconds = frame < 60 ? 0 : 3;
         }
         if (options.scenario == "missile" || options.scenario == "detonation") {
           // One missile of each kind flying in formation off the right wing,
@@ -1407,6 +1577,11 @@ int main(int argc, char** argv) {
       hud.menuOpen = ui.menuOpen;
       hud.ammo = localGun.ammo();
       hud.gunReady = localGun.ready();
+      hud.braking = controls.brake01 > .5 && !ui.parkingBrake;
+      hud.serviceProgress = serviceProgress;
+      hud.serviced = servicedSeconds;
+      if (weapons::decoyCapacity(options.aircraft)) { hud.flares = soloFlares; hud.chaff = soloChaff; }
+      hud.threats = threats;
       hud.firing = input.firing(captureKeyboard, ImGui::GetIO().WantCaptureMouse);
 #ifdef OFS_NETWORK_ENABLED
       if (network && network->ready()) {
@@ -1425,6 +1600,7 @@ int main(int argc, char** argv) {
           }
         }
         hud.missileWeapon = radar.weapon;
+        if (!radar.stations.empty()) { hud.flares = radar.flares; hud.chaff = radar.chaff; }
         hud.seekerReady = radar.seekerReady;
         hud.seekerTarget = radar.seekerTarget;
         hud.lockProgress = radar.lockProgress;

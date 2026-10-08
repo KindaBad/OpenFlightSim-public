@@ -7,7 +7,10 @@ connection, so nothing received here is trusted beyond being shown in a list.
 """
 from dataclasses import dataclass
 import ipaddress
+from pathlib import Path
 import socket
+import subprocess
+import sys
 import time
 
 DISCOVERY_PORT = 27019
@@ -107,48 +110,126 @@ def local_addresses():
     return result
 
 
+def _subnet(address):
+    # Home networks are almost always /24; a wrong guess only wastes one datagram.
+    return '.'.join(address.split('.')[:3] + ['255'])
+
+
 def broadcast_targets(addresses=None):
     """Where to ask: every network this computer is on, and this computer itself."""
     targets = ['255.255.255.255']
     for address in local_addresses() if addresses is None else addresses:
-        # Home networks are almost always /24; a wrong guess only wastes one datagram.
-        guess = '.'.join(address.split('.')[:3] + ['255'])
-        if guess not in targets:
-            targets.append(guess)
+        if _subnet(address) not in targets:
+            targets.append(_subnet(address))
     targets.append('127.0.0.1')
     return targets
 
 
+def questions(addresses=None):
+    """Who asks whom: pairs of the local address a question leaves from and where it goes.
+
+    The first pair lets the system choose the way out, which reaches one network
+    only. On a computer with several (a VPN, a virtual machine's adapter, wired
+    and wireless together) that is often not the one a game is on, so the
+    question is asked again from each address in turn. A broadcast sent from an
+    address leaves on that address's own network and reaches every computer on
+    it, whatever subnet they have been given.
+    """
+    addresses = local_addresses() if addresses is None else list(addresses)
+    return [(None, broadcast_targets(addresses))] + [(address, ['255.255.255.255', _subnet(address)]) for address in addresses]
+
+
 def discover(timeout=.6, port=DISCOVERY_PORT, targets=None):
-    """Ask the local network once and return the games that answer within `timeout` seconds."""
+    """Ask the local network once and return the games that answer within `timeout` seconds.
+
+    With `targets`, only those addresses are asked, the system choosing the way out.
+    """
     lobbies = {}
     mine = set(local_addresses())
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as link:
-        link.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        link.setblocking(False)
-        for target in broadcast_targets() if targets is None else targets:
+    links = []
+    try:
+        for source, wanted in [(None, targets)] if targets is not None else questions(sorted(mine)):
+            link = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             try:
-                # Numeric addresses only: a name would be looked up, and stall the search.
-                link.sendto(QUERY, (str(ipaddress.IPv4Address(target)), port))
-            except (OSError, ValueError):
-                pass  # not an address, a network that is down, or one that refuses broadcasts
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline and len(lobbies) < 64:
-            try:
-                data, (address, _) = link.recvfrom(256)
-            except BlockingIOError:
-                time.sleep(.01)
-                continue
+                link.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                link.setblocking(False)
+                if source:
+                    link.bind((source, 0))
             except OSError:
-                # Windows reports an earlier unreachable target here; keep listening.
-                time.sleep(.01)
+                link.close()  # an address that has just gone away
                 continue
-            lobby = parse_reply(data, address)
-            if lobby:
-                # A game on this computer answers on every address it was asked on.
-                own = address in mine or address.startswith('127.')
-                lobbies.setdefault((lobby.port, lobby.name) if own else (address, lobby.port), lobby)
+            links.append(link)
+            for target in wanted:
+                try:
+                    # Numeric addresses only: a name would be looked up, and stall the search.
+                    link.sendto(QUERY, (str(ipaddress.IPv4Address(target)), port))
+                except (OSError, ValueError):
+                    pass  # not an address, a network that is down, or one that refuses broadcasts
+        deadline = time.monotonic() + timeout
+        while links and time.monotonic() < deadline and len(lobbies) < 64:
+            heard = False
+            for link in links:
+                try:
+                    data, (address, _) = link.recvfrom(256)
+                except OSError:
+                    # Nothing waiting; on Windows also an earlier unreachable target. Keep listening.
+                    continue
+                heard = True
+                lobby = parse_reply(data, address)
+                if lobby:
+                    # A game on this computer answers on every address it was asked on.
+                    own = address in mine or address.startswith('127.')
+                    lobbies.setdefault((lobby.port, lobby.name) if own else (address, lobby.port), lobby)
+            if not heard:
+                time.sleep(.01)
+    finally:
+        for link in links:
+            link.close()
     return sorted(lobbies.values(), key=lambda lobby: (lobby.name.lower(), lobby.address, lobby.port))
+
+
+def _firewalld_open(port, run):
+    """Whether firewalld lets UDP `port` in: True, False, or None when firewalld is not there to ask."""
+    # The firewall's own message bus answers in a few milliseconds and needs no
+    # privileges; its command-line tool takes seconds to start.
+    question = ['busctl', '--system', 'call', 'org.fedoraproject.FirewallD1', '/org/fedoraproject/FirewallD1',
+                'org.fedoraproject.FirewallD1.zone', 'queryPort', 'sss', '', str(port), 'udp']
+    try:
+        answer = run(question, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, timeout=3, text=True)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    reply = (answer.stdout or '').split()
+    if answer.returncode != 0 or len(reply) != 2 or reply[0] != 'b' or reply[1] not in ('true', 'false'):
+        return None
+    return reply[1] == 'true'
+
+
+def firewall_advice(port, discovery=DISCOVERY_PORT, run=subprocess.run, platform=sys.platform, ufw=Path('/etc/ufw/ufw.conf')):
+    """What a Linux host has to do before others can reach a game on `port`, or None when nothing is in the way.
+
+    Windows asks the player itself the first time a game is hosted. Linux
+    firewalls turn the players away silently, so the launcher looks: firewalld
+    can be asked without privileges; ufw can only be seen to be switched on.
+    Nothing is changed, and a firewall that cannot be asked is left alone.
+    """
+    if not platform.startswith('linux'):
+        return None
+    answers = {number: _firewalld_open(number, run) for number in (port, discovery)}
+    if None not in answers.values():
+        closed = [number for number, is_open in answers.items() if not is_open]
+        if not closed:
+            return None
+        ports = ' '.join(f'--add-port={number}/udp' for number in closed)
+        return ('This computer\'s firewall will turn other players away. To let them in until the next restart, run:  '
+                f'sudo firewall-cmd {ports}')
+    try:
+        enabled = any(line.strip().lower() == 'enabled=yes' for line in ufw.read_text(encoding='utf-8', errors='replace').splitlines())
+    except OSError:
+        enabled = False
+    if enabled:
+        return ('If other players cannot join, this computer\'s firewall is turning them away. Let them in with:  '
+                f'sudo ufw allow {port}/udp && sudo ufw allow {discovery}/udp')
+    return None
 
 
 def describe(lobby, protocol=None):

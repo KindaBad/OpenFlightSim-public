@@ -5,16 +5,18 @@
 #include <limits>
 namespace ofs::net {
 MissileNetState projectMissile(const Missile &m, EntityId viewer) {
-  // Target identity is useful only to the launching aircraft, never a warning.
+  // The launching aircraft follows its shot, and the aircraft it was fired at
+  // is warned of it. Nobody else learns who a missile is meant for.
   return {m.id,
           m.owner,
-          viewer == m.owner.id ? m.target : EntityRef{},
+          viewer == m.owner.id || viewer == m.target.id ? m.target
+                                                        : EntityRef{},
           m.type,
           m.state.position,
           m.state.velocity,
           m.state.attitude,
           m.state.motor,
-          m.state.seeker.phase,
+          m.decoy ? weapons::SeekerPhase::Decoyed : m.state.seeker.phase,
           m.state.age};
 }
 bool missileInterest(const Missile &m, EntityId viewer, Vec3 position) {
@@ -38,6 +40,8 @@ RadarNetState radarProjection(const AircraftWeapons &w,
   n.envelope = w.envelope;
   for (const auto &s : w.inventory.stations)
     n.stations.push_back(s.mounted);
+  n.flares = w.flares;
+  n.chaff = w.chaff;
   return n;
 }
 std::uint8_t mountedMask(const weapons::Inventory &inventory) {
@@ -96,7 +100,8 @@ std::vector<MissileEvent> MissileCombat::takeEvents() {
 void MissileCombat::step(
     Tick tick, std::span<CombatTarget> targets,
     const std::map<EntityId, AircraftWeapons *> &controllers,
-    const Weather &weather, Combat &combat) {
+    const Weather &weather, Combat &combat,
+    std::span<const weapons::Decoy> decoys) {
   using Clock = std::chrono::steady_clock;
   const auto start = Clock::now();
   stats_.fuseUs = 0;
@@ -140,7 +145,16 @@ void MissileCombat::step(
         controller->second->radar.mode = weapons::RadarMode::MissileSupport;
       }
     }
-    weapons::advanceMissile(d, s, target ? &sensor : nullptr,
+    // A decoy that outshines the target takes the seeker with it. Guidance
+    // from the launch aircraft follows the real target and is not deceived,
+    // but a missile that has gone over to its own seeker no longer hears it.
+    const auto *decoy = weapons::seekerDecoy(d, s, target ? &sensor : nullptr,
+                                             decoys, missile.decoy, weather);
+    missile.decoy = decoy ? decoy->id : 0;
+    const bool guided = target || decoy;
+    if (decoy)
+      sensor = weapons::decoySensor(*decoy);
+    weapons::advanceMissile(d, s, guided ? &sensor : nullptr,
                             support.valid ? &support : nullptr, weather,
                             tickSeconds);
     const auto fuseStart = Clock::now();

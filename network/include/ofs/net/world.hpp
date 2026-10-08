@@ -30,9 +30,15 @@ struct Player {
   // Whoever last damaged this aircraft is credited if it then flies into the ground.
   EntityId lastAttacker{};
   Tick lastAttacked{};
+  // Ticks it has stood on the ground toward being repaired and rearmed.
+  Tick standing{};
+  // When a bot may next answer a missile with a decoy.
+  Tick botDecoyReady{};
 };
 // How long after a hit a crash still counts for the attacker.
 constexpr Tick killCreditTicks = 20 * 120;
+// Flares and chaff in the air at once; the oldest goes when another is needed.
+constexpr std::size_t maxDecoys = 256;
 class World {
 public:
   explicit World(bool airborne = true, std::optional<GunConfig> gun = std::nullopt);
@@ -47,6 +53,12 @@ public:
   std::vector<Loadout> loadoutsNear(EntityId viewer) const;
   MissileCombat &missiles() { return missiles_; }
   const MissileCombat &missiles() const { return missiles_; }
+  const std::vector<weapons::Decoy> &decoys() const { return decoys_; }
+  // Drops a flare or a bundle of chaff from an aircraft that has one left and
+  // is not still cycling its dispenser. Reported to clients as a combat event.
+  bool releaseDecoy(EntityId, weapons::DecoyType);
+  // Ticks an aircraft has to stand on the ground to be repaired and rearmed.
+  static Tick serviceTicks();
   bool enqueueFire(EntityId, const FireCommand &);
   Combat &combat() { return combat_; }
   const Combat &combat() const { return combat_; }
@@ -70,6 +82,12 @@ private:
   // Ends a life lost to the ground, or to a wing that snapped, rather than
   // directly to a weapon.
   void destroy(EntityId, Player &, Vec3 position, Vec3 velocity);
+  // Whether a stop on the ground would restore anything, and the stop itself:
+  // the airframe mended, the tanks, gun, pylons and dispensers refilled.
+  bool needsService(const Player &) const;
+  void service(EntityId, Player &);
+  std::vector<weapons::Decoy> decoys_;
+  std::uint64_t nextDecoy_{1};
   bool airborne_;
   struct Spawn { State state; Controls controls; };
   std::map<AircraftType, Spawn> spawns_;

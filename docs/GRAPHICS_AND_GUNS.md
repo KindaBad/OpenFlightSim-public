@@ -80,3 +80,41 @@ The graphical captures use Linux/OpenGL. Windows/D3D11 runtime output is unverif
 expires and stays inside the pool. Visual scenarios `gun`, `missile` and
 `detonation` render them. The flame shader takes its palette per draw because
 bgfx uniforms keep the value an earlier draw left in them.
+
+## Reheat, shot origins and decoys (0.5.1)
+
+- **Reheat.** The afterburner is redrawn as a nearly parallel jet instead of a
+  tapering cone (`client/shaders/flame.glsl`, `flame_vs.glsl`, `flame_fs.glsl`).
+  Three shells share the one tube mesh: a chain of shock diamonds whose radius
+  follows a triangle wave so each cell widens to its Mach disc and pinches
+  again, a pale blue flame that is orange for its first tenth and violet at
+  its tail, and a faint blue sheath that runs on past it. Cells stand 0.72
+  model metres apart whatever the reheat setting, so the plume grows by adding
+  diamonds, from 0.8 to 6.4 model metres. A disc just inside the nozzle lip is
+  the white-hot throat of the jet pipe, and the glow at the nozzle is orange.
+  Each shell is weighted in the vertex shader by the length of the sight line
+  through the volume it encloses, which gives a bright middle and soft edges
+  from the side and a deep glow seen along the jet. Reheat is scaled by
+  `flameAdaptation(exposure)`, so at dusk it is brighter against the scene
+  than at noon but keeps its colour. A rocket motor keeps its cone and palette.
+- **Shot origins.** The server reports where a round left the gun on its own
+  clock. The pilot's own aircraft is drawn 0.15 s or more ahead of that clock
+  and every other aircraft 0.1 s or more behind it, so at fighting speeds
+  tracers and muzzle effects appeared tens of metres behind the pilot's
+  aircraft and ahead of the others. `shotOrigin` (`client/src/weapon_visuals.hpp`)
+  now starts a reported round at the muzzle of the aircraft as it is drawn,
+  with the velocity the server gave it. A report more than 600 m from the
+  aircraft belongs to an earlier life and is left alone. Hit sparks are moved
+  the same way, along the struck aircraft's velocity by the time between the
+  server's tick and the tick that aircraft is drawn at (`hitOrigin`), and an
+  aircraft blows up where it is seen. Solo guns were never affected. Which
+  rounds hit is unchanged: that is the server's.
+- **Decoys.** A flare is one particle with the decoy's own drag and fall, drawn
+  as a white-hot point in a flickering glare that never shrinks below a few
+  pixels, laying smoke in lengths between where it was and where it is. Chaff
+  is a burst of bright strips and a thin haze that stops in the air. Both are
+  started where the aircraft is drawn, as rounds are.
+
+`battle.weapons` checks the origins and what each decoy emits; `client.shader_conformance`
+draws the shock-diamond shell and checks its ends and its interior. Visual
+scenarios `afterburner`, `decoys` and `warning` render them.

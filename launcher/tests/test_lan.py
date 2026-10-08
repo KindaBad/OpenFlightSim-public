@@ -98,7 +98,87 @@ class Wire(unittest.TestCase):
             self.assertFalse(address.startswith('127.'))
 
 
+    def test_the_question_is_asked_from_every_address(self):
+        plan = lan.questions(['192.168.1.23', '10.0.5.9'])
+        self.assertEqual(plan, [(None, ['255.255.255.255', '192.168.1.255', '10.0.5.255', '127.0.0.1']),
+                                ('192.168.1.23', ['255.255.255.255', '192.168.1.255']),
+                                ('10.0.5.9', ['255.255.255.255', '10.0.5.255'])])
+        self.assertEqual(lan.questions([]), [(None, ['255.255.255.255', '127.0.0.1'])])
+
+
+class Firewall(unittest.TestCase):
+    """What a Linux host is told; the firewall is stood in for, never asked."""
+    def firewalld(self, open_ports=(), failure=None):
+        asked = []
+
+        def run(command, **_):
+            asked.append(command)
+            if failure:
+                if isinstance(failure, Exception):
+                    raise failure
+                return subprocess.CompletedProcess(command, 1, stdout=failure)
+            self.assertEqual(command[:8], ['busctl', '--system', 'call', 'org.fedoraproject.FirewallD1', '/org/fedoraproject/FirewallD1',
+                                           'org.fedoraproject.FirewallD1.zone', 'queryPort', 'sss'])
+            self.assertEqual(command[8::2], ['', 'udp'])
+            return subprocess.CompletedProcess(command, 0, stdout='b true\n' if int(command[9]) in open_ports else 'b false\n')
+        return run, asked
+
+    def test_other_systems_ask_the_player_themselves(self):
+        run, asked = self.firewalld()
+        self.assertIsNone(lan.firewall_advice(27020, run=run, platform='win32'))
+        self.assertIsNone(lan.firewall_advice(27020, run=run, platform='darwin'))
+        self.assertEqual(asked, [])
+
+    def test_open_firewalld_needs_nothing(self):
+        run, asked = self.firewalld(open_ports=(27020, 27019))
+        self.assertIsNone(lan.firewall_advice(27020, run=run, platform='linux'))
+        self.assertEqual([command[9] for command in asked], ['27020', '27019'])
+
+    def test_closed_firewalld_names_the_ports_to_open(self):
+        run, _ = self.firewalld(open_ports=(27019,))
+        advice = lan.firewall_advice(27055, run=run, platform='linux')
+        self.assertIn('sudo firewall-cmd --add-port=27055/udp', advice)
+        self.assertNotIn('27019', advice)
+        run, _ = self.firewalld()
+        advice = lan.firewall_advice(27020, run=run, platform='linux')
+        self.assertIn('--add-port=27020/udp --add-port=27019/udp', advice)
+
+    def test_ufw_is_only_known_to_be_on(self):
+        with tempfile.TemporaryDirectory() as folder:
+            conf = Path(folder) / 'ufw.conf'
+            # No firewalld: no message bus tool, the service not running, or an answer that makes no sense.
+            for failure in (FileNotFoundError('busctl'), 'Call failed: The name is not activatable\n',
+                            subprocess.TimeoutExpired('busctl', 3)):
+                run, _ = self.firewalld(failure=failure)
+                self.assertIsNone(lan.firewall_advice(27020, run=run, platform='linux', ufw=conf))
+            conf.write_text('# comment\nENABLED=no\n')
+            self.assertIsNone(lan.firewall_advice(27020, run=run, platform='linux', ufw=conf))
+            conf.write_text('LOGLEVEL=low\nENABLED=yes\n')
+            advice = lan.firewall_advice(27020, run=run, platform='linux', ufw=conf)
+            self.assertIn('sudo ufw allow 27020/udp && sudo ufw allow 27019/udp', advice)
+            # An open firewalld settles the matter whatever ufw's file says.
+            run, _ = self.firewalld(open_ports=(27020, 27019))
+            self.assertIsNone(lan.firewall_advice(27020, run=run, platform='linux', ufw=conf))
+
+        def garbled(command, **_):
+            return subprocess.CompletedProcess(command, 0, stdout='s "yes"\n')
+        self.assertIsNone(lan.firewall_advice(27020, run=garbled, platform='linux', ufw=Path('/nonexistent/ufw.conf')))
+
+
 class Discovery(unittest.TestCase):
+    def test_every_question_is_sent_and_one_game_is_listed_once(self):
+        responder = Responder(lan.encode_reply(FRIDAY))
+        responder.start()
+        try:
+            # The second question leaves from a chosen address, as it does on a real network.
+            with patch('launcher.lan.questions', return_value=[(None, ['127.0.0.1']), ('127.0.0.1', ['127.0.0.1']),
+                                                               ('192.0.2.77', ['127.0.0.1'])]):
+                found = lan.discover(timeout=.4, port=responder.port)
+        finally:
+            responder.close()
+        self.assertEqual(responder.questions, [lan.QUERY, lan.QUERY])
+        self.assertEqual([lobby.name for lobby in found], ['Friday night'])
+
     def test_finds_a_hosted_game_and_ignores_noise(self):
         responder = Responder([b'not a lobby', lan.encode_reply(FRIDAY), lan.encode_reply(FRIDAY)])
         responder.start()

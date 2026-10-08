@@ -1,4 +1,4 @@
-# OpenFlightSim network protocol v15
+# OpenFlightSim network protocol v16
 
 GameNetworkingSockets v1.6.0, pinned revision
 `2cb93a06350bb065db53abdb0d87cf297e0bfd34`, supplies encrypted direct IP
@@ -8,6 +8,8 @@ were introduced. Numeric IPv4/IPv6 endpoints are supported. Games on the local
 network are found by a separate, unencrypted question and answer described under
 [LAN discovery](#lan-discovery); it only describes a game and carries no game state.
 
+Protocol 16 adds countermeasures, a missile warning for the aircraft a missile
+was fired at, and the turn-round on the ground; see [v16 additions](#v16-additions).
 Protocol 15 adds regional damage to what other viewers receive, pilot names and
 chat; see [v15 additions](#v15-additions). Protocol 14 extends the owner-only RadarState with the selected weapon's target,
 its lock progress and the stores visible on nearby aircraft; nothing else on the
@@ -24,7 +26,7 @@ pointers, renderer handles, particles and debug forces are never copied to packe
 | Offset | Bytes | Meaning |
 |---|---:|---|
 | 0 | 4 | magic `0x4f46534e` (OFSN) |
-| 4 | 2 | version **15**, incompatible versions rejected |
+| 4 | 2 | version **16**, incompatible versions rejected |
 | 6 | 1 | message type |
 | 7 | 1 | reserved zero |
 | 8 | 8 | authoritative tick or newest input target tick |
@@ -312,6 +314,31 @@ M4 radar/missile state, bandwidth prioritization, lag compensation, Earth frame 
 and user/account authentication remain outside this protocol milestone.
 
 
+## v16 additions
+
+**Countermeasures.** `WeaponAction` gains two kinds, Flare (7) and Chaff (8);
+the station byte is ignored. The server releases one decoy if the aircraft has
+one left and its dispenser has cycled (0.25 s); a request it cannot honour is
+simply not acted on. A release is announced to everyone interested in the
+aircraft as a combat event of kind Flare (5) or Chaff (6): owner and target are
+the aircraft, `projectile` is the decoy's identity, and position and velocity
+are the decoy's as it left. Clients fly the decoy they draw from that; the
+server alone decides what a seeker follows. At most 256 decoys are in the air.
+The owner-only `RadarState` ends with two more bytes, flares and chaff left,
+which makes its largest form 816 bytes.
+
+**Missile warning.** A missile record's target reference used to be sent to
+the launching aircraft only. It is now also sent to the aircraft it names, and
+still to nobody else. The seeker byte takes one more value, Decoyed (4), for a
+missile whose seeker is following a decoy.
+
+**Turn-round.** A combat event of kind Serviced (7), owner and target the
+aircraft and health 100, says that an aircraft which stood on the ground for
+ten seconds has been repaired, refuelled and rearmed. Its restored part health,
+fuel, ammunition and stores follow in the ordinary snapshots and radar state.
+
+Combat event kinds above 7 and weapon action kinds above 8 are rejected.
+
 ## v15 additions
 
 **Regional damage.** The non-owner surfaces field grows from 17 to 24 bytes:
@@ -348,8 +375,9 @@ computer can share it, and answers each eight-byte question `OFSLAN\x01Q` with:
 | 1 + n | game version, n <= 24 printable ASCII |
 
 A browser broadcasts the question to 255.255.255.255, to each local network's
-broadcast address and to loopback, and lists the answers by their source
-address. Answers are at most 128 bytes; anything malformed, with trailing
+broadcast address and to loopback, then repeats the broadcast from each of its
+own addresses in turn, because a system sends a broadcast out through one
+network only. It lists the answers by their source address. Answers are at most 128 bytes; anything malformed, with trailing
 bytes, a zero port, an empty name or more pilots than its limit is ignored. The
 server answers at most 30 questions in any second and drops the rest, so
 forged questions cannot make it a source of traffic. Discovery is plain UDP with no
@@ -369,7 +397,7 @@ client support stream.
 | Message | Reliability / cadence | Body and maximum size including header |
 |---|---|---|
 | WeaponAction | Ordered reliable, ≤30 actions/s | Owner u64, generation u32, action u8, station u8; 38 bytes |
-| RadarState | Unreliable 10 Hz, owner only | Generation u32, mode u8, selected/locked references 2×12, selected weapon/readiness u8, weapon target reference 12 and lock progress u8, station count u8, ≤8 station types, 3×u32 range cues, signed16 closure, inside/count u8, ≤16 tracks, then count u8 and ≤16 nearby loadouts (entity reference 12, mounted-station bits u8); 814 bytes at every bound |
+| RadarState | Unreliable 10 Hz, owner only | Generation u32, mode u8, selected/locked references 2×12, selected weapon/readiness u8, weapon target reference 12 and lock progress u8, station count u8, ≤8 station types, 3×u32 range cues, signed16 closure, inside/count u8, ≤16 tracks, then count u8 and ≤16 nearby loadouts (entity reference 12, mounted-station bits u8), then flares and chaff left u8 each; 816 bytes at every bound |
 | MissileSpawn | Ordered reliable, AOI entry | Count u8, ≤16×63-byte records; 1033 bytes |
 | MissileState | Independently applicable unreliable 20 Hz | Same bounded batch, 1033 bytes |
 | MissileRemove | Ordered reliable, AOI exit/expiry/detonation | Count u8, ≤16×(id u64, detonation u8, position 3×signed32); 361 bytes |
@@ -377,8 +405,8 @@ client support stream.
 A missile record has ID u64, owner and target references (u64 id/u32 generation),
 type u8, position 3×signed32 at 1/8 m, velocity 3×signed16 at 1/4 m/s, normalized
 quaternion 4×signed16 at 1/32767, motor/seeker u8 and age u16 at 0.01 s. Signed
-minimum values are reserved. Target identity is exposed only to the launch owner;
-other observers receive zero. Physics mass, propellant, angular rates, forces,
+minimum values are reserved. Target identity is exposed only to the launch owner
+and to the aircraft it names; other observers receive zero. Physics mass, propellant, angular rates, forces,
 telemetry and particles are not transmitted.
 
 A radar track is 32 bytes: reference 12, position 12 at 0.5 m, velocity 6 at

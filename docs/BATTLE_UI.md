@@ -11,7 +11,14 @@ and red kept for warnings. No game assets or branding are imported.
   speed, a thrust gauge that turns amber and reads REHEAT with the afterburner
   lit, and a fuel gauge that turns red below 15 %.
 - **Weapons**, below it when armed in a game: gun rounds, one pip per missile
-  still on its pylon, and a plain status line.
+  still on its pylon, a plain status line, and the flares and chaff left with
+  their keys. A solo flight shows a short version: rounds, flares and chaff.
+- **Missile warning**, top centre, while a missile fired at this pilot is in
+  flight: MISSILE, whether it is a heat seeker or a radar missile, its clock
+  position, range and time to run, and the answer to it. A ring around the
+  centre of the view is the aircraft seen from above with its nose to the top;
+  a wedge on it marks the side each missile is coming from. A missile that has
+  gone after a decoy turns amber. See [countermeasures](COUNTERMEASURES.md).
 - **Heading tape**, top centre. **Connection**, top right: pilots and ping, or
   the number of bandits in a local dogfight, with the radar scope under it.
 - **Gunsight**: a ring with a pip where the gun points, in every flying view.
@@ -21,8 +28,11 @@ and red kept for warnings. No game assets or branding are imported.
   part coloured by its damage, hit points, and a line for every part in
   trouble (RIGHT ENGINE OUT, LEFT WING 34%). The screen edges flash red when
   hit. See [the damage model](DAMAGE_MODEL.md).
-- **Status strip**, bottom centre: lit switches for gear, flaps, airbrake and
-  maneuver mode, and PAUSED or PARKING BRAKE.
+- **Status strip**, bottom centre: lit switches for gear, flaps, airbrake,
+  wheel brake and maneuver mode, and PAUSED or PARKING BRAKE.
+- **Turn-round**, above the strip while standing on the ground with something
+  to mend or refill: REPAIRING AND REARMING with a bar and the seconds left,
+  then REPAIRED AND REARMED. See [the damage model](DAMAGE_MODEL.md#turn-round).
 - **Chat**, lower left: recent lines fade after nine seconds; server notices
   (arrivals, departures, kills) are amber. `/` or Enter opens the box.
 - **Scoreboard**: hold K for every pilot's name, aircraft, kills and losses.
@@ -40,7 +50,8 @@ F1 still shows the developer diagnostics with the same settings window.
 
 Scripted runs (smoke tests, captures, `--frames`, `--seconds`) have no menu:
 Esc ends them as before. `--visual-scenario menu` and `controls` render the
-menu for inspection.
+menu for inspection; `warning` and `service` render the missile warning and
+the turn-round panel.
 
 ## Validation
 

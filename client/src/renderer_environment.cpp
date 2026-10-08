@@ -4,6 +4,7 @@
 #include "renderer.hpp"
 #include "renderer_internal.hpp"
 
+#include "airfield.hpp"
 #include "coordinates.hpp"
 #include "log.hpp"
 #include "ofs/terrain.hpp"
@@ -21,10 +22,6 @@
 
 namespace ofs::client {
 namespace {
-
-// Test airfield in render axes (+X east, +Y up, +Z south), metres.
-constexpr double kRunwayHalfWidth = 22.5;
-constexpr double kRunwayLength = 2600.0;
 
 // Terrain is drawn to this radius; beyond it the sky pass continues the plane.
 constexpr double kTerrainDrawRadius = 262000.;
@@ -44,6 +41,39 @@ void addQuad(std::vector<SurfaceVertex>& out, const glm::vec3& a, const glm::vec
   for (const int i : (reverse ? backward : forward))
     out.push_back({corners[i]->x, corners[i]->y, corners[i]->z, normal.x, normal.y, normal.z,
                    uv[i].x, uv[i].y});
+}
+
+// How each kind of airfield structure is drawn. Paint and cladding are plain
+// colours weathered in the surface shader; lamps are small emissive boxes.
+struct StructureLook {
+  glm::vec4 color;
+  float metallic, roughness, detail;
+  glm::vec3 emissive;
+  float glass;
+};
+StructureLook lookOf(AirfieldMaterial material) {
+  switch (material) {
+    case AirfieldMaterial::Concrete: return {{.47f, .47f, .45f, 1}, 0, .86f, 2, {}, 0};
+    case AirfieldMaterial::Cladding: return {{.33f, .37f, .41f, 1}, .25f, .55f, 2, {}, 0};
+    case AirfieldMaterial::Roof: return {{.14f, .15f, .16f, 1}, 0, .8f, 1, {}, 0};
+    case AirfieldMaterial::Shelter: return {{.30f, .32f, .27f, 1}, 0, .92f, 2, {}, 0};
+    case AirfieldMaterial::Glass: return {{.018f, .028f, .036f, 1}, 0, .06f, 0, {}, 1};
+    case AirfieldMaterial::Dark: return {{.025f, .026f, .03f, 1}, 0, .9f, 0, {}, 0};
+    case AirfieldMaterial::White: return {{.80f, .80f, .77f, 1}, 0, .6f, 1, {}, 0};
+    case AirfieldMaterial::Red: return {{.62f, .07f, .045f, 1}, 0, .6f, 1, {}, 0};
+    case AirfieldMaterial::Steel: return {{.38f, .40f, .42f, 1}, .6f, .5f, 1, {}, 0};
+    case AirfieldMaterial::Olive: return {{.17f, .20f, .11f, 1}, 0, .75f, 1, {}, 0};
+    case AirfieldMaterial::Yellow: return {{.74f, .52f, .06f, 1}, 0, .6f, 1, {}, 0};
+    case AirfieldMaterial::CarLight: return {{.66f, .68f, .70f, 1}, .3f, .4f, 0, {}, 0};
+    case AirfieldMaterial::CarDark: return {{.07f, .08f, .10f, 1}, .3f, .35f, 0, {}, 0};
+    case AirfieldMaterial::LightWhite: return {{.9f, .9f, .85f, 1}, 0, .5f, 0, {1.9f, 1.8f, 1.5f}, 0};
+    case AirfieldMaterial::LightAmber: return {{.9f, .6f, .2f, 1}, 0, .5f, 0, {1.9f, 1.05f, .12f}, 0};
+    case AirfieldMaterial::LightRed: return {{.9f, .15f, .1f, 1}, 0, .5f, 0, {1.9f, .10f, .05f}, 0};
+    case AirfieldMaterial::LightGreen: return {{.2f, .85f, .35f, 1}, 0, .5f, 0, {.08f, 1.7f, .30f}, 0};
+    case AirfieldMaterial::LightBlue: return {{.2f, .4f, .95f, 1}, 0, .5f, 0, {.06f, .30f, 2.1f}, 0};
+    case AirfieldMaterial::Count: break;
+  }
+  return {{.5f, .5f, .5f, 1}, 0, .8f, 0, {}, 0};
 }
 
 }  // namespace
@@ -183,60 +213,6 @@ void Renderer::buildEnvironment(Synthesis& data) {
     return bgfx::createVertexBuffer(bgfx::copy(data.data(),
         static_cast<std::uint32_t>(data.size() * sizeof(SurfaceVertex))), surfaceLayout_);
   };
-  // Paving and paint are coplanar with the ground. Their draw order is fixed by
-  // a per-layer depth offset in terrain_vs; the small lifts below only keep the
-  // surfaces apart for the shadow pass and for anything looking along them.
-  constexpr float kRunwayLift = 0.05f;
-  const float asphalt = kRunwayLift;
-  // Counter-clockwise seen from above; see addQuad.
-  addQuad(vertices,
-          {static_cast<float>(-kRunwayHalfWidth), asphalt, static_cast<float>(-kRunwayLength / 2)},
-          {static_cast<float>(-kRunwayHalfWidth), asphalt, static_cast<float>(kRunwayLength / 2)},
-          {static_cast<float>(kRunwayHalfWidth), asphalt, static_cast<float>(kRunwayLength / 2)},
-          {static_cast<float>(kRunwayHalfWidth), asphalt, static_cast<float>(-kRunwayLength / 2)},
-          {0, 1, 0});
-  runway_ = upload(vertices);
-
-  vertices.clear();
-  const float paint = kRunwayLift + 0.05f;
-  // Centreline dashes.
-  for (double z = -kRunwayLength / 2 + 150; z < kRunwayLength / 2 - 150; z += 60.0)
-    addQuad(vertices, {-0.45f, paint, static_cast<float>(z)},
-            {-0.45f, paint, static_cast<float>(z + 30)},
-            {0.45f, paint, static_cast<float>(z + 30)}, {0.45f, paint, static_cast<float>(z)},
-            {0, 1, 0});
-  // Edge lines.
-  for (const double edge : {-kRunwayHalfWidth + 1.2, kRunwayHalfWidth - 1.2})
-    addQuad(vertices, {static_cast<float>(edge - 0.5), paint, static_cast<float>(-kRunwayLength / 2 + 60)},
-            {static_cast<float>(edge - 0.5), paint, static_cast<float>(kRunwayLength / 2 - 60)},
-            {static_cast<float>(edge + 0.5), paint, static_cast<float>(kRunwayLength / 2 - 60)},
-            {static_cast<float>(edge + 0.5), paint, static_cast<float>(-kRunwayLength / 2 + 60)},
-            {0, 1, 0});
-  // Threshold bars and aiming blocks at both ends.
-  for (const int end : {-1, 1}) {
-    const double zBase = end * (kRunwayLength / 2 - 170);
-    for (int i = 0; i < 8; ++i) {
-      const double pitch = (2 * kRunwayHalfWidth - 6.0) / 8.0;
-      const double x = -kRunwayHalfWidth + 3.0 + pitch * (i + 0.5);
-      addQuad(vertices,
-              {static_cast<float>(x - pitch * 0.28), paint, static_cast<float>(zBase - end * 50.0)},
-              {static_cast<float>(x + pitch * 0.28), paint, static_cast<float>(zBase - end * 50.0)},
-              {static_cast<float>(x + pitch * 0.28), paint, static_cast<float>(zBase)},
-              {static_cast<float>(x - pitch * 0.28), paint, static_cast<float>(zBase)},
-              {0, 1, 0});
-    }
-    const double zAim = end * (kRunwayLength / 2 - 420);
-    for (const double x : {-9.0, 9.0})
-      addQuad(vertices, {static_cast<float>(x - 1.4), paint, static_cast<float>(zAim - end * 32.0)},
-              {static_cast<float>(x + 1.4), paint, static_cast<float>(zAim - end * 32.0)},
-              {static_cast<float>(x + 1.4), paint, static_cast<float>(zAim)},
-              {static_cast<float>(x - 1.4), paint, static_cast<float>(zAim)}, {0, 1, 0});
-  }
-  runwayPaint_ = upload(vertices);
-
-  const auto slab = [&](float x0, float z0, float x1, float z1, float y) {
-    addQuad(vertices, {x0,y,z0}, {x0,y,z1}, {x1,y,z1}, {x1,y,z0}, {0,1,0});
-  };
   const auto box = [&](float x, float z, float w, float d, float y, float h) {
     const float l=x-w/2, r=x+w/2, f=z-d/2, b=z+d/2, t=y+h;
     addQuad(vertices,{l,t,f},{l,t,b},{r,t,b},{r,t,f},{0,1,0});
@@ -245,58 +221,29 @@ void Renderer::buildEnvironment(Synthesis& data) {
     addQuad(vertices,{l,y,b},{l,y,f},{l,t,f},{l,t,b},{-1,0,0});
     addQuad(vertices,{r,y,f},{r,y,b},{r,t,b},{r,t,f},{1,0,0});
   };
-  vertices.clear();
-  slab(-420,-1100,-65,180,.04f);
-  slab(-95,-1220,-65,1220,.06f);
-  for (const float z : {-850.f,0.f,850.f}) slab(-95,z-14,-22.5f,z+14,.07f);
-  apron_ = upload(vertices);
-  vertices.clear();
-  // Taxiway centrelines and stand lead-in lines.
-  slab(-80.2f,-1200,-79.8f,1200,.12f);
-  for (const float z : {-850.f,0.f,850.f}) slab(-80,z-.2f,-25,z+.2f,.13f);
-  for (int i=0; i<6; ++i) slab(-255,static_cast<float>(i*110-1040)-.2f,-80,static_cast<float>(i*110-1040)+.2f,.13f);
-  taxiPaint_ = upload(vertices);
-  vertices.clear();
-  for (int i=0; i<5; ++i) {
-    const float z=static_cast<float>(i*130-1040);
-    box(-350,z,110,86,0,17);
-    box(-350,z,114,90,17,1.5f);
+  {
+    // Paving and paint are coplanar with the ground. Their draw order is fixed
+    // by a per-layer depth offset in terrain_vs: paving over the land, paint
+    // over the paving.
+    const Airfield airfield = buildAirfield();
+    const auto ground = [&](const std::vector<SurfaceVertex>& data, float kind, float layer, glm::vec3 tint) {
+      if (data.empty()) return;
+      airfieldGround_.push_back({upload(data), kind, layer, tint});
+      if (!bgfx::isValid(airfieldGround_.back().buffer)) throw std::runtime_error("Airfield paving upload failed");
+    };
+    // Where two kinds of paving meet they overlap, so each has a layer of its own.
+    ground(airfield.ground.roads, 1, 1, {.066f, .065f, .062f});
+    ground(airfield.ground.concrete, 3, 1.25f, {.215f, .212f, .200f});
+    ground(airfield.ground.taxiways, 1, 1.5f, {.092f, .092f, .094f});
+    ground(airfield.ground.runway, 1, 1.75f, {.074f, .075f, .078f});
+    ground(airfield.ground.whitePaint, 2, 2.5f, {.80f, .81f, .78f});
+    ground(airfield.ground.yellowPaint, 2, 2.5f, {.72f, .47f, .035f});
+    for (const auto& part : airfield.parts) {
+      if (part.vertices.empty()) continue;
+      airfieldParts_.push_back({upload(part.vertices), part.material, static_cast<std::uint32_t>(part.vertices.size())});
+      if (!bgfx::isValid(airfieldParts_.back().buffer)) throw std::runtime_error("Airfield structure upload failed");
+    }
   }
-  box(-210,-400,95,150,0,12);  // terminal
-  box(-160,-300,12,12,0,38);   // control tower
-  box(-160,-300,23,23,38,7);
-  box(-160,-300,27,27,45,1.5f);
-  buildings_ = upload(vertices);
-  buildingVertices_ = static_cast<std::uint32_t>(vertices.size());
-  vertices.clear();
-  for (int i=0; i<5; ++i) {
-    const float z=static_cast<float>(i*130-1040);
-    box(-294.8f,z,0.4f,66,0,12); // recessed hangar doors
-    for (int j=0;j<5;++j) box(-294.5f,z-28+j*14,0.2f,0.25f,0,12);
-  }
-  box(-160,-300,23.4f,23.4f,39,4.5f); // tower glazing
-  box(-161.8f,-400,0.4f,138,3.5f,5);
-  windows_ = upload(vertices);
-  vertices.clear();
-  for (int i=-24;i<=24;++i) {
-    for (float x : {-24.f,24.f}) box(x,static_cast<float>(i*50),.35f,.35f,.15f,.28f);
-    box(-96,static_cast<float>(i*50),.35f,.35f,.15f,.28f);
-  }
-  lights_ = upload(vertices);
-
-  // Service roads, fence posts and utility sheds give the field a human scale.
-  vertices.clear();
-  slab(455,-2800,469,2800,.065f);
-  slab(-650,300,462,313,.065f);
-  roads_ = upload(vertices);
-  vertices.clear();
-  for (int i=-44;i<=44;++i) {
-    box(430,float(i*60),.18f,.18f,0,2.2f);
-    box(-480,float(i*60),.18f,.18f,0,2.2f);
-  }
-  for (int i=0;i<3;++i) box(-535,float(i*45+450),22,30,0,5);
-  props_ = upload(vertices);
-  propVertices_ = static_cast<std::uint32_t>(vertices.size());
 
   // Hamlets on dry, open ground around the field.
   std::vector<SurfaceVertex> houses;
@@ -345,18 +292,20 @@ void Renderer::buildEnvironment(Synthesis& data) {
       bgfx::copy(grid.data(), static_cast<std::uint32_t>(grid.size() * sizeof(UnlitVertex))),
       unlitLayout_);
 
-  for (const auto handle : {terrainVertices_, runway_, runwayPaint_, apron_, taxiPaint_, roads_, buildings_, windows_,
-                            lights_, props_, grid_})
+  for (const auto handle : {terrainVertices_, grid_})
     if (!bgfx::isValid(handle)) throw std::runtime_error("Environment GPU upload failed");
   if (!bgfx::isValid(terrainIndices_)) throw std::runtime_error("Environment GPU upload failed");
 }
 
 void Renderer::destroyEnvironment() {
-  for (auto* handle : {&terrainVertices_, &runway_, &runwayPaint_, &apron_, &taxiPaint_, &roads_, &buildings_, &windows_,
-                       &lights_, &props_, &houses_, &grid_}) {
+  for (auto* handle : {&terrainVertices_, &houses_, &grid_}) {
     if (bgfx::isValid(*handle)) bgfx::destroy(*handle);
     handle->idx = bgfx::kInvalidHandle;
   }
+  for (auto& layer : airfieldGround_) if (bgfx::isValid(layer.buffer)) bgfx::destroy(layer.buffer);
+  airfieldGround_.clear();
+  for (auto& part : airfieldParts_) if (bgfx::isValid(part.buffer)) bgfx::destroy(part.buffer);
+  airfieldParts_.clear();
   if (bgfx::isValid(terrainIndices_)) bgfx::destroy(terrainIndices_);
   terrainIndices_.idx = bgfx::kInvalidHandle;
   for (auto& species : treeMeshes_) for (auto& mesh : species) {
@@ -419,11 +368,7 @@ void Renderer::drawEnvironment() {
     bgfx::submit(kViewWorld, programs_.terrain);
     ++stats_.drawCalls;
   };
-  paved(runway_, 1, 1, {.074f, .075f, .078f});
-  paved(apron_, 3, 1, {.215f, .212f, .200f});
-  paved(roads_, 1, 1, {.066f, .065f, .062f});
-  paved(runwayPaint_, 2, 2, {.80f, .81f, .78f});
-  paved(taxiPaint_, 2, 2, {.72f, .47f, .035f});
+  for (const auto& layer : airfieldGround_) paved(layer.buffer, layer.kind, layer.layer, layer.tint);
 
   // Structures: untextured geometry weathered procedurally in the PBR shader.
   const auto structure = [&](bgfx::VertexBufferHandle buffer, glm::vec4 color, float metallic, float roughness,
@@ -444,12 +389,17 @@ void Renderer::drawEnvironment() {
     bgfx::submit(kViewWorld, programs_.pbr);
     ++stats_.drawCalls;
   };
-  structure(buildings_, {.36f, .38f, .385f, 1}, 0, .68f, 2, {}, 0);
-  structure(windows_, {.018f, .028f, .036f, 1}, 0, .06f, 0, {}, 1);
-  structure(lights_, {.72f, .82f, .9f, 1}, 0, .5f, 0, {1.4f, 1.7f, 2.2f}, 0);
-  structure(props_, {.20f, .19f, .175f, 1}, 0, .9f, 1, {}, 0);
+  std::uint32_t structureVertices = houseVertices_;
+  // The airfield's buildings are only worth drawing from where they can be made out.
+  const bool airfieldInView = glm::length(cameraEye_ - glm::vec3(environment[3])) < 30000.f;
+  if (airfieldInView)
+    for (const auto& part : airfieldParts_) {
+      const auto look = lookOf(part.material);
+      structure(part.buffer, look.color, look.metallic, look.roughness, look.detail, look.emissive, look.glass);
+      structureVertices += part.vertices;
+    }
   structure(houses_, {.42f, .37f, .31f, 1}, 0, .85f, 1, {}, 0);
-  stats_.triangles += (buildingVertices_ + propVertices_ + houseVertices_) / 3;
+  stats_.triangles += structureVertices / 3;
 
   if (settings_.vegetation) drawTrees(kViewWorld, programs_.tree, nullptr);
 }

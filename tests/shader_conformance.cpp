@@ -125,21 +125,28 @@ int main(){bool initialized=false;try {
         .add(bgfx::Attrib::Color0,4,bgfx::AttribType::Float).add(bgfx::Attrib::TexCoord0,2,bgfx::AttribType::Float).end();
     const float data[]{-1,-1,0,1,1,1,1,.5f,t, 3,-1,0,1,1,1,1,.5f,t, -1,3,0,1,1,1,1,.5f,t};
     const auto buffer=bgfx::createVertexBuffer(bgfx::copy(data,sizeof(data)),effectLayout);
+    // Undo the vertex shader's shaping of the shock-diamond shell at full
+    // reheat (flame_vs.glsl and flame.glsl), so the triangle covers the target.
     const float bounded=std::clamp(t,0.f,1.f);
-    const float radius=std::max(.008f,(1-std::pow(bounded,1.4f))*.18f);
-    auto matrix=std::array<float,16>{-1.f/4.15f,0,0,0,0,1.f/radius,0,0,0,0,1,0,0,-std::sin(bounded*29)*bounded*bounded*.022f/radius,0,1};
+    const float reach=(.8f+5.6f)*.80f,along=bounded*reach;
+    const float phase=(along-.36f)/.72f,cell=std::abs((phase-std::floor(phase))*2-1);
+    const float radius=std::max(.008f,(.09f+.25f*cell)*(1-.45f*bounded)*(1+std::sin(along*9)*.03f*bounded));
+    auto matrix=std::array<float,16>{-1.f/reach,0,0,0,0,1.f/radius,0,0,0,0,1,0,0,-std::sin(bounded*17)*bounded*bounded*.040f/radius,0,1};
     bgfx::setViewRect(0,0,0,64,64);bgfx::setViewFrameBuffer(0,framebuffer);
     bgfx::setViewClear(0,BGFX_CLEAR_COLOR,0x607080ff);
     bgfx::setUniform(uniform("u_ofsModel",bgfx::UniformType::Mat4),matrix.data());
     bgfx::setUniform(uniform("u_ofsViewProj",bgfx::UniformType::Mat4),identity);
-    setFrame(baseFrame());vec("u_flame",{1,0,0,0});vec("u_effectParams",{0,0,64,64});bgfx::setVertexBuffer(0,buffer);
+    // Seen square-on from far off, the whole shell faces the eye.
+    Frame frame=baseFrame();frame[0]={0,500,0,0};
+    setFrame(frame);vec("u_flame",{1,0,0,0});vec("u_effectParams",{0,0,64,64});bgfx::setVertexBuffer(0,buffer);
     bgfx::setState(BGFX_STATE_WRITE_RGB|BGFX_STATE_WRITE_A|BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,BGFX_STATE_BLEND_ONE));
     bgfx::submit(0,flame);bgfx::blit(1,{.handle=readback},{.handle=bgfx::getTexture(framebuffer)});
     std::vector<std::uint8_t> pixels(64*64*4);const auto ready=bgfx::read({.handle=readback},pixels.data());
     require(ready!=UINT32_MAX,"Plume readback scheduled");while(bgfx::frame()<ready+1){}
     bgfx::destroy(buffer);return pixel(pixels,32);
   };
-  const auto below=plumePixel(-.0001f),above=plumePixel(1.0001f),inside=plumePixel(.4f);
+  // 0.211 of the way along is the heart of the third shock diamond.
+  const auto below=plumePixel(-.0001f),above=plumePixel(1.0001f),inside=plumePixel(.211f);
   std::printf("GPU plume boundaries before/after=%u/%u interior=%u\n",below,above,inside);
   require(std::abs(int(below)-96)<=1 && std::abs(int(above)-96)<=1,"Plume boundaries preserve background without NaN black squares");
   require(inside>100,"Plume interior still emits light");
