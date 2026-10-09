@@ -41,11 +41,16 @@ four GLBs and `lod_stats.json` here and an editable
   occlusion map is multiplied into the colour because the runtime has none.
 - Tailplanes, rudder, ailerons, flaps and leading-edge flaps are grouped under
   pivots with the channel names the renderer animates. No surface is re-modelled.
-- The six gear doors stand open in the donor; each closes by undoing its own
-  rotation about its own origin, 60 or 85 degrees.
+- The six gear doors stand open in the donor, 60 or 85 degrees. Their meshes
+  are stored in the airframe's frame and their origins swing with them, so a
+  door's hinge is the line its motion from the airframe's pose leaves in place,
+  and it closes about that. Until 0.5.9 they turned about their origins, which
+  threw all six clear of the aircraft whenever the gear was up.
 - Wheels are split from the legs so they turn. The donor gives no stowed pose:
   each leg folds a quarter turn about a lateral trunnion at its top and slides
-  into the fuselage, where the closed doors hide it.
+  into the fuselage, where the closed doors hide it. The main legs move 0.3 m
+  forward and 0.6 m inboard, the one place found where nothing of them shows
+  through the skin from any side.
 
 LOD triangles: **34,416 / 17,469 / 8,513 / 3,955**. Reduced levels are Blender collapse decimation of
 the refined meshes and reuse LOD0 materials by name.
@@ -64,7 +69,10 @@ flat-colour plan at one pixel per centimetre that the import paints from.
 - The fin stands over the spine in the photograph, so the spine aft of the wing
   is plain navy, and the fin's sides, which the photograph does not show, carry
   a navy, cream, grey and green flash that is this project's own.
-- Everything below the wing line is the scheme's pale grey.
+- Everything below the wing line is the scheme's pale grey, the gear doors
+  included, whichever way they face while they hang open.
+- The plan is read between its cells, as the share of each paint around a
+  point, so outlines stay smooth on skin too steep to give each cell a texel.
 - The donor's panel lines and serial are carried over; its roundels, badge and
   fin flash are painted out. Stencils in the photograph are not reproduced.
 - The donor's planform differs a little from the real aircraft's, most at the
@@ -77,5 +85,5 @@ flat-colour plan at one pixel per centimetre that the import paints from.
 - The nozzle is a fixed part of the airframe and does not open with reheat.
 - The donor has no airbrakes.
 - Retraction is a single fold per leg and is not the real mechanism.
-- The model's own two underwing pylons per side stay bare; missiles hang from
-  the pylons the renderer draws.
+- The four radar missiles hang under the model's own two underwing pylons per
+  side, 2.06 and 2.94 m from the centreline.

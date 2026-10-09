@@ -248,8 +248,8 @@ void inventory() {
     Inventory inventory;
     inventory.reset(type);
     const bool armed = aircraftDefinition(type).gun.has_value();
-    // Two heat seekers each; four radar missiles, or two on the JF-17's pylons.
-    const unsigned radar = type == AircraftType::JF17 ? 2 : 4;
+    // Two heat seekers and four radar missiles each.
+    const unsigned radar = 4;
     check(inventory.stations.size() == (armed ? 2 + radar : 0), "appropriate stations");
     if (!armed)
       continue;

@@ -249,25 +249,25 @@
       "level": 0,
       "triangles": 34416,
       "nodes": 55,
-      "bytes": 6061692
+      "bytes": 6028248
     },
     {
       "level": 1,
       "triangles": 17469,
       "nodes": 55,
-      "bytes": 563304
+      "bytes": 563272
     },
     {
       "level": 2,
       "triangles": 8513,
       "nodes": 55,
-      "bytes": 319352
+      "bytes": 319320
     },
     {
       "level": 3,
       "triangles": 3955,
       "nodes": 46,
-      "bytes": 167740
+      "bytes": 167708
     }
   ]
 }

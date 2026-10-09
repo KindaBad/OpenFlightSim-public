@@ -56,13 +56,29 @@ DONOR = {o.name: o for o in bpy.data.objects if o.type == 'MESH'}
 if set(DONOR) != EXPECTED:
     raise RuntimeError(f'Donor layout changed: {sorted(set(DONOR) ^ EXPECTED)}')
 # Every donor object rests at a half turn about the vertical; whatever a door
-# or the canopy has beyond that is how far it stands open about its origin.
+# or the canopy has beyond that is how far it stands open. The canopy turns
+# about its own origin. The six doors keep their meshes in the airframe's frame
+# and their origins swing away with them, so each door's hinge is the line its
+# motion from the airframe's pose leaves in place.
 REST = Matrix.Rotation(math.pi, 3, 'Z')
+DOORS = {f'Object{n:03d}' for n in range(27, 33)}
+AIRFRAME = DONOR['body'].matrix_world.copy()
 OPENING = {}
 for name, obj in DONOR.items():
     hinge_object = obj.parent if obj.parent and obj.parent.type == 'MESH' else obj
     world = hinge_object.matrix_world
-    OPENING[name] = (world.translation.copy(), world.to_3x3().normalized() @ REST.inverted())
+    opened = world.to_3x3().normalized() @ REST.inverted()
+    origin = world.translation.copy()
+    if name in DOORS:
+        swing = world @ AIRFRAME.inverted()
+        turn = np.array(swing.to_3x3().normalized()) - np.eye(3)
+        centre = sum((world @ v.co for v in obj.data.vertices), Vector()) / len(obj.data.vertices)
+        # The point of the hinge line nearest the door's middle.
+        offset = np.linalg.lstsq(turn, -np.array(swing.translation) - turn @ np.array(centre), rcond=1e-6)[0]
+        origin = centre + Vector(offset)
+        if (swing @ origin - origin).length > .005:
+            raise RuntimeError(f'Donor layout changed: {name} does not swing about a fixed hinge')
+    OPENING[name] = (origin, opened)
 for obj in DONOR.values():  # Bake to world coordinates, donor units.
     world = obj.matrix_world.copy()
     obj.parent = None
@@ -256,6 +272,19 @@ CREAM = np.array((.88, .86, .70), np.float32)
 GREEN = np.array((.050, .38, .100), np.float32)
 
 
+def blur(values, radius):
+    out = values.astype(np.float32)
+    for axis in (0, 1):
+        padded = np.concatenate([np.zeros_like(out.take([0], axis=axis)), np.cumsum(out, axis=axis, dtype=np.float64)],
+                                axis=axis)
+        index = np.arange(out.shape[axis])
+        upper = np.clip(index + radius + 1, 0, out.shape[axis])
+        lower = np.clip(index - radius, 0, out.shape[axis])
+        out = ((padded.take(upper, axis=axis) - padded.take(lower, axis=axis)) /
+               (upper - lower).reshape([-1 if i == axis else 1 for i in range(2)])).astype(np.float32)
+    return out
+
+
 # Plan-view artwork: assets/aircraft/jf17/livery_plan.png, traced from a
 # photograph of the Pakistan Air Force's navy, grey and green display scheme by
 # scripts/jf17_livery_trace.py. One pixel per centimetre: columns run aft from
@@ -267,14 +296,26 @@ plan_pixels = pixels(plan_image)[::-1, :, :3]
 PLAN_PAINTS = (((38, 54, 90), NAVY), ((172, 203, 212), GREY), ((238, 236, 214), CREAM), ((62, 160, 84), GREEN))
 plan_class = np.stack([np.abs(plan_pixels * 255 - np.array(key, np.float32)).sum(-1) for key, _ in PLAN_PAINTS],
                       -1).argmin(-1)
-plan_colour = np.array([value for _, value in PLAN_PAINTS], np.float32)[plan_class]
+# How much of each paint lies around every cell. Read between cell centres, it
+# turns the stepped outlines of the trace into smooth ones on steep skin.
+plan_cover = [blur(blur(plan_class == index, 2), 2) for index in range(len(PLAN_PAINTS))]
 bpy.data.images.remove(plan_image)
 
 
 def plan(x, y):
-    column = np.clip((x / PLAN_CELL).astype(int), 0, plan_colour.shape[1] - 1)
-    row = np.clip((y / PLAN_CELL).astype(int), 0, plan_colour.shape[0] - 1)
-    return plan_colour[row, column]
+    rows, columns = plan_class.shape
+    u = np.clip(x / PLAN_CELL - .5, 0, columns - 1.001)
+    v = np.clip(y / PLAN_CELL - .5, 0, rows - 1.001)
+    u0, v0 = u.astype(int), v.astype(int)
+    fu, fv = u - u0, v - v0
+    best = np.full(x.shape, -1, np.float32)
+    colour = np.zeros(x.shape + (3,), np.float32)
+    for cover, (_, value) in zip(plan_cover, PLAN_PAINTS):
+        share = (1 - fv) * ((1 - fu) * cover[v0, u0] + fu * cover[v0, u0 + 1]) + \
+            fv * ((1 - fu) * cover[v0 + 1, u0] + fu * cover[v0 + 1, u0 + 1])
+        colour[share > best] = value
+        best = np.maximum(best, share)
+    return colour
 
 
 def profile(x, z):  # The fin from the side: navy with a cream, grey and green flash.
@@ -291,6 +332,7 @@ position = np.zeros((SIZE, SIZE, 3), np.float32)
 facing = np.zeros((SIZE, SIZE, 3), np.float32)
 covered = np.zeros((SIZE, SIZE), bool)
 skin = np.zeros((SIZE, SIZE), bool)
+door = np.zeros((SIZE, SIZE), bool)
 island = np.zeros((SIZE, SIZE), np.int32)  # UV island under each texel, from 1.
 islands = 0
 
@@ -353,19 +395,8 @@ for name, obj in DONOR.items():
         island[where] = numbers[roots[triangle.polygon_index]]
         if name in SKIN_OBJECTS:
             skin[where] = True
-
-
-def blur(values, radius):
-    out = values.astype(np.float32)
-    for axis in (0, 1):
-        padded = np.concatenate([np.zeros_like(out.take([0], axis=axis)), np.cumsum(out, axis=axis, dtype=np.float64)],
-                                axis=axis)
-        index = np.arange(out.shape[axis])
-        upper = np.clip(index + radius + 1, 0, out.shape[axis])
-        lower = np.clip(index - radius, 0, out.shape[axis])
-        out = ((padded.take(upper, axis=axis) - padded.take(lower, axis=axis)) /
-               (upper - lower).reshape([-1 if i == axis else 1 for i in range(2)])).astype(np.float32)
-    return out
+        if name in DOORS:
+            door[where] = True
 
 
 def extreme(values, radius, largest):
@@ -399,6 +430,7 @@ livery = np.where(seen_from_above[:, :, None], plan(x, y), GREY[None, None, :])
 fin = (np.abs(facing[:, :, 1]) > .75) & (z > 2.75) & (x > 10.6) & (y < .35)
 livery[fin] = profile(x, z)[fin]
 livery[(z < 1.15) & (x > 11) & (np.abs(facing[:, :, 1]) > .6)] = GREY   # Ventral fins.
+livery[door] = GREY  # Belly panels, whichever way they face while they hang open.
 
 # Carry the donor's panel lines across: thin dark strokes against their
 # surroundings. Its own markings are broad and are left behind.
@@ -616,7 +648,7 @@ for side, sign in (('L', -1), ('R', 1)):
     trunnion = Vector((axle.x, axle.y, hi.z - .05))
     suspension = pivot('suspension_' + side, trunnion, 'compression_' + side, gain=0, slide=(0, 0, 1))
     # Wheel swings forward and the leg moves inboard under the intake duct.
-    fold = pivot('main_gear_' + side, trunnion, 'gear_fold', PORT, -math.pi / 2, (.1, -sign * .42, .10), suspension)
+    fold = pivot('main_gear_' + side, trunnion, 'gear_fold', PORT, -math.pi / 2, (-.3, -sign * .6, 0), suspension)
     place('main_' + side, 'main leg ' + side, fold, lod=2)
     place('wheel_' + side, 'main wheel ' + side, pivot('main_wheel_' + side, axle, 'wheel', PORT, 1, group=fold))
 if DONOR:

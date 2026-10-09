@@ -10,7 +10,7 @@ AircraftConfig typhoonConfig() {
   AircraftConfig c;
   c.initial_fuel=3000; c.initial_payload=0; c.fuel_position={-.25,0,0}; c.payload_position={0,0,.5};
   c.control_law=FlightControlLaw::Canard; c.pitch_arm=3.1; c.pitch_span=1.6;
-  c.max_pitch_rate=.75; c.max_roll_rate=3.5; c.response_time=.25;
+  c.max_pitch_rate=.80; c.max_roll_rate=3.7; c.response_time=.25;
   c.g_positive=9; c.g_negative=-3; c.alpha_limit=28*kDeg2Rad;
   c.actuator_rate=6;
   // Wave drag and thrust lapse fitted to the published Mach 1.25 at sea level,
@@ -41,10 +41,10 @@ AircraftConfig typhoonConfig() {
   }
   c.wing_area=51.2; c.wing_span=10.95; c.mac=4.3;
   c.alpha0=-.5*kDeg2Rad; c.cl_alpha=3.8;
-  c.cl_max_clean=1.50; c.cl_max_full_flap=1.85;
+  c.cl_max_clean=1.56; c.cl_max_full_flap=1.91;
   c.flap_lift=.35;
   c.alpha_crit_clean=21*kDeg2Rad;
-  c.cd0_clean=.024; c.oswald_e=.72;
+  c.cd0_clean=.0235; c.oswald_e=.77;
   // Stable equivalent to augmented canard/delta response. Not raw unstable FCS.
   c.cm0=.018; c.cm_alpha=-.15; c.cm_de=-1.10; c.cm_q=-18;
   c.cl_beta=-.055; c.cl_p=-.55; c.cl_da=.24;
@@ -96,7 +96,7 @@ std::span<const AircraftDefinition> aircraftDefinitions() {
     // GSh-23-2 twin-barrel 23 mm cannon in the belly, left of the centreline.
     GunConfig jf17Gun;
     jf17Gun.rpm=3400;jf17Gun.muzzleVelocity=715;jf17Gun.ammo=200;
-    jf17Gun.muzzle={3.4,-.30,.78};jf17Gun.damage=20; // Gameplay damage scaled from shell mass.
+    jf17Gun.muzzle={3.4,-.30,.78};jf17Gun.damage=24; // Gameplay damage scaled from shell mass.
     const std::array<AircraftDefinition::CollisionSphere,17> jf17Boxes{{
       {{8.4,0,.35},.22},{{7.2,0,.35},.42},{{5.8,0,.20},.62},{{4.3,0,-.10},.85},
       {{2.6,0,-.03},.90},{{.8,0,-.02},.88},{{-1.4,0,-.02},.88},{{-4.0,0,-.10},.80},

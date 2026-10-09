@@ -315,6 +315,26 @@ void hierarchy(const std::string& root) {
       if(primitive.transformNode>=0 && rest[primitive.transformNode]!=moved[primitive.transformNode]) ++changed;
     }
     check(changed>=5,"independent surface transforms change");
+    // Retracted, the undercarriage and its doors lie within the fixed airframe.
+    AircraftPose stowed; Controls up; up.gear01=0; stowed.update(state,up,definition,0);
+    std::vector<AssetMatrix> raised; evaluatePose(mesh.nodes,stowed,raised);
+    float low[3]{1e9f,1e9f,1e9f},high[3]{-1e9f,-1e9f,-1e9f};
+    for(const auto& primitive:mesh.primitives) if(primitive.transformNode<0)
+      for(int k=0;k<3;++k) {low[k]=std::min(low[k],primitive.boundsMin[k]);high[k]=std::max(high[k],primitive.boundsMax[k]);}
+    for(const auto& primitive:mesh.primitives) {
+      bool gear=false;
+      for(int node=primitive.transformNode;node>=0;node=mesh.nodes[node].parent)
+        gear|=mesh.nodes[node].channel=="gear_fold" || mesh.nodes[node].channel=="gear_door";
+      if(!gear) continue;
+      const auto& m=raised[primitive.transformNode];
+      for(std::size_t v=0;v+2<primitive.vertices.size();v+=kMeshVertexFloats) {
+        const float* p=&primitive.vertices[v];
+        for(int k=0;k<3;++k) {
+          const float moved=m[k]*p[0]+m[4+k]*p[1]+m[8+k]*p[2]+m[12+k];
+          check(moved>low[k]-.05f && moved<high[k]+.05f,"retracted undercarriage stays inside the airframe");
+        }
+      }
+    }
     const float cells[]{.15f,.45f}; const auto gpu=buildGpuMesh(mesh,cells);
     std::set<std::pair<int,unsigned>> pairs;
     for(const auto& batch:gpu.levels[0].batches)

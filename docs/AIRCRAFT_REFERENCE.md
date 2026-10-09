@@ -19,9 +19,9 @@ is a flight-test validation.
 | Span / length | 35.8 / 37.57 m | 10.95 / 15.96 m | 16.94 / 32.74 m | 14.1 / 20.1 m | 9.44 / 14.93 m |
 | Load limit | +2.5 / −1 g | +9 / −3 g | +2.5 / −0.5 g | +9 / −3 g | +8 / −3 g |
 | Published top speed | Mach 0.82 | Mach 2.0; 1.25 at sea level | Mach 3.2 at 24 km | Mach 2.0; 1.1 at sea level | Mach 1.6 |
-| Simulated, 11 km | Mach 0.81 | Mach 1.95 | see below | Mach 1.97 | Mach 1.66 |
-| Simulated, sea level | Mach 0.78 | Mach 1.22 | Mach 0.92 | Mach 1.08 | Mach 0.97 |
-| Simulated without reheat, 11 km | | Mach 1.44 | Mach 0.93 | Mach 1.45 | Mach 1.00 |
+| Simulated, 11 km | Mach 0.81 | Mach 1.97 | see below | Mach 1.97 | Mach 1.66 |
+| Simulated, sea level | Mach 0.78 | Mach 1.26 | Mach 0.92 | Mach 1.08 | Mach 0.97 |
+| Simulated without reheat, 11 km | | Mach 1.46 | Mach 0.93 | Mach 1.45 | Mach 1.00 |
 
 Notes on the figures:
 
@@ -60,6 +60,24 @@ lose thrust in proportion to density above 11 km. The level-flight ceilings
 that result are about 19 km for the Typhoon and 18 km for the Su-57 and JF-17,
 against published service ceilings of 19.8, 20 and 16.9 km.
 
+## Handling since 0.5.9
+
+The Typhoon and JF-17 were made a little stronger in 0.5.9 through figures
+that are estimates, not published ones: maximum lift, induced drag, a small
+cut in the Typhoon's subsonic drag, and the rates the control laws allow.
+Thrust, mass, load limits and top speeds stay as above. Best turn rates at
+500 m with reheat, clean, at spawn mass, from the same force balance as the
+speeds:
+
+| | Typhoon | Su-57 | JF-17 |
+|---|---|---|---|
+| Instantaneous, before / after | 26.9 / 27.5 °/s | 25.2 °/s | 22.0 / 23.0 °/s |
+| Sustained, before / after | 20.6 / 21.4 °/s | 19.2 °/s | 20.3 / 21.2 °/s |
+| Pitch rate limit, before / after | 0.75 / 0.80 rad/s | 0.75 rad/s | 0.65 / 0.70 rad/s |
+| Roll rate limit, before / after | 3.5 / 3.7 rad/s | 3.1 rad/s | 3.1 / 3.3 rad/s |
+
+The Su-57 figures leave out thrust vectoring and its post-stall flight.
+
 ## Guns
 
 | | Typhoon | Su-57 | JF-17 |
@@ -71,7 +89,7 @@ against published service ceilings of 19.8, 20 and 16.9 km.
 
 The JF-17's round count is the 200 usually given for the GSh-23 installation;
 no primary source was found. Damage per round is a gameplay value: 34 for the
-27 and 30 mm guns, 20 for the lighter 23 mm shell.
+27 and 30 mm guns, 24 for the lighter 23 mm shell (20 until 0.5.9).
 
 ## Missiles
 
@@ -85,8 +103,9 @@ whatever the station is named for.
 |---|---|---|
 | Typhoon | 2 × IRIS-T, outer wing pylons | 4 × Meteor, half sunk into the fuselage |
 | Su-57 | 2 × R-74M2, wing-root bays | 4 × R-77M, two tandem bays between the engines |
-| JF-17 | 2 × PL-5EII, wingtip rails | 2 × SD-10A, outer wing pylons |
+| JF-17 | 2 × PL-5EII, wingtip rails | 4 × SD-10A, outer and inner wing pylons |
 
 The Su-57 carries all six inside, so none is visible until it is launched. The
 model has no bay doors; a missile leaves through the skin. Until 0.5.7 the
-Typhoon and Su-57 each carried two of each kind under the wings.
+Typhoon and Su-57 each carried two of each kind under the wings. Until 0.5.9
+the JF-17 carried two SD-10A; four is the type's full radar-missile load.

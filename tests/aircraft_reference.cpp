@@ -47,7 +47,7 @@ int main() {
     const Reference references[]{
       {AircraftType::Typhoon,11000,4996,51.2,60000,90000,9,2.0,1.25,22000,true,1700,1025,150,2,4},
       {AircraftType::Su57,18500,10300,78.8,93000,147000,9,2.0,1.10,22000,true,1500,860,150,2,4},
-      {AircraftType::JF17,6586,2330,24.43,49400,84400,8,1.6,0,20000,false,3400,715,200,2,2}};
+      {AircraftType::JF17,6586,2330,24.43,49400,84400,8,1.6,0,20000,false,3400,715,200,2,4}};
     for(const auto& r:references) {
       if(!validAircraftType(r.type))continue;
       const auto& d=aircraftDefinition(r.type);const auto& f=d.flight;const char* key=d.key.data();

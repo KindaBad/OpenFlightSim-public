@@ -9,7 +9,7 @@ namespace ofs {
 AircraftConfig jf17Config() {
   AircraftConfig c;
   c.control_law=FlightControlLaw::Fighter; c.pitch_arm=-4.6; c.pitch_span=1.9;
-  c.max_pitch_rate=.65; c.max_roll_rate=3.1; c.response_time=.30;
+  c.max_pitch_rate=.70; c.max_roll_rate=3.3; c.response_time=.30;
   c.g_positive=8; c.g_negative=-3; c.alpha_limit=26*kDeg2Rad;
   c.actuator_rate=5;
   c.empty_mass=6586; c.fuel_capacity=2330;
@@ -35,10 +35,10 @@ AircraftConfig jf17Config() {
   }
   c.wing_area=24.43; c.wing_span=9.44; c.mac=2.9;
   c.alpha0=-.5*kDeg2Rad; c.cl_alpha=3.1;
-  c.cl_max_clean=1.35; c.cl_max_full_flap=1.70;
+  c.cl_max_clean=1.45; c.cl_max_full_flap=1.80;
   c.flap_lift=.35;
   c.alpha_crit_clean=20*kDeg2Rad;
-  c.cd0_clean=.021; c.oswald_e=.75;
+  c.cd0_clean=.021; c.oswald_e=.80;
   c.cm0=.015; c.cm_alpha=-.25; c.cm_de=-1.0; c.cm_q=-14;
   c.cl_beta=-.07; c.cl_p=-.45; c.cl_da=.18;
   c.cn_beta=.12; c.cn_r=-.25; c.cn_dr=-.10; c.cy_beta=-.60;

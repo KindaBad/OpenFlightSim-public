@@ -1,3 +1,17 @@
+OpenFlightSim 0.5.9 Launcher
+
+- JF-17 fixes. Its six undercarriage doors no longer hang in the air below the
+  aircraft when the gear is up: they close flush, and the wheels stay inside
+  the fuselage. The doors and belly are plain grey, the edges of the livery
+  are smooth where they were stepped, and the radar missiles hang from the
+  aircraft's own pylons.
+- A stronger JF-17. It carries four radar missiles, up from two, turns about
+  a degree per second tighter, answers the stick a little faster, and its
+  23 mm shells hit a fifth harder.
+- A stronger Typhoon. It turns slightly tighter, accelerates a little better
+  and pitches and rolls a little faster. Top speed is unchanged at Mach 2.
+- Everyone in a shared game needs this version.
+
 OpenFlightSim 0.5.8 Launcher
 
 - New aircraft: the JF-17 Thunder, in the Pakistan Air Force's navy, grey and
