@@ -93,7 +93,7 @@ MissileNetState missile(Reader &r) {
   m.motor = weapons::MotorPhase(r.u(1));
   m.seeker = weapons::SeekerPhase(r.u(1));
   m.age = double(r.u(2)) / 100;
-  if (!m.id || !m.owner.id || unsigned(m.type) < 1 || unsigned(m.type) > 2 ||
+  if (!m.id || !m.owner.id || unsigned(m.type) < 1 || unsigned(m.type) > unsigned(WeaponType::Nuclear) ||
       unsigned(m.motor) > 3 ||
       unsigned(m.seeker) > unsigned(weapons::SeekerPhase::Decoyed) ||
       m.age > 75)
@@ -154,6 +154,9 @@ std::vector<std::uint8_t> encodeWeapon(const WeaponMessage &m) {
     }
     w.u(n.flares, 1);
     w.u(n.chaff, 1);
+    w.u(unsigned(n.bombType), 1);
+    w.u(n.bombs, 2);
+    w.u(n.loadout, 1);
     break;
   }
   case Type::MissileSpawn:
@@ -201,7 +204,7 @@ bool decodeWeapon(std::span<const std::uint8_t> bytes, WeaponMessage &out) {
     m.action = {m.sequence, m.tick, std::uint32_t(r.u(4)),
                 WeaponActionKind(r.u(1)), std::uint8_t(r.u(1))};
     if (!m.entity ||
-        unsigned(m.action.kind) > unsigned(WeaponActionKind::Eject) ||
+        unsigned(m.action.kind) > unsigned(WeaponActionKind::Loadout) ||
         m.action.station > 7)
       r.ok = false;
     break;
@@ -231,7 +234,7 @@ bool decodeWeapon(std::span<const std::uint8_t> bytes, WeaponMessage &out) {
     n.envelope.closure = r.q(1, 2);
     const auto inside = r.u(1);
     n.envelope.inside = inside;
-    if (unsigned(n.mode) > 2 || unsigned(n.weapon) > 2 || ready > 1 ||
+    if (unsigned(n.mode) > 2 || unsigned(n.weapon) > unsigned(WeaponType::Nuclear) || ready > 1 ||
         inside > 1 || n.envelope.kinematicRange > 1000000 ||
         n.envelope.targetRange > 1000000 || n.envelope.minimum > 1000000)
       r.ok = false;
@@ -270,6 +273,11 @@ bool decodeWeapon(std::span<const std::uint8_t> bytes, WeaponMessage &out) {
     }
     n.flares = std::uint8_t(r.u(1));
     n.chaff = std::uint8_t(r.u(1));
+    n.bombType = WeaponType(r.u(1));
+    n.bombs = std::uint16_t(r.u(2));
+    n.loadout = std::uint8_t(r.u(1));
+    if (unsigned(n.bombType) > unsigned(WeaponType::Nuclear) || n.loadout > 7)
+      r.ok = false;
     break;
   }
   case Type::MissileSpawn:
@@ -324,7 +332,7 @@ std::vector<WeaponReplicationSender::Packet> WeaponReplicationSender::build(
     m.sequence = ++sequence_;
     result.push_back({encodeWeapon(m), reliable});
   };
-  if (tick % 12 == 0 && !radar.stations.empty()) {
+  if (tick % 12 == 0 && (!radar.stations.empty() || radar.bombType != WeaponType::None)) {
     WeaponMessage m;
     m.type = Type::RadarState;
     m.radar = radar;
@@ -405,11 +413,17 @@ bool WeaponReplicationReceiver::receive(const WeaponMessage &m, Tick now) {
     return true;
   }
   if (m.type == Type::MissileRemove) {
-    for (const auto &e : m.removals) {
+    for (auto e : m.removals) {
       if (retired_.contains(e.missile.id) &&
           retired_.at(e.missile.id) >= m.tick)
         continue;
       retired_[e.missile.id] = m.tick;
+      // The removal names only the missile; what it was is remembered here.
+      if (const auto known = missiles_.find(e.missile.id); known != missiles_.end()) {
+        e.missile.type = known->second.type;
+        e.missile.owner = known->second.owner;
+        e.missile.velocity = known->second.velocity;
+      }
       if (!sampled_.contains(e.missile.id) ||
           sampled_.at(e.missile.id) <= m.tick) {
         missiles_.erase(e.missile.id);

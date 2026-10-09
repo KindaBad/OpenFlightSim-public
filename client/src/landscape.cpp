@@ -1,5 +1,7 @@
 #include "landscape.hpp"
 
+#include "ofs/bases.hpp"
+
 #include "airfield.hpp"
 
 #include "ofs/terrain.hpp"
@@ -38,8 +40,12 @@ float field(double north, double east, double wavelength, int octaves, std::uint
 bool insideAirfieldClearway(double north, double east) {
   // Nothing grows inside the fence, on the roads that lead to it, or under
   // either approach, where the trees would stand in the way of the lights.
-  return airfieldUse(north, east) != AirfieldUse::Outside ||
-         (std::abs(east) < 130 && std::abs(north) < 1900);
+  if (airfieldUse(north, east) != AirfieldUse::Outside) return true;
+  for (const auto& site : kAirfieldSites)
+    if (std::abs(east - site.east) < 130 && std::abs(north - site.north) < 1900) return true;
+  // Nor on the ground the depot beside a team airfield stands on.
+  return airfieldOwner(north, east) != Team::None && std::abs(east - teamAirfield(airfieldOwner(north, east)).east - 900) < 420 &&
+         std::abs(north - teamAirfield(airfieldOwner(north, east)).north) < 480;
 }
 
 Landscape::Landscape(int landSize, int heightSize)
@@ -72,7 +78,7 @@ Landscape::Landscape(int landSize, int heightSize)
       constexpr double d = 60;
       const float slope = std::hypot(elevation(north + d, east) - elevation(north - d, east),
                                      elevation(north, east + d) - elevation(north, east - d)) / float(2 * d);
-      const float radius = float(std::hypot(north, east));
+      const float radius = float(airfieldDistance(north, east));
       const float moisture = field(north, east, 2600, 4, 501) * .5f + .5f;
       // Farmland: the flat lowland around the field, away from the runway.
       const float farm = smooth(1900.f, 3400.f, radius) * (1 - smooth(70.f, 210.f, altitude)) *

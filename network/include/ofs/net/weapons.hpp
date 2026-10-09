@@ -16,14 +16,17 @@ enum class WeaponActionKind : std::uint8_t {
   Unlock,
   Flare,
   Chaff,
-  Eject // the pilot abandons the aircraft; `station` is unused
+  Eject, // the pilot abandons the aircraft; `station` is unused
+  // A bomber asks for the bomb load numbered `station`, which it is given the
+  // next time it is rearmed.
+  Loadout
 };
 struct WeaponAction {
   std::uint64_t sequence{};
   Tick tick{};
   std::uint32_t generation{};
   WeaponActionKind kind{WeaponActionKind::NextTarget};
-  std::uint8_t station{}; // Launch only, never a transform or hit claim.
+  std::uint8_t station{}; // Launch and Loadout only, never a transform or hit claim.
 };
 struct Missile {
   std::uint64_t id{};
@@ -33,7 +36,20 @@ struct Missile {
   weapons::MissileState state;
   // The decoy its seeker is following in place of its target, or zero.
   std::uint64_t decoy{};
+  // The side that fired it, in a team game: it does that side no harm.
+  Team team{Team::None};
 };
+// A bomb that has gone off, for whatever stands on the ground near it.
+struct Blast {
+  WeaponType type{WeaponType::Bomb500};
+  EntityRef owner;
+  Team team{Team::None};
+  Vec3 position;
+};
+// Ground defences fire as entities of their own: this bit and the index of
+// the structure in ofs::structures().
+constexpr EntityId defenceEntityBase = EntityId{1} << 62;
+inline bool defenceEntity(EntityId id) { return (id >> 62) == 1; }
 struct MissileNetState {
   std::uint64_t id{};
   EntityRef owner, target;
@@ -60,6 +76,7 @@ struct AircraftWeapons {
   weapons::Radar radar;
   std::map<Tick, WeaponAction> actions;
   std::uint64_t lastSequence{};
+  unsigned bombsReleased{};
   Tick readyTick{};
   bool seekerReady{};
   // The mounted infrared seeker hunts on its own: it takes the hottest target
@@ -98,6 +115,11 @@ struct RadarNetState {
   weapons::Envelope envelope;
   std::vector<Loadout> loadouts;
   std::uint8_t flares{}, chaff{};
+  // A bomber's load: what it carries, how many are left and which load it
+  // has asked for next.
+  WeaponType bombType{WeaponType::None};
+  std::uint16_t bombs{};
+  std::uint8_t loadout{};
 };
 std::uint8_t mountedMask(const weapons::Inventory &);
 // Mean engine power as a heat seeker sees it. An engine that was shot out
@@ -114,10 +136,18 @@ MissileNetState projectMissile(const Missile &, EntityId viewer);
 bool missileInterest(const Missile &, EntityId viewer, Vec3 observer);
 class MissileCombat {
 public:
-  static constexpr std::size_t capacity = 128;
+  // Room for two bombers' whole loads in the air beside the missiles.
+  static constexpr std::size_t capacity = 320;
   MissileCombat();
+  // `autonomous` is a launch with nobody to guide it: the seeker is on its own
+  // from the rail.
   bool launch(Tick, EntityRef owner, const State &, Vec3 station, WeaponType,
-              const weapons::Track &target);
+              const weapons::Track &target, Team team = Team::None,
+              bool autonomous = false);
+  // Lets a bomb go from `station`, the `count`th this aircraft has dropped.
+  bool release(Tick, EntityRef owner, const State &, Vec3 station, WeaponType,
+               unsigned count, Team team = Team::None);
+  std::vector<Blast> takeBlasts();
   // `decoys` are the flares and chaff in the air, which seekers may follow
   // instead of their targets.
   void step(Tick, std::span<CombatTarget>,
@@ -134,6 +164,7 @@ private:
   std::uint64_t nextId_{std::uint64_t{1} << 63};
   std::vector<Missile> missiles_;
   std::vector<MissileEvent> events_;
+  std::vector<Blast> blasts_;
   WeaponsStats stats_;
 };
 RadarNetState radarProjection(const AircraftWeapons &,

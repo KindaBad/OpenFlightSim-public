@@ -27,7 +27,229 @@ World::World(bool airborne, std::optional<GunConfig> gun)
 const GunConfig& World::gunFor(AircraftType type) const {
   return gunOverride_ ? *gunOverride_ : aircraftDefinition(type).gun.value();
 }
-EntityId World::join(AircraftType type, std::string name) {
+namespace {
+// Guns and launchers of the base defences. Gameplay values.
+GunConfig flakGun() {
+  GunConfig gun;
+  gun.rpm = 480;
+  gun.muzzleVelocity = 880;
+  gun.dispersion = .011;
+  gun.damage = 9;
+  gun.lifetime = 4;
+  gun.range = 3400;
+  gun.muzzle = {};
+  gun.ammo = 60000;
+  return gun;
+}
+bool weaponStructure(StructureKind kind) {
+  return kind == StructureKind::Flak || kind == StructureKind::Sam;
+}
+// Seconds between rounds of a team game.
+constexpr Tick roundPause = 15 * 120;
+} // namespace
+void World::setTeams(unsigned scoreLimit) {
+  teams_ = true;
+  scoreLimit_ = std::clamp(scoreLimit, 50u, 5000u);
+  sites_.assign(structures().size(), Site{});
+}
+Team World::smallerTeam() const {
+  int red = 0, blue = 0;
+  for (const auto &[id, p] : players_) {
+    (void)id;
+    red += p.team == Team::Red;
+    blue += p.team == Team::Blue;
+  }
+  return blue < red ? Team::Blue : Team::Red;
+}
+bool World::setTeam(EntityId id, Team team) {
+  const auto found = players_.find(id);
+  if (!teams_ || found == players_.end() || team == Team::None ||
+      found->second.team == team)
+    return false;
+  auto &p = found->second;
+  p.team = team;
+  combat_.removeOwner(id);
+  missiles_.removeOwner(id, tick_);
+  // A new life on the new side, so nothing aimed at the old one follows.
+  ++p.life.generation;
+  p.life.health = 100;
+  p.life.ammo = aircraftDefinition(p.type).gun ? gunFor(p.type).ammo : 0;
+  p.life.readyTick = tick_;
+  p.life.respawnTick = 0;
+  spawn(id, p);
+  CombatEvent e;
+  e.kind = CombatKind::Respawn;
+  e.tick = tick_;
+  e.owner = e.target = id;
+  e.generation = p.life.generation;
+  e.health = 100;
+  e.position = p.sim.state().pos_ned;
+  combat_.emit(e);
+  return true;
+}
+TeamStatus World::teamStatus() const {
+  TeamStatus status;
+  status.teams = teams_;
+  if (!teams_)
+    return status;
+  status.scoreLimit = std::uint16_t(scoreLimit_);
+  status.score[0] = score_[0];
+  status.score[1] = score_[1];
+  status.winner = winner_;
+  status.restartSeconds = winner_ != Team::None && restart_ > tick_
+                              ? std::uint8_t(std::min<Tick>(255, (restart_ - tick_ + 119) / 120))
+                              : 0;
+  for (const auto &site : sites_)
+    status.health.push_back(std::uint8_t(std::ceil(clamp(site.health, 0, 100))));
+  return status;
+}
+std::vector<std::string> World::takeNotices() {
+  auto notices = std::move(notices_);
+  notices_.clear();
+  return notices;
+}
+void World::score(Team team, int points) {
+  if (!teams_ || team == Team::None || winner_ != Team::None || points <= 0)
+    return;
+  auto &total = score_[team == Team::Red ? 0 : 1];
+  total += std::uint32_t(points);
+  if (total >= scoreLimit_) {
+    winner_ = team;
+    restart_ = tick_ + roundPause;
+    notices_.push_back(std::string(teamName(team)) + " wins the round, " +
+                       std::to_string(score_[0]) + " to " + std::to_string(score_[1]) +
+                       ". The next one starts in 15 seconds");
+  }
+}
+void World::startRound() {
+  score_[0] = score_[1] = 0;
+  winner_ = Team::None;
+  restart_ = 0;
+  sites_.assign(structures().size(), Site{});
+  combat_ = Combat(gunOverride_.value_or(GunConfig{}));
+  missiles_ = MissileCombat();
+  decoys_.clear();
+  for (auto &[id, p] : players_) {
+    ++p.life.generation;
+    p.life.health = 100;
+    p.life.ammo = aircraftDefinition(p.type).gun ? gunFor(p.type).ammo : 0;
+    p.life.readyTick = tick_;
+    p.life.respawnTick = 0;
+    spawn(id, p);
+    CombatEvent e;
+    e.kind = CombatKind::Respawn;
+    e.tick = tick_;
+    e.owner = e.target = id;
+    e.generation = p.life.generation;
+    e.health = 100;
+    e.position = p.sim.state().pos_ned;
+    combat_.emit(e);
+  }
+  notices_.push_back("A new round has started");
+}
+void World::applyBlasts() {
+  const auto blasts = missiles_.takeBlasts();
+  if (!teams_ || winner_ != Team::None)
+    return;
+  const auto all = structures();
+  for (const auto &blast : blasts) {
+    const auto &bomb = weapons::bombDefinition(blast.type);
+    for (std::size_t i = 0; i < all.size(); ++i) {
+      auto &site = sites_[i];
+      // A side's own bombs do its own ground no harm.
+      if (site.health <= 0 || all[i].team == blast.team)
+        continue;
+      const Vec3 at{all[i].north, all[i].east, groundHeightNed(all[i].north, all[i].east)};
+      const double distance = (at - blast.position).norm();
+      if (distance >= bomb.structureRadius)
+        continue;
+      site.health -= bomb.structureDamage * std::pow(1 - distance / bomb.structureRadius, 2);
+      if (site.health > 0)
+        continue;
+      site.health = 0;
+      site.rebuilt = tick_ + Tick(kStructureRebuildSeconds / tickSeconds);
+      const auto owner = players_.find(blast.owner.id);
+      const std::string place = all[i].site ? "outpost " + std::string(1, char('A' + all[i].site - 1)) : "base";
+      notices_.push_back((owner != players_.end() ? owner->second.name : std::string(teamName(blast.team))) +
+                         " destroyed a " + structureName(all[i].kind) + " at " + teamName(all[i].team) + "'s " +
+                         place + " (+" + std::to_string(all[i].points) + ")");
+      score(blast.team, all[i].points);
+    }
+  }
+}
+void World::defend(std::span<CombatTarget> targets) {
+  if (!teams_ || winner_ != Team::None)
+    return;
+  const auto all = structures();
+  static const GunConfig gun = flakGun();
+  for (std::size_t i = 0; i < all.size(); ++i) {
+    auto &site = sites_[i];
+    if (site.health <= 0) {
+      if (tick_ >= site.rebuilt) {
+        site = Site{};
+        notices_.push_back(std::string(teamName(all[i].team)) + " rebuilt a " + structureName(all[i].kind));
+      }
+      continue;
+    }
+    if (!weaponStructure(all[i].kind) || !defences_)
+      continue;
+    const bool flak = all[i].kind == StructureKind::Flak;
+    // Guns shoot in bursts of a second in every three, each gun in its turn.
+    if (flak ? (tick_ / 120 + i) % 3 != 0 : tick_ < site.ready)
+      continue;
+    const double ground = groundHeightNed(all[i].north, all[i].east);
+    const Vec3 muzzle{all[i].north, all[i].east, ground - (flak ? 3. : 8.)};
+    const CombatTarget *nearest = nullptr;
+    double range = flak ? kFlakRange : kSamRange;
+    for (const auto &t : targets) {
+      if (!t.life->alive() || t.team == all[i].team || t.team == Team::None)
+        continue;
+      const auto &at = t.current.pos_ned;
+      const double distance = (at - muzzle).norm();
+      if (distance >= range ||
+          (!flak && groundHeightNed(at.x, at.y) - at.z < kSamFloor) ||
+          !weapons::lineOfSight(muzzle, at))
+        continue;
+      range = distance;
+      nearest = &t;
+    }
+    if (!nearest)
+      continue;
+    const auto &target = nearest->current;
+    const EntityId entity = defenceEntityBase | i;
+    State aim;
+    aim.pos_ned = muzzle;
+    if (flak) {
+      // Lead the target by the shell's time of flight and lift for its drop.
+      // The gunner's aim wanders, so a target that keeps turning is missed.
+      Vec3 point = target.pos_ned;
+      double flight = 0;
+      for (int pass = 0; pass < 3; ++pass) {
+        flight = (point - muzzle).norm() / gun.muzzleVelocity;
+        point = target.pos_ned + target.vel_ned * flight;
+      }
+      point.z -= .5 * kG0 * flight * flight;
+      const double phase = double(tick_) * .013 + double(i) * 1.7;
+      const Vec3 wander{std::sin(phase), std::cos(phase * 1.31), std::sin(phase * .77)};
+      const Vec3 direction = ((point - muzzle).normalized() + wander * .012).normalized();
+      aim.att = quatFromEuler(0, std::asin(clamp(-direction.z, -1, 1)), std::atan2(direction.y, direction.x));
+      site.gun.ammo = gun.ammo;
+      combat_.fire(tick_, entity, aim, site.gun, gun, all[i].team);
+    } else {
+      // Launched steeply toward the target, with the seeker already looking.
+      Vec3 direction = (target.pos_ned - muzzle).normalized();
+      direction.z = std::min(direction.z, -.45);
+      direction = direction.normalized();
+      aim.att = quatFromEuler(0, std::asin(clamp(-direction.z, -1, 1)), std::atan2(direction.y, direction.x));
+      aim.vel_ned = direction * 60;
+      const double now = double(tick_) * tickSeconds;
+      const weapons::Track track{{nearest->id, nearest->life->generation}, target.pos_ned, target.vel_ned, now, 1, now};
+      if (missiles_.launch(tick_, {entity, 0}, aim, {}, WeaponType::ActiveRadar, track, all[i].team, true))
+        site.ready = tick_ + Tick(kSamReloadSeconds / tickSeconds);
+    }
+  }
+}
+EntityId World::join(AircraftType type, std::string name, Team team, unsigned loadout) {
   if (!validAircraftType(type) || players_.size() >= maxPlayers)
     return 0;
   unsigned slot = 0;
@@ -43,6 +265,9 @@ EntityId World::join(AircraftType type, std::string name) {
   const auto id = nextId_++;
   auto &p = players_[id];
   p.type = type;
+  // A team game puts whoever did not choose on the side with fewer pilots.
+  p.team = !teams_ ? Team::None : team != Team::None ? team : smallerTeam();
+  p.loadout = std::uint8_t(weapons::bombLoadouts(type) ? loadout % weapons::bombLoadouts(type) : 0);
   p.name = name.empty() ? "Pilot " + std::to_string(id) : std::move(name);
   p.sim = Simulator(aircraftDefinition(type).flight);
   p.spawnSlot = slot;
@@ -79,7 +304,7 @@ void World::spawn(EntityId id, Player &p) {
     controls = trim.controls;
     const auto human = std::find_if(players_.begin(), players_.end(),
         [](const auto &entry) { return !entry.second.bot && entry.second.life.alive(); });
-    if (human != players_.end()) {
+    if (human != players_.end() && !teams_) {
       const auto &target = human->second.sim.state();
       const double yaw = std::atan2(target.vel_ned.y, target.vel_ned.x);
       const auto heading = quatFromEuler(0, 0, yaw);
@@ -99,6 +324,24 @@ void World::spawn(EntityId id, Player &p) {
   }
   p.lastAttacker = 0;
   p.lastAttacked = 0;
+  Vec3 back{-150, 0, 0};
+  if (teams_ && p.team != Team::None) {
+    // Each side starts at its own airfield, pointed down the runway toward
+    // the other: in the air over it, or lined up nose to tail on the ground.
+    const auto &field = teamAirfield(p.team);
+    const double yaw = p.team == Team::Red ? kPi : 0;
+    const auto heading = quatFromEuler(0, 0, yaw);
+    const bool flying = airborne_ || p.bot;
+    const double height = flying ? s.pos_ned.z : -(p.sim.config().gear_nose.z - .15);
+    const double spacing = flying ? 250 : 95;
+    s.att = heading * s.att;
+    s.vel_ned = heading.rotate(s.vel_ned);
+    // In the air later arrivals are put behind; on the runway, ahead.
+    back = heading.rotate({flying ? -spacing : spacing, 0, 0});
+    s.pos_ned = Vec3{field.north, field.east, height} +
+                heading.rotate({flying ? 0. : -1230., 0, 0}) + back * double(p.spawnSlot % 12) +
+                heading.rotate({0, flying ? 120. * double(p.spawnSlot / 12) : 0., 0});
+  }
   // Existing slots supply the baseline; move back if a currently alive aircraft
   // occupies it. At most 64 exclusions, spaced candidates terminate in 65
   // tries.
@@ -110,9 +353,10 @@ void World::spawn(EntityId id, Player &p) {
         safe = false;
     if (safe)
       break;
-    s.pos_ned.x -= 150;
+    s.pos_ned += back;
   }
-  p.weapons.inventory.reset(p.type);
+  p.weapons.inventory.reset(p.type, p.loadout);
+  p.weapons.bombsReleased = 0;
   p.weapons.radar.reset();
   p.weapons.actions.clear();
   p.weapons.readyTick = tick_;
@@ -139,7 +383,7 @@ void World::controlBot(EntityId id, Player &p) {
   EntityId target = 0;
   double nearest = 30000.;
   for (const auto &[other, q] : players_)
-    if (other != id && !q.bot && q.life.alive()) {
+    if (other != id && (teams_ ? q.team != p.team : !q.bot) && q.life.alive()) {
       const double distance = (q.sim.state().pos_ned - p.sim.state().pos_ned).norm();
       const double score = distance * (other == p.botTarget ? .8 : 1.);
       if (score < nearest) { nearest = score; target = other; }
@@ -234,11 +478,13 @@ bool World::needsService(const Player &p) const {
   const auto &w = p.weapons;
   const bool armed = aircraftDefinition(p.type).gun.has_value();
   weapons::Inventory full;
-  full.reset(p.type);
+  full.reset(p.type, p.loadout);
   for (std::size_t i = 0; i < full.stations.size(); ++i)
     if (i >= w.inventory.stations.size() ||
         w.inventory.stations[i].mounted != full.stations[i].mounted)
       return true;
+  if (w.inventory.bombs != full.bombs || w.inventory.bombType != full.bombType)
+    return true;
   const auto decoys = weapons::decoyCapacity(p.type);
   return needsRepair(p.sim.config(), p.sim.state()) || p.life.health < 100 ||
          (armed && p.life.ammo < gunFor(p.type).ammo) || w.flares < decoys ||
@@ -249,8 +495,9 @@ void World::service(EntityId id, Player &p) {
   repairAndRefuel(p.sim.config(), state);
   auto &w = p.weapons;
   const auto selected = w.inventory.selected;
-  w.inventory.reset(p.type);
-  w.inventory.selected = selected;
+  w.inventory.reset(p.type, p.loadout);
+  if (!weapons::isBomb(w.inventory.bombType))
+    w.inventory.selected = selected;
   w.inventory.applyPayload(p.sim.config(), state);
   w.flares = w.chaff = std::uint8_t(weapons::decoyCapacity(p.type));
   p.sim.setState(state);
@@ -486,7 +733,7 @@ bool World::enqueueWeapon(EntityId id, const WeaponAction &action) {
     return false;
   };
   if (it == players_.end() || !action.sequence ||
-      unsigned(action.kind) > unsigned(WeaponActionKind::Eject) ||
+      unsigned(action.kind) > unsigned(WeaponActionKind::Loadout) ||
       action.tick > tick_ + 120 ||
       (action.tick < tick_ && tick_ - action.tick > 120))
     return reject();
@@ -500,10 +747,11 @@ bool World::enqueueWeapon(EntityId id, const WeaponAction &action) {
   if (action.sequence <= w.lastSequence)
     return true;
   // Every aircraft has a seat to leave by; only armed ones have weapons.
+  const auto &definition = aircraftDefinition(p.type);
   if (w.actions.size() >= 32 ||
-      (!aircraftDefinition(p.type).gun && action.kind != WeaponActionKind::Eject))
+      (!definition.gun && !definition.bomber && action.kind != WeaponActionKind::Eject))
     return reject();
-  if (action.kind == WeaponActionKind::Launch &&
+  if (action.kind == WeaponActionKind::Launch && !definition.bomber &&
       action.station >= w.inventory.stations.size())
     return reject();
   w.lastSequence = action.sequence;
@@ -517,23 +765,31 @@ bool World::enqueueWeapon(EntityId id, const WeaponAction &action) {
 void World::step() {
   auto start = std::chrono::steady_clock::now();
   ++tick_;
-  std::vector<weapons::SensorTarget> sensorTargets;
-  for (const auto &[id, p] : players_)
+  if (teams_ && winner_ != Team::None && tick_ >= restart_)
+    startRound();
+  // What each side's sensors can be shown: everything in a free-for-all, and
+  // in a team game only the other side.
+  std::array<std::vector<weapons::SensorTarget>, 3> sensors;
+  for (const auto &[id, p] : players_) {
     if (p.life.alive()) {
       const auto &s = p.sim.state();
-      sensorTargets.push_back({{id, p.life.generation},
-                               s.pos_ned,
-                               s.vel_ned,
-                               s.att,
-                               p.type,
-                               heatPower(s),
-                               (s.afterburner[0] + s.afterburner[1]) * .5,
-                               true});
+      const weapons::SensorTarget target{{id, p.life.generation},
+                                         s.pos_ned,
+                                         s.vel_ned,
+                                         s.att,
+                                         p.type,
+                                         heatPower(s),
+                                         (s.afterburner[0] + s.afterburner[1]) * .5,
+                                         true};
+      for (unsigned side = 0; side < 3; ++side)
+        if (side == 0 || side != unsigned(p.team))
+          sensors[side].push_back(target);
     }
+  }
   auto radarStart = std::chrono::steady_clock::now();
   for (auto &[id, p] : players_)
     if (p.life.alive() && aircraftDefinition(p.type).gun) {
-      p.weapons.radar.update(p.sim.state(), sensorTargets,
+      p.weapons.radar.update(p.sim.state(), sensors[unsigned(p.team)],
                              {id, p.life.generation},
                              double(tick_) * tickSeconds);
       if (p.weapons.radar.locked.id)
@@ -577,6 +833,7 @@ void World::step() {
         continue;
     }
     reload(p);
+    const auto &sensorTargets = sensors[unsigned(p.team)];
     auto &w = p.weapons;
     w.seekerReady = false;
     w.envelope = {};
@@ -717,7 +974,34 @@ void World::step() {
       case WeaponActionKind::Eject:
         ejecting = true;
         break;
+      case WeaponActionKind::Loadout:
+        if (const auto loads = weapons::bombLoadouts(p.type))
+          p.loadout = std::uint8_t(action.station % loads);
+        break;
       case WeaponActionKind::Launch: {
+        if (weapons::isBomb(w.inventory.bombType)) {
+          // A bomb is let go only with room to fall clear of the aircraft.
+          const auto &own = p.sim.state();
+          if (!w.inventory.bombs || tick_ < w.readyTick ||
+              groundHeightNed(own.pos_ned.x, own.pos_ned.y) - own.pos_ned.z < 40) {
+            ++missiles_.stats().rejected;
+            break;
+          }
+          const auto &bomb = weapons::bombDefinition(w.inventory.bombType);
+          if (missiles_.release(tick_, {id, p.life.generation}, own,
+                                w.inventory.bay - loadedCg(p.sim.config(), own),
+                                w.inventory.bombType, w.bombsReleased, p.team)) {
+            ++w.bombsReleased;
+            --w.inventory.bombs;
+            w.readyTick = tick_ + Tick(std::ceil(bomb.releaseInterval / tickSeconds));
+            auto state = own;
+            w.inventory.applyPayload(p.sim.config(), state);
+            p.sim.setState(state);
+          }
+          break;
+        }
+        if (action.station >= w.inventory.stations.size())
+          break;
         auto &station = w.inventory.stations[action.station];
         weapons::Track target;
         bool tracked = false;
@@ -748,7 +1032,7 @@ void World::step() {
         const auto offset =
             station.position - loadedCg(p.sim.config(), p.sim.state());
         if (missiles_.launch(tick_, {id, p.life.generation}, p.sim.state(),
-                             offset, station.mounted, target)) {
+                             offset, station.mounted, target, p.team)) {
           w.inventory.consume(action.station, station.mounted);
           w.readyTick = tick_ + 60;
           auto state = p.sim.state();
@@ -805,7 +1089,7 @@ void World::step() {
     // interval.
     if (p.firing && aircraftDefinition(p.type).gun) {
       auto gun=gunFor(p.type);gun.muzzle=gun.muzzle-loadedCg(p.sim.config(),previous);
-      combat_.fire(tick_, id, previous, p.life, gun);
+      combat_.fire(tick_, id, previous, p.life, gun, p.team);
     }
     p.sim.step(tickSeconds);
     const auto& impact=p.sim.groundImpact();
@@ -836,15 +1120,19 @@ void World::step() {
     }
     // Landing and standing still is a turn-round. The count runs whenever the
     // aircraft stands, so one that needs nothing is served the moment it does.
-    if (p.life.alive() && standingOnGround(p.sim.config(), p.sim.state())) {
+    // In a team game the stop has to be made at the side's own airfield.
+    if (p.life.alive() && standingOnGround(p.sim.config(), p.sim.state()) &&
+        (!teams_ || airfieldOwner(p.sim.state().pos_ned.x, p.sim.state().pos_ned.y) == p.team)) {
       if (++p.standing >= serviceTicks() && needsService(p)) {
         service(id, p);
         p.standing = 0;
       }
     } else
       p.standing = 0;
-    targets[count++] = {id, previous, p.sim.state(), &p.life, p.type};
+    targets[count] = {id, previous, p.sim.state(), &p.life, p.type};
+    targets[count++].team = p.team;
   }
+  defend(std::span(targets).first(count));
   for (auto &decoy : decoys_)
     weapons::advanceDecoy(decoy, weather_, tickSeconds);
   std::erase_if(decoys_, [](const auto &decoy) {
@@ -858,6 +1146,7 @@ void World::step() {
       controllers[id] = &p.weapons;
   missiles_.step(tick_, std::span(targets).first(count), controllers, weather_,
                  combat_, decoys_);
+  applyBlasts();
   for (std::size_t i = 0; i < count; ++i) {
     const auto &target = targets[i];
     if (!target.damaged)
@@ -890,6 +1179,15 @@ void World::step() {
       p.weapons.acquisitionTarget = {};
       p.weapons.lockProgress = 0;
     }
+  if (teams_) {
+    // Whatever was shot down this tick counts for the side that did it.
+    for (auto &[id, p] : players_) {
+      (void)id;
+      if (p.life.kills > p.countedKills)
+        score(p.team, int(p.life.kills - p.countedKills) * kKillPoints);
+      p.countedKills = p.life.kills;
+    }
+  }
   stats_.lastTickUs = std::chrono::duration<double, std::micro>(
                           std::chrono::steady_clock::now() - start)
                           .count();

@@ -34,7 +34,8 @@ int main(int argc, char** argv) {
         << ",\"name\":" << std::quoted(std::string(d.displayName))
         << ",\"model\":" << std::quoted(std::string(d.modelAsset))
         << ",\"armed\":" << (d.gun ? "true" : "false")
-        << ",\"engines\":" << d.flight.engine_count
+        // The bomber's two engine slots each stand for the four under one wing.
+        << ",\"engines\":" << (d.bomber ? d.flight.engine_count * 4 : d.flight.engine_count)
         << ",\"span_m\":" << d.flight.wing_span
         << ",\"reference_mass_kg\":" << d.flight.mass
         << ",\"empty_mass_kg\":" << d.flight.empty_mass
@@ -46,6 +47,11 @@ int main(int argc, char** argv) {
         << ",\"gun_rounds\":" << (d.gun ? d.gun->ammo : 0)
         << ",\"heat_seekers\":" << loadout.remaining(ofs::weapons::WeaponType::Infrared)
         << ",\"radar_missiles\":" << loadout.remaining(ofs::weapons::WeaponType::ActiveRadar)
+        << ",\"bomber\":" << (d.bomber ? "true" : "false")
+        << ",\"bomb_loads\":[";
+    for (unsigned load = 0; load < ofs::weapons::bombLoadouts(d.type); ++load)
+      out << (load ? "," : "") << std::quoted(std::string(ofs::weapons::bombLoad(d.type, load).name));
+    out << "]"
         << ",\"lods\":[";
     bool firstLod = true;
     for (const auto& lod : d.lodAssets) {

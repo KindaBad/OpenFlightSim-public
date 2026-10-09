@@ -19,6 +19,9 @@ struct ServerConfig {
   // Seconds between missiles handed out in flight, one at a time; zero rearms
   // on the ground only.
   double missileReload{};
+  // Red against Blue, first to `scoreLimit` points, in place of a free-for-all.
+  bool teams{};
+  unsigned scoreLimit{300};
   // A named game answers discovery on the local network; an unnamed one is
   // reachable by address only.
   std::string lobbyName, version;
@@ -80,5 +83,9 @@ private:
   void notice(const std::string &);
   std::string pilot(EntityId) const;
   std::unique_ptr<DiscoveryResponder> discovery_;
+  // The team status last sent to everyone, and when.
+  TeamStatus teamStatus_;
+  Tick teamStatusTick_{};
+  void sendTeamStatus(Connection);
 };
 } // namespace ofs::net

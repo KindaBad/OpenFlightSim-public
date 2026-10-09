@@ -27,8 +27,8 @@ WaterMap build() {
     for (int column = 0; column < n; ++column)
       height[std::size_t(row) * n + column] = float(terrainElevation(northOf(row), eastOf(column)));
   // Priority flood (Barnes et al. 2014): raise every cell to the lowest level
-  // from which water can still drain to the map edge. The airfield drains too,
-  // otherwise the basin it sits in would be one large lake.
+  // from which water can still drain to the map edge. The airfields drain too,
+  // otherwise the basin each sits in would be one large lake.
   std::vector<float> spill(height.size(), 0.f);
   std::vector<std::uint8_t> visited(height.size(), 0);
   using Entry = std::pair<float, int>;
@@ -36,7 +36,7 @@ WaterMap build() {
   for (int row = 0; row < n; ++row) for (int column = 0; column < n; ++column) {
     const int index = row * n + column;
     const bool edge = row == 0 || column == 0 || row == n - 1 || column == n - 1;
-    if (edge || std::hypot(northOf(row), eastOf(column)) < 3800.) {
+    if (edge || airfieldDistance(northOf(row), eastOf(column)) < 3800.) {
       spill[index] = height[index];
       visited[index] = 1;
       open.emplace(height[index], index);

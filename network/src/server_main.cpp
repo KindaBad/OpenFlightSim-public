@@ -33,13 +33,18 @@ int main(int argc, char **argv) {
         config.airborne = false;
       else if (a == "--missile-reload")
         config.missileReload = number(argument(i, argc, argv), 0, 3600);
+      else if (a == "--teams")
+        config.teams = true;
+      else if (a == "--score-limit")
+        config.scoreLimit = number(argument(i, argc, argv), 50, 5000);
       else if (a == "--lan-name")
         config.lobbyName = lobbyName(std::string(argument(i, argc, argv)));
       else
         throw std::invalid_argument(
             "ofs_server [--bind IP] [--port N] [--max-players 1..64] "
             "[--snapshot-hz 1..60] [--bots 0..8] [--ground] [--seconds N] "
-            "[--lan-name NAME] [--missile-reload SECONDS]");
+            "[--lan-name NAME] [--missile-reload SECONDS] "
+            "[--teams] [--score-limit 50..5000]");
     }
     std::signal(SIGINT, stop);
     std::signal(SIGTERM, stop);

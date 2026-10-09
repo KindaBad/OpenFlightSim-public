@@ -79,6 +79,10 @@ if(OFS_INCLUDE_SU57)
     "${CMAKE_SOURCE_DIR}/assets/aircraft/su57/su57_lod2.glb"
     "${CMAKE_SOURCE_DIR}/assets/aircraft/su57/su57_lod3.glb" DESTINATION assets/aircraft/su57)
 endif()
+install(FILES "${CMAKE_SOURCE_DIR}/assets/aircraft/b52/b52_lod0.glb"
+  "${CMAKE_SOURCE_DIR}/assets/aircraft/b52/b52_lod1.glb"
+  "${CMAKE_SOURCE_DIR}/assets/aircraft/b52/b52_lod2.glb"
+  "${CMAKE_SOURCE_DIR}/assets/aircraft/b52/b52_lod3.glb" DESTINATION assets/aircraft/b52)
 if(OFS_INCLUDE_JF17)
   install(FILES "${CMAKE_SOURCE_DIR}/assets/aircraft/jf17/jf17_lod0.glb"
     "${CMAKE_SOURCE_DIR}/assets/aircraft/jf17/jf17_lod1.glb"

@@ -301,17 +301,33 @@ void Renderer::buildEnvironment(Synthesis& data) {
       if (!bgfx::isValid(airfieldGround_.back().buffer)) throw std::runtime_error("Airfield paving upload failed");
     };
     // Where two kinds of paving meet they overlap, so each has a layer of its own.
-    ground(airfield.ground.roads, 1, 1, {.066f, .065f, .062f});
-    ground(airfield.ground.concrete, 3, 1.25f, {.215f, .212f, .200f});
-    ground(airfield.ground.taxiways, 1, 1.5f, {.092f, .092f, .094f});
-    ground(airfield.ground.runway, 1, 1.75f, {.074f, .075f, .078f});
-    ground(airfield.ground.whitePaint, 2, 2.5f, {.80f, .81f, .78f});
-    ground(airfield.ground.yellowPaint, 2, 2.5f, {.72f, .47f, .035f});
-    for (const auto& part : airfield.parts) {
-      if (part.vertices.empty()) continue;
-      airfieldParts_.push_back({upload(part.vertices), part.material, static_cast<std::uint32_t>(part.vertices.size())});
-      if (!bgfx::isValid(airfieldParts_.back().buffer)) throw std::runtime_error("Airfield structure upload failed");
-    }
+    // The same airfield is laid at all three sites, which stand at one height.
+    const auto moved = [](std::vector<SurfaceVertex> data, const AirfieldSite& site) {
+      for (auto& vertex : data) { vertex.x += float(site.east); vertex.z -= float(site.north); }
+      return data;
+    };
+    const auto everywhere = [&](const std::vector<SurfaceVertex>& data) {
+      std::vector<SurfaceVertex> all;
+      all.reserve(data.size() * 3);
+      for (const auto& site : kAirfieldSites) {
+        const auto copy = moved(data, site);
+        all.insert(all.end(), copy.begin(), copy.end());
+      }
+      return all;
+    };
+    ground(everywhere(airfield.ground.roads), 1, 1, {.066f, .065f, .062f});
+    ground(everywhere(airfield.ground.concrete), 3, 1.25f, {.215f, .212f, .200f});
+    ground(everywhere(airfield.ground.taxiways), 1, 1.5f, {.092f, .092f, .094f});
+    ground(everywhere(airfield.ground.runway), 1, 1.75f, {.074f, .075f, .078f});
+    ground(everywhere(airfield.ground.whitePaint), 2, 2.5f, {.80f, .81f, .78f});
+    ground(everywhere(airfield.ground.yellowPaint), 2, 2.5f, {.72f, .47f, .035f});
+    for (const auto& site : kAirfieldSites)
+      for (const auto& part : airfield.parts) {
+        if (part.vertices.empty()) continue;
+        airfieldParts_.push_back({upload(moved(part.vertices, site)), part.material, static_cast<std::uint32_t>(part.vertices.size()),
+                                  {-200 + float(site.east), 10, -float(site.north)}, 2100});
+        if (!bgfx::isValid(airfieldParts_.back().buffer)) throw std::runtime_error("Airfield structure upload failed");
+      }
   }
 
   // ---- Villages ------------------------------------------------------------
@@ -366,7 +382,7 @@ void Renderer::buildEnvironment(Synthesis& data) {
     };
     const auto buildable = [&](float x, float z) {
       const double north = -z, east = x;
-      return !insideAirfieldClearway(north, east) && std::hypot(north, east) > 2700 && !landscape_->underWater(north, east) &&
+      return !insideAirfieldClearway(north, east) && airfieldDistance(north, east) > 2700 && !landscape_->underWater(north, east) &&
              -sampleTerrain(north, east).normalNed.z > .985;
     };
     unsigned seed = 0;
@@ -442,6 +458,10 @@ void Renderer::destroyEnvironment() {
   airfieldGround_.clear();
   for (auto& part : airfieldParts_) if (bgfx::isValid(part.buffer)) bgfx::destroy(part.buffer);
   airfieldParts_.clear();
+  for (auto& part : baseParts_) if (bgfx::isValid(part.buffer)) bgfx::destroy(part.buffer);
+  baseParts_.clear();
+  baseHealth_.clear();
+  baseShown_ = false;
   if (bgfx::isValid(terrainIndices_)) bgfx::destroy(terrainIndices_);
   terrainIndices_.idx = bgfx::kInvalidHandle;
   for (auto& species : treeMeshes_) for (auto& mesh : species) {
@@ -531,9 +551,9 @@ void Renderer::drawEnvironment() {
   };
   std::uint32_t structureVertices = houseVertices_ + roofVertices_;
   // The airfield's buildings are only worth drawing from where they can be made out.
-  const bool airfieldInView = glm::length(cameraEye_ - glm::vec3(environment[3])) < 30000.f;
-  if (airfieldInView)
-    for (const auto& part : airfieldParts_) {
+  for (const auto* parts : {&airfieldParts_, &baseParts_})
+    for (const auto& part : *parts) {
+      if (glm::length(cameraEye_ - glm::vec3(environment[3]) - part.centre) > 30000.f + part.radius) continue;
       const auto look = lookOf(part.material);
       structure(part.buffer, look.color, look.metallic, look.roughness, look.detail, look.emissive, look.glass);
       structureVertices += part.vertices;
@@ -544,6 +564,25 @@ void Renderer::drawEnvironment() {
   stats_.triangles += structureVertices / 3;
 
   if (settings_.vegetation) drawTrees(kViewWorld, programs_.tree, nullptr);
+}
+
+void Renderer::setStructures(std::span<const std::uint8_t> health) {
+  // Only whether each stands matters to how it is drawn.
+  std::vector<std::uint8_t> standing(health.size());
+  for (std::size_t i = 0; i < health.size(); ++i) standing[i] = health[i] > 0;
+  if (baseShown_ == !health.empty() && standing == baseHealth_) return;
+  for (auto& part : baseParts_) if (bgfx::isValid(part.buffer)) bgfx::destroy(part.buffer);
+  baseParts_.clear();
+  baseHealth_ = std::move(standing);
+  baseShown_ = !health.empty();
+  if (!baseShown_) return;
+  for (const auto& part : buildStructures(baseHealth_)) {
+    if (part.vertices.empty()) continue;
+    // The structures lie all along the valley: no one sphere is worth culling by.
+    baseParts_.push_back({bgfx::createVertexBuffer(bgfx::copy(part.vertices.data(),
+                              static_cast<std::uint32_t>(part.vertices.size() * sizeof(SurfaceVertex))), surfaceLayout_),
+                          part.material, static_cast<std::uint32_t>(part.vertices.size()), {0, 0, 0}, 40000});
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -50,8 +50,13 @@ struct Options {
       airborne{}, afterburnerBench{}, map{}, noSound{};
   unsigned frames{}, seconds{};
   double ejectAt{-1};  // a scripted run fires the seat after this many seconds
+  double bombAt{-1};   // and holds the bomb release down from this many seconds on
   std::string screenshot, server, name{"pilot"}, asset, config{"graphics.cfg"}, soundCapture;
   unsigned port{27020}, bots{};
+  // The side and bomb load to ask a game for, and a private team game.
+  ofs::Team team{ofs::Team::None};
+  unsigned loadout{}, scoreLimit{300};
+  bool teams{}, localGame{};
   int visualBench{};
   ofs::AircraftType aircraft{ofs::AircraftType::A320};
   std::string scenario;
@@ -108,9 +113,25 @@ Options parse(int argc, char** argv) {
     else if (arg == "--bots" && i + 1 < argc) result.bots = ofs::net::number(argv[++i], 0, 8);
     else if (arg == "--dogfight-smoke") { result.dogfightSmoke=true; result.seconds=15; }
     else if (arg == "--name" && i + 1 < argc) result.name = argv[++i];
+    else if (arg == "--team" && i + 1 < argc) {
+      const std::string_view side = argv[++i];
+      if (side == "red") result.team = ofs::Team::Red;
+      else if (side == "blue") result.team = ofs::Team::Blue;
+      else if (side != "auto") throw std::runtime_error("--team expects red, blue or auto");
+    }
+    else if (arg == "--loadout" && i + 1 < argc) {
+      const std::string_view load = argv[++i];
+      if (load == "mk82") result.loadout = 0;
+      else if (load == "mk84") result.loadout = 1;
+      else if (load == "nuke") result.loadout = 2;
+      else throw std::runtime_error("--loadout expects mk82, mk84 or nuke");
+    }
+    else if (arg == "--teams") result.teams = true;
+    else if (arg == "--score-limit" && i + 1 < argc) result.scoreLimit = ofs::net::number(argv[++i], 50, 5000);
     else if (arg == "--port" && i + 1 < argc) result.port = ofs::net::number(argv[++i], 1, 65535);
     else if (arg == "--seconds" && i + 1 < argc) result.seconds = ofs::net::number(argv[++i], 1, 86400);
     else if (arg == "--eject-at" && i + 1 < argc) result.ejectAt = std::stod(argv[++i]);
+    else if (arg == "--bomb-at" && i + 1 < argc) result.bombAt = std::stod(argv[++i]);
     else if (arg == "--missile-smoke") {
       result.missileSmoke = true;
       result.seconds = 20;
@@ -130,19 +151,28 @@ Options parse(int argc, char** argv) {
     } else {
       throw std::runtime_error(
           "Usage: ofs_client [--smoke-test|--gun-smoke] [--frames N] [--screenshot path.ppm] "
-          "[--aircraft a320|su57|typhoon|sr71|jf17] [--asset path.glb] [--config path.cfg] [--airborne] [--width N] [--height N] "
+          "[--aircraft a320|su57|typhoon|sr71|jf17|b52] [--asset path.glb] [--config path.cfg] [--airborne] [--width N] [--height N] "
           "[--map] [--free-camera|--pursuit|--chase|--close-chase|--orbit|--cockpit] [--visual-bench N] "
           "[--no-sound] [--sound-capture path.wav] "
-          "[--bots 0..8] [--server host --name name]");
+          "[--bots 0..8] [--server host --name name] [--team red|blue|auto] [--loadout mk82|mk84|nuke] "
+          "[--teams [--score-limit 50..5000]]");
     }
   }
   if (result.bots) {
     if (!result.server.empty() || result.smoke || result.gunSmoke || result.dogfightSmoke ||
         !result.scenario.empty() || !result.flightDemo.empty() || result.visualBench)
       throw std::runtime_error("--bots requires ordinary local flight");
-    result.aircraft = ofs::dogfightAircraftType(result.aircraft);
+    // Against bots in a team game any aircraft will do, a bomber included.
+    if (!result.teams) result.aircraft = ofs::dogfightAircraftType(result.aircraft);
     result.airborne = true;
   }
+#ifdef OFS_NETWORK_ENABLED
+  // Bombs, the bases and their defences live in the game server, so a bomber
+  // flown alone, or a team game asked for alone, gets a private one.
+  result.localGame = !result.bots && result.server.empty() && !result.smoke && !result.gunSmoke && !result.dogfightSmoke &&
+      result.scenario.empty() && result.flightDemo.empty() && !result.visualBench &&
+      (result.teams || ofs::aircraftDefinition(result.aircraft).bomber);
+#endif
   if (result.dogfightSmoke && (!result.server.empty() || result.smoke || result.gunSmoke ||
       !result.scenario.empty() || !result.flightDemo.empty() || result.visualBench))
     throw std::runtime_error("dogfight smoke requires ordinary local flight");
@@ -162,7 +192,7 @@ Options parse(int argc, char** argv) {
     throw std::runtime_error("gun smoke requires ordinary offline flight");
   if (!result.scenario.empty()) {
     if (!result.server.empty()) throw std::runtime_error("visual scenarios are offline fixtures only");
-    const std::vector<std::string> names{"parked","surfaces","flaps","gear","flight","high-altitude","high-mach","exhaust","contrail","gun","impact","destruction","mixed","idle","military","afterburner","afterburner-multiple","afterburner-transition","vectoring","high-aoa","condensation","environment","forest","grass","clouds","above-clouds","lake","mountains","valley","ranges","village","farmland","fields","eject","blackout","damage","damage-heavy","breakup","missile","detonation","menu","controls","chat","airfield","apron","shelters","threshold","decoys","warning","service"};
+    const std::vector<std::string> names{"parked","surfaces","flaps","gear","flight","high-altitude","high-mach","exhaust","contrail","gun","impact","destruction","mixed","idle","military","afterburner","afterburner-multiple","afterburner-transition","vectoring","high-aoa","condensation","environment","forest","grass","clouds","above-clouds","lake","mountains","valley","ranges","village","farmland","fields","eject","blackout","damage","damage-heavy","breakup","missile","detonation","menu","controls","chat","airfield","apron","shelters","threshold","decoys","warning","service","nuclear"};
     if (std::find(names.begin(), names.end(), result.scenario) == names.end())
       throw std::runtime_error("Unknown visual scenario");
     if (result.screenshot.empty() || !result.frames) throw std::runtime_error("visual scenarios require --frames and --screenshot");
@@ -385,13 +415,15 @@ int main(int argc, char** argv) {
     std::unique_ptr<ofs::net::Client> network;
     std::unique_ptr<ofs::net::Server> dogfight;
     FixedStepClock serverClock;
-    if (options.bots) {
+    if (options.bots || options.localGame) {
       ofs::net::ServerConfig config;
       config.bind = "127.0.0.1"; config.port = 0; config.bots = options.bots;
+      config.teams = options.teams; config.scoreLimit = options.scoreLimit;
+      if (options.localGame) config.airborne = options.airborne;
       dogfight = std::make_unique<ofs::net::Server>(config);
     }
     if (!options.server.empty() || dogfight) {
-      network = std::make_unique<ofs::net::Client>(options.name, options.aircraft);
+      network = std::make_unique<ofs::net::Client>(options.name, options.aircraft, options.team, options.loadout);
       network->prediction().simulator() = Simulator(definition.flight);
     }
     const auto simulation = [&]() -> Simulator& {
@@ -623,6 +655,9 @@ int main(int argc, char** argv) {
     DamagePart lastDamagedPart = DamagePart::Fuselage;
     StoreDisplay storeDisplay;
     std::vector<HudFrame::Station> hudStations;
+    std::vector<HudFrame::Structure> hudStructures;
+    double bombClock = 0, fireClock = 0, nuclearFlash = 0;
+    int wantedLoadout = -1;  // a load asked for that the game has not yet confirmed
     std::vector<Vec3> hudMissiles;
     std::set<std::uint64_t> presentedMissiles;
     unsigned dogfightSmokeStage=0, dogfightStarts=0;
@@ -720,7 +755,7 @@ int main(int argc, char** argv) {
           config.bind = "127.0.0.1"; config.port = 0; config.bots = 2;
           dogfight = std::make_unique<ofs::net::Server>(config);
           ++dogfightStarts;
-          network = std::make_unique<ofs::net::Client>(options.name, options.aircraft);
+          network = std::make_unique<ofs::net::Client>(options.name, options.aircraft, options.team, options.loadout);
           network->prediction().simulator() = Simulator(definition.flight);
           reset(simulation(), controls, previous, camera, clock, true);
           network->connect("127.0.0.1", dogfight->port());
@@ -955,8 +990,8 @@ int main(int argc, char** argv) {
       }
       if (cameraMode == CameraMode::Orbit) camera.zoomOrbit(input.orbitZoom());
       {
-        // R drops a flare and C a bundle of chaff, again every third of a
-        // second for as long as the key is held.
+        // R drops a flare and Z a bundle of chaff, again every third of a
+        // second for as long as the key is held. (C looks around.)
         const bool flying = !captureKeyboard && cameraMode != CameraMode::Free && !ui.paused && !ui.menuOpen;
         const auto wanted = [&](SDL_Scancode key, double& clock) {
           clock = std::max(0., clock - realElapsed);
@@ -967,7 +1002,7 @@ int main(int argc, char** argv) {
         };
         for (const auto type : {weapons::DecoyType::Flare, weapons::DecoyType::Chaff}) {
           const bool flare = type == weapons::DecoyType::Flare;
-          if (!wanted(flare ? SDL_SCANCODE_R : SDL_SCANCODE_C, flare ? flareClock : chaffClock)) continue;
+          if (!wanted(flare ? SDL_SCANCODE_R : SDL_SCANCODE_Z, flare ? flareClock : chaffClock)) continue;
 #ifdef OFS_NETWORK_ENABLED
           if (network) {
             network->weaponAction(flare ? ofs::net::WeaponActionKind::Flare : ofs::net::WeaponActionKind::Chaff);
@@ -1044,8 +1079,25 @@ int main(int argc, char** argv) {
         const bool fire = conscious &&
             input.firing(captureKeyboard, ImGui::GetIO().WantCaptureMouse);
         const bool missileFire =
-            conscious && !captureKeyboard && input.key(SDL_SCANCODE_SPACE);
-        if (missileSelected && missileFire && !missileFireHeld) {
+            (conscious && !captureKeyboard && input.key(SDL_SCANCODE_SPACE)) ||
+            (options.bombAt >= 0 && std::chrono::duration<double>(now - started).count() >= options.bombAt);
+        if (weapons::isBomb(network->radar().bombType) || definition.bomber) {
+          // A bomber: Space, held, lets bombs go one after another, and O
+          // asks for the next load in turn at the next rearming.
+          const auto &radar = network->radar();
+          bombClock = std::max(0., bombClock - realElapsed);
+          if (missileFire && bombClock <= 0 && radar.bombs && weapons::isBomb(radar.bombType)) {
+            network->weaponAction(WeaponActionKind::Launch);
+            bombClock = weapons::bombDefinition(radar.bombType).releaseInterval;
+          }
+          if (input.pressed(SDL_SCANCODE_O, captureKeyboard)) {
+            wantedLoadout = (std::max(wantedLoadout, int(radar.loadout)) + 1) % int(std::max(1u, weapons::bombLoadouts(options.aircraft)));
+            if (wantedLoadout == int(radar.loadout)) wantedLoadout = -1;
+            network->weaponAction(WeaponActionKind::Loadout, unsigned(wantedLoadout < 0 ? radar.loadout : wantedLoadout));
+            sound.cue(SoundKind::WeaponSelect);
+          }
+          if (wantedLoadout == int(radar.loadout)) wantedLoadout = -1;
+        } else if (missileSelected && missileFire && !missileFireHeld) {
           const auto &radar = network->radar();
           for (unsigned i = 0; i < radar.stations.size(); ++i)
             if (radar.stations[i] == radar.weapon) {
@@ -1242,6 +1294,7 @@ int main(int argc, char** argv) {
           remote.alive = sample.life.alive();
           remote.kills = sample.life.kills;
           remote.deaths = sample.life.deaths;
+          remote.team = network->teamOf(id);
           remotes.push_back(remote);
         }
         if (!remotes.empty()) ++remoteFrames;
@@ -1257,12 +1310,14 @@ int main(int argc, char** argv) {
         }
         scores.clear();
         scores.push_back({network->pilot(network->entity()).empty() ? network->name() : network->pilot(network->entity()),
-                          options.aircraft, network->life().kills, network->life().deaths, true, network->life().alive()});
+                          options.aircraft, network->life().kills, network->life().deaths, true, network->life().alive(),
+                          network->team()});
         for (const auto& [id, track] : network->remotes()) {
           if (!track.size()) continue;
           const auto latest = track.sampleAircraft(network->stats().renderTick);
           scores.push_back({network->pilot(id).empty() ? std::string(aircraftDefinition(latest.type).key) : network->pilot(id),
-                            latest.type, latest.life.kills, latest.life.deaths, false, latest.life.alive()});
+                            latest.type, latest.life.kills, latest.life.deaths, false, latest.life.alive(),
+                            network->teamOf(id)});
         }
         std::stable_sort(scores.begin() + 1, scores.end(), [](const auto& a, const auto& b) { return a.kills > b.kills; });
       } else {
@@ -1417,8 +1472,20 @@ int main(int argc, char** argv) {
         threats.clear();
         for (std::size_t i = 0; i < flying.size(); ++i) {
           const auto &missile = flying[i];
-          const auto &d = weapons::missileDefinition(missile.type);
           presented.insert(missile.id);
+          if (weapons::isBomb(missile.type)) {
+            // A bomb has no motor or trail: only the thing itself, falling. The
+            // pilot's own most recent one is what the missile view follows.
+            Vec3 position = missile.position;
+            if (missile.owner.id == self)
+              position += launchLead(aircraft.vel_ned,
+                  (double(network->prediction().tick()) - sampledTicks[i]) * ofs::net::tickSeconds, missile.age);
+            if (missile.owner.id == self && (!ownMissile || missile.age < ownMissile->age))
+              ownMissile = OwnMissile{missile.id, position, missile.velocity, missile.age};
+            combat.stores.push_back({position, missile.attitude, missile.type, false, false});
+            continue;
+          }
+          const auto &d = weapons::missileDefinition(missile.type);
           // A missile fired at this pilot, for the warning.
           if (missile.target.id == self && missile.target.generation == network->life().generation && network->life().alive())
             threats.push_back({missile.position, missile.velocity, missile.type,
@@ -1482,7 +1549,7 @@ int main(int argc, char** argv) {
         }
         storeDisplay.endFrame();
         for (const auto &event : network->takeMissileTerminations()) {
-          if (event.missile.owner.id == network->entity()) {
+          if (event.missile.owner.id == network->entity() && !weapons::isBomb(event.missile.type)) {
             const auto hit = std::find(missileHits.begin(), missileHits.end(),
                                        event.missile.id);
             if (hit != missileHits.end())
@@ -1492,8 +1559,11 @@ int main(int argc, char** argv) {
           }
         }
         for (const auto &event : network->takeMissileDetonations()) {
-          combat.missileDetonations.push_back(event.missile.position);
+          combat.missileDetonations.push_back({event.missile.position, event.missile.type});
           ++missileDetonations;
+          // A nuclear burst whites the view out, less the further off it is.
+          if (event.missile.type == weapons::WeaponType::Nuclear)
+            nuclearFlash = std::max(nuclearFlash, 4.5 * clamp(1.25 - (event.missile.position - camera.eye).norm() / 60000, .15, 1));
         }
         for (auto miss = pendingMissileMisses.begin();
              miss != pendingMissileMisses.end();) {
@@ -1533,6 +1603,14 @@ int main(int argc, char** argv) {
               (needs || network->life().health < 100 || (definition.gun && network->life().ammo < definition.gun->ammo) ||
                std::count(radar.stations.begin(), radar.stations.end(), weapons::WeaponType::None) > 0 ||
                (!radar.stations.empty() && (radar.flares < decoyStock || radar.chaff < decoyStock)));
+          if (definition.bomber) {
+            const auto wanted = weapons::bombLoad(options.aircraft, radar.loadout);
+            needs = network->life().alive() && (needs || radar.bombs != wanted.count || radar.bombType != wanted.type ||
+                                                 radar.flares < decoyStock || radar.chaff < decoyStock);
+          }
+          // In a team game only the side's own airfield does the work.
+          if (network->teamStatus().teams && airfieldOwner(aircraft.pos_ned.x, aircraft.pos_ned.y) != network->team())
+            needs = false;
         }
 #endif
         if (solo)
@@ -1648,7 +1726,14 @@ int main(int argc, char** argv) {
             combat.stores.push_back({position, aircraft.att, type, false, true});
           }
           if (options.scenario == "detonation" && frame == 36)
-            combat.missileDetonations.push_back(aircraft.pos_ned + aircraft.att.rotate({70, 26, -4}));
+            combat.missileDetonations.push_back({aircraft.pos_ned + aircraft.att.rotate({70, 26, -4})});
+        }
+        // A nuclear burst on the ground some kilometres ahead, to look at.
+        if (options.scenario == "nuclear" && frame == 36) {
+          Vec3 ground = aircraft.pos_ned + aircraft.att.rotate({11000, 1500, 0});
+          ground.z = groundHeightNed(ground.x, ground.y);
+          combat.missileDetonations.push_back({ground, weapons::WeaponType::Nuclear});
+          nuclearFlash = 4.5;
         }
         // The menu and its reference window, for a look at them without a keyboard.
         if (options.scenario == "menu" || options.scenario == "controls") {
@@ -1798,6 +1883,8 @@ int main(int argc, char** argv) {
       if (weapons::decoyCapacity(options.aircraft)) { hud.flares = soloFlares; hud.chaff = soloChaff; }
       hud.threats = threats;
       hud.firing = input.firing(captureKeyboard, ImGui::GetIO().WantCaptureMouse);
+      nuclearFlash = std::max(0., nuclearFlash - realElapsed);
+      hud.flash = clamp(nuclearFlash / 3, 0, 1);
 #ifdef OFS_NETWORK_ENABLED
       if (network && network->ready()) {
         hud.multiplayer = true;
@@ -1815,7 +1902,51 @@ int main(int argc, char** argv) {
           }
         }
         hud.missileWeapon = radar.weapon;
-        if (!radar.stations.empty()) { hud.flares = radar.flares; hud.chaff = radar.chaff; }
+        if (!radar.stations.empty() || weapons::isBomb(radar.bombType)) { hud.flares = radar.flares; hud.chaff = radar.chaff; }
+        if (definition.bomber) {
+          hud.bombType = radar.bombType;
+          hud.bombs = radar.bombs;
+          // The bay holds what it was last filled with; the request may differ.
+          for (unsigned load = 0; load < weapons::bombLoadouts(options.aircraft); ++load) {
+            const auto entry = weapons::bombLoad(options.aircraft, load);
+            if (entry.type == radar.bombType) hud.bombLoad = entry.name;
+            if (load == unsigned(wantedLoadout < 0 ? radar.loadout : wantedLoadout)) hud.nextLoad = entry.name;
+          }
+          if (weapons::isBomb(radar.bombType)) {
+            weapons::Inventory bay;
+            bay.reset(options.aircraft, 0);
+            const Vec3 from = aircraft.pos_ned + aircraft.att.rotate(bay.bay - loadedCg(definition.flight, aircraft));
+            hud.bombSight = weapons::bombImpact(weapons::bombDefinition(radar.bombType), from,
+                                                aircraft.vel_ned + aircraft.att.rotate({0, 0, 4.}), simulation().weather(),
+                                                hud.bombPoint, hud.bombFall) &&
+                            groundHeightNed(aircraft.pos_ned.x, aircraft.pos_ned.y) - aircraft.pos_ned.z > 40;
+          }
+        }
+        const auto &teamStatus = network->teamStatus();
+        hud.teams = teamStatus.teams;
+        hud.team = network->team();
+        if (teamStatus.teams) {
+          hud.teamScore[0] = teamStatus.score[0];
+          hud.teamScore[1] = teamStatus.score[1];
+          hud.scoreLimit = teamStatus.scoreLimit;
+          hud.winner = teamStatus.winner;
+          hud.restartSeconds = teamStatus.restartSeconds;
+          hudStructures.clear();
+          const auto all = structures();
+          for (std::size_t i = 0; i < all.size() && i < teamStatus.health.size(); ++i)
+            hudStructures.push_back({{all[i].north, all[i].east, groundHeightNed(all[i].north, all[i].east)}, all[i].team,
+                                     all[i].kind, all[i].site, teamStatus.health[i]});
+          hud.structures = hudStructures;
+        }
+        renderer.setStructures(teamStatus.teams ? std::span<const std::uint8_t>(teamStatus.health) : std::span<const std::uint8_t>());
+        // What has been destroyed burns until it is rebuilt.
+        fireClock -= realElapsed;
+        if (fireClock <= 0) {
+          fireClock = .35;
+          for (const auto &structure : hudStructures)
+            if (structure.health <= 0 && (structure.position - camera.eye).norm() < 12000)
+              combat.fires.push_back(structure.position + Vec3{0, 0, -2});
+        }
         hud.seekerReady = radar.seekerReady;
         hud.seekerTarget = radar.seekerTarget;
         hud.lockProgress = radar.lockProgress;
@@ -1901,7 +2032,12 @@ int main(int argc, char** argv) {
         for (const auto& part : renderer.partsLost()) sound.at(SoundKind::PartBreak, part.position, 1, part.own);
         for (const auto& out : ejections.pilots())
           if (out.opened) sound.at(SoundKind::Parachute, out.position, 1, out.own);
-        for (const auto& position : combat.missileDetonations) sound.at(SoundKind::Detonation, position);
+        for (const auto& burst : combat.missileDetonations) {
+          // A bomb is heard from much further off than a missile's warhead.
+          const float gain = burst.type == weapons::WeaponType::Nuclear ? 60.f : weapons::isBomb(burst.type) ? 6.f : 1.f;
+          sound.at(SoundKind::Detonation, burst.position, gain);
+          if (burst.type == weapons::WeaponType::Nuclear) sound.at(SoundKind::Crash, burst.position, 60);
+        }
         for (const auto& decoy : combat.decoys)
           sound.at(decoy.type == weapons::DecoyType::Flare ? SoundKind::Flare : SoundKind::Chaff, decoy.position, 1,
                    (decoy.position - aircraft.pos_ned).norm() < 40);
@@ -2152,7 +2288,7 @@ int main(int argc, char** argv) {
           (unsigned long long)dogfight->stats().invalid,
           dogfight->world().botCount(),network->remotes().size());
       if ((options.seconds || options.frames || options.dogfightSmoke) &&
-          (!network->ready() || remoteFrames == 0 || dogfight->world().botCount() != options.bots))
+          (!network->ready() || (options.bots && remoteFrames == 0) || dogfight->world().botCount() != options.bots))
         throw std::runtime_error("local dogfight did not connect or render opponents");
       const auto &stats = dogfight->world().combat().stats();
       std::fprintf(stderr, "[DOGFIGHT] bots=%zu remoteFrames=%u shots=%llu hits=%llu kills=%llu respawns=%llu\n",

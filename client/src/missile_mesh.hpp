@@ -98,6 +98,28 @@ inline void cruciform(std::vector<SurfaceVertex>& out, double radius, double spa
 // `detail` 1 is the mesh seen up close; 0 halves the facets for distant stores.
 inline StoreMesh buildStoreMesh(weapons::WeaponType type, int detail) {
   using namespace store_detail;
+  if (weapons::isBomb(type)) {
+    // A free-fall bomb: an ogive nose, a fat parallel body and a tapered tail
+    // carrying four fins. The band is the nose marking.
+    const auto& bomb = weapons::bombDefinition(type);
+    const double r = bomb.diameter * .5, nose = bomb.length * .5, tail = -bomb.length * .5;
+    const int sides = detail ? 16 : 8;
+    StoreMesh mesh;
+    auto& body = mesh.parts[std::size_t(StorePart::Body)];
+    std::vector<std::pair<double, double>> profile;
+    const double ogive = bomb.length * .30;
+    for (int i = 0; i <= 6; ++i) {
+      const double t = double(i) / 6;
+      profile.push_back({nose - ogive * t, std::max(r * std::sqrt(1 - (1 - t) * (1 - t)), 1e-4)});
+    }
+    profile.push_back({tail + bomb.length * .34, r});
+    profile.push_back({tail, r * .30});
+    lathe(body, profile, sides);
+    disc(body, tail, r * .30, -1, sides);
+    lathe(mesh.parts[std::size_t(StorePart::Band)], {{nose - ogive * .55, r * .93}, {nose - ogive * .80, r * 1.0}}, sides);
+    cruciform(body, r * .55, r * .95, tail, tail + bomb.length * .26, tail, tail + bomb.length * .14, .02);
+    return mesh;
+  }
   const auto& d = weapons::missileDefinition(type);
   const double r = d.diameter * .5, nose = d.length * .5, tail = -d.length * .5;
   const int sides = detail ? 18 : 8;

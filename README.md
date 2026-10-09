@@ -86,9 +86,12 @@ source dependencies are pinned and fetched at configuration; the first build
 requires network access. Fedora needs X11 and OpenGL development packages;
 see [docs/BUILDING.md](docs/BUILDING.md) before the first client configure.
 
-Five aircraft fly: the A320, Eurofighter Typhoon, SR-71A, Su-57 and JF-17
-Thunder. Their weights, thrust, speeds, guns and missile loads are set from
-published figures; see [the aircraft reference](docs/AIRCRAFT_REFERENCE.md).
+Six aircraft fly: the A320, Eurofighter Typhoon, SR-71A, Su-57, JF-17 Thunder
+and B-52H Stratofortress. Their weights, thrust, speeds, guns, missile and bomb
+loads are set from published figures; see
+[the aircraft reference](docs/AIRCRAFT_REFERENCE.md). A hosted game can be a
+free-for-all or a [team battle](docs/TEAM_GAME.md) between two sides with
+airfields and outposts to bomb.
 
 ```sh
 cmake --preset debug
@@ -97,6 +100,7 @@ ctest --preset debug
 ./build/debug/client/ofs_client
 ./build/debug/client/ofs_client --aircraft su57 --airborne
 ./build/debug/client/ofs_client --aircraft jf17 --airborne
+./build/debug/client/ofs_client --aircraft b52 --airborne --teams --loadout mk84
 
 cmake --preset release
 cmake --build --preset release
@@ -141,7 +145,7 @@ Windows has not yet produced a passing build; see BUILDING.md for the current CI
 | Select gun / IR / active radar | 1 / 2 / 3 |
 | Radar lock | L locks the contact nearest the nose, L again unlocks; T / Y step the lock to the next or previous contact |
 | Heat seeker | Select 2 and point at a target: the seeker locks on its own; L or T / Y break lock and move to the next target |
-| Flares / chaff | R drops a flare, C a bundle of chaff; hold to repeat. See [countermeasures](docs/COUNTERMEASURES.md) |
+| Flares / chaff | R drops a flare, Z a bundle of chaff; hold to repeat. Hold C to look around without turning. See [countermeasures](docs/COUNTERMEASURES.md) |
 | Repair and rearm | Land, stop and wait ten seconds |
 | Eject | Hold J for a second; a new aircraft follows. See [the pilot](docs/PILOT.md) |
 | Gun camera | V toggles flight-deck camera; armed aircraft have a gun sight in every flying view |

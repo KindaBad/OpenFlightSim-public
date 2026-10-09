@@ -8,7 +8,8 @@ import subprocess
 import time
 from .config import PURSUIT_CAMERA_VERSION
 from .installation import active_directory
-from .lan import LAN_VERSION, MISSILE_RELOAD_VERSION, lobby_name
+from .lan import LAN_VERSION, MISSILE_RELOAD_VERSION, TEAMS_VERSION, lobby_name
+from .config import LOADOUTS, TEAMS
 from .platform_process import spawn
 from .storage import LauncherError, read_json, safe_path, relative_name
 from .version import Version
@@ -120,6 +121,13 @@ def arguments(installation, preferences, graphics):
         if not preferences.name.strip() or len(preferences.name) > 64 or any(ord(c) < 32 or ord(c) > 126 for c in preferences.name):
             raise LauncherError('Pilot name must be 1–64 printable ASCII characters')
         args += ['--server', address, '--port', str(preferences.port), '--name', preferences.name]
+    if Version(installation.catalog['version']) >= Version(TEAMS_VERSION):
+        if preferences.team not in TEAMS or preferences.loadout not in LOADOUTS:
+            raise LauncherError('Choose a team and a bomb load from the lists')
+        if preferences.mode == 'multiplayer' and preferences.team != 'auto':
+            args += ['--team', preferences.team]
+        if selected.get('bomber'):
+            args += ['--loadout', preferences.loadout]
     return args
 
 
@@ -142,6 +150,12 @@ def server_arguments(installation, preferences, lan=False):
             if Version(installation.catalog['version']) < Version(MISSILE_RELOAD_VERSION):
                 raise LauncherError(f'A missile reload time needs OpenFlightSim {MISSILE_RELOAD_VERSION} or newer. Update the game or set it to off.')
             command += ['--missile-reload', str(preferences.lan_missile_reload)]
+        if preferences.lan_teams:
+            if Version(installation.catalog['version']) < Version(TEAMS_VERSION):
+                raise LauncherError(f'A team game needs OpenFlightSim {TEAMS_VERSION} or newer. Update the game or choose a free-for-all.')
+            if type(preferences.lan_score_limit) is not int or not 50 <= preferences.lan_score_limit <= 5000:
+                raise LauncherError('The score to win must be 50–5000 points')
+            command += ['--teams', '--score-limit', str(preferences.lan_score_limit)]
     return command
 
 

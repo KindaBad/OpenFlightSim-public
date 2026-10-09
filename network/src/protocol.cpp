@@ -396,6 +396,8 @@ std::vector<std::uint8_t> encode(const Message &m) {
   case Type::Hello:
     w.string(m.text);
     w.integer(static_cast<unsigned>(m.aircraftType), 1);
+    w.integer(static_cast<unsigned>(m.team), 1);
+    w.integer(m.loadout, 1);
     break;
   case Type::Reject:
     w.string(m.text);
@@ -405,6 +407,20 @@ std::vector<std::uint8_t> encode(const Message &m) {
     w.integer(m.snapshotHz, 2);
     aircraft(w, m.aircraft);
     weather(w, m.weather);
+    w.integer(static_cast<unsigned>(m.team), 1);
+    break;
+  case Type::TeamState:
+    if (m.teams.health.size() > maxStructures)
+      throw std::length_error("team state bounds");
+    w.integer(m.teams.teams, 1);
+    w.integer(m.teams.scoreLimit, 2);
+    w.integer(m.teams.score[0], 4);
+    w.integer(m.teams.score[1], 4);
+    w.integer(static_cast<unsigned>(m.teams.winner), 1);
+    w.integer(m.teams.restartSeconds, 1);
+    w.integer(m.teams.health.size(), 1);
+    for (const auto health : m.teams.health)
+      w.integer(health, 1);
     break;
   case Type::Spawn:
     aircraft(w, m.aircraft);
@@ -416,6 +432,7 @@ std::vector<std::uint8_t> encode(const Message &m) {
   case Type::Joined:
     w.integer(m.entity, 8);
     w.string(m.text);
+    w.integer(static_cast<unsigned>(m.team), 1);
     break;
   case Type::Chat:
     w.integer(m.entity, 8);
@@ -515,7 +532,9 @@ bool decode(std::span<const std::uint8_t> bytes, Message &output,
   case Type::Hello:
     m.text = r.string();
     m.aircraftType = static_cast<AircraftType>(r.integer(1));
-    if (m.text.empty() || !validAircraftType(m.aircraftType))
+    m.team = static_cast<Team>(r.integer(1));
+    m.loadout = static_cast<std::uint8_t>(r.integer(1));
+    if (m.text.empty() || !validAircraftType(m.aircraftType) || m.team > Team::Blue || m.loadout > 7)
       r.ok = false;
     break;
   case Type::Reject:
@@ -531,7 +550,28 @@ bool decode(std::span<const std::uint8_t> bytes, Message &output,
       r.ok = false;
     m.aircraft = aircraft(r);
     m.weather = weather(r);
+    m.team = static_cast<Team>(r.integer(1));
+    if (m.team > Team::Blue)
+      r.ok = false;
     break;
+  case Type::TeamState: {
+    const auto teams = r.integer(1);
+    m.teams.teams = teams == 1;
+    m.teams.scoreLimit = static_cast<std::uint16_t>(r.integer(2));
+    m.teams.score[0] = static_cast<std::uint32_t>(r.integer(4));
+    m.teams.score[1] = static_cast<std::uint32_t>(r.integer(4));
+    m.teams.winner = static_cast<Team>(r.integer(1));
+    m.teams.restartSeconds = static_cast<std::uint8_t>(r.integer(1));
+    const auto count = r.integer(1);
+    if (teams > 1 || m.teams.winner > Team::Blue || count > maxStructures)
+      r.ok = false;
+    for (std::uint64_t i = 0; r.ok && i < count; ++i) {
+      m.teams.health.push_back(static_cast<std::uint8_t>(r.integer(1)));
+      if (m.teams.health.back() > 100)
+        r.ok = false;
+    }
+    break;
+  }
   case Type::Spawn:
     m.aircraft = aircraft(r);
     break;
@@ -544,7 +584,8 @@ bool decode(std::span<const std::uint8_t> bytes, Message &output,
   case Type::Joined:
     m.entity = r.integer(8);
     m.text = r.string();
-    if (!m.entity || m.text.empty())
+    m.team = static_cast<Team>(r.integer(1));
+    if (!m.entity || m.text.empty() || m.team > Team::Blue)
       r.ok = false;
     break;
   case Type::Chat:

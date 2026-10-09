@@ -23,6 +23,7 @@ struct Projectile {
   double age{}, distance{};
   double damage{25}, lifetime{3}, range{2400};
   Tick respawnDelay{480};
+  Team team{Team::None};
 };
 void advanceProjectile(Projectile &, double dt);
 struct CombatTarget {
@@ -33,6 +34,8 @@ struct CombatTarget {
   // Set when a hit changed the part health in `current`, with who caused it.
   bool damaged{};
   EntityId attacker{};
+  // In a team game, weapons of its own side pass it by.
+  Team team{Team::None};
 };
 // Damages the part of `target` struck at world position `impact`, which entered
 // a collision sphere of `region` at `fraction` of the tick. Returns the part.
@@ -50,7 +53,7 @@ public:
   explicit Combat(GunConfig config = {});
   const GunConfig &gun() const { return gun_; }
   bool fire(Tick, EntityId, const State &, Life &);
-  bool fire(Tick, EntityId, const State &, Life &, const GunConfig &);
+  bool fire(Tick, EntityId, const State &, Life &, const GunConfig &, Team team = Team::None);
   void step(Tick, std::span<CombatTarget>);
   void removeOwner(EntityId);
   void emit(CombatEvent);

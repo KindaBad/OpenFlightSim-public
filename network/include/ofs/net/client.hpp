@@ -98,7 +98,13 @@ struct VisualLine {
 class Client {
 public:
   explicit Client(std::string name = "pilot",
-                  AircraftType type = AircraftType::A320);
+                  AircraftType type = AircraftType::A320,
+                  Team team = Team::None, unsigned loadout = 0);
+  // The side flown for, and the side of anyone else in the game.
+  Team team() const { return team_; }
+  Team teamOf(EntityId) const;
+  // The state of the team game; `teams` is false in a free-for-all.
+  const TeamStatus &teamStatus() const { return teamStatus_; }
   ~Client();
   void connect(const std::string &address, std::uint16_t port);
   void disconnect();
@@ -155,6 +161,10 @@ private:
   Prediction prediction_;
   std::map<EntityId, RemoteTrack> remotes_;
   std::map<EntityId, std::string> pilots_;
+  std::map<EntityId, Team> teams_;
+  Team team_{Team::None};
+  std::uint8_t loadout_{};
+  TeamStatus teamStatus_;
   std::vector<ChatLine> chat_;
   std::map<EntityId, Tick> tombstones_;
   ClientStats stats_;

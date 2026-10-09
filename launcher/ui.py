@@ -52,7 +52,7 @@ def aircraft_summary(a):
     lines.append(f'Span: {a.get("span_m", "?")} m' + (f' · wing area: {area:g} m²' if area else ''))
     if isinstance(a.get('max_speed'), str):
         lines.append('Top speed: ' + a['max_speed'])
-    if isinstance(a.get('armament'), str) and a['armed']:
+    if isinstance(a.get('armament'), str) and (a['armed'] or a.get('bomber')):
         lines.append('Armament: ' + a['armament'])
     else:
         lines.append('Armed aircraft · local dogfight available' if a['armed'] else 'Unarmed aircraft')
@@ -562,6 +562,16 @@ class Window(QMainWindow):
         box.addWidget(self.aircraft_art)
         self.aircraft_detail = label('', 'muted')
         box.addWidget(self.aircraft_detail)
+        # Only a bomber has a load to choose; the row is hidden for the rest.
+        self.loadout_row = QWidget()
+        loadout_form = QFormLayout(self.loadout_row)
+        loadout_form.setContentsMargins(0, 0, 0, 0)
+        self.loadout_combo = self.combo([('mk82', '51 × Mk 82 (500 lb) · carpet bombing'), ('mk84', '18 × Mk 84 (2,000 lb) · hard targets'),
+                                         ('nuke', '1 × B83 nuclear · levels a whole base')],
+                                        self.prefs.loadout, lambda v: self.set_pref('loadout', v))
+        self.loadout_combo.setToolTip('What the bomber takes off with. In flight, O asks for another load, fitted the next time you land and rearm. Space drops.')
+        loadout_form.addRow('Bomb load', self.loadout_combo)
+        box.addWidget(self.loadout_row)
         box.addWidget(label('Specifications below are simulator configuration values. Aircraft presentation metadata is optional.', 'muted'))
         box.addStretch()
 
@@ -718,11 +728,12 @@ class Window(QMainWindow):
         for title, text in [('Pitch / roll', 'W / S · A / D'), ('Rudder', 'Q / E'), ('Throttle', 'Shift / Ctrl'),
                             ('Brake', 'Hold Ctrl with the throttle at idle: wheel brakes on the ground, airbrake in the air'),
                             ('Gear, flaps, airbrake', 'G · F · H'),
-                            ('Camera', 'Tab cycles camera · V flight deck · right mouse looks · wheel zooms · hold U to follow your missile'),
+                            ('Camera', 'Tab cycles camera · V flight deck · hold C or the right mouse button to look around · wheel zooms · hold U to follow your missile or bomb'),
+                            ('Bomber', 'Hold Space to drop bombs · O changes the load fitted at the next rearm'),
                             ('Map', 'N opens and closes the full map'),
                             ('Weapons', 'Space / left mouse / gamepad right trigger · 1 gun · 2 heat seeker · 3 radar missile'),
                             ('Targets', 'L locks or breaks lock · T / Y next and previous target'),
-                            ('Countermeasures', 'R flare against heat seekers (come out of reheat first) · C chaff against radar missiles (turn them onto your wingtip first)'),
+                            ('Countermeasures', 'R flare against heat seekers (come out of reheat first) · Z chaff against radar missiles (turn them onto your wingtip first)'),
                             ('Repair and rearm', 'Land, stop and wait ten seconds'),
                             ('Chat', '/ or Enter opens chat in multiplayer · Enter sends · Esc cancels'),
                             ('Pilots and scores', 'Hold K in multiplayer'),
@@ -806,6 +817,10 @@ class Window(QMainWindow):
         self.lan_pilot.setToolTip('Shown to other pilots in chat, on labels and on the scoreboard.')
         self.lan_pilot.editingFinished.connect(lambda: self.set_network(name=self.lan_pilot.text()))
         form.addRow('Pilot name', self.lan_pilot)
+        self.team_combo = self.combo([('auto', 'Whichever side has fewer pilots'), ('red', 'Red'), ('blue', 'Blue')],
+                                     self.prefs.team, lambda v: self.set_pref('team', v))
+        self.team_combo.setToolTip('Your side in a team game. Each side has its own airfield to take off from and to land at for repairs and weapons. In the game, type /red or /blue in chat to change. A free-for-all ignores this.')
+        form.addRow('Team', self.team_combo)
         row = ResponsiveRow()
         host, host_box, _ = self.card('Host a game', 'play')
         host_form = QFormLayout()
@@ -831,6 +846,19 @@ class Window(QMainWindow):
         self.lan_missile_reload.setToolTip('Every pilot gets one missile back after this many seconds, in the air or on the ground, with a quarter of their flares, chaff and gun rounds. At 60, that is one missile a minute.')
         self.lan_missile_reload.valueChanged.connect(lambda v: self.set_pref('lan_missile_reload', v))
         host_form.addRow(label('Weapon reload', 'muted'), self.lan_missile_reload)
+        self.lan_teams = self.combo([(False, 'Free-for-all'), (True, 'Team battle · Red against Blue')], self.prefs.lan_teams,
+                                    lambda v: (self.set_pref('lan_teams', bool(v)), self.lan_score_limit.setEnabled(bool(v))))
+        self.lan_teams.setToolTip('In a team battle each side has an airfield, a depot and three outposts, defended by guns and missiles. Bomb the other side\'s to score, shoot its aircraft down, and land at your own airfield to repair and rearm.')
+        host_form.addRow(label('Game type', 'muted'), self.lan_teams)
+        self.lan_score_limit = QSpinBox()
+        self.lan_score_limit.setRange(50, 5000)
+        self.lan_score_limit.setSingleStep(50)
+        self.lan_score_limit.setSuffix(' points')
+        self.lan_score_limit.setValue(self.prefs.lan_score_limit)
+        self.lan_score_limit.setEnabled(self.prefs.lan_teams)
+        self.lan_score_limit.setToolTip('The first side to reach this wins the round. A building is worth 10 to 40 points and an aircraft shot down 10.')
+        self.lan_score_limit.valueChanged.connect(lambda v: self.set_pref('lan_score_limit', v))
+        host_form.addRow(label('Score to win', 'muted'), self.lan_score_limit)
         host_box.addLayout(host_form)
         self.host_button = button('Host and fly', self.host_lan)
         self.host_button.setObjectName('primary')
@@ -1103,6 +1131,7 @@ class Window(QMainWindow):
                 self.prefs.aircraft = self.aircraft_combo.currentData()
                 self.save()
             a = next((a for a in self.installation.aircraft if a['id'] == self.aircraft_combo.currentData()), None)
+            self.loadout_row.setVisible(bool(a and a.get('bomber')))
             if a:
                 self.aircraft_detail.setText(aircraft_summary(a))
                 preview = None

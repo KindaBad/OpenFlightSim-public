@@ -11,6 +11,8 @@ Server::Server(const ServerConfig &config)
     throw std::invalid_argument(
         "server limits: players plus bots <=64, bots 0..8, snapshot rate 1..60");
   world_.setMissileReload(config.missileReload);
+  if (config.teams)
+    world_.setTeams(config.scoreLimit);
   transport_.listen(config.bind, config.port);
   config_.lobbyName = lobbyName(config_.lobbyName);
   if (!config_.lobbyName.empty())
@@ -29,7 +31,21 @@ LobbyInfo Server::lobby() const {
   info.maxPlayers = std::uint8_t(config_.maxClients);
   return info;
 }
+void Server::sendTeamStatus(Connection c) {
+  Message m;
+  m.type = Type::TeamState;
+  m.tick = world_.tick();
+  m.sequence = ++sequence_;
+  m.teams = world_.teamStatus();
+  send(c, m, true);
+}
 std::string Server::pilot(EntityId id) const {
+  if (defenceEntity(id)) {
+    const auto index = std::size_t(id & 0xffff);
+    return index < structures().size()
+               ? std::string(teamName(structures()[index].team)) + "'s defences"
+               : "Base defences";
+  }
   const auto player = world_.players().find(id);
   return player == world_.players().end() ? "Pilot " + std::to_string(id)
                                           : player->second.name;
@@ -146,7 +162,7 @@ void Server::poll() {
       continue;
     }
     if (ok && m.type == Type::Hello && !s.entity) {
-      s.entity = world_.join(m.aircraftType, m.text);
+      s.entity = world_.join(m.aircraftType, m.text, m.team, m.loadout);
       if (!s.entity) {
         remove(e.connection, "world full", true);
         continue;
@@ -162,7 +178,9 @@ void Server::poll() {
       welcome.snapshotHz = static_cast<std::uint16_t>(config_.snapshotHz);
       welcome.aircraft = world_.aircraft(s.entity);
       welcome.weather = world_.weather();
+      welcome.team = world_.players().at(s.entity).team;
       send(e.connection, welcome, true);
+      sendTeamStatus(e.connection);
       // The newcomer learns who is already here, then everyone learns of it.
       Message joined;
       joined.type = Type::Joined;
@@ -172,14 +190,18 @@ void Server::poll() {
           continue;
         joined.entity = id;
         joined.text = player.name;
+        joined.team = player.team;
         joined.sequence = ++sequence_;
         send(e.connection, joined, true);
       }
       joined.entity = s.entity;
       joined.text = pilot(s.entity);
+      joined.team = welcome.team;
       joined.sequence = ++sequence_;
       broadcast(joined, true);
-      notice(joined.text + " joined the game");
+      notice(joined.text + (welcome.team != Team::None
+                                ? std::string(" joined ") + teamName(welcome.team)
+                                : std::string(" joined the game")));
       continue;
     }
     if (ok && m.type == Type::Chat && s.entity) {
@@ -187,6 +209,22 @@ void Server::poll() {
       // the simulation.
       if (++s.chats > 4 || m.text.find_first_not_of(' ') == std::string::npos)
         continue;
+      // "/red" and "/blue" change sides in a team game.
+      if (m.text == "/red" || m.text == "/blue") {
+        const Team team = m.text == "/red" ? Team::Red : Team::Blue;
+        if (world_.setTeam(s.entity, team)) {
+          Message joined;
+          joined.type = Type::Joined;
+          joined.tick = world_.tick();
+          joined.entity = s.entity;
+          joined.text = pilot(s.entity);
+          joined.team = team;
+          joined.sequence = ++sequence_;
+          broadcast(joined, true);
+          notice(joined.text + " changed to " + teamName(team));
+        }
+        continue;
+      }
       Message line;
       line.type = Type::Chat;
       line.tick = world_.tick();
@@ -244,6 +282,7 @@ void Server::step() {
       const auto &player = world_.players().at(session.entity);
       auto radar = radarProjection(player.weapons, player.life.generation);
       radar.loadouts = world_.loadoutsNear(session.entity);
+      radar.loadout = player.loadout;
       const auto packets = session.weapons.build(
           world_.tick(), session.entity, player.sim.state().pos_ned, radar,
           world_.missiles().missiles(), weaponEvents);
@@ -268,6 +307,20 @@ void Server::step() {
         }
       }
     }
+  for (const auto &text : world_.takeNotices())
+    notice(text);
+  // The whole team state goes out when any of it changed, and once a second
+  // while a round is waiting to restart.
+  if (world_.teams() && world_.tick() - teamStatusTick_ >= 30) {
+    auto status = world_.teamStatus();
+    if (status != teamStatus_) {
+      teamStatus_ = std::move(status);
+      teamStatusTick_ = world_.tick();
+      for (const auto &[c, s] : sessions_)
+        if (s.entity)
+          sendTeamStatus(c);
+    }
+  }
   auto events = world_.combat().takeEvents();
   // An aircraft that was left by its pilot is announced as that, not as a crash.
   std::vector<EntityId> left;

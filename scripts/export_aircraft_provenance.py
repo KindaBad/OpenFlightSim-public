@@ -88,7 +88,7 @@ for(std::size_t k=0;k<c.engines.size();++k){const auto& e=c.engines[k];const aut
         if binary is None: subprocess.run(['c++','-std=c++23','-I'+str(ROOT/'core/include'),str(cpp),str(build/'core/libofs_core.a'),'-o',str(exe)],check=True)
         lines=subprocess.check_output([str(binary or exe)],text=True).splitlines()
     datasets={};current=None
-    source_files=[ROOT/'core/src'/name for name in ['aircraft.cpp','aircraft_definition.cpp','sr71.cpp','su57.cpp','jf17.cpp']]+[ROOT/'core/include/ofs/aircraft.hpp']+list((ROOT/'data/physics').glob('*.json'))+[ROOT/'data/reference/parameter_sources.json']
+    source_files=[ROOT/'core/src'/name for name in ['aircraft.cpp','aircraft_definition.cpp','sr71.cpp','su57.cpp','jf17.cpp','b52.cpp']]+[ROOT/'core/include/ofs/aircraft.hpp']+list((ROOT/'data/physics').glob('*.json'))+[ROOT/'data/reference/parameter_sources.json']
     reviewed=json.loads((ROOT/'data/reference/parameter_sources.json').read_text())
     for name in ['a320','su57']:
         definition=json.loads((ROOT/'data/physics'/f'{name}.json').read_text())
@@ -120,7 +120,7 @@ for(std::size_t k=0;k<c.engines.size();++k){const auto& e=c.engines[k];const aut
         elif key=='payload_cd_per_kg':unit='1/kg'
         elif key in {'cl_alpha','cm_alpha','cm_de','cl_beta','cl_da','cn_beta','cn_dr','cy_beta'}:unit='1/rad'
         origin='ESTIMATE'
-        if key in INERTIA and current['aircraft'] in {'a320','su57','typhoon','jf17'}:origin='DERIVED'
+        if key in INERTIA and current['aircraft'] in {'a320','su57','typhoon','jf17','b52'}:origin='DERIVED'
         notes='Engineering value; no independent flight-test validation. Published-looking anchors remain estimates until source verified.'
         if origin=='DERIVED':notes='Derived from estimated component masses, locations and variances; not measured aircraft inertia.'
         if key in {'ixy','iyz'} and values==[0.]:notes='Assumed symmetry; unavailable measured products, not a measurement of zero.'
@@ -140,6 +140,7 @@ for(std::size_t k=0;k<c.engines.size();++k){const auto& e=c.engines[k];const aut
             record['confidence']='Reference source anchor' if record['provenance']=='REFERENCE' else 'Derived from estimates' if record['provenance']=='DERIVED' else 'Engineering estimate; see source'
         if current['aircraft']=='typhoon' and key in INERTIA:record['source']='core/src/aircraft_definition.cpp component mass/geometry reconstruction; docs/MASS_ENGINE_AUDIT.md'
         if current['aircraft']=='jf17' and key in INERTIA:record['source']='core/src/jf17.cpp component mass/geometry reconstruction; docs/MASS_ENGINE_AUDIT.md'
+        if current['aircraft']=='b52' and key in INERTIA:record['source']='core/src/b52.cpp component mass/geometry reconstruction; docs/AIRCRAFT_REFERENCE.md'
         if key.endswith(('.direction','.vector_axis')):record['unit']='1'
         if key.startswith('unsteady_') and key.endswith('tau'):record['unit']='s'
         current['parameters'].append(record)

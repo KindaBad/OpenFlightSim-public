@@ -120,7 +120,21 @@ class CombatEffects {
   // An aircraft destroyed: fireball, shock ring, smoke column and burning debris.
   void onDestroyed(const Vec3& position, const Vec3& velocity);
   // A warhead going off: smaller and sharper than an aircraft blowing up.
-  void onDetonation(const Vec3& position);
+  // `scale` enlarges it for a bomb, which also throws up earth.
+  void onDetonation(const Vec3& position, float scale = 1);
+  // A nuclear burst: a flash that fills the sky, then a fireball that rises on
+  // a stem of smoke and rolls out into a cap, a ring of dust racing outward
+  // along the ground and a shell of cloud around the shock. The cloud is fed
+  // for more than a minute by updateNuclear, which is called once a frame.
+  void onNuclear(const Vec3& position);
+  void updateNuclear(double dt);
+  // Every burst whose cloud still stands: where, and how old.
+  struct NuclearCloud { Vec3 ground; double age{}; };
+  std::vector<NuclearCloud> nuclearClouds() const {
+    std::vector<NuclearCloud> clouds;
+    for (const auto& cloud : clouds_) clouds.push_back({cloud.ground, cloud.age});
+    return clouds;
+  }
   // A countermeasure leaving an aircraft. A flare burns bright as it falls
   // behind on a thread of white smoke; chaff bursts into a glittering cloud.
   // The motion is the decoy's own, so what is seen is what a seeker follows.
@@ -142,6 +156,14 @@ class CombatEffects {
                       std::uint64_t id, double load = 1, double health = 100, const Weather& weather = {});
 
  private:
+  struct Cloud {
+    Vec3 ground;
+    double age{};
+    // Fractions of a puff owed to each part of the cloud.
+    double fire{}, cap{}, stem{}, surge{}, skirt{};
+    std::uint32_t seed{};
+  };
+  std::vector<Cloud> clouds_;
   EffectPool& pool_;
   EffectsQuality quality_;
   bool contrails_{true}, heat_{true}, vapor_{true};

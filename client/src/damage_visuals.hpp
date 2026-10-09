@@ -52,6 +52,7 @@ inline DamageGeometry damageGeometry(AircraftType type) {
     case AircraftType::SR71: return {5.3, 8.5, -10.6, 3.0, 1.3, 3.1, -6.2};
     case AircraftType::Su57: return {3.3, 7.05, -5.45, 1.5, .6, 2.2, -4.6};
     case AircraftType::JF17: return {1.2, 4.79, -2.7, 1.0, .90, 3.28, -2.4};
+    case AircraftType::B52: return {6.0, 27.8, -12.5, 11.0, 1.7, 8.8, -15.0};
   }
   const auto& visual = aircraftDefinition(type).visual;
   const double tip = std::abs(visual.wingtip[1].y);

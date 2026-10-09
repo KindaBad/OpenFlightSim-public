@@ -34,7 +34,7 @@ int main(int argc, char **argv) {
       else
         throw std::invalid_argument(
             "ofs_bot [--server IP] [--port N] [--name ASCII] [--seconds N] "
-            "[--aircraft a320|su57|typhoon|sr71|jf17] [--conditions local|good|moderate|bad] [--pulse] [--fire] [--afterburner]");
+            "[--aircraft a320|su57|typhoon|sr71|jf17|b52] [--conditions local|good|moderate|bad] [--pulse] [--fire] [--afterburner]");
     }
     Client client(name, aircraft);
     Transport::conditions(preset);

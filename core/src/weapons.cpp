@@ -56,9 +56,65 @@ const MissileDefinition &missileDefinition(WeaponType type) {
     return ar;
   throw std::invalid_argument("invalid missile type");
 }
-void Inventory::reset(AircraftType type) {
+const BombDefinition &bombDefinition(WeaponType type) {
+  // Mk 82 and Mk 84 general-purpose bombs and a B83-class weapon, which is
+  // given enough drag that the aircraft that dropped it can get clear.
+  static const BombDefinition mk82{WeaponType::Bomb500, "Mk 82", 227, 2.21, .273, .0075, 70, 160, 50, 75, .10};
+  static const BombDefinition mk84{WeaponType::Bomb2000, "Mk 84", 925, 3.28, .457, .021, 150, 320, 120, 240, .30};
+  static const BombDefinition nuclear{WeaponType::Nuclear, "B83", 1100, 3.67, .46, .60, 8000, 1000, 6000, 100000, 1};
+  if (type == WeaponType::Bomb500)
+    return mk82;
+  if (type == WeaponType::Bomb2000)
+    return mk84;
+  if (type == WeaponType::Nuclear)
+    return nuclear;
+  throw std::invalid_argument("invalid bomb type");
+}
+unsigned bombLoadouts(AircraftType type) {
+  return validAircraftType(type) && aircraftDefinition(type).bomber ? 3 : 0;
+}
+BombLoad bombLoad(AircraftType type, unsigned loadout) {
+  if (!bombLoadouts(type))
+    return {};
+  // B-52H: 27 Mk 82 in the bay and 24 under the wings, or 18 Mk 84, or one
+  // weapon in the bay.
+  switch (loadout % bombLoadouts(type)) {
+  case 1: return {WeaponType::Bomb2000, 18, "18 x Mk 84 (2,000 lb)"};
+  case 2: return {WeaponType::Nuclear, 1, "1 x B83 nuclear"};
+  default: return {WeaponType::Bomb500, 51, "51 x Mk 82 (500 lb)"};
+  }
+}
+void advanceBomb(const BombDefinition &d, Vec3 &position, Vec3 &velocity, const Weather &weather, double dt) {
+  const auto air = isaAtAltitude(std::max(0., -position.z), weather.temp_offset_c);
+  const Vec3 relative = velocity - weather.wind_ned;
+  const Vec3 acceleration = Vec3{0, 0, kG0} - relative * (.5 * air.rho * relative.norm() * d.dragArea / d.mass);
+  position += velocity * dt + acceleration * (.5 * dt * dt);
+  velocity += acceleration * dt;
+}
+bool bombImpact(const BombDefinition &d, Vec3 position, Vec3 velocity, const Weather &weather, Vec3 &impact, double &seconds) {
+  constexpr double step = .1;
+  for (seconds = 0; seconds < d.lifetime; seconds += step) {
+    const Vec3 before = position;
+    advanceBomb(d, position, velocity, weather, step);
+    const double ground = groundHeightNed(position.x, position.y);
+    if (position.z >= ground) {
+      const double above = groundHeightNed(before.x, before.y) - before.z, below = position.z - ground;
+      impact = before + (position - before) * (above / std::max(1e-6, above + below));
+      return true;
+    }
+  }
+  impact = position;
+  return false;
+}
+void Inventory::reset(AircraftType type, unsigned loadout) {
   stations.clear();
   selected = WeaponType::Infrared;
+  const auto load = bombLoad(type, loadout);
+  bombType = load.type;
+  bombs = load.count;
+  bay = {.5, 0, 1.6};
+  if (isBomb(bombType))
+    selected = bombType;
   // Each aircraft's usual air-to-air load, placed against its visual model.
   // The heat seekers come first; see docs/AIRCRAFT_REFERENCE.md.
   // Typhoon: two IRIS-T on the outer wing pylons and four Meteor half sunk
@@ -125,6 +181,14 @@ void Inventory::applyPayload(const AircraftConfig &cfg, State &state) const {
       moment += station.position * mass;
       point(mass, station.position);
     }
+  if (bombs && isBomb(bombType)) {
+    // Spread along the bay, about its middle.
+    const double mass = bombs * bombDefinition(bombType).mass;
+    total += mass;
+    moment += bay * mass;
+    point(mass, bay);
+    diagonal += Vec3{0, 6, 6} * mass;
+  }
   const Vec3 centroid = total > 0 ? moment / total : cfg.payload_position;
   point(-total, centroid);
   state.payload_mass = total;
@@ -271,7 +335,9 @@ const DecoyDefinition &decoyDefinition(DecoyType type) {
   return type == DecoyType::Flare ? flare : chaff;
 }
 unsigned decoyCapacity(AircraftType type) {
-  return aircraftDefinition(type).gun ? 16 : 0;
+  const auto &definition = aircraftDefinition(type);
+  // A bomber cannot turn away from a missile and carries far more to throw.
+  return definition.bomber ? 60 : definition.gun ? 16 : 0;
 }
 double decoyStrength(DecoyType type, double age) {
   const auto &d = decoyDefinition(type);

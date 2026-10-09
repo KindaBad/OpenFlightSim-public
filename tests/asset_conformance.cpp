@@ -25,10 +25,13 @@ int main(int argc,char** argv){try {
     const PhysicalGeometry* geometry=d.type==AircraftType::A320?&a320Geometry():d.type==AircraftType::Su57?&su57Geometry():nullptr;
     // The JF-17 donor is scaled to the published 14.93 m and then stands
     // 5.15 m high against the published 4.77 m; the airframe is not squashed.
-    const double length=geometry?geometry->length:d.type==AircraftType::Typhoon?15.96:d.type==AircraftType::JF17?14.93:32.7406;
+    const double length=geometry?geometry->length:d.type==AircraftType::Typhoon?15.96:d.type==AircraftType::JF17?14.93:d.type==AircraftType::B52?48.5:32.7406;
     // The Typhoon donor's fin stands 0.34 m above the published 5.28 m overall
     // height at the configured static stance; the airframe is not rescaled.
-    const double height=geometry?geometry->height:d.type==AircraftType::Typhoon?5.62:d.type==AircraftType::JF17?5.15:5.6388;
+    const double height=geometry?geometry->height:d.type==AircraftType::Typhoon?5.62:d.type==AircraftType::JF17?5.15:d.type==AircraftType::B52?12.4:5.6388;
+    // The B-52 donor, scaled to the published 48.5 m, spans 55.66 m against
+    // the published 56.4 m.
+    const double wingSpan=d.type==AircraftType::B52?55.66:d.flight.wing_span;
     if(!(std::filesystem::is_regular_file(path)||std::filesystem::is_regular_file(path.string()+".ofspack"))) {
       require(!mandatory,"Required production model absent: "+path.string());
       ++missing;
@@ -37,11 +40,11 @@ int main(int argc,char** argv){try {
     const auto mesh=loadGltf(path.string());complete(mesh);
     const double measuredLength=mesh.boundsMax[0]-mesh.boundsMin[0],span=mesh.boundsMax[2]-mesh.boundsMin[2],high=mesh.boundsMax[1]-mesh.boundsMin[1];
     std::printf("asset-conformance %.*s length=%.6f span=%.6f height=%.6f\n",int(d.key.size()),d.key.data(),measuredLength,span,high);
-    const double measured[]{measuredLength,span,high},expected[]{length,d.flight.wing_span,height};
+    const double measured[]{measuredLength,span,high},expected[]{length,wingSpan,height};
     const char* dimensions[]{"length","span","height"};
     for(unsigned i=0;i<3;++i)std::printf("  scale %s expected=%.6f measured=%.6f error_m=%+.6f error_percent=%+.4f\n",dimensions[i],expected[i],measured[i],measured[i]-expected[i],100*(measured[i]-expected[i])/expected[i]);
     require(std::abs(measuredLength-length)<.15,"Physical length mismatch: "+std::string(d.key));
-    require(std::abs(span-d.flight.wing_span)<.15,"Physical span mismatch: "+std::string(d.key));
+    require(std::abs(span-wingSpan)<.15,"Physical span mismatch: "+std::string(d.key));
     if(height>0)require(std::abs(high-height)<.15,"Known height mismatch");
     // Shared model-to-body transform: -(asset.X-CGX), -(asset.Z-CGZ), -(asset.Y-CGY).
     // Check forward direction, CG in measured envelope and parked contact plane.

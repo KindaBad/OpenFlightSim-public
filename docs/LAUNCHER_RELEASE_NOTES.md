@@ -1,3 +1,32 @@
+OpenFlightSim 0.6.0 Launcher
+
+- New aircraft: the B-52H Stratofortress. Eight engines, Mach 0.86, slow to
+  turn, no gun. Choose its load on the aircraft page: 51 Mk 82 bombs, 18 Mk 84
+  bombs, or one nuclear weapon. Hold Space to drop; a sight shows where a bomb
+  let go now would land, on the view and on the map. O asks for a different
+  load, fitted the next time you land and rearm. Flown alone it has the whole
+  map to bomb.
+- The nuclear weapon destroys everything within about 5 km, aircraft included.
+  Drop it from high up and keep going: released below about 2 km it takes the
+  bomber with it.
+- New game type: Team battle, Red against Blue. Pick it under Game type when
+  you host, and pick your side under Team. Each side has its own airfield at
+  one end of the valley, with a depot beside it and three outposts further
+  out, defended by flak guns and missile sites. Bomb the other side's
+  buildings for 10 to 40 points each, shoot its aircraft down for 10, and the
+  first side to the score limit wins the round. Buildings are rebuilt after
+  four minutes. Your own side's weapons cannot hurt you.
+- In a team battle you repair, refuel and rearm only at your own airfield:
+  land, stop, and wait ten seconds. Type /red or /blue in chat to change sides.
+- The map has three airfields now, in every game type.
+- Better brakes on every aircraft. All wheels brake, the aircraft stays
+  straight instead of sliding sideways, and it slows from the moment it
+  touches down: a landing roll is about half what it was. The undercarriage
+  also takes a harder arrival before anything breaks.
+- Hold C to look around without turning the aircraft, the same as holding
+  the right mouse button. Chaff has moved from C to Z.
+- Everyone in a shared game needs this version.
+
 OpenFlightSim 0.5.9 Launcher
 
 - JF-17 fixes. Its six undercarriage doors no longer hang in the air below the

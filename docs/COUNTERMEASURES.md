@@ -1,6 +1,6 @@
 # Countermeasures and the missile warning
 
-Armed aircraft carry 16 flares and 16 bundles of chaff. R drops a flare and C
+Armed aircraft carry 16 flares and 16 bundles of chaff. R drops a flare and Z
 chaff, one per press and one every third of a second while held; the dispenser
 needs a quarter of a second between releases of either kind. Stocks are
 refilled by a new life or by [standing on the ground](DAMAGE_MODEL.md#turn-round).

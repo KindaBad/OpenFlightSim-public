@@ -39,6 +39,18 @@ struct Player {
   Tick reloading{};
   // The same wait for the next share of flares, chaff and gun rounds.
   Tick resupplying{};
+  // The side flown for in a team game, and the bomb load a bomber asked for.
+  Team team{Team::None};
+  std::uint8_t loadout{};
+  // Kills already counted toward the side's score.
+  std::uint32_t countedKills{};
+};
+// A structure of a team game: how much of it stands, when it will have been
+// rebuilt, and the gun or launcher it may be.
+struct Site {
+  double health{100};
+  Tick rebuilt{}, ready{};
+  Life gun;
 };
 // How long after a hit a crash still counts for the attacker.
 constexpr Tick killCreditTicks = 20 * 120;
@@ -47,7 +59,20 @@ constexpr std::size_t maxDecoys = 256;
 class World {
 public:
   explicit World(bool airborne = true, std::optional<GunConfig> gun = std::nullopt);
-  EntityId join(AircraftType type = AircraftType::A320, std::string name = {});
+  EntityId join(AircraftType type = AircraftType::A320, std::string name = {},
+                Team team = Team::None, unsigned loadout = 0);
+  // A team game: Red against Blue, first to `scoreLimit` points. Set before
+  // anyone joins.
+  void setTeams(unsigned scoreLimit);
+  bool teams() const { return teams_; }
+  // Stands the base guns and missile sites down, for exercises and tests.
+  void setDefences(bool active) { defences_ = active; }
+  // Moves a pilot to the other side, in a fresh aircraft.
+  bool setTeam(EntityId, Team);
+  TeamStatus teamStatus() const;
+  const std::vector<Site> &sites() const { return sites_; }
+  // What happened on the ground since last asked, for everyone to read.
+  std::vector<std::string> takeNotices();
   EntityId joinBot(AircraftType type = AircraftType::Typhoon);
   std::size_t botCount() const;
   void leave(EntityId);
@@ -98,6 +123,19 @@ private:
   bool needsService(const Player &) const;
   void service(EntityId, Player &);
   void reload(Player &);
+  // The team game: bombs on structures, the defences, the score and the round.
+  void applyBlasts();
+  void defend(std::span<CombatTarget>);
+  void score(Team, int points);
+  void startRound();
+  Team smallerTeam() const;
+  bool teams_{}, defences_{true};
+  unsigned scoreLimit_{};
+  std::uint32_t score_[2]{};
+  Team winner_{Team::None};
+  Tick restart_{};
+  std::vector<Site> sites_;
+  std::vector<std::string> notices_;
   Tick missileReload_{};
   std::vector<weapons::Decoy> decoys_;
   std::uint64_t nextDecoy_{1};

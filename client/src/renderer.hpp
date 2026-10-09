@@ -22,6 +22,7 @@
 #include "animation.hpp"
 #include "atmosphere_model.hpp"
 #include "breakaway.hpp"
+#include "ofs/bases.hpp"
 #include "camera.hpp"
 #include "damage_visuals.hpp"
 #include "effects.hpp"
@@ -67,6 +68,8 @@ struct RemoteAircraft {
   Controls controls;
   double load{1};
   unsigned kills{}, deaths{};
+  // The side it flies for in a team game.
+  Team team{Team::None};
 };
 
 // Server-authoritative combat events for one frame. The renderer turns these
@@ -119,7 +122,11 @@ struct CombatVisuals {
   std::vector<MissileVisual> missiles;
   std::vector<Store> stores;
   std::vector<Pylon> pylons;
-  std::vector<Vec3> missileDetonations;
+  // A warhead or a bomb going off.
+  struct Detonation { Vec3 position; weapons::WeaponType type{weapons::WeaponType::Infrared}; };
+  std::vector<Detonation> missileDetonations;
+  // Ruins that are still burning: each asks for one more puff of smoke.
+  std::vector<Vec3> fires;
   // A flare or a bundle of chaff released this frame.
   struct Decoy { weapons::DecoyType type{weapons::DecoyType::Flare}; Vec3 position, velocity; };
   std::vector<Decoy> decoys;
@@ -410,6 +417,11 @@ class Renderer {
   void drawFlame(const glm::mat4& matrix, const glm::vec3& glowCentre, float glowRadius, float intensity, float seed,
                  bool rocket);
   void drawMissilePlumes(const CombatVisuals& combat);
+ public:
+  // The team game's structures: empty when there is none to show, otherwise
+  // one health per entry of ofs::structures().
+  void setStructures(std::span<const std::uint8_t> health);
+ private:
   // Wings and fins that have broken away, drawn from their aircraft's own mesh.
   void drawBreakaways();
   void createChuteMeshes();
@@ -466,8 +478,12 @@ class Renderer {
     bgfx::VertexBufferHandle vertices{BGFX_INVALID_HANDLE};
     std::uint32_t count{};
   };
-  std::array<std::array<std::array<PartBuffer, 4>, 2>, 2> storeMeshes_{};
+  // One per weapon type after None, near and far.
+  std::array<std::array<std::array<PartBuffer, 4>, 2>, 5> storeMeshes_{};
   PartBuffer pylonMesh_{};
+  // The solid body of a nuclear cloud: fireball, cap, stem and skirt.
+  std::array<PartBuffer, 4> cloudMeshes_{};
+  void drawNuclearClouds();
   std::array<PartBuffer, std::size_t(ChutePart::Count)> chuteMeshes_{};
   std::vector<PartLost> partsLost_;
   std::vector<Vec3> wreckImpacts_;
@@ -541,7 +557,14 @@ class Renderer {
     bgfx::VertexBufferHandle buffer{BGFX_INVALID_HANDLE};
     AirfieldMaterial material{AirfieldMaterial::Concrete};
     std::uint32_t vertices{};
+    // Where it stands, in renderer axes, and how far it reaches.
+    glm::vec3 centre{-200, 10, 0};
+    float radius{2100};
   };
+  // What can be bombed in a team game, rebuilt when any of it falls or rises.
+  std::vector<StructureBatch> baseParts_;
+  std::vector<std::uint8_t> baseHealth_;
+  bool baseShown_{};
   std::vector<GroundLayer> airfieldGround_;
   std::vector<StructureBatch> airfieldParts_;
   // Village buildings, in two batches: walls and roofs.

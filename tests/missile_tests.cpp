@@ -525,7 +525,7 @@ void radarProtocol() {
   m.radar.chaff = 255;
   auto bytes = encodeWeapon(m);
   WeaponMessage decoded;
-  check(bytes.size() == 816 && decodeWeapon(bytes, decoded),
+  check(bytes.size() == 820 && decodeWeapon(bytes, decoded),
         "maximum radar packet");
   check(decoded.radar.flares == 13 && decoded.radar.chaff == 255,
         "countermeasure stock round trip");
@@ -977,7 +977,7 @@ void countermeasures() {
             "countermeasure request round trip");
     }
     auto bytes = encodeWeapon(m);
-    bytes[36] = std::uint8_t(unsigned(WeaponActionKind::Eject) + 1);
+    bytes[36] = std::uint8_t(unsigned(WeaponActionKind::Loadout) + 1);
     check(!decodeWeapon(bytes, out), "unknown request rejected");
     Message combat;
     combat.type = Type::Combat;

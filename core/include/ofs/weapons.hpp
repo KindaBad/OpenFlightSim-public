@@ -23,7 +23,8 @@ struct SensorTarget {
   // source's strength outright, in place of the aircraft signature models.
   double signature{-1};
 };
-enum class WeaponType : std::uint8_t { None, Infrared, ActiveRadar };
+enum class WeaponType : std::uint8_t { None, Infrared, ActiveRadar, Bomb500, Bomb2000, Nuclear };
+inline bool isBomb(WeaponType type) { return type >= WeaponType::Bomb500 && type <= WeaponType::Nuclear; }
 enum class MotorPhase : std::uint8_t { Ignition, Boost, Sustain, Burnout };
 // Decoyed is reported to players for a missile that is following a decoy; the
 // seeker itself is simply tracking, and never holds this phase.
@@ -61,6 +62,35 @@ struct MissileDefinition {
       lifetime{45};
 };
 const MissileDefinition &missileDefinition(WeaponType);
+// Free-fall bombs. They have no motor, seeker or fins that steer: a bomb goes
+// where the aircraft that let it go was heading, less what the air takes.
+// Gameplay blast figures, not weapon effects data.
+struct BombDefinition {
+  WeaponType type;
+  const char *name;
+  double mass{}, length{}, diameter{};
+  double dragArea{};  // drag coefficient times frontal area, m2
+  // Aircraft take `damage` at the burst, falling to nothing at `blastRadius`.
+  double blastRadius{}, damage{};
+  // The same for what stands on the ground, against a strength of 100.
+  double structureRadius{}, structureDamage{};
+  double releaseInterval{};  // seconds between bombs leaving one aircraft
+  double lifetime{72};       // seconds before one that is still falling bursts
+};
+const BombDefinition &bombDefinition(WeaponType);
+// A bomber's loads, chosen before take-off: 0, 1, 2 ...
+unsigned bombLoadouts(AircraftType);
+struct BombLoad {
+  WeaponType type{WeaponType::None};
+  unsigned count{};
+  const char *name{""};
+};
+BombLoad bombLoad(AircraftType, unsigned loadout);
+// One step of a bomb's fall through the air.
+void advanceBomb(const BombDefinition &, Vec3 &position, Vec3 &velocity, const Weather &, double dt);
+// Where a bomb let go now would reach the ground, and after how long. False if
+// it would still be falling when its time ran out.
+bool bombImpact(const BombDefinition &, Vec3 position, Vec3 velocity, const Weather &, Vec3 &impact, double &seconds);
 struct Station {
   Vec3 position;
   std::uint8_t compatible{}; // bit 1 IR, bit 2 active radar
@@ -71,7 +101,11 @@ struct Station {
 struct Inventory {
   std::vector<Station> stations;
   WeaponType selected{WeaponType::Infrared};
-  void reset(AircraftType);
+  // A bomber's load is counted, not hung on stations: all of one kind.
+  WeaponType bombType{WeaponType::None};
+  unsigned bombs{};
+  Vec3 bay;  // where they are carried and leave from
+  void reset(AircraftType, unsigned loadout = 0);
   unsigned remaining(WeaponType) const;
   int nextStation() const;
   bool consume(unsigned station, WeaponType);

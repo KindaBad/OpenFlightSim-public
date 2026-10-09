@@ -147,7 +147,9 @@ void controlsWindow(UiSettings& ui) {
     row("1    2    3", "Gun, heat seeker, radar missile");
     row("L", "Lock, or break lock");
     row("T / Y", "Next / previous target");
-    row("R    C", "Flare, chaff");
+    row("R    Z", "Flare, chaff");
+    row("Hold C", "Look around without turning the aircraft");
+    row("Space (hold)    O", "B-52: drop bombs, change load for the next rearm");
     row("J  (hold)", "Eject");
     section("ON THE GROUND");
     row("Land and stop", "Repaired and rearmed after 10 s");

@@ -22,6 +22,8 @@ MAX_VERSION = 24
 LAN_VERSION = '0.5.0'
 # The first simulator version whose server takes --missile-reload.
 MISSILE_RELOAD_VERSION = '0.5.6'
+# The first simulator version with the team game, the bomber and its loads.
+TEAMS_VERSION = '0.6.0'
 
 
 @dataclass(frozen=True)

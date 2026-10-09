@@ -58,6 +58,8 @@ struct Input {
   std::array<bool, SDL_SCANCODE_COUNT> keys_{};
   std::array<bool, SDL_SCANCODE_COUNT> previous_{};
   bool looking_{};
+  // What is holding the look: the C key, the right mouse button, or both.
+  bool keyLook_{}, rightLook_{};
   bool aiming_{};
   bool leftMouse_{};
   bool rightMouse_{};

@@ -141,6 +141,19 @@ std::span<const AircraftDefinition> aircraftDefinitions() {
           9,4,2,.344,.257,.045,true}, {.43,.29,.50},jf17Gun,
         {"assets/aircraft/jf17/jf17_lod1.glb","assets/aircraft/jf17/jf17_lod2.glb","assets/aircraft/jf17/jf17_lod3.glb"},jf17Boxes});
 #endif
+    // Anchors measured from the donor model; see assets/aircraft/b52/README.md.
+    const std::array<AircraftDefinition::CollisionSphere,17> b52Boxes{{
+      {{20.6,0,.2},1.2},{{16,0,.25},1.9},{{10.5,0,.28},2.0},{{4.5,0,.28},2.0},
+      {{-1.5,0,.28},2.0},{{-8,0,.25},2.0},{{-15,0,-.1},1.7},{{-22,0,-.6},1.2},
+      {{4.5,-5,-.9},3.0},{{.5,-11.5,-1.0},2.6},{{-4,-18.5,-1.1},2.2},{{-9,-25.5,-1.3},1.6},
+      {{4.5,5,-.9},3.0},{{.5,11.5,-1.0},2.6},{{-4,18.5,-1.1},2.2},{{-9,25.5,-1.3},1.6},
+      {{-21.5,0,-5.0},3.4}}};
+    definitions.push_back(AircraftDefinition{AircraftType::B52,"b52","Boeing B-52H Stratofortress | TF33-P-3",
+        "assets/aircraft/b52/b52_lod0.glb",b52Config(),
+        {{22.0,3.6,0},{19.2,0,-1.2},{-95,18,-26},{-70,0,-16},{-3,0,0},{-3,0,0},
+          {{.5,-14.9,.05},{.5,14.9,.05}},{{-12.3,-27.83,-1.48},{-12.3,27.83,-1.48}},
+          31,7,5,.70,.70,.020}, {1,1,1},std::nullopt,
+        {"assets/aircraft/b52/b52_lod1.glb","assets/aircraft/b52/b52_lod2.glb","assets/aircraft/b52/b52_lod3.glb"},b52Boxes,true});
     // A320/Su-57 renderer and physics consume the same geometry anchors.
     for(auto& d:definitions) {
       const PhysicalGeometry* g=d.type==AircraftType::A320?&a320Geometry():

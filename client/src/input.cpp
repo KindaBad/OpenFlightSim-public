@@ -36,7 +36,7 @@ void Input::connect(SDL_JoystickID id) {
 void Input::release(SDL_Window* window) {
   keys_.fill(false);
   previous_.fill(false);
-  looking_ = false;
+  looking_ = keyLook_ = rightLook_ = false;
   aiming_ = false;
   braking_ = false;
   leftMouse_ = false;
@@ -50,14 +50,32 @@ void Input::event(const SDL_Event& e, SDL_Window* window) {
     const auto sc = e.key.scancode;
     if (sc >= 0 && sc < SDL_SCANCODE_COUNT) keys_[static_cast<std::size_t>(sc)] = e.type == SDL_EVENT_KEY_DOWN;
   }
+  // C, held, looks around like the right mouse button: the view turns and the
+  // aircraft does not. Not while a text box has the keyboard.
+  if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_C && !e.key.repeat &&
+      !ImGui::GetIO().WantCaptureKeyboard && !ImGui::GetIO().WantTextInput) {
+    keyLook_ = true;
+    looking_ = SDL_SetWindowRelativeMouseMode(window, true);
+  }
+  if (e.type == SDL_EVENT_KEY_UP && e.key.scancode == SDL_SCANCODE_C && keyLook_) {
+    keyLook_ = false;
+    if (!rightLook_) {
+      looking_ = false;
+      SDL_SetWindowRelativeMouseMode(window, aiming_);
+    }
+  }
   if (e.type == SDL_EVENT_WINDOW_FOCUS_LOST) release(window);
   if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN && e.button.button == SDL_BUTTON_RIGHT &&
       !ImGui::GetIO().WantCaptureMouse) {
+    rightLook_ = true;
     looking_ = SDL_SetWindowRelativeMouseMode(window, true);
   }
   if (e.type == SDL_EVENT_MOUSE_BUTTON_UP && e.button.button == SDL_BUTTON_RIGHT) {
-    looking_ = false;
-    SDL_SetWindowRelativeMouseMode(window, aiming_);
+    rightLook_ = false;
+    if (!keyLook_) {
+      looking_ = false;
+      SDL_SetWindowRelativeMouseMode(window, aiming_);
+    }
   }
   if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN && e.button.button == SDL_BUTTON_LEFT)
     leftMouse_ = !ImGui::GetIO().WantCaptureMouse;

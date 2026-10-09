@@ -306,13 +306,13 @@ void run(unsigned count, unsigned seconds, double loss, unsigned lag,
       }
       l.weaponReceiver.expire(tick);
       l.aircraftReceiver.expire(tick);
-      check(l.weaponReceiver.missiles().size() <= 128 &&
-                l.weaponReceiver.tombstones() <= 256 &&
-                l.weaponSender.known() <= 128 &&
+      check(l.weaponReceiver.missiles().size() <= MissileCombat::capacity &&
+                l.weaponReceiver.tombstones() <= MissileCombat::capacity * 2 &&
+                l.weaponSender.known() <= MissileCombat::capacity &&
                 l.aircraftReceiver.stats().assemblyPeak <= 4,
             "bounded replication memory");
     }
-    check(queued < 10000 && world.missiles().missiles().size() <= 128,
+    check(queued < 10000 && world.missiles().missiles().size() <= MissileCombat::capacity,
           "queue and pool bounds");
   }
   const auto stats = world.missiles().stats();

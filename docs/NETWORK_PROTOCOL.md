@@ -320,6 +320,34 @@ M4 radar/missile state, bandwidth prioritization, lag compensation, Earth frame 
 and user/account authentication remain outside this protocol milestone.
 
 
+## v22 additions
+
+Version 22 adds the bomber, bombs and the team game ([rules](TEAM_GAME.md)).
+
+- `Hello` ends with the side asked for (0 none, 1 Red, 2 Blue) and a bomb
+  load number (0 to 7). `Welcome` and `Joined` end with the side given.
+  A `Joined` for an entity already known is a change of side.
+- `TeamState` (type 22, reliable): whether the game is a team game, the score
+  limit, both scores, the winner between rounds with the seconds until the
+  next, and one byte of health, 0 to 100, for each entry of
+  `ofs::structures()`. It is sent on joining and whenever any of it changes,
+  at most four times a second. Structure positions are never sent: both ends
+  compute them.
+- Weapon type takes the values 3 to 5 for the Mk 82, the Mk 84 and the
+  nuclear weapon. A bomb in flight is a missile record of that type with no
+  target, and is removed with the detonation flag when it bursts. A nuclear
+  weapon is sent to every client whatever the distance.
+- `RadarState` ends with the bomb type carried, the number left (two bytes)
+  and the load asked for at the next rearming. It is sent to bombers too.
+- `WeaponAction` kind 10, `Loadout`, asks for the load in its station byte.
+  `Launch` from a bomber releases one bomb and ignores the station.
+- Base defences fire as entities with bit 62 set and the structure's index in
+  the low bits. They have no aircraft record.
+- At most 320 missiles and bombs are in flight at once, up from 128.
+
+The terrain has two more level airfields and every wheel brakes, so earlier
+clients would disagree with the server about the ground and the landing roll.
+
 ## v17 additions
 
 **Ejection.** `WeaponAction` gains one kind, Eject (9); the station byte is

@@ -1,5 +1,8 @@
 #include "airfield.hpp"
 
+#include "ofs/bases.hpp"
+#include "ofs/terrain.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -233,7 +236,11 @@ void digit(Mesher& paint, int value, float x, float z, float width, float height
 }  // namespace
 
 AirfieldUse airfieldUse(double north, double east) {
-  const float x = float(east), z = float(-north);
+  // Measured from whichever airfield is nearest.
+  const AirfieldSite* nearest = &kAirfieldSites[0];
+  for (const auto& site : kAirfieldSites)
+    if (std::hypot(north - site.north, east - site.east) < std::hypot(north - nearest->north, east - nearest->east)) nearest = &site;
+  const float x = float(east - nearest->east), z = float(-(north - nearest->north));
   static const std::vector<Rect> paved = [] {
     auto all = asphaltTaxiways();
     const auto concrete = concreteAreas(), roads = roadStrips();
@@ -652,6 +659,94 @@ Airfield buildAirfield() {
   building({kFenceWest + 8.5f, -341, kFenceWest + 15.5f, -335}, "gatehouse");
 
   return field;
+}
+
+std::array<AirfieldPart, std::size_t(AirfieldMaterial::Count)> buildStructures(std::span<const std::uint8_t> health) {
+  std::array<AirfieldPart, std::size_t(AirfieldMaterial::Count)> parts;
+  for (std::size_t i = 0; i < parts.size(); ++i) parts[i].material = AirfieldMaterial(i);
+  const auto part = [&](AirfieldMaterial material) { return Mesher{parts[std::size_t(material)].vertices}; };
+  using M = AirfieldMaterial;
+  Mesher walls = part(M::Concrete), cladding = part(M::Cladding), roof = part(M::Roof), shelter = part(M::Shelter);
+  Mesher dark = part(M::Dark), white = part(M::White), steel = part(M::Steel), olive = part(M::Olive);
+  const auto all = structures();
+  for (std::size_t i = 0; i < all.size(); ++i) {
+    const auto& structure = all[i];
+    const float x = float(structure.east), z = float(-structure.north);
+    const float y = float(-groundHeightNed(structure.north, structure.east));
+    if (i < health.size() && health[i] == 0) {
+      // Burnt ground, the stumps of walls and what fell from them.
+      dark.box(x, z, 26, 20, y, .25f);
+      dark.box(x - 7, z + 4, 9, 1.2f, y, 2.2f);
+      dark.box(x + 6, z - 5, 1.2f, 8, y, 1.6f);
+      walls.box(x + 2, z + 3, 5, 4, y, .9f);
+      steel.beam({x - 4, y + .3f, z - 6}, {x + 5, y + 1.6f, z - 2}, .35f);
+      continue;
+    }
+    // Each side flies its colour over what it holds.
+    Mesher flag = part(structure.team == Team::Red ? M::Red : M::LightBlue);
+    const auto colours = [&](float fx, float fz, float height) {
+      steel.beam({fx, y, fz}, {fx, y + height, fz}, .14f);
+      flag.box(fx + 1.3f, fz, 2.6f, .08f, y + height - 1.7f, 1.6f, true);
+    };
+    switch (structure.kind) {
+      case StructureKind::Command:
+        walls.box(x, z, 30, 20, y, 6.5f);
+        walls.box(x - 6, z, 12, 12, y + 6.5f, 3.2f);
+        dark.box(x + 15.05f, z, .2f, 5, y, 3);
+        steel.beam({x + 9, y + 6.5f, z + 5}, {x + 9, y + 21, z + 5}, .3f);
+        colours(x - 17, z - 12, 11);
+        break;
+      case StructureKind::Fuel:
+        for (const float dx : {-11.f, 0.f, 11.f}) white.cylinder(x + dx, z, y, y + 8, 4.6f, 4.6f, 18);
+        walls.box(x, z, 40, 16, y, .8f);  // the bund around the tanks
+        steel.beam({x - 15, y + 8.2f, z}, {x + 15, y + 8.2f, z}, .3f);
+        colours(x - 22, z - 10, 9);
+        break;
+      case StructureKind::Ammunition:
+        shelter.vault(x, z, 0, 34, 16, 6.5f);
+        shelter.vaultEnd(x, z, 0, 17, 16, 6.5f, .45f, .6f, 1);
+        shelter.vaultEnd(x, z, 0, -17, 16, 6.5f, 0, 0, -1);
+        dark.box(x + 17.1f, z, .2f, 6.6f, y, 3.7f);
+        colours(x + 20, z - 10, 9);
+        break;
+      case StructureKind::Radar:
+        walls.box(x, z, 9, 9, y, 4);
+        steel.cylinder(x, z, y + 4, y + 13, 1.1f, .8f, 10);
+        white.dome(x, y + 15.5f, z, 4.2f, 2.6f);
+        colours(x - 7, z - 7, 8);
+        break;
+      case StructureKind::Depot:
+        cladding.box(x, z, 34, 20, y, 7.5f);
+        roof.box(x, z, 35.5f, 21.5f, y + 7.5f, .6f, true);
+        dark.box(x, z + 10.05f, 8, .2f, y, 5);
+        olive.box(x + 24, z + 4, 6.5f, 2.6f, y, 2.7f);  // a lorry waiting to load
+        colours(x - 20, z - 12, 10);
+        break;
+      case StructureKind::Sam: {
+        walls.box(x, z, 13, 13, y, .5f);
+        olive.box(x, z, 5.5f, 3.2f, y + .5f, 1.9f);
+        for (const float dz : {-1.1f, 1.1f}) {
+          olive.beam({x - 2.6f, y + 2.6f, z + dz}, {x + 2.4f, y + 5.4f, z + dz}, .6f);
+          white.beam({x - 2.9f, y + 3.25f, z + dz}, {x + 3.3f, y + 6.7f, z + dz}, .34f);
+        }
+        olive.box(x - 9, z + 6, 3, 3, y, 3);  // its radar cabin
+        steel.beam({x - 9, y + 3, z + 6}, {x - 9, y + 7, z + 6}, .22f);
+        colours(x + 8, z - 8, 7);
+        break;
+      }
+      case StructureKind::Flak:
+        // A ring of sandbags, the mount and two barrels at high elevation.
+        for (int side = 0; side < 10; ++side) {
+          const float a = 6.2831853f * side / 10;
+          walls.box(x + 4.6f * std::cos(a), z + 4.6f * std::sin(a), 2.4f, 2.4f, y, 1.1f);
+        }
+        olive.box(x, z, 2.6f, 2.6f, y, 1.5f);
+        for (const float dz : {-.35f, .35f}) steel.beam({x - .4f, y + 1.7f, z + dz}, {x + 2.6f, y + 5.2f, z + dz}, .18f);
+        colours(x - 6, z - 6, 6);
+        break;
+    }
+  }
+  return parts;
 }
 
 }  // namespace ofs::client

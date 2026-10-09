@@ -10,6 +10,7 @@
 #include "coordinates.hpp"
 #include "log.hpp"
 #include "missile_mesh.hpp"
+#include "nuclear_cloud.hpp"
 
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -34,6 +35,14 @@ Material storeMaterial(weapons::WeaponType type, StorePart part) {
     material.baseColor[0] = r; material.baseColor[1] = g; material.baseColor[2] = b;
     material.metallic = metallic; material.roughness = roughness;
   };
+  if (weapons::isBomb(type)) {
+    // Olive drab with a yellow nose band; the big one is white with a red band.
+    const bool nuclear = type == weapons::WeaponType::Nuclear;
+    if (part == StorePart::Band) { if (nuclear) set(.70f, .06f, .04f, 0, .6f); else set(.80f, .62f, .05f, 0, .6f); }
+    else if (nuclear) set(.82f, .82f, .80f, .1f, .4f);
+    else set(.20f, .23f, .14f, 0, .7f);
+    return material;
+  }
   switch (part) {
     case StorePart::Body:
       if (infrared) set(.56f, .58f, .60f, .15f, .42f); else set(.74f, .75f, .74f, .1f, .46f);
@@ -116,13 +125,44 @@ void Renderer::createStoreMeshes() {
     buffer.count = static_cast<std::uint32_t>(data.size());
     return buffer;
   };
-  for (int type = 0; type < 2; ++type)
+  for (int type = 0; type < int(storeMeshes_.size()); ++type)
     for (int detail = 0; detail < 2; ++detail) {
-      const StoreMesh mesh = buildStoreMesh(type ? weapons::WeaponType::ActiveRadar : weapons::WeaponType::Infrared, detail);
+      const StoreMesh mesh = buildStoreMesh(weapons::WeaponType(type + 1), detail);
       for (std::size_t part = 0; part < mesh.parts.size(); ++part)
         storeMeshes_[type][detail][part] = upload(mesh.parts[part]);
     }
   pylonMesh_ = upload(buildPylonMesh());
+  for (std::size_t part = 0; part < cloudMeshes_.size(); ++part) cloudMeshes_[part] = upload(buildCloudPart(CloudPart(part)));
+}
+
+void Renderer::drawNuclearClouds() {
+  for (const auto& cloud : combat_.nuclearClouds()) {
+    const glm::vec3 ground = localPosition(cloud.ground, origin_);
+    for (const auto& part : cloudParts(cloud.age)) {
+      const PartBuffer& mesh = cloudMeshes_[std::size_t(part.part)];
+      if (!bgfx::isValid(mesh.vertices) || part.radius <= 0 || part.height <= 0) continue;
+      glm::mat4 model = glm::translate(glm::mat4{1}, ground + glm::vec3(0, float(part.up), 0));
+      model = glm::rotate(model, float(part.turn), glm::vec3(0, 1, 0));
+      model = glm::scale(model, glm::vec3(float(part.radius), float(part.height), float(part.radius)));
+      Material material;
+      material.metallic = 0;
+      material.roughness = 1;
+      for (int i = 0; i < 3; ++i) { material.baseColor[i] = part.color[i]; material.emissive[i] = part.emissive[i]; }
+      material.baseColor[3] = part.alpha;
+      const bool fading = part.alpha < .995f;
+      if (fading) material.alpha = Material::Alpha::Blend;
+      bindFrame(viewProj_);
+      bindLighting();
+      bgfx::setUniform(uniforms_.model, glm::value_ptr(model));
+      bgfx::setUniform(uniforms_.normalMatrix, glm::value_ptr(glm::inverseTranspose(glm::mat3(model))));
+      bgfx::setState((fading ? kBlendState : kOpaqueState) | BGFX_STATE_MSAA);
+      bgfx::setVertexBuffer(0, mesh.vertices);
+      applyMaterial(material);
+      bgfx::submit(kViewWorld, programs_.pbr);
+      ++stats_.drawCalls;
+      stats_.triangles += mesh.count / 3;
+    }
+  }
 }
 
 void Renderer::drawStores(const CombatVisuals& combat, const Camera& camera, bool flightDeck) {
@@ -147,7 +187,9 @@ void Renderer::drawStores(const CombatVisuals& combat, const Camera& camera, boo
     if ((store.onLocalAircraft && ownHidden) != flightDeck) continue;
     const double distance = (store.position - camera.eye).norm();
     if (distance > settings_.renderDistance) continue;
-    const auto& parts = storeMeshes_[store.type == weapons::WeaponType::ActiveRadar][distance < kDetailRange];
+    const auto index = std::size_t(store.type) - 1;
+    if (index >= storeMeshes_.size()) continue;
+    const auto& parts = storeMeshes_[index][distance < kDetailRange];
     const glm::mat4 model = storeMatrix(store.position, store.attitude, origin_);
     for (std::size_t part = 0; part < parts.size(); ++part) {
       if (distance > kTrimRange && part > std::size_t(StorePart::Seeker)) continue;

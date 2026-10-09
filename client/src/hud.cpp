@@ -25,6 +25,8 @@ constexpr ImU32 kAccent = IM_COL32(126, 226, 160, 255);
 constexpr ImU32 kBlue = IM_COL32(64, 164, 255, 255);
 constexpr ImU32 kAmber = IM_COL32(255, 192, 95, 255);
 constexpr ImU32 kDanger = IM_COL32(255, 104, 93, 255);
+constexpr ImU32 kRedTeam = IM_COL32(255, 92, 80, 255), kBlueTeam = IM_COL32(86, 168, 255, 255);
+ImU32 teamColor(Team team, ImU32 none) { return team == Team::Red ? kRedTeam : team == Team::Blue ? kBlueTeam : none; }
 
 std::string number(double value, int decimals = 0) {
   char buffer[48];
@@ -126,20 +128,54 @@ void drawMap(ImDrawList* draw, const MapFrame& map, const HudFrame& frame, const
     return inside;
   };
 
-  ImVec2 runwayStart, runwayEnd, airfield;
-  map.project(-kRunwayHalfLength, 0, runwayStart.x, runwayStart.y);
-  map.project(kRunwayHalfLength, 0, runwayEnd.x, runwayEnd.y);
-  draw->AddLine(runwayStart, runwayEnd, IM_COL32(0, 0, 0, 200), 5);
-  draw->AddLine(runwayStart, runwayEnd, IM_COL32(232, 232, 226, 255), 2.5f);
-  const bool airfieldInside = place({}, airfield);
-  if (!airfieldInside) draw->AddRectFilled({airfield.x - 4, airfield.y - 4}, {airfield.x + 4, airfield.y + 4}, IM_COL32(0, 0, 0, 200));
-  if (!airfieldInside || full)
-    draw->AddRect({airfield.x - 4, airfield.y - 4}, {airfield.x + 4, airfield.y + 4}, kText, 0, 0, 1.5f);
-  if (full && airfieldInside) text(draw, {airfield.x + 9, airfield.y - 7}, "AIRFIELD", kText, 12);
+  // The three airfields. In a team game the two at the ends of the valley are
+  // the sides' own, and the pilot's is the one always kept in view.
+  for (int field = 0; field < 3; ++field) {
+    const auto& site = kAirfieldSites[field];
+    const Team owner = field == 1 ? Team::Red : field == 2 ? Team::Blue : Team::None;
+    const ImU32 color = frame.teams ? teamColor(owner, kMuted) : kText;
+    ImVec2 runwayStart, runwayEnd, airfield;
+    map.project(site.north - kRunwayHalfLength, site.east, runwayStart.x, runwayStart.y);
+    map.project(site.north + kRunwayHalfLength, site.east, runwayEnd.x, runwayEnd.y);
+    draw->AddLine(runwayStart, runwayEnd, IM_COL32(0, 0, 0, 200), 5);
+    draw->AddLine(runwayStart, runwayEnd, IM_COL32(232, 232, 226, 255), 2.5f);
+    const bool home = frame.teams ? owner == frame.team : field == 0;
+    const bool airfieldInside = home ? place({site.north, site.east, 0}, airfield)
+                                     : map.project(site.north, site.east, airfield.x, airfield.y);
+    if (!airfieldInside && !home) continue;
+    if (!airfieldInside) draw->AddRectFilled({airfield.x - 4, airfield.y - 4}, {airfield.x + 4, airfield.y + 4}, IM_COL32(0, 0, 0, 200));
+    if (!airfieldInside || full)
+      draw->AddRect({airfield.x - 4, airfield.y - 4}, {airfield.x + 4, airfield.y + 4}, color, 0, 0, 1.5f);
+    if (full && airfieldInside)
+      text(draw, {airfield.x + 9, airfield.y - 7},
+           frame.teams && owner != Team::None ? std::string(owner == Team::Red ? "RED" : "BLUE") + " BASE" : "AIRFIELD", color, 12);
+  }
+  // What can be bombed: a square while it stands, an outline once it is down.
+  for (const auto& structure : frame.structures) {
+    ImVec2 point;
+    if (!map.project(structure.position.x, structure.position.y, point.x, point.y)) continue;
+    const ImU32 color = teamColor(structure.team, kMuted);
+    const float half = full ? 3.5f : 3.f;
+    if (structure.health > 0) {
+      draw->AddRectFilled({point.x - half, point.y - half}, {point.x + half, point.y + half}, color);
+      draw->AddRect({point.x - half, point.y - half}, {point.x + half, point.y + half}, IM_COL32(0, 0, 0, 220));
+    } else {
+      draw->AddRect({point.x - half, point.y - half}, {point.x + half, point.y + half}, (color & 0x00ffffffu) | 0xb0000000u);
+    }
+    if (full && structure.site && structure.kind == StructureKind::Depot && structure.position.z == 0)
+      text(draw, {point.x + 8, point.y - 7}, std::string("OUTPOST ") + char('A' + structure.site - 1), color, 11);
+  }
+  if (frame.bombSight) {
+    ImVec2 point;
+    if (map.project(frame.bombPoint.x, frame.bombPoint.y, point.x, point.y)) {
+      draw->AddLine({point.x - 5, point.y - 5}, {point.x + 5, point.y + 5}, kAmber, 1.8f);
+      draw->AddLine({point.x - 5, point.y + 5}, {point.x + 5, point.y - 5}, kAmber, 1.8f);
+    }
+  }
 
-  const ImU32 otherColor = frame.dogfight ? kDanger : kFriendly;
   for (const auto& remote : frame.remotes) {
     if (!remote.alive) continue;
+    const ImU32 otherColor = frame.teams ? teamColor(remote.team, kFriendly) : frame.dogfight ? kDanger : kFriendly;
     ImVec2 point;
     if (place(remote.state.pos_ned, point)) {
       dart(draw, point, headingOf(remote.state), full ? 8.f : 7.f, otherColor);
@@ -167,12 +203,13 @@ void drawMap(ImDrawList* draw, const MapFrame& map, const HudFrame& frame, const
   draw->AddRect(min, max, kBorder, 1);
 
   if (full) {
-    const double range = std::hypot(own.pos_ned.x, own.pos_ned.y);
-    const double bearing = std::fmod(std::atan2(-own.pos_ned.y, -own.pos_ned.x) / kDeg2Rad + 360, 360);
+    const auto& home = teamAirfield(frame.teams ? frame.team : Team::None);
+    const double range = std::hypot(own.pos_ned.x - home.north, own.pos_ned.y - home.east);
+    const double bearing = std::fmod(std::atan2(home.east - own.pos_ned.y, home.north - own.pos_ned.x) / kDeg2Rad + 360, 360);
     text(draw, {min.x, min.y - 24}, "MAP", kText, 18);
     text(draw, {max.x - 86, min.y - 19}, "N TO CLOSE", kMuted, 12);
     text(draw, {min.x, max.y + 7},
-         "Airfield " + number(range / 1000, 1) + " km, bearing " + number(bearing) + "     Grid " +
+         std::string(frame.teams ? "Home base " : "Airfield ") + number(range / 1000, 1) + " km, bearing " + number(bearing) + "     Grid " +
              number(spacing / 1000) + " km     North is up",
          kMuted, 12);
   } else {
@@ -240,7 +277,7 @@ void countermeasures(ImDrawList* draw, ImVec2 at, const HudFrame& frame) {
     textRight(draw, {x + 118, at.y}, number(left), left > 4 ? kText : left > 0 ? kAmber : kDanger, 12);
   };
   stock(at.x, "R", "FLARES", frame.flares);
-  stock(at.x + 144, "C", "CHAFF", frame.chaff);
+  stock(at.x + 144, "Z", "CHAFF", frame.chaff);
 }
 
 // A missile on its way in: where it is coming from, how long it has left, and
@@ -294,7 +331,7 @@ void drawThreats(ImDrawList* draw, ImVec2 display, const HudFrame& frame, const 
       (range >= 1000 ? number(range / 1000, 1) + " km" : number(range) + " m") +
       (worstTime < 60 ? "     " + number(worstTime, 1) + " s" : "");
   const std::string answer = heat ? "R  FLARE     OUT OF REHEAT     BREAK AWAY"
-                                  : "C  CHAFF     TURN IT ONTO YOUR WINGTIP";
+                                  : "Z  CHAFF     TURN IT ONTO YOUR WINGTIP";
   const float width = std::max({textWidth("MISSILE", 26), textWidth(detail, 13), textWidth(answer, 12)}) + 44;
   panel(draw, {cx - width * .5f, 84}, {cx + width * .5f, 164}, IM_COL32(40, 10, 12, 215));
   draw->AddRect({cx - width * .5f, 84}, {cx + width * .5f, 164}, faded(kDanger, .45f + .55f * pulse), 5, 0, 2.f);
@@ -613,6 +650,7 @@ void drawScores(ImDrawList* draw, ImVec2 display, const HudFrame& frame) {
   for (const auto& score : frame.scores) {
     if (score.self) draw->AddRectFilled({min.x + 8, y - 3}, {max.x - 8, y + row - 5}, IM_COL32(64, 164, 255, 40), 3);
     const ImU32 color = !score.alive ? kMuted : score.self ? kText : kText;
+    if (score.team != Team::None) draw->AddRectFilled({min.x + 8, y - 1}, {min.x + 12, y + row - 7}, teamColor(score.team, kMuted));
     text(draw, {nameX, y}, score.name.empty() ? "Pilot" : score.name, score.self ? kAccent : color, 14);
     text(draw, {typeX, y}, std::string(aircraftDefinition(score.type).key), kMuted, 13);
     textRight(draw, {killsX, y}, number(score.kills), color, 14);
@@ -637,6 +675,11 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
   auto* draw = ImGui::GetBackgroundDrawList();
   const ImVec2 display = ImGui::GetIO().DisplaySize;
   if (display.x < 320 || display.y < 240) return;
+  // A nuclear flash blinds whoever is looking, HUD or no HUD, and clears slowly.
+  if (frame.flash > .002) {
+    const float seen = float(std::clamp(frame.flash, 0., 1.));
+    draw->AddRectFilled({0, 0}, display, IM_COL32(255, 252, 240, int(255 * seen * seen * (3 - 2 * seen))));
+  }
   // Chat is a conversation, not an instrument: it stays with the HUD hidden.
   const ImVec2 chatAnchor{24, display.y - (frame.chatOpen ? 84.f : 50.f)};
   if (!settings.show) {
@@ -745,7 +788,9 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
 
   // Who the pilot is flying with, top right.
   if (frame.multiplayer) {
-    const std::string status = frame.dogfight ? "DOGFIGHT  /  " + number(double(frame.remotes.size())) + " BANDITS"
+    const std::string status = frame.teams && frame.dogfight ? "TEAM GAME  /  " + number(double(frame.scores.size())) + " PILOTS"
+        : frame.dogfight && frame.remotes.empty() ? "SOLO  /  LOCAL GAME"
+        : frame.dogfight ? "DOGFIGHT  /  " + number(double(frame.remotes.size())) + " BANDITS"
         : "ONLINE  /  " + number(double(frame.scores.size())) + " PILOTS" + (frame.pingMs >= 0 ? "  /  " + number(frame.pingMs) + " ms" : "");
     const float width = textWidth(status, 12) + 34;
     panel(draw, {display.x - 20 - width, 18}, {display.x - 20, 44});
@@ -865,7 +910,7 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
     if (!phase.empty()) pill(draw, {x, y}, phase, true, kAmber);
   }
   if (!frame.menuOpen) {
-    std::string hints = "ESC MENU   TAB CAMERA   N MAP   F4 HUD";
+    std::string hints = "ESC MENU   TAB CAMERA   HOLD C LOOK   N MAP   F4 HUD";
     if (frame.multiplayer) hints += "   / CHAT   K PILOTS";
     hints += frame.mouseAimEnabled ? "   X MOUSE AIM ON" : "   X MOUSE AIM";
     text(draw,{24,display.y-24},hints,kMuted,11);
@@ -886,9 +931,10 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
   // Standing on the ground: the wait to be repaired and rearmed, then word of it.
   if (frame.alive && (frame.serviceProgress >= 0 || frame.serviced > 0)) {
     const bool done = frame.serviceProgress < 0;
-    const std::string work = armed ? "REARMED" : "REFUELLED";
+    const bool weapons = armed || definition.bomber;
+    const std::string work = weapons ? "REARMED" : "REFUELLED";
     const std::string title = done ? "REPAIRED AND " + work
-        : std::string("REPAIRING AND ") + (armed ? "REARMING" : "REFUELLING");
+        : std::string("REPAIRING AND ") + (weapons ? "REARMING" : "REFUELLING");
     const float width = 300, top = display.y - 112;
     panel(draw, {cx - width * .5f, top}, {cx + width * .5f, top + 50}, IM_COL32(9, 16, 25, 225));
     centred(draw, {cx, top + 8}, title, done ? kAccent : kText, 14);
@@ -903,6 +949,24 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
   drawThreats(draw, display, frame, renderer);
 
   if (frame.multiplayer && armed && display.x > 760) drawWeapons(draw, display, frame, renderer);
+  else if (frame.multiplayer && definition.bomber && display.x > 760) {
+    // The bomb bay: what is in it, and the keys that empty and refill it.
+    const float x = 20, y = 176;
+    panel(draw, {x, y}, {x + 290, y + 106});
+    text(draw, {x + 14, y + 9}, "BOMBS", kMuted, 12);
+    text(draw, {x + 74, y + 7}, frame.bombLoad, kText, 14);
+    textRight(draw, {x + 276, y + 30}, number(frame.bombs) + " LEFT", frame.bombs ? kAccent : kDanger, 14);
+    const float pips = 262.f / 51;
+    for (unsigned i = 0; i < std::min(frame.bombs, 51u); ++i)
+      draw->AddRectFilled({x + 14 + i * pips, y + 52}, {x + 14 + i * pips + pips - 1.5f, y + 58},
+                          frame.bombType == weapons::WeaponType::Nuclear ? kDanger : kAccent, 1);
+    text(draw, {x + 14, y + 30}, frame.bombs ? "HOLD SPACE TO DROP" : "LAND AT BASE TO REARM", frame.bombs ? kMuted : kAmber, 12);
+    text(draw, {x + 14, y + 64}, frame.nextLoad.empty() || frame.nextLoad == frame.bombLoad
+                                     ? std::string("O  CHANGE LOAD FOR NEXT REARM")
+                                     : "NEXT REARM  " + frame.nextLoad, frame.nextLoad == frame.bombLoad ? kMuted : kAmber, 11);
+    draw->AddLine({x + 14, y + 84}, {x + 276, y + 84}, kBorder);
+    countermeasures(draw, {x + 14, y + 88}, frame);
+  }
   else if (frame.flares >= 0 && !frame.fullMap && display.x > 760) {
     // A solo flight has no radar or missiles to show, only what it carries.
     const float x = 20, y = 176;
@@ -948,11 +1012,59 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
     float x,y,depth;
     if (!renderer.projectToScreen(remote.state.pos_ned,x,y,depth)) continue;
     const std::string label=(remote.name.empty()?"Aircraft":remote.name)+"  "+number(distance/1000,1)+" km";
-    const auto color=frame.dogfight?kDanger:kBlue;
+    const auto color=frame.teams?teamColor(remote.team,kBlue):frame.dogfight?kDanger:kBlue;
     draw->AddTriangle({x,y-8},{x-4,y-15},{x+4,y-15},color,1.5f);
     centred(draw,{x,y-34},label,color,13);
     // What is left of it, so a pilot knows which target is nearly finished.
     if (remote.health < 99.5) bar(draw,{x-18,y-18},{x+18,y-15},float(remote.health/100),remote.health>50?kAccent:remote.health>25?kAmber:kDanger);
+  }
+  // The other side's ground targets that still stand: a diamond on each, named
+  // once it is near enough to pick out.
+  if (frame.teams && !frame.fullMap) for (const auto& structure:frame.structures) {
+    if (structure.team==frame.team || structure.health<=0) continue;
+    const double distance=(structure.position-state.pos_ned).norm();
+    if (distance>18000) continue;
+    float x,y,depth;
+    if (!renderer.projectToScreen(structure.position+Vec3{0,0,-12},x,y,depth)) continue;
+    const ImU32 color=faded(teamColor(structure.team,kText),distance<7000?.95f:.6f);
+    diamond(draw,{x,y},distance<7000?6.f:4.f,color,1.4f);
+    if (distance<7000) centred(draw,{x,y-22},std::string(structureName(structure.kind))+"  "+number(distance/1000,1)+" km",color,11);
+  }
+  // Where a bomb let go now would land.
+  if (frame.bombSight && frame.alive && !frame.fullMap) {
+    float x,y,depth;
+    if (renderer.projectToScreen(frame.bombPoint,x,y,depth)) {
+      const ImU32 color=frame.bombs?kAmber:kMuted;
+      draw->AddCircle({x,y},13,IM_COL32(0,0,0,150),28,3.4f);
+      draw->AddCircle({x,y},13,color,28,1.6f);
+      for (const float sx:{-1.f,1.f}) {
+        draw->AddLine({x+sx*13,y},{x+sx*24,y},color,1.6f);
+        draw->AddLine({x,y+sx*13},{x,y+sx*24},color,1.6f);
+      }
+      draw->AddCircleFilled({x,y},2,color);
+      centred(draw,{x,y+28},"IMPACT  "+number(frame.bombFall)+" s",color,12);
+    } else {
+      centred(draw,{cx,display.y-150},"BOMB IMPACT BELOW VIEW  "+number(frame.bombFall)+" s    LOOK DOWN OR USE THE MAP",kMuted,12);
+    }
+  }
+  if (frame.teams && !frame.menuOpen) {
+    // The score, under the compass: each side's points against the limit.
+    const float width=300,top=66;
+    panel(draw,{cx-width*.5f,top},{cx+width*.5f,top+34});
+    const float limit=float(std::max(1u,frame.scoreLimit));
+    text(draw,{cx-width*.5f+12,top+5},"RED",kRedTeam,12);
+    textRight(draw,{cx-14,top+3},number(frame.teamScore[0]),kText,16);
+    text(draw,{cx+14,top+3},number(frame.teamScore[1]),kText,16);
+    textRight(draw,{cx+width*.5f-12,top+5},"BLUE",kBlueTeam,12);
+    centred(draw,{cx,top+5},":",kMuted,13);
+    bar(draw,{cx-width*.5f+12,top+25},{cx-8,top+29},frame.teamScore[0]/limit,kRedTeam);
+    bar(draw,{cx+8,top+25},{cx+width*.5f-12,top+29},frame.teamScore[1]/limit,kBlueTeam);
+    centred(draw,{cx,top+38},"FIRST TO "+number(frame.scoreLimit)+"     YOU ARE "+(frame.team==Team::Red?"RED":"BLUE"),teamColor(frame.team,kMuted),11);
+    if (frame.winner!=Team::None) {
+      panel(draw,{cx-190,cy-96},{cx+190,cy-28},IM_COL32(9,16,25,235));
+      centred(draw,{cx,cy-88},std::string(frame.winner==Team::Red?"RED":"BLUE")+" WINS THE ROUND",teamColor(frame.winner,kText),24);
+      centred(draw,{cx,cy-54},"Next round in "+number(frame.restartSeconds)+" s",kMuted,13);
+    }
   }
   if (frame.fullMap) drawFullMap(draw, display, frame, renderer);
   if (frame.showScores) drawScores(draw, display, frame);

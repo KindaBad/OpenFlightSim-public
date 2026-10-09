@@ -214,8 +214,8 @@ Aircraft RemoteTrack::sampleAircraft(double tick) const {
   return result;
 }
 
-Client::Client(std::string name, AircraftType type)
-    : name_(std::move(name)), type_(type) {
+Client::Client(std::string name, AircraftType type, Team team, unsigned loadout)
+    : name_(std::move(name)), team_(team), loadout_(std::uint8_t(loadout & 7)), type_(type) {
   if (!validAircraftType(type_))
     throw std::invalid_argument("invalid client aircraft type");
   if (name_.empty() || name_.size() > 64 ||
@@ -230,6 +230,8 @@ void Client::connect(const std::string &address, std::uint16_t port) {
   replication_ = ReplicationReceiver{};
   remotes_.clear();
   pilots_.clear();
+  teams_.clear();
+  teamStatus_ = {};
   chat_.clear();
   tombstones_.clear();
   lastSnapshotSequence_ = lastSnapshots_ = lastInputs_ = 0;
@@ -328,6 +330,8 @@ void Client::poll(double elapsed) {
       hello.type = Type::Hello;
       hello.text = name_;
       hello.aircraftType = type_;
+      hello.team = team_;
+      hello.loadout = loadout_;
       send(hello, true);
       continue;
     }
@@ -409,6 +413,8 @@ void Client::poll(double elapsed) {
       replication_.spawn(m.aircraft, m.tick);
       life_ = m.aircraft.life;
       type_ = m.aircraft.type;
+      team_ = m.team;
+      teams_[entity_] = m.team;
       prediction_.initialize(m.tick, m.aircraft, 18, m.weather);
       serverTime_ = double(m.tick);
       renderTime_ = serverTime_ - 12;
@@ -452,8 +458,16 @@ void Client::poll(double elapsed) {
       // The roster is replayed to a newcomer, so only new names are arrivals.
       if (!pilots_.contains(m.entity))
         ++stats_.joined;
-      if (pilots_.size() < maxPlayers * 2)
+      if (pilots_.size() < maxPlayers * 2) {
         pilots_[m.entity] = m.text;
+        teams_[m.entity] = m.team;
+      }
+      if (m.entity == entity_)
+        team_ = m.team;
+      continue;
+    }
+    if (m.type == Type::TeamState) {
+      teamStatus_ = m.teams;
       continue;
     }
     if (m.type == Type::Chat) {
@@ -465,6 +479,7 @@ void Client::poll(double elapsed) {
     if (m.type == Type::Left) {
       ++stats_.left;
       pilots_.erase(m.entity);
+      teams_.erase(m.entity);
       replication_.despawn(m.entity, m.tick);
       remotes_.erase(m.entity);
       tombstones_[m.entity] = m.tick;
@@ -677,6 +692,14 @@ std::vector<ChatLine> Client::takeChat() {
   auto lines = std::move(chat_);
   chat_.clear();
   return lines;
+}
+Team Client::teamOf(EntityId id) const {
+  if (defenceEntity(id)) {
+    const auto index = std::size_t(id & 0xffff);
+    return index < structures().size() ? structures()[index].team : Team::None;
+  }
+  const auto found = teams_.find(id);
+  return found == teams_.end() ? Team::None : found->second;
 }
 const std::string &Client::pilot(EntityId id) const {
   static const std::string unknown;

@@ -253,6 +253,34 @@ class Hosting(unittest.TestCase):
         with self.assertRaises(LauncherError):
             server_arguments(self.installation, prefs, lan=True)
 
+    def test_team_battle_needs_a_game_that_has_it(self):
+        prefs = Preferences(lan_teams=True, lan_score_limit=450)
+        with self.assertRaises(LauncherError):
+            server_arguments(self.installation, prefs, lan=True)
+        self.installation.catalog['version'] = '0.6.0'
+        self.assertEqual(server_arguments(self.installation, prefs, lan=True)[-3:], ['--teams', '--score-limit', '450'])
+        self.assertNotIn('--teams', server_arguments(self.installation, Preferences(), lan=True))
+        with self.assertRaises(LauncherError):
+            server_arguments(self.installation, Preferences(lan_teams=True, lan_score_limit=10), lan=True)
+
+    def test_side_and_bomb_load_are_passed_to_a_game_that_knows_them(self):
+        graphics = Graphics(self.root / 'user/graphics.cfg')
+        prefs = Preferences(mode='multiplayer', team='blue', loadout='nuke', aircraft=self.installation.aircraft[0]['id'])
+        # An older game is given neither argument.
+        command = arguments(self.installation, prefs, graphics)
+        self.assertNotIn('--team', command)
+        self.assertNotIn('--loadout', command)
+        self.installation.catalog['version'] = '0.6.0'
+        command = arguments(self.installation, prefs, graphics)
+        self.assertEqual(command[command.index('--team') + 1], 'blue')
+        self.assertNotIn('--loadout', command)  # not a bomber
+        self.installation.aircraft[0]['bomber'] = True
+        command = arguments(self.installation, prefs, graphics)
+        self.assertEqual(command[command.index('--loadout') + 1], 'nuke')
+        self.assertNotIn('--team', arguments(self.installation, Preferences(mode='multiplayer', aircraft=prefs.aircraft), graphics))
+        with self.assertRaises(LauncherError):
+            arguments(self.installation, Preferences(mode='multiplayer', team='green', aircraft=prefs.aircraft), graphics)
+
     def test_private_server_stays_on_this_computer(self):
         command = server_arguments(self.installation, Preferences(lobby='ignored', lan_bots=4))
         self.assertEqual(command[1:], ['--bind', '127.0.0.1', '--port', '27020'])

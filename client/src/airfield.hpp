@@ -11,6 +11,7 @@
 
 #include <array>
 #include <cstdint>
+#include <span>
 #include <vector>
 
 namespace ofs::client {
@@ -74,7 +75,13 @@ inline constexpr float kRunwayHalfWidth = 22.5f, kRunwayHalfLength = 1300.f;
 inline constexpr float kFenceWest = -720, kFenceEast = 340, kFenceNorth = -1740, kFenceSouth = 1740;
 
 // How the ground at a point is used, for the map and for where trees stand.
+// All three airfields are laid out alike; see ofs::kAirfieldSites.
 enum class AirfieldUse : std::uint8_t { Outside, Grass, Paved };
 AirfieldUse airfieldUse(double north, double east);
+
+// What can be bombed in a team game (ofs/bases.hpp), each standing on its own
+// ground: whole while `health` for it is above zero, and a burnt patch of
+// rubble once it is not. An empty `health` builds everything whole.
+std::array<AirfieldPart, std::size_t(AirfieldMaterial::Count)> buildStructures(std::span<const std::uint8_t> health);
 
 }  // namespace ofs::client

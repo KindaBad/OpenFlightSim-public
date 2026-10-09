@@ -48,6 +48,11 @@ def user_directory():
     return base / 'OpenFlightSim'
 
 
+TEAMS = ('auto', 'red', 'blue')
+# The bomber's loads, in the order the game numbers them.
+LOADOUTS = ('mk82', 'mk84', 'nuke')
+
+
 @dataclass
 class Preferences:
     schema: int = 1
@@ -70,6 +75,12 @@ class Preferences:
     # Seconds between missiles handed out in flight in a hosted game; 0 rearms
     # on the ground only.
     lan_missile_reload: int = 0
+    # A hosted game as Red against Blue, first to this many points; the side to
+    # ask any game for ('auto' lets the game choose); and the bomber's load.
+    lan_teams: bool = False
+    lan_score_limit: int = 300
+    team: str = 'auto'
+    loadout: str = 'mk82'
     channel: str = 'stable'
     manifest_url: str = ''  # Publisher configures a public HTTPS host; no guessed endpoint.
     auto_check: bool = True
@@ -98,6 +109,8 @@ class Preferences:
             raise LauncherError('Invalid port or bot count')
         if not 0 <= prefs.lan_missile_reload <= 3600:
             raise LauncherError('Invalid missile reload time')
+        if not 50 <= prefs.lan_score_limit <= 5000 or prefs.team not in TEAMS or prefs.loadout not in LOADOUTS:
+            raise LauncherError('Invalid team game settings')
         return prefs
 
     def save(self, path):

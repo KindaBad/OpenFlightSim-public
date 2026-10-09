@@ -11,6 +11,21 @@ namespace ofs {
 inline constexpr int kTerrainRings = 448, kTerrainSegments = 768;
 inline constexpr double kTerrainRadius = 64000.;
 
+// Level ground is kept around three airfields: the one at the origin and one
+// for each side of a team game, up and down the valley from it. All three lie
+// at the same height, with their runways north-south.
+struct AirfieldSite {
+  double north, east;
+};
+inline constexpr AirfieldSite kAirfieldSites[3]{{0, 0}, {19000, -2750}, {-17000, 5750}};
+// Metres to the nearest airfield.
+inline double airfieldDistance(double north, double east) {
+  double nearest = std::hypot(north, east);
+  for (int i = 1; i < 3; ++i)
+    nearest = std::min(nearest, std::hypot(north - kAirfieldSites[i].north, east - kAirfieldSites[i].east));
+  return nearest;
+}
+
 // The shape of the land is fractal noise, built from nothing but integer
 // hashing and arithmetic so that every machine in a game computes the same
 // ground.
@@ -84,12 +99,12 @@ inline double smooth(double low, double high, double value) {
 }
 }  // namespace terrain_detail
 
-// Metres above the airfield. The field stands on a level plain in a broad
-// valley; ranges of mountains rise to either side of it and beyond.
+// Metres above the airfields. Each stands on a level plain in a broad valley;
+// ranges of mountains rise to either side of it and beyond.
 inline double terrainElevation(double north, double east) {
   using namespace terrain_detail;
-  const double radius = std::hypot(north, east);
-  const double ramp = smooth(3500., 8500., radius);
+  const double radius = std::hypot(north, east), field = airfieldDistance(north, east);
+  const double ramp = smooth(3500., 8500., field);
   if (ramp <= 0) return 0;
   // Where the mountains stand: massifs twenty-odd kilometres across, kept
   // back from the airfield and from the valley that winds through it.
@@ -97,7 +112,7 @@ inline double terrainElevation(double north, double east) {
                         1700. * (2 * noise(north / 9000. + 3.5, 21.75).value - 1);
   const double massif = noise(north / 23000. + 11.3, east / 23000. + 5.7).value +
                         .22 * smooth(9000., 30000., radius) - .5 * (1 - smooth(1500., 12000., std::abs(valley)));
-  const double range = smooth(.42, .82, massif) * smooth(6000., 16000., radius);
+  const double range = smooth(.42, .82, massif) * smooth(6000., 16000., field);
   const double mountains = range * range * (3 - 2 * range);
   // Low country: rolling ground with hollows that hold lakes, and foothills
   // where a range begins.
@@ -140,7 +155,9 @@ struct TerrainSample {
 inline TerrainSample sampleTerrain(double north, double east) {
   if (!std::isfinite(north) || !std::isfinite(east)) return {};
   const double radius = std::hypot(north, east);
-  if (radius < 3300.) return {}; // wholly inside the flat airfield triangles
+  // Wholly inside the flat triangles of an airfield. The mesh is coarser out
+  // at the team fields, so less of their level ground is taken as read.
+  if (radius < 3300. || airfieldDistance(north, east) < 3000.) return {};
   double angle = std::atan2(-north, east);
   if (angle < 0) angle += 2 * kPi;
   const double sector = angle * kTerrainSegments / (2 * kPi);

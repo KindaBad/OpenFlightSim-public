@@ -15,6 +15,10 @@
 #include <utility>
 
 namespace ofs {
+namespace {
+// Tyre and brake tuning shared by every aircraft, over each one's own figures.
+constexpr double kBrakeGrip = 1.35, kSideGrip = 1.5, kBrakeDumpedShare = .8;
+}  // namespace
 using namespace detail;
 namespace {
 
@@ -424,12 +428,14 @@ void Simulator::substep(double dt) {
     }
     ground_impact_.bodyContact |= body;
     if (body) ground_impact_.scrapeSpeed = std::max(ground_impact_.scrapeSpeed, slip);
-    const double safe = body ? 3.0 : 6.0;
+    // A firm arrival is absorbed: the undercarriage takes a sink rate well past
+    // a textbook landing before anything bends.
+    const double safe = body ? 4.5 : 9.0;
     if (closing <= safe || force <= 0) return;
     if (aircraftCrashed(state_)) return;
     // A violent body strike or catastrophic gear impact is a total loss on
     // first contact. Ordinary landings and scrapes retain incremental damage.
-    const bool catastrophic = closing >= (body ? 18.0 : 25.0);
+    const bool catastrophic = closing >= (body ? 22.0 : 30.0);
     const double damage = catastrophic ? airframeIntegrity(state_) :
         std::min(1.,force*(closing-safe)*dt/(mass.mass*120.));
     ground_impact_.damage += damage;
@@ -498,16 +504,24 @@ void Simulator::substep(double dt) {
         aero.moment_body + m_thr + m_gear - state_.omega_body.cross(iw);
     Vec3 omega = state_.omega_body + inverseInertia(mass, torque) * dt;
     double impulse[3][2]{};
+    // Every wheel is braked, with anti-skid: the tyres keep their full grip
+    // sideways and the brakes take what is left of it, so a braked aircraft
+    // runs straight instead of sliding. While the wings still carry part of
+    // the weight the brakes bite as if lift dumpers had put a good share of it
+    // on the wheels, which is what lets them slow the aircraft from touchdown.
+    const double brakeMu = controls_.brake01 * cfg_.mu_brake_max * kBrakeGrip;
+    const double sideMu = cfg_.mu_side * kSideGrip;
+    const double dumped = controls_.brake01 * kBrakeDumpedShare * mass.mass * kG0 / 3;
     for (int iteration = 0; iteration < 8; ++iteration) {
       for (int i = 0; i < 3; ++i) {
         if (gear_n_load[i] <= 0)
           continue;
-        for (int axis = 0; axis < 2; ++axis) {
-          const double mu =
-              axis == 1 ? cfg_.mu_side
-                        : (i == 0 ? 0 : controls_.brake01 * cfg_.mu_brake_max);
+        // Sideways first, so it is never starved by the brakes.
+        for (const int axis : {1, 0}) {
+          const double mu = axis == 1 ? sideMu : brakeMu;
           if (mu == 0)
             continue;
+          const double load = axis == 0 ? std::max(gear_n_load[i], dumped) : gear_n_load[i];
           const Vec3 direction = axis == 0 ? forward[i] : side[i];
           const Vec3 db = state_.att.inverseRotate(direction);
           const Vec3 arm = gp[i].cross(db);
@@ -515,16 +529,13 @@ void Simulator::substep(double dt) {
               1 / mass.mass + arm.dot(inverseInertia(mass, arm));
           const Vec3 point_velocity =
               velocity + state_.att.rotate(omega.cross(gp[i]));
-          const double otherMu =
-              axis == 0 ? cfg_.mu_side
-                        : (i == 0 ? 0 : controls_.brake01 * cfg_.mu_brake_max);
-          const double otherLimit = otherMu * gear_n_load[i] * dt;
+          // The brakes give way to cornering on a shared friction ellipse, but
+          // never below half their force.
+          const double sideLimit = sideMu * gear_n_load[i] * dt;
           const double fraction =
-              otherLimit > 0 ? clamp(impulse[i][1 - axis] / otherLimit, -1, 1)
-                             : 0;
-          // A shared friction ellipse bounds simultaneous braking/cornering.
-          const double limit = mu * gear_n_load[i] * dt *
-                               std::sqrt(std::max(0., 1 - fraction * fraction));
+              axis == 0 && sideLimit > 0 ? clamp(impulse[i][1] / sideLimit, -1, 1) : 0;
+          const double limit = mu * load * dt *
+                               std::max(.5, std::sqrt(std::max(0., 1 - fraction * fraction)));
           const double next = clamp(
               impulse[i][axis] - point_velocity.dot(direction) / inverse_mass,
               -limit, limit);

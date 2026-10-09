@@ -44,6 +44,26 @@ void near(double value,double target,double tolerance,const char* what){check(st
 }
 int main() {
   try {
+    {
+      // The bomber: published masses and thrust, and its three loads.
+      const auto& d=aircraftDefinition(AircraftType::B52);const auto& f=d.flight;
+      check(d.bomber && !d.gun && f.empty_mass==83250 && f.fuel_capacity==141600 && f.wing_area==370 && f.wing_span==56.4,"B-52 published mass, fuel and wing");
+      check(f.engine_count*f.thrust_sl_static_each==8*75620. && f.afterburner_thrust_each==0,"B-52 eight TF33 without reheat");
+      check(weapons::bombLoadouts(AircraftType::B52)==3 && weapons::bombLoadouts(AircraftType::Typhoon)==0,"only the bomber has bomb loads");
+      const auto small=weapons::bombLoad(AircraftType::B52,0),large=weapons::bombLoad(AircraftType::B52,1),nuclear=weapons::bombLoad(AircraftType::B52,2);
+      check(small.count==51 && small.type==weapons::WeaponType::Bomb500 && large.count==18 && large.type==weapons::WeaponType::Bomb2000 &&
+            nuclear.count==1 && nuclear.type==weapons::WeaponType::Nuclear,"B-52 loads");
+      weapons::Inventory bay;bay.reset(AircraftType::B52,1);
+      State state;bay.applyPayload(f,state);
+      check(std::abs(state.payload_mass-18*925.)<1e-6 && bay.stations.empty(),"bombs are carried as payload");
+      // A bomb let go in level flight lands ahead of the release point, and
+      // the drag-heavy weapon falls shorter and slower than the slick one.
+      Vec3 slick,heavy;double slickTime,heavyTime;
+      check(weapons::bombImpact(weapons::bombDefinition(weapons::WeaponType::Bomb500),{0,0,-6000},{200,0,0},{},slick,slickTime) &&
+            weapons::bombImpact(weapons::bombDefinition(weapons::WeaponType::Nuclear),{0,0,-6000},{200,0,0},{},heavy,heavyTime),"bombs reach the ground");
+      check(slick.x>5500 && slick.x<7000 && slickTime>34 && slickTime<38 && heavy.x<slick.x && heavyTime>slickTime+5,"bomb trajectories");
+      std::printf("B-52 Mk 82 from 6 km at 200 m/s: %.0f m downrange in %.1f s; B83: %.0f m in %.1f s\n",slick.x,slickTime,heavy.x,heavyTime);
+    }
     const Reference references[]{
       {AircraftType::Typhoon,11000,4996,51.2,60000,90000,9,2.0,1.25,22000,true,1700,1025,150,2,4},
       {AircraftType::Su57,18500,10300,78.8,93000,147000,9,2.0,1.10,22000,true,1500,860,150,2,4},

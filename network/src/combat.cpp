@@ -113,7 +113,7 @@ std::vector<CombatEvent> Combat::takeEvents() {
 bool Combat::fire(Tick tick, EntityId owner, const State &s, Life &life) {
   return fire(tick, owner, s, life, gun_);
 }
-bool Combat::fire(Tick tick, EntityId owner, const State &s, Life &life, const GunConfig& gun) {
+bool Combat::fire(Tick tick, EntityId owner, const State &s, Life &life, const GunConfig& gun, Team team) {
   if (!life.alive() || !life.ammo || tick < life.readyTick) {
     ++stats_.cooldownBlocks;
     return false;
@@ -137,6 +137,7 @@ bool Combat::fire(Tick tick, EntityId owner, const State &s, Life &life, const G
   p.velocity = s.vel_ned + s.att.rotate(direction) * gun.muzzleVelocity;
   p.damage = gun.damage; p.lifetime = gun.lifetime; p.range = gun.range;
   p.respawnDelay = gun.respawnDelay;
+  p.team = team;
   rounds_.push_back(p);
   --life.ammo;
   life.readyTick = tick + static_cast<Tick>(std::ceil(7200 / gun.rpm));
@@ -195,7 +196,8 @@ void Combat::step(Tick tick, std::span<CombatTarget> targets) {
     for (std::size_t j = 0; j < targets.size(); ++j) {
       auto &t = targets[j];
       if (!t.life->alive() ||
-          (t.id == p.owner && (p.age <= .1 || p.distance <= 40)))
+          (t.id == p.owner && (p.age <= .1 || p.distance <= 40)) ||
+          (p.team != Team::None && t.team == p.team && t.id != p.owner))
         continue;
       if (!std::isfinite(sweptSphere(previous[i] - t.previous.pos_ned,
                                      p.position - t.current.pos_ned, {}, 24)))

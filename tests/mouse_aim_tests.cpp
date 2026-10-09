@@ -114,7 +114,7 @@ int main() {
       const TrimRequest slow;
       TrimRequest fast;
       fast.altitude = 6000;
-      fast.tas = definition.type == AircraftType::A320 ? 210 : 280;
+      fast.tas = definition.type == AircraftType::A320 ? 210 : definition.type == AircraftType::B52 ? 230 : 280;
 
       // First response has the right sense on every axis.
       const auto trim = solveTrim(definition.flight, slow);

@@ -109,3 +109,47 @@ The Su-57 carries all six inside, so none is visible until it is launched. The
 model has no bay doors; a missile leaves through the skin. Until 0.5.7 the
 Typhoon and Su-57 each carried two of each kind under the wings. Until 0.5.9
 the JF-17 carried two SD-10A; four is the type's full radar-missile load.
+
+## B-52H Stratofortress
+
+Added in 0.6.0 as the game's bomber. It has no gun and no missiles.
+
+| | Published | Simulator |
+|---|---|---|
+| Engines | 8 × TF33-P-3/103, 75.6 kN each | two engine slots of 302.5 kN, one per wing |
+| Empty mass | 83,250 kg | 83,250 kg |
+| Internal fuel | 141,600 kg | capacity 141,600 kg; 45,000 kg at spawn |
+| Wing area / span / length | 370 m² / 56.4 m / 48.5 m | the same; the model spans 55.66 m |
+| Top speed | 1,047 km/h, Mach 0.86 at altitude | Mach 0.87 at 11 km, Mach 0.84 at sea level |
+| Load limit | about +2 g | +2 / −0.5 g |
+
+The real aircraft is limited well below Mach 0.84 at sea level by its
+structure; the simulator has no such limit. Roll and pitch response, drag,
+inertia and the thrust lapse are engineering estimates. Eight engines are
+flown as two because the simulation and its network state carry two.
+
+| Load | Count | Each | Notes |
+|---|---|---|---|
+| Mk 82 | 51 | 227 kg | 27 in the bay and 24 under the wings on the real aircraft |
+| Mk 84 | 18 | 925 kg | |
+| B83 | 1 | 1,100 kg | a 1.2 megaton weapon in reality |
+
+Bombs fall ballistically with drag and wind; nothing steers them. Blast
+radii and damage are gameplay values, not weapon effects data: an Mk 82
+damages aircraft within 70 m and buildings within 50 m, an Mk 84 within 150 m
+and 120 m, and the nuclear weapon destroys aircraft within about 5 km,
+damages them out to 8 km and levels buildings within 6 km. The nuclear weapon
+is given enough drag to take about a minute to fall from 9 km, which is what
+lets the bomber get clear; the real one is slowed by a parachute.
+
+## Brakes and landing, all aircraft
+
+From 0.6.0 every wheel is braked, with each aircraft's own friction figures
+multiplied by 1.35 for braking and 1.5 sideways. The tyres keep their full
+sideways grip under braking, and the brakes never fall below half their force
+while cornering. While the wings still carry weight the brakes act as if 80%
+of the aircraft's weight were on the wheels, standing in for lift dumpers.
+Measured landing rolls fell from 904 m to 330 m for the Typhoon and from 745 m
+to 398 m for the JF-17. The undercarriage takes a closing speed of 9 m/s
+before damage, up from 6 m/s, and the fuselage 4.5 m/s, up from 3 m/s. These
+are gameplay settings, chosen to make landing forgiving.

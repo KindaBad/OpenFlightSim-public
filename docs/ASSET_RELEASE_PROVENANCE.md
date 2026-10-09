@@ -23,6 +23,31 @@ weapons or other outlying geometry, add explicit airframe measurement metadata
 and independently test those anchors rather than relaxing tolerances. Passing
 imposed dimensions proves export scale, not accurate aerodynamic planform.
 
+## B-52 donor
+
+**PUBLIC SOURCE EXCLUDED / UNENCRYPTED GAME RELEASE UNDER CC BY 4.0.**
+The owner supplied `boeing-b-52-stratofortress.zip` (SHA-256
+`0ec8bddb85c045f7098771a11969d0ec6853f9d7e323414676cab33d43252131`) on 2026-10-09
+with a screenshot of its Sketchfab page, and asked for the B-52 to be added.
+The archive matches the listing
+[Boeing B-52 Stratofortress by bohmerang](https://sketchfab.com/3d-models/boeing-b-52-stratofortress-38b0c64bd552431394efa8625d7f5144)
+by name and triangle count (16,616). Sketchfab's API record for model
+`38b0c64bd552431394efa8625d7f5144` was read the same day: published 2023-09-12,
+license CC Attribution (CC BY 4.0), downloadable. The author is the one whose
+Su-57 already ships. The file reads as original work: a Blender source with
+descriptively named parts and hand-named textures, in flight configuration.
+The archive carries no license file; a byte comparison against a fresh
+download was not performed.
+
+CC BY 4.0 permits sharing and adapting with credit, a link to the license and
+a note that changes were made, and forbids technical measures that restrict
+those rights. The B-52 therefore ships as ordinary GLBs from 0.6.0, in content
+pack v7, with credit, terms and the list of changes in `licenses/assets/B52.md`.
+This is the project's reading of the license, not a lawyer's review.
+
+Import measurements and known differences from the flight model are recorded in
+`assets/aircraft/b52/README.md` and its generated `lod_stats.json`.
+
 ## JF-17 donor
 
 **PUBLIC SOURCE EXCLUDED / UNENCRYPTED GAME RELEASE UNDER CC BY 4.0.**

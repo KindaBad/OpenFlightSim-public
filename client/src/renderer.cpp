@@ -433,6 +433,7 @@ void Renderer::destroy() {
   for (auto& type : storeMeshes_) for (auto& detail : type) for (auto& part : detail)
     if (bgfx::isValid(part.vertices)) bgfx::destroy(part.vertices);
   if (bgfx::isValid(pylonMesh_.vertices)) bgfx::destroy(pylonMesh_.vertices);
+  for (auto& part : cloudMeshes_) if (bgfx::isValid(part.vertices)) bgfx::destroy(part.vertices);
   for (auto& part : chuteMeshes_)
     if (bgfx::isValid(part.vertices)) { bgfx::destroy(part.vertices); part = {}; }
   if (bgfx::isValid(flameMesh_)) bgfx::destroy(flameMesh_);
@@ -1089,6 +1090,9 @@ void Renderer::drawEffects(const CombatVisuals& combat) {
     } else {
       radius = effect.size * (0.5f + 0.6f * t);
     }
+    // From inside one of the great puffs of a nuclear cloud there is nothing
+    // to see but a screen of it drawn many times over: those are left out.
+    if (radius > 120 && glm::length(cameraEye_ - centre) < radius * .75f) continue;
     color = (color & 0x00ffffffu) | (faded << 24);
     if (effect.kind == EffectKind::Vapor && effect.stretch > 0) {
       const glm::vec3 axis = glm::normalize(renderDirection(effect.axis));
@@ -1450,6 +1454,7 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
   // a long frame and shot/hit pairs retire the correct tracer immediately.
   const double effectDt=std::clamp(dt,0.0,.1);
   pool_.update(effectDt);
+  combat_.updateNuclear(effectDt);
   // ---- Effects, driven by simulation combat events ----
   for (const CombatVisuals::Shot& shot : combat.shots)
     combat_.onShot(shot.position, shot.velocity, shot.lifetime, shot.ownAircraft,shot.projectile,shot.carrier);
@@ -1466,8 +1471,13 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
   combat_.retireMissiles(combat.missiles.size());
   for (const auto &decoy : combat.decoys)
     combat_.onDecoy(decoy.type, decoy.position, decoy.velocity);
-  for (const auto &position : combat.missileDetonations)
-    combat_.onDetonation(position);
+  for (const auto &fire : combat.fires)
+    combat_.onPieceSmoke(fire, {0, 0, -4}, true);
+  for (const auto &burst : combat.missileDetonations) {
+    if (burst.type == weapons::WeaponType::Nuclear) combat_.onNuclear(burst.position);
+    else combat_.onDetonation(burst.position, burst.type == weapons::WeaponType::Bomb500 ? 4.f
+                                              : burst.type == weapons::WeaponType::Bomb2000 ? 7.f : 1.f);
+  }
   // Wings and fins that have gone since the last frame leave as pieces.
   const auto shed=[&](std::uint64_t id) {
     const auto& instance=instances_.at(id);
@@ -1567,6 +1577,7 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
     if (remote.alive && (remote.state.pos_ned-camera.eye).norm()<settings_.renderDistance)
       drawAircraft(instances_.at(remote.entity), false, kViewWorld, viewProj_);
   drawStores(combat, camera, false);
+  drawNuclearClouds();
   drawBreakaways();
   drawPilots(combat);
 

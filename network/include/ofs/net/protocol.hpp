@@ -1,6 +1,7 @@
 #pragma once
 #include "ofs/aircraft.hpp"
 #include "ofs/aircraft_definition.hpp"
+#include "ofs/bases.hpp"
 #include "ofs/damage.hpp"
 #include <cstdint>
 #include <span>
@@ -10,7 +11,7 @@ namespace ofs::net {
 using Tick = std::uint64_t;
 using EntityId = std::uint64_t;
 constexpr std::uint16_t protocolVersion =
-    21; // v20 plus retuned Typhoon and JF-17 handling and the JF-17's four radar missiles
+    22; // v21 plus the B-52, bombs, the team game and its two airfields
 constexpr std::size_t maxPlayers = 64, maxPacket = 65536, maxBatch = 8;
 constexpr std::size_t applicationPayload = 1100;
 // Legacy full-world Snapshot is an offline measurement format only.
@@ -41,7 +42,8 @@ enum class Type : std::uint8_t {
   MissileSpawn,
   MissileState,
   MissileRemove,
-  Chat
+  Chat,
+  TeamState
 };
 // Chat is printable ASCII, like pilot names, and short enough to read in flight.
 constexpr std::size_t maxChatText = 120;
@@ -96,6 +98,18 @@ constexpr std::size_t maxCombatEvents = 10, combatEventWireBytes = 102;
 static_assert(
     24 + 1 + maxCombatEvents * combatEventWireBytes <= applicationPayload,
     "combat batch exceeds application payload; explicitly repartition it");
+// The state of a team game, sent whole whenever any of it changes. `health`
+// follows ofs::structures(): 0 is destroyed, 100 untouched.
+struct TeamStatus {
+  bool teams{};  // false in a free-for-all, where nothing else here is used
+  std::uint16_t scoreLimit{};
+  std::uint32_t score[2]{};  // Red, Blue
+  Team winner{Team::None};   // set between rounds
+  std::uint8_t restartSeconds{};
+  std::vector<std::uint8_t> health;
+  bool operator==(const TeamStatus &) const = default;
+};
+constexpr std::size_t maxStructures = 64;
 // Explicit wire projection: no renderer handles, configuration or debug forces.
 struct Aircraft {
   EntityId id{};
@@ -121,6 +135,10 @@ struct Message {
   FireCommand fire;
   std::vector<CombatEvent> events;
   AircraftType aircraftType{AircraftType::A320}; // Hello request only.
+  // Hello: the side and bomb load asked for. Welcome and Joined: the side given.
+  Team team{Team::None};
+  std::uint8_t loadout{};
+  TeamStatus teams; // TeamState only.
   std::uint64_t baseline{};
   bool recovery{};
   Weather weather; // shared authoritative atmosphere in Welcome/Snapshot

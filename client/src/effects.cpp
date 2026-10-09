@@ -1,4 +1,5 @@
 #include "effects.hpp"
+#include "nuclear_cloud.hpp"
 #include "airfield.hpp"
 #include "damage_visuals.hpp"
 #include "ofs/atmosphere.hpp"
@@ -462,31 +463,165 @@ void CombatEffects::onDestroyed(const Vec3& position, const Vec3& velocity) {
   }
 }
 
-void CombatEffects::onDetonation(const Vec3& position) {
+namespace {
+std::uint32_t blendTint(std::uint32_t from, std::uint32_t to, double t) {
+  t = clamp(t, 0, 1);
+  std::uint32_t out = 0;
+  for (int shift = 0; shift < 32; shift += 8) {
+    const double a = (from >> shift) & 0xff, b = (to >> shift) & 0xff;
+    out |= std::uint32_t(std::lround(a + (b - a) * t)) << shift;
+  }
+  return out;
+}
+}  // namespace
+
+void CombatEffects::onNuclear(const Vec3& position) {
+  if (budgetFor(quality_) == 0) return;
+  const auto seed = static_cast<std::uint32_t>(std::abs(position.x * 13 + position.y * 7)) | 1u;
+  clouds_.push_back({position, 0, 0, 0, 0, 0, 0, seed});
+  if (clouds_.size() > 4) clouds_.erase(clouds_.begin());
+  const auto once = [&](EffectKind kind, double up, float size, float lifetime, std::uint32_t tint, float turn = 0) {
+    Effect effect;
+    effect.kind = kind;
+    effect.position = position + Vec3{0, 0, -up};
+    effect.size = size;
+    effect.lifetime = lifetime;
+    effect.tint = tint;
+    effect.seed = turn;
+    pool_.spawn(effect);
+  };
+  // The flash: for a moment brighter than the sun, with a hard white core.
+  once(EffectKind::Flash, 350, 16000, 1.6f, 0xfff4fcffu, .13f);
+  once(EffectKind::Flash, 350, 7000, 3.5f, 0xffd0f0ffu, .61f);
+  once(EffectKind::Light, 350, 1500, 2.4f, 0xffffffffu);
+  once(EffectKind::Light, 350, 900, 5.5f, 0xffc0ecffu);
+  // The shock front, seen as a shell of cloud racing out and thinning, and a
+  // second one close behind it.
+  once(EffectKind::Shockwave, 150, 9000, 20, 0x58ffffffu);
+  once(EffectKind::Shockwave, 150, 3200, 6, 0x90ffffffu);
+}
+
+void CombatEffects::updateNuclear(double dt) {
+  if (clouds_.empty() || !(dt > 0)) return;
+  const std::size_t budget = budgetFor(quality_);
+  // Fewer, larger puffs on lower settings.
+  const double density = budget >= 4 ? 1 : budget >= 2 ? .6 : .35;
+  for (auto& cloud : clouds_) {
+    const double before = cloud.age;
+    cloud.age += std::min(dt, .25);
+    const double age = cloud.age;
+    const auto shape = cloudShape(age);
+    const auto unit = [&] { return double(hashUnit(cloud.seed += 0x9e3779b9u)); };
+    const auto spawn = [&](EffectKind kind, Vec3 offset, Vec3 velocity, double size, double lifetime, std::uint32_t tint,
+                           double drag = 0) {
+      Effect effect;
+      effect.kind = kind;
+      effect.position = cloud.ground + offset;
+      effect.velocity = velocity;
+      effect.size = float(size);
+      effect.lifetime = float(lifetime);
+      effect.tint = tint;
+      effect.seed = float(unit());
+      effect.drag = float(drag);
+      pool_.spawn(effect);
+    };
+    const auto owed = [&](double& account, double rate) {
+      account += rate * density * (age - before);
+      const int count = int(account);
+      account -= count;
+      return count;
+    };
+    const auto around = [&] {
+      const double angle = unit() * 2 * kPi;
+      return Vec3{std::cos(angle), std::sin(angle), 0};
+    };
+    // The fireball: white, then yellow, orange and a dull red as it cools,
+    // rolling inside the head of the cloud for the first quarter minute.
+    if (age < 18) {
+      const double heat = age / 18;
+      const std::uint32_t tint = age < 1.2 ? 0xffe0f8ffu
+          : blendTint(blendTint(0xff60c8ffu, 0xff2070f0u, (age - 1.2) / 6), 0xff1838a0u, (age - 7) / 11);
+      const double reach = age < 5 ? 620 * std::min(1., age / 2.2) : shape.capRadius * (.75 - .35 * heat);
+      for (int i = owed(cloud.fire, age < 5 ? 26 : 14 * (1 - heat) + 3); i > 0; --i) {
+        const Vec3 out = around() * (reach * std::sqrt(unit()));
+        spawn(EffectKind::Explosion, out + Vec3{0, 0, -(shape.height + (unit() - .5) * shape.capThickness * .9)},
+              around() * 12. + Vec3{0, 0, -shape.climb * .9}, (age < 5 ? 300 : 380) * (.75 + .5 * unit()), 3.5 + 3 * unit(), tint);
+      }
+    }
+    // The cap: smoke turning over on itself, up through the middle and out and
+    // down round the rim, lit from within while the fire lasts and paling to
+    // grey-white as it climbs into the cold.
+    if (age > 1.5 && age < 95) {
+      const std::uint32_t tint = blendTint(blendTint(0xf02c58a8u, 0xf0707880u, (age - 4) / 14), 0xf0c4ccd0u, (age - 18) / 40);
+      for (int i = owed(cloud.cap, age < 30 ? 4.5 : 2.5); i > 0; --i) {
+        const double ring = .35 + .65 * std::sqrt(unit());
+        const Vec3 out = around();
+        const double high = (unit() - .35) * shape.capThickness;
+        spawn(EffectKind::Smoke, out * (shape.capRadius * ring) + Vec3{0, 0, -(shape.height + high)},
+              out * (10 + 26 * ring * std::exp(-age / 40.)) + Vec3{0, 0, -(shape.climb * (1 - .45 * ring))},
+              (430 + 420 * unit()) * (.8 + .5 * std::min(1., age / 40.)), 34 + 22 * unit(),
+              // The underside and the rim stay darker than the crown.
+              blendTint(tint, 0xf0484c54u, high < 0 ? .45 : .12 * ring), .004);
+      }
+    }
+    // The stem: dust and smoke drawn up from the ground into the cap.
+    if (age > 1 && age < 85) {
+      const std::uint32_t tint = blendTint(0xf0284870u, 0xec5c6470u, (age - 3) / 16);
+      for (int i = owed(cloud.stem, 2.5); i > 0; --i) {
+        const double up = unit();
+        const double radius = shape.stemRadius * (.55 + .7 * std::abs(up - .45)) * std::sqrt(unit());
+        spawn(EffectKind::Smoke, around() * radius + Vec3{0, 0, -(40 + up * (shape.height - shape.capThickness * .3))},
+              around() * 6. + Vec3{0, 0, -(30 + shape.climb * (.4 + .6 * up))}, 250 + 190 * unit(), 26 + 14 * unit(), tint, .006);
+      }
+      // A skirt where the stem meets the ground, and the collar under the cap.
+      for (int i = owed(cloud.skirt, 2.2); i > 0; --i) {
+        const bool collar = unit() < .4;
+        spawn(EffectKind::Smoke,
+              around() * (shape.stemRadius * (collar ? 1.5 : 1.9) * (.6 + .4 * unit())) +
+                  Vec3{0, 0, -(collar ? shape.height - shape.capThickness * .9 : 120.)},
+              around() * 9. + Vec3{0, 0, collar ? -shape.climb * .7 : -8.}, 330 + 220 * unit(), 30 + 12 * unit(),
+              collar ? 0xe8747c84u : 0xe84c5c6cu, .01);
+      }
+    }
+    // The base surge: a wall of dust running out along the ground behind the shock.
+    if (age < 32) {
+      const double front = 250 + 260 * age * std::exp(-age / 45.);
+      for (int i = owed(cloud.surge, 9 * (1 - age / 40)); i > 0; --i) {
+        const Vec3 out = around();
+        spawn(EffectKind::Dust, out * (front * (.72 + .28 * unit())) + Vec3{0, 0, -(40 + 110 * unit())},
+              out * (120 * std::exp(-age / 14.) + 14) + Vec3{0, 0, -5}, 260 + 240 * unit(), 16 + 10 * unit(), 0xc07890a4u, .05);
+      }
+    }
+  }
+  std::erase_if(clouds_, [](const Cloud& cloud) { return cloud.age > kCloudSeconds; });
+}
+
+void CombatEffects::onDetonation(const Vec3& position, float scale) {
   const std::size_t budget = budgetFor(quality_);
   if (budget == 0) return;
   // A warhead is a sharp white flash and a ball of fragments, gone in a moment,
-  // leaving a knot of grey smoke.
+  // leaving a knot of grey smoke. A bomb is the same, larger and slower.
+  const float slow = std::sqrt(scale);
   Effect flash;
   flash.kind = EffectKind::Flash;
   flash.position = position;
-  flash.lifetime = 0.1f;
-  flash.size = 13.0f;
+  flash.lifetime = 0.1f * slow;
+  flash.size = 13.0f * scale;
   flash.tint = 0xffc8f0ffu;
   pool_.spawn(flash);
   Effect fireball;
   fireball.kind = EffectKind::Explosion;
-  fireball.position = position;
-  fireball.lifetime = 0.55f;
-  fireball.size = 6.5f;
+  fireball.position = position + Vec3{0, 0, scale > 1 ? -3. * scale : 0.};
+  fireball.lifetime = 0.55f * slow;
+  fireball.size = 6.5f * scale;
   fireball.tint = 0xff58b0ffu;
   pool_.spawn(fireball);
   if (budget < 2) return;
   Effect ring;
   ring.kind = EffectKind::Shockwave;
   ring.position = position;
-  ring.lifetime = 0.32f;
-  ring.size = 30.0f;
+  ring.lifetime = 0.32f * slow;
+  ring.size = 30.0f * scale;
   ring.tint = 0x38ffffffu;
   pool_.spawn(ring);
   const auto seed = static_cast<std::uint32_t>(std::abs(position.x * 13 + position.y * 7 + position.z * 3));
@@ -495,13 +630,14 @@ void CombatEffects::onDetonation(const Vec3& position) {
     const float a = hashUnit(seed + i * 977), b = hashUnit(seed + i * 613 + 9), c = hashUnit(seed + i * 389 + 21);
     Effect smoke;
     smoke.kind = EffectKind::Smoke;
-    smoke.position = position + Vec3{(a - .5) * 4, (b - .5) * 4, (c - .5) * 4};
-    smoke.velocity = Vec3{(a - .5) * 14, (b - .5) * 14, (c - .5) * 14 - 1};
-    smoke.drag = 2.2f;
-    smoke.lifetime = 2.6f + 2 * c;
-    smoke.size = 2.4f + 2.2f * a;
+    smoke.position = position + Vec3{(a - .5) * 4, (b - .5) * 4, (c - .5) * 4} * double(scale);
+    // A bomb's smoke and earth go up, not out in every direction.
+    smoke.velocity = Vec3{(a - .5) * 14, (b - .5) * 14, (c - .5) * 14 - 1} * double(slow) + Vec3{0, 0, scale > 1 ? -9. * slow : 0.};
+    smoke.drag = 2.2f / slow;
+    smoke.lifetime = (2.6f + 2 * c) * scale;
+    smoke.size = (2.4f + 2.2f * a) * scale;
     smoke.seed = b;
-    smoke.tint = 0xa8585c60u;
+    smoke.tint = scale > 1 ? 0xc0404448u : 0xa8585c60u;
     pool_.spawn(smoke);
   }
   if (budget < 4) return;

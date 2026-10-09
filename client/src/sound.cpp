@@ -907,6 +907,7 @@ JetSound jetOf(const State& state, AircraftType type, std::uint64_t id) {
     case AircraftType::Su57: jet.pitch = .9f; break;
     case AircraftType::SR71: jet.pitch = .72f; break;
     case AircraftType::JF17: jet.pitch = 1.12f; break;
+    case AircraftType::B52: jet.pitch = .70f; jet.fan = 1; break;
     default: jet.pitch = 1.05f; break;
   }
   return jet;

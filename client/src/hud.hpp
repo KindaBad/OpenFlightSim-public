@@ -54,6 +54,29 @@ struct HudFrame {
   unsigned activeMissiles{};
   double missileSpeed{}, missileAge{};
   std::string missileOutcome;
+  // A bomber: what is in the bay and how many, the load in it and the one asked
+  // for at the next rearming, and where a bomb let go now would come down.
+  weapons::WeaponType bombType{weapons::WeaponType::None};
+  unsigned bombs{};
+  std::string bombLoad, nextLoad;
+  bool bombSight{};
+  Vec3 bombPoint{};
+  double bombFall{};
+  // The team game: the pilot's side, the score, and everything on the ground
+  // that can be bombed. `winner` is set between rounds.
+  bool teams{};
+  Team team{Team::None};
+  unsigned teamScore[2]{}, scoreLimit{};
+  Team winner{Team::None};
+  unsigned restartSeconds{};
+  struct Structure {
+    Vec3 position;
+    Team team{Team::None};
+    StructureKind kind{StructureKind::Depot};
+    std::uint8_t site{};
+    int health{100};
+  };
+  std::span<const Structure> structures;
   // Flares and chaff left, or negative for an aircraft that carries none.
   int flares{-1}, chaff{-1};
   // Missiles flying at this pilot. One that has gone after a decoy is still
@@ -73,6 +96,8 @@ struct HudFrame {
   // black (0) or red (1), and whether they are unconscious.
   double visionLoss{}, redOut{};
   bool unconscious{};
+  // A nuclear flash: how far the view is whited out, 0..1.
+  double flash{};
   // The pilot has ejected; and how far the eject key has been held, 0..1.
   bool ejected{};
   double ejectHold{};
@@ -102,6 +127,7 @@ struct HudFrame {
     AircraftType type{AircraftType::A320};
     unsigned kills{}, deaths{};
     bool self{}, alive{true};
+    Team team{Team::None};
   };
   std::span<const Score> scores;
   bool showScores{};

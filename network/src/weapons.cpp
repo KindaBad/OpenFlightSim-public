@@ -20,7 +20,8 @@ MissileNetState projectMissile(const Missile &m, EntityId viewer) {
           m.state.age};
 }
 bool missileInterest(const Missile &m, EntityId viewer, Vec3 position) {
-  return m.owner.id == viewer || m.target.id == viewer ||
+  // A nuclear weapon is everyone's business, wherever they are.
+  return m.type == WeaponType::Nuclear || m.owner.id == viewer || m.target.id == viewer ||
          (m.state.position - position).norm2() <= 15000. * 15000.;
 }
 RadarNetState radarProjection(const AircraftWeapons &w,
@@ -42,6 +43,8 @@ RadarNetState radarProjection(const AircraftWeapons &w,
     n.stations.push_back(s.mounted);
   n.flares = w.flares;
   n.chaff = w.chaff;
+  n.bombType = w.inventory.bombType;
+  n.bombs = std::uint16_t(w.inventory.bombs);
   return n;
 }
 std::uint8_t mountedMask(const weapons::Inventory &inventory) {
@@ -61,9 +64,43 @@ void MissileCombat::emit(MissileEvent event) {
   else
     ++stats_.droppedEvents;
 }
+std::vector<Blast> MissileCombat::takeBlasts() {
+  auto blasts = std::move(blasts_);
+  blasts_.clear();
+  return blasts;
+}
+bool MissileCombat::release(Tick tick, EntityRef owner, const State &aircraft,
+                            Vec3 station, WeaponType type, unsigned count,
+                            Team team) {
+  if (missiles_.size() >= capacity || !finiteState(aircraft) || !owner.id ||
+      !weapons::isBomb(type)) {
+    ++stats_.rejected;
+    return false;
+  }
+  Missile m;
+  m.id = nextId_++;
+  m.owner = owner;
+  m.type = type;
+  m.born = tick;
+  m.team = team;
+  auto &s = m.state;
+  // Bombs leave in turn from along the bay and to either side of it, and are
+  // pushed clear of the aircraft.
+  const Vec3 rack{2.5 - double(count % 6), count % 2 ? .7 : -.7, 0};
+  s.position = aircraft.pos_ned + aircraft.att.rotate(station + rack);
+  s.velocity = aircraft.vel_ned + aircraft.att.rotate({0, 0, 4.});
+  s.attitude = aircraft.att;
+  s.mass = weapons::bombDefinition(type).mass;
+  s.motor = weapons::MotorPhase::Burnout;
+  missiles_.push_back(m);
+  ++stats_.launches;
+  stats_.peakMissiles = std::max(stats_.peakMissiles, missiles_.size());
+  return true;
+}
 bool MissileCombat::launch(Tick tick, EntityRef owner, const State &aircraft,
                            Vec3 station, WeaponType type,
-                           const weapons::Track &target) {
+                           const weapons::Track &target, Team team,
+                           bool autonomous) {
   if (missiles_.size() >= capacity || !finiteState(aircraft) || !owner.id ||
       !target.entity.id || target.entity == owner ||
       (type != WeaponType::Infrared && type != WeaponType::ActiveRadar)) {
@@ -76,9 +113,11 @@ bool MissileCombat::launch(Tick tick, EntityRef owner, const State &aircraft,
   m.target = target.entity;
   m.type = type;
   m.born = tick;
+  m.team = team;
   m.state =
       weapons::launchState(weapons::missileDefinition(type), aircraft, station,
                            {target.position, target.velocity, true});
+  m.state.autonomous = autonomous;
   missiles_.push_back(m);
   ++stats_.launches;
   stats_.peakMissiles = std::max(stats_.peakMissiles, missiles_.size());
@@ -109,6 +148,77 @@ void MissileCombat::step(
   for (auto &missile : missiles_) {
     auto &s = missile.state;
     const auto previous = s.position;
+    if (weapons::isBomb(missile.type)) {
+      // A bomb falls until it meets the ground, or until its time runs out.
+      const auto &bomb = weapons::bombDefinition(missile.type);
+      weapons::advanceBomb(bomb, s.position, s.velocity, weather, tickSeconds);
+      s.age += tickSeconds;
+      s.distance += (s.position - previous).norm();
+      const double speed = s.velocity.norm();
+      if (speed > 1)
+        s.attitude = quatFromEuler(
+            0, std::asin(clamp(-s.velocity.z / speed, -1, 1)),
+            std::atan2(s.velocity.y, s.velocity.x));
+      const double ground = groundHeightNed(s.position.x, s.position.y);
+      const bool finite = std::isfinite(s.position.norm2()) &&
+                          std::isfinite(s.velocity.norm2());
+      if (finite && s.position.z < ground && s.age < bomb.lifetime) {
+        if (&missile != &missiles_[write])
+          missiles_[write] = missile;
+        ++write;
+        continue;
+      }
+      if (finite) {
+        s.position.z = std::min(s.position.z, ground);
+        ++stats_.detonations;
+        blasts_.push_back({missile.type, missile.owner, missile.team, s.position});
+        // The blast reaches aircraft too, the one that dropped it among them;
+        // only the rest of its own side is spared.
+        for (auto &t : targets) {
+          if (!t.life->alive() ||
+              (missile.team != Team::None && t.team == missile.team &&
+               t.id != missile.owner.id))
+            continue;
+          const double distance = (t.current.pos_ned - s.position).norm();
+          if (distance >= bomb.blastRadius)
+            continue;
+          const double damage =
+              bomb.damage * std::pow(1 - distance / bomb.blastRadius, 2);
+          auto &life = *t.life;
+          const double before = life.health;
+          const auto region = damageTarget(t, HitRegion::Fuselage, s.position,
+                                           1, damage, missile.owner.id);
+          life.health = std::min(life.health, std::max(0., before - damage));
+          ++stats_.hits;
+          CombatEvent e;
+          e.kind = CombatKind::Hit;
+          e.tick = tick;
+          e.projectile = missile.id;
+          e.owner = missile.owner.id;
+          e.target = t.id;
+          e.generation = life.generation;
+          e.region = region;
+          e.health = life.health;
+          e.position = t.current.pos_ned;
+          combat.emit(e);
+          if (!life.alive()) {
+            ++life.deaths;
+            life.respawnTick = tick + combat.gun().respawnDelay;
+            if (t.id != missile.owner.id) {
+              ++combat.stats().kills;
+              for (auto &owner : targets)
+                if (EntityRef{owner.id, owner.life->generation} == missile.owner)
+                  ++owner.life->kills;
+            } else
+              e.owner = t.id;
+            e.kind = CombatKind::Destroyed;
+            combat.emit(e);
+          }
+        }
+      }
+      emit({projectMissile(missile, missile.owner.id), tick, finite});
+      continue;
+    }
     const auto &d = weapons::missileDefinition(missile.type);
     const CombatTarget *target = nullptr;
     for (const auto &t : targets)
@@ -163,7 +273,8 @@ void MissileCombat::step(
     // Both bodies move over the tick; no endpoint-only hit or entity teleport.
     if (s.age >= d.armTime && s.distance >= d.minimumRange * .25) {
       for (const auto &t : targets) {
-        if (!t.life->alive() || t.id == missile.owner.id)
+        if (!t.life->alive() || t.id == missile.owner.id ||
+            (missile.team != Team::None && t.team == missile.team))
           continue;
         const auto &def = aircraftDefinition(t.type);
         for (std::size_t h = 0; h < aircraftHitboxes().size(); ++h) {
@@ -202,7 +313,8 @@ void MissileCombat::step(
       s.position = previous + (s.position - previous) * nearest;
       ++stats_.detonations;
       for (auto &t : targets) {
-        if (!t.life->alive() || t.id == missile.owner.id)
+        if (!t.life->alive() || t.id == missile.owner.id ||
+            (missile.team != Team::None && t.team == missile.team))
           continue;
         const auto position =
             t.previous.pos_ned +
