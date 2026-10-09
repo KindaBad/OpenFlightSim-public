@@ -100,7 +100,7 @@ const glm::mat4 kAssetToBody = [] {
 
 // Interleaved position(3) + colour(4) + uv(2) for the effect pool, which
 // matches the effect vertex layout declared in Renderer.
-inline constexpr std::size_t kEffectVertexFloats = 9;
+inline constexpr std::size_t kEffectVertexFloats = 13;
 
 // Radiance of an emissive material with unit emissive factor, in scene units.
 // Navigation lights and afterburners were authored against the previous
@@ -175,6 +175,7 @@ void Renderer::createPrograms() {
   programs_.effect = makeProgram("effect", OFS_SHADER(effect_vs), OFS_SHADER(effect_fs));
   programs_.flame = makeProgram("flame", OFS_SHADER(flame_vs), OFS_SHADER(flame_fs));
   programs_.rain = makeProgram("rain", OFS_SHADER(fullscreen_vs), OFS_SHADER(rain_fs));
+  programs_.nuke = makeProgram("nuke", OFS_SHADER(fullscreen_vs), OFS_SHADER(nuke_fs));
   programs_.shadow = makeProgram("shadow", OFS_SHADER(shadow_vs), OFS_SHADER(shadow_fs));
   programs_.shadowTree = makeProgram("shadow_tree", OFS_SHADER(shadow_tree_vs), OFS_SHADER(shadow_tree_fs));
   programs_.glare = makeProgram("bloom", OFS_SHADER(fullscreen_vs), OFS_SHADER(bloom_fs));
@@ -197,6 +198,7 @@ void Renderer::createUniforms() {
   uniforms_.lightViewProj = bgfx::createUniform("u_lightViewProj", mat4);
   uniforms_.shadowMatrix = bgfx::createUniform("u_shadowMatrix", mat4, kMaxCascades);
   uniforms_.damage = bgfx::createUniform("u_damage", vec4, 7);
+  uniforms_.nuke = bgfx::createUniform("u_nuke", vec4, 8);
   uniforms_.terrainMap = bgfx::createUniform("u_terrainMap", vec4);
   uniforms_.baseColor = bgfx::createUniform("u_baseColor", vec4);
   uniforms_.metallicRoughness = bgfx::createUniform("u_metallicRoughness", vec4);
@@ -303,6 +305,9 @@ bool Renderer::initialize(const Platform& platform) {
       .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
       .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Float)
       .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
+      // What the particle shader needs to know about the particle a quad
+      // belongs to: how far through its life it is and its own random number.
+      .add(bgfx::Attrib::TexCoord1, 4, bgfx::AttribType::Float)
       .end();
   // ImGui's own layout: position, uv and packed colour, matching ImDrawVert.
   uiLayout_.begin()
@@ -433,7 +438,6 @@ void Renderer::destroy() {
   for (auto& type : storeMeshes_) for (auto& detail : type) for (auto& part : detail)
     if (bgfx::isValid(part.vertices)) bgfx::destroy(part.vertices);
   if (bgfx::isValid(pylonMesh_.vertices)) bgfx::destroy(pylonMesh_.vertices);
-  for (auto& part : cloudMeshes_) if (bgfx::isValid(part.vertices)) bgfx::destroy(part.vertices);
   for (auto& part : chuteMeshes_)
     if (bgfx::isValid(part.vertices)) { bgfx::destroy(part.vertices); part = {}; }
   if (bgfx::isValid(flameMesh_)) bgfx::destroy(flameMesh_);
@@ -953,6 +957,8 @@ void Renderer::drawEffects(const CombatVisuals& combat) {
 
   effectScratch_.clear();
   effectScratch_.reserve(static_cast<std::size_t>(maxVertices) * kEffectVertexFloats);
+  // Set per particle before its quads are emitted.
+  float life = 0, seed = 0;
   auto emitQuad = [&](const glm::vec3& centre, const glm::vec3& right, const glm::vec3& up,
                       float halfRight, float halfUp, std::uint32_t color, float style = 0) {
     const glm::vec3 corners[4] = {centre - right * halfRight - up * halfUp,
@@ -971,13 +977,15 @@ void Renderer::drawEffects(const CombatVisuals& combat) {
       const glm::vec2 uv[4]={{0,0},{1,0},{1,1},{0,1}};
       effectScratch_.insert(effectScratch_.end(),
                             {corners[i].x, corners[i].y, corners[i].z, channels[0], channels[1],
-                             channels[2], channels[3],uv[i].x+style*2.f,uv[i].y});
+                             channels[2], channels[3],uv[i].x+style*2.f,uv[i].y,life,seed,0.f,0.f});
     }
   };
 
   for (const Effect& effect : pool_.effects()) {
     const float t = std::min(1.0f, effect.age / std::max(effect.lifetime, 1e-4f));
     const glm::vec3 centre = localPosition(effect.position, origin_);
+    life = t;
+    seed = effect.seed;
     std::uint32_t color = effect.tint;
     const auto alpha = static_cast<std::uint32_t>((color >> 24) & 0xff);
     const float formation=effect.kind==EffectKind::Contrail ? std::clamp(effect.age/.12f,0.f,1.f) :
@@ -1050,6 +1058,14 @@ void Renderer::drawEffects(const CombatVisuals& combat) {
                (color & 0x00ffffffu) | (ringAlpha << 24), 6);
       continue;
     }
+    if (effect.kind == EffectKind::GroundRing) {
+      // The same, lying on the ground, with the dust it lifts behind it.
+      const float grown = 1.f - (1.f - t) * (1.f - t);
+      const auto ringAlpha = static_cast<std::uint32_t>(alpha * (1.f - t));
+      emitQuad(centre, renderDirection({1, 0, 0}), renderDirection({0, 1, 0}), effect.size * (.08f + .92f * grown),
+               effect.size * (.08f + .92f * grown), (color & 0x00ffffffu) | (ringAlpha << 24), 8);
+      continue;
+    }
     if (effect.kind == EffectKind::Flash || effect.kind == EffectKind::MuzzleFlash) {
       // A star of light, turned by its seed so no two flashes look alike.
       const float turn = effect.seed * 6.2831853f, c = std::cos(turn), sn = std::sin(turn);
@@ -1082,7 +1098,8 @@ void Renderer::drawEffects(const CombatVisuals& combat) {
     } else if (effect.kind == EffectKind::Fire) {
       radius = effect.size*(.7f+.6f*std::sin(t*float(kPi)));
     } else if (effect.kind == EffectKind::Explosion) {
-      radius = effect.size * (0.30f + 1.30f * std::sin(t * static_cast<float>(kPi)));
+      // Out fast, then rolling slowly larger as it burns out.
+      radius = effect.size * (0.25f + 0.75f * (1.f - (1.f - t) * (1.f - t) * (1.f - t)) + 0.25f * t);
     } else if (effect.kind == EffectKind::MuzzleFlash) {
       radius = effect.size * (0.55f + 0.95f * (1.0f - t));
     } else if (effect.kind == EffectKind::EngineHeat) {
@@ -1163,7 +1180,7 @@ void Renderer::ensureFlameMesh() {
   const auto vertex=[&](unsigned j,unsigned i) {
     const float t=float(j)/rings, u=float(i)/sectors;
     const float angle=u*float(2*kPi);
-    data.insert(data.end(),{-t,std::cos(angle),std::sin(angle),1,1,1,1,u,t});
+    data.insert(data.end(),{-t,std::cos(angle),std::sin(angle),1,1,1,1,u,t,0,0,0,0});
   };
   for(unsigned j=0;j<rings;++j) for(unsigned i=0;i<sectors;++i) {
     vertex(j,i);vertex(j+1,i);vertex(j+1,i+1);
@@ -1172,7 +1189,7 @@ void Renderer::ensureFlameMesh() {
   flameVertices_=static_cast<unsigned>(data.size()/kEffectVertexFloats);
   for (const unsigned i:{0u,1u,2u,0u,2u,3u}) {
     const glm::vec2 p[4]={{-1,-1},{1,-1},{1,1},{-1,1}};
-    data.insert(data.end(),{p[i].x,p[i].y,0,.72f,.65f,1,.18f,(p[i].x+1)*.5f,(p[i].y+1)*.5f});
+    data.insert(data.end(),{p[i].x,p[i].y,0,.72f,.65f,1,.18f,(p[i].x+1)*.5f,(p[i].y+1)*.5f,0,0,0,0});
   }
   flameMesh_=bgfx::createVertexBuffer(bgfx::copy(data.data(),static_cast<unsigned>(data.size()*sizeof(float))),effectLayout_);
 }
@@ -1577,13 +1594,13 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
     if (remote.alive && (remote.state.pos_ned-camera.eye).norm()<settings_.renderDistance)
       drawAircraft(instances_.at(remote.entity), false, kViewWorld, viewProj_);
   drawStores(combat, camera, false);
-  drawNuclearClouds();
   drawBreakaways();
   drawPilots(combat);
 
   // ---- Atmosphere: clouds, particles, plumes, rain ----
   drawClouds();
   compositeClouds();
+  drawNuclearClouds();
   drawEffects(combat);
   drawAfterburners(combat.localDestroyed);
   drawMissilePlumes(combat);

@@ -309,6 +309,7 @@ class Renderer {
     bgfx::ProgramHandle sky{BGFX_INVALID_HANDLE}, skyTable{BGFX_INVALID_HANDLE}, aerial{BGFX_INVALID_HANDLE};
     bgfx::ProgramHandle clouds{BGFX_INVALID_HANDLE}, cloudResolve{BGFX_INVALID_HANDLE}, cloudComposite{BGFX_INVALID_HANDLE};
     bgfx::ProgramHandle unlit{BGFX_INVALID_HANDLE}, effect{BGFX_INVALID_HANDLE}, flame{BGFX_INVALID_HANDLE}, rain{BGFX_INVALID_HANDLE};
+    bgfx::ProgramHandle nuke{BGFX_INVALID_HANDLE};
     bgfx::ProgramHandle shadow{BGFX_INVALID_HANDLE}, shadowTree{BGFX_INVALID_HANDLE};
     bgfx::ProgramHandle glare{BGFX_INVALID_HANDLE}, display{BGFX_INVALID_HANDLE}, edgeFilter{BGFX_INVALID_HANDLE};
     bgfx::ProgramHandle imgui{BGFX_INVALID_HANDLE};
@@ -319,7 +320,7 @@ class Renderer {
     bgfx::UniformHandle lightViewProj, shadowMatrix;
     bgfx::UniformHandle baseColor, metallicRoughness, emissive, doubleSided, normalSettings, textureFlags, alphaSettings;
     bgfx::UniformHandle surface, flame, effectParams, cloudRender, cloudResolve, postSettings, postStep, rain, rainSide;
-    bgfx::UniformHandle damage, terrainMap;
+    bgfx::UniformHandle damage, terrainMap, nuke;
     // Samplers.
     bgfx::UniformHandle shadowAtlas, baseTexture, mrTexture, emissiveTexture, normalTexture, occlusionTexture;
     bgfx::UniformHandle transmittance, skyView, aerial, multiScatter, weatherMap, noise;
@@ -481,8 +482,7 @@ class Renderer {
   // One per weapon type after None, near and far.
   std::array<std::array<std::array<PartBuffer, 4>, 2>, 5> storeMeshes_{};
   PartBuffer pylonMesh_{};
-  // The solid body of a nuclear cloud: fireball, cap, stem and skirt.
-  std::array<PartBuffer, 4> cloudMeshes_{};
+  // The cloud of each nuclear burst, marched as a volume over the scene.
   void drawNuclearClouds();
   std::array<PartBuffer, std::size_t(ChutePart::Count)> chuteMeshes_{};
   std::vector<PartLost> partsLost_;

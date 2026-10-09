@@ -36,11 +36,23 @@ Material storeMaterial(weapons::WeaponType type, StorePart part) {
     material.metallic = metallic; material.roughness = roughness;
   };
   if (weapons::isBomb(type)) {
-    // Olive drab with a yellow nose band; the big one is white with a red band.
     const bool nuclear = type == weapons::WeaponType::Nuclear;
-    if (part == StorePart::Band) { if (nuclear) set(.70f, .06f, .04f, 0, .6f); else set(.80f, .62f, .05f, 0, .6f); }
-    else if (nuclear) set(.82f, .82f, .80f, .1f, .4f);
-    else set(.20f, .23f, .14f, 0, .7f);
+    switch (part) {
+      case StorePart::Body:
+        // Olive drab paint; the big one is bare polished metal under white.
+        if (nuclear) set(.80f, .81f, .80f, .35f, .34f); else set(.185f, .21f, .125f, 0, .72f);
+        break;
+      case StorePart::Seeker:
+        // Bare steel: fuze and lugs. The nuclear weapon's nose is a dull cap.
+        if (nuclear) set(.34f, .33f, .31f, .1f, .62f); else set(.42f, .43f, .44f, .8f, .42f);
+        break;
+      case StorePart::Band:
+        if (nuclear) set(.66f, .07f, .05f, 0, .55f); else set(.84f, .66f, .06f, 0, .6f);
+        break;
+      default:
+        set(.06f, .06f, .055f, .3f, .6f);
+        break;
+    }
     return material;
   }
   switch (part) {
@@ -132,36 +144,64 @@ void Renderer::createStoreMeshes() {
         storeMeshes_[type][detail][part] = upload(mesh.parts[part]);
     }
   pylonMesh_ = upload(buildPylonMesh());
-  for (std::size_t part = 0; part < cloudMeshes_.size(); ++part) cloudMeshes_[part] = upload(buildCloudPart(CloudPart(part)));
 }
 
 void Renderer::drawNuclearClouds() {
+  if (settings_.effects == EffectsQuality::Off) return;
+  const bool clouds = cloudsEnabled() && bgfx::isValid(cloudHistory_[cloudHistoryIndex_]);
+  const std::uint32_t point = BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP | BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT;
+  const float steps = settings_.effects == EffectsQuality::Low ? 44.f : settings_.effects == EffectsQuality::Medium ? 60.f : 84.f;
   for (const auto& cloud : combat_.nuclearClouds()) {
+    if (cloud.age >= kCloudSeconds) continue;
+    const NuclearVolume v = nuclearVolume(cloud.age);
     const glm::vec3 ground = localPosition(cloud.ground, origin_);
-    for (const auto& part : cloudParts(cloud.age)) {
-      const PartBuffer& mesh = cloudMeshes_[std::size_t(part.part)];
-      if (!bgfx::isValid(mesh.vertices) || part.radius <= 0 || part.height <= 0) continue;
-      glm::mat4 model = glm::translate(glm::mat4{1}, ground + glm::vec3(0, float(part.up), 0));
-      model = glm::rotate(model, float(part.turn), glm::vec3(0, 1, 0));
-      model = glm::scale(model, glm::vec3(float(part.radius), float(part.height), float(part.radius)));
-      Material material;
-      material.metallic = 0;
-      material.roughness = 1;
-      for (int i = 0; i < 3; ++i) { material.baseColor[i] = part.color[i]; material.emissive[i] = part.emissive[i]; }
-      material.baseColor[3] = part.alpha;
-      const bool fading = part.alpha < .995f;
-      if (fading) material.alpha = Material::Alpha::Blend;
-      bindFrame(viewProj_);
-      bindLighting();
-      bgfx::setUniform(uniforms_.model, glm::value_ptr(model));
-      bgfx::setUniform(uniforms_.normalMatrix, glm::value_ptr(glm::inverseTranspose(glm::mat3(model))));
-      bgfx::setState((fading ? kBlendState : kOpaqueState) | BGFX_STATE_MSAA);
-      bgfx::setVertexBuffer(0, mesh.vertices);
-      applyMaterial(material);
-      bgfx::submit(kViewWorld, programs_.pbr);
-      ++stats_.drawCalls;
-      stats_.triangles += mesh.count / 3;
+    // Only the part of the screen the cloud can cover is marched. While the
+    // fireball lights the country round it, that is all of it.
+    std::uint16_t x0 = 0, y0 = 0, x1 = width_, y1 = height_;
+    if (v.glow[0] < .02f) {
+      float low[2] = {1e9f, 1e9f}, high[2] = {-1e9f, -1e9f};
+      bool behind = false;
+      for (int corner = 0; corner < 8; ++corner) {
+        const glm::vec4 clip = viewProj_ * glm::vec4(ground + glm::vec3((corner & 1 ? 1.f : -1.f) * float(v.boundRadius),
+                                                                        corner & 2 ? float(v.boundHeight) : -60.f,
+                                                                        (corner & 4 ? 1.f : -1.f) * float(v.boundRadius)), 1);
+        if (clip.w < cameraNear_) { behind = true; break; }
+        const glm::vec2 uv = glm::vec2(clip.x, -clip.y) / clip.w * .5f + .5f;
+        low[0] = std::min(low[0], uv.x); low[1] = std::min(low[1], uv.y);
+        high[0] = std::max(high[0], uv.x); high[1] = std::max(high[1], uv.y);
+      }
+      if (!behind) {
+        if (high[0] <= 0 || high[1] <= 0 || low[0] >= 1 || low[1] >= 1) continue;
+        x0 = std::uint16_t(std::clamp(low[0], 0.f, 1.f) * width_);
+        y0 = std::uint16_t(std::clamp(low[1], 0.f, 1.f) * height_);
+        x1 = std::uint16_t(std::min<float>(width_, std::ceil(std::clamp(high[0], 0.f, 1.f) * width_) + 1));
+        y1 = std::uint16_t(std::min<float>(height_, std::ceil(std::clamp(high[1], 0.f, 1.f) * height_) + 1));
+        if (x1 <= x0 || y1 <= y0) continue;
+      }
     }
+    const float emissive = frame_.sunDirection.w;
+    const glm::vec4 shape[8] = {
+        glm::vec4(ground, float(cloud.age)),
+        glm::vec4(float(v.height), float(v.ring), float(v.tube), float(v.stem)),
+        glm::vec4(float(v.surge), float(v.surgeHeight), float(v.heat), float(v.opacity)),
+        glm::vec4(float(v.boundRadius), float(v.boundHeight), steps, clouds ? 1.f : 0.f),
+        glm::vec4(v.capTint[0], v.capTint[1], v.capTint[2], float(v.roll)),
+        glm::vec4(v.dustTint[0], v.dustTint[1], v.dustTint[2], float(v.scroll)),
+        glm::vec4(v.glow[0] * emissive, v.glow[1] * emissive, v.glow[2] * emissive, float(v.reach)),
+        glm::vec4(float(v.skirtHeight), float(v.skirtRadius), float(v.skirt), float(v.surgeDensity))};
+    bindFrame(viewProj_);
+    bindLighting();
+    bgfx::setUniform(uniforms_.invViewProj, glm::value_ptr(invViewProj_));
+    bgfx::setUniform(uniforms_.nuke, glm::value_ptr(shape[0]), 8);
+    bgfx::setTexture(11, uniforms_.cloudShape, cloudShape_);
+    bgfx::setTexture(12, uniforms_.cloudDetail, cloudDetail_);
+    bgfx::setTexture(13, uniforms_.sceneRange, bgfx::getTexture(hdrBuffer_, 1), point);
+    bgfx::setTexture(14, uniforms_.cloudLayer, clouds ? bgfx::getTexture(cloudHistory_[cloudHistoryIndex_], 0) : whiteTexture_, BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP);
+    bgfx::setTexture(15, uniforms_.cloudDepth, clouds ? bgfx::getTexture(cloudHistory_[cloudHistoryIndex_], 1) : whiteTexture_, BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP);
+    bgfx::setScissor(x0, y0, std::uint16_t(x1 - x0), std::uint16_t(y1 - y0));
+    // Premultiplied, so the fireball's light can be added where the cloud is not.
+    fullscreenPass(kViewAtmosphere, programs_.nuke,
+                   BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE, BGFX_STATE_BLEND_INV_SRC_ALPHA));
   }
 }
 

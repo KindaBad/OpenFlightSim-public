@@ -95,31 +95,104 @@ inline void cruciform(std::vector<SurfaceVertex>& out, double radius, double spa
 
 }  // namespace store_detail
 
+namespace store_detail {
+
+// A small block, for a suspension lug: centred on (x, 0, z), in body axes.
+inline void block(std::vector<SurfaceVertex>& out, Vec3 centre, Vec3 half) {
+  const auto face = [&](Vec3 normal, Vec3 u, Vec3 v) {
+    const Vec3 c = centre + Vec3{normal.x * half.x, normal.y * half.y, normal.z * half.z};
+    const Vec3 du{u.x * half.x, u.y * half.y, u.z * half.z}, dv{v.x * half.x, v.y * half.y, v.z * half.z};
+    Vec3 a = c - du - dv, b = c + du - dv, cc = c + du + dv, d = c - du + dv;
+    if ((b - a).cross(cc - a).dot(normal) < 0) std::swap(b, d);
+    sceneryTriangle(out, a, b, cc, normal, normal, normal, 0);
+    sceneryTriangle(out, a, cc, d, normal, normal, normal, 0);
+  };
+  face({1, 0, 0}, {0, 1, 0}, {0, 0, 1});
+  face({-1, 0, 0}, {0, 1, 0}, {0, 0, 1});
+  face({0, 1, 0}, {1, 0, 0}, {0, 0, 1});
+  face({0, -1, 0}, {1, 0, 0}, {0, 0, 1});
+  face({0, 0, 1}, {1, 0, 0}, {0, 1, 0});
+  face({0, 0, -1}, {1, 0, 0}, {0, 1, 0});
+}
+
+}  // namespace store_detail
+
+// Free-fall bombs. Body is the painted case and its fins, Seeker the bare
+// steel (nose fuze, suspension lugs), Band the colour markings and Nozzle the
+// dark fittings at the tail.
+inline StoreMesh buildBombMesh(weapons::WeaponType type, int detail) {
+  using namespace store_detail;
+  const auto& bomb = weapons::bombDefinition(type);
+  const double r = bomb.diameter * .5, length = bomb.length, nose = length * .5, tail = -length * .5;
+  const int sides = detail ? 28 : 10;
+  // Stations are given from the nose as fractions of the length.
+  const auto at = [&](double fraction) { return nose - length * fraction; };
+  StoreMesh mesh;
+  auto& body = mesh.parts[std::size_t(StorePart::Body)];
+  auto& steel = mesh.parts[std::size_t(StorePart::Seeker)];
+  auto& band = mesh.parts[std::size_t(StorePart::Band)];
+  auto& dark = mesh.parts[std::size_t(StorePart::Nozzle)];
+  std::vector<std::pair<double, double>> profile;
+  if (type == weapons::WeaponType::Nuclear) {
+    // A B83: a long plain cylinder with a blunt, flat-fronted nose that is
+    // made to crush, and a short tail of four swept fins round the can that
+    // holds its parachute.
+    const double flat = r * .52;
+    disc(steel, at(0), flat, 1, sides);
+    profile.clear();
+    for (int i = 0; i <= 8; ++i) {
+      const double a = kPi * .5 * i / 8;
+      profile.push_back({at(.075) + length * .075 * std::cos(a), flat + (r - flat) * std::sin(a)});
+    }
+    lathe(steel, profile, sides);
+    lathe(body, {{at(.075), r}, {at(.80), r}, {at(.86), r * .93}, {at(1), r * .90}}, sides);
+    // Red bands behind the nose and ahead of the tail, and the joint between them.
+    lathe(band, {{at(.105), r * 1.012}, {at(.125), r * 1.012}}, sides);
+    lathe(band, {{at(.74), r * 1.012}, {at(.755), r * 1.012}}, sides);
+    lathe(dark, {{at(.43), r * 1.008}, {at(.436), r * 1.008}}, sides);
+    // The parachute can's lid, set a little into the tail.
+    lathe(dark, {{tail, r * .90}, {tail + .03, r * .78}}, sides);
+    disc(dark, tail + .03, r * .78, -1, sides);
+    cruciform(body, r * .93, r * .95, tail + .02, at(.79), tail + .02, at(.90), .024);
+    for (const double station : {.36, .57}) block(steel, {at(station), 0, -r - .012}, {.045, .018, .022});
+    return mesh;
+  }
+  // A Mk 80 series low-drag bomb: a long ogive to its widest at a third of its
+  // length, a body that tapers away aft, and a conical fin assembly bolted to
+  // it carrying four fins. The same shape at two sizes.
+  const double fuze = .028, widest = .36, taper = .52, join = .705;
+  lathe(steel, {{at(0), r * .10}, {at(fuze * .45), r * .15}, {at(fuze), r * .17}}, sides);
+  disc(steel, at(0), r * .10, 1, sides);
+  // The ogive is an arc that leaves the fuze at an angle and arrives at the
+  // widest station parallel to the axis.
+  for (int i = 0; i <= 12; ++i) {
+    const double t = double(i) / 12, a = kPi * .5 * t;
+    profile.push_back({at(fuze + (widest - fuze) * (1 - std::cos(a))), r * (.17 + .83 * std::sin(a))});
+  }
+  profile.push_back({at(taper), r});
+  for (int i = 1; i <= 5; ++i) {
+    const double t = double(i) / 5;
+    profile.push_back({at(taper + (join - taper) * t), r * (1 - .36 * t * t)});
+  }
+  lathe(body, profile, sides);
+  // The fin assembly: a cone a shade wider than the body it is clamped to.
+  lathe(body, {{at(join), r * .66}, {at(join + .012), r * .66}, {at(1), r * .30}}, sides);
+  disc(dark, tail, r * .30, -1, sides);
+  lathe(dark, {{at(join - .004), r * .655}, {at(join), r * .67}}, sides);
+  const double tip = r * 1.40 - r * .30 * .92;
+  cruciform(body, r * .30, tip, tail, at(join + .02), tail, at(join + .17), .014 + r * .03);
+  // One yellow band round the nose: high explosive.
+  lathe(band, {{at(.085), r * .648}, {at(.108), r * .722}}, sides);
+  const double spacing = type == weapons::WeaponType::Bomb2000 ? .762 : .356;
+  for (const double sign : {-1., 1.})
+    block(steel, {at(.40) + sign * spacing * .5 - length * .0, 0, -r - .010}, {.038, .016, .020});
+  return mesh;
+}
+
 // `detail` 1 is the mesh seen up close; 0 halves the facets for distant stores.
 inline StoreMesh buildStoreMesh(weapons::WeaponType type, int detail) {
   using namespace store_detail;
-  if (weapons::isBomb(type)) {
-    // A free-fall bomb: an ogive nose, a fat parallel body and a tapered tail
-    // carrying four fins. The band is the nose marking.
-    const auto& bomb = weapons::bombDefinition(type);
-    const double r = bomb.diameter * .5, nose = bomb.length * .5, tail = -bomb.length * .5;
-    const int sides = detail ? 16 : 8;
-    StoreMesh mesh;
-    auto& body = mesh.parts[std::size_t(StorePart::Body)];
-    std::vector<std::pair<double, double>> profile;
-    const double ogive = bomb.length * .30;
-    for (int i = 0; i <= 6; ++i) {
-      const double t = double(i) / 6;
-      profile.push_back({nose - ogive * t, std::max(r * std::sqrt(1 - (1 - t) * (1 - t)), 1e-4)});
-    }
-    profile.push_back({tail + bomb.length * .34, r});
-    profile.push_back({tail, r * .30});
-    lathe(body, profile, sides);
-    disc(body, tail, r * .30, -1, sides);
-    lathe(mesh.parts[std::size_t(StorePart::Band)], {{nose - ogive * .55, r * .93}, {nose - ogive * .80, r * 1.0}}, sides);
-    cruciform(body, r * .55, r * .95, tail, tail + bomb.length * .26, tail, tail + bomb.length * .14, .02);
-    return mesh;
-  }
+  if (weapons::isBomb(type)) return buildBombMesh(type, detail);
   const auto& d = weapons::missileDefinition(type);
   const double r = d.diameter * .5, nose = d.length * .5, tail = -d.length * .5;
   const int sides = detail ? 18 : 8;

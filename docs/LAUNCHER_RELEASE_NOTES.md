@@ -1,3 +1,24 @@
+OpenFlightSim 0.6.1 Launcher
+
+- A nuclear explosion that looks like one. A blinding flash, then a fireball
+  that swells, lifts off the ground and rolls up into a mushroom cloud: its
+  surface crusts over dark while the fire still shows through the cracks,
+  and over the next minutes it pales and spreads above a stem of dust, a ring
+  of dust running out along the ground and a collar of white condensation.
+  The fireball lights the land around it and the shock wave runs out across
+  the sky. The cloud stands for about three minutes.
+- Better explosions everywhere. A bomb on the ground goes up in a rolling
+  ball of fire that cools to black smoke, throws earth into the air, drives a
+  ring of dust out along the ground and leaves a column of smoke standing over
+  the crater. Missile warheads and aircraft blowing up have the same fire and
+  smoke, with burning pieces trailing smoke as they fall. Smoke and fire are
+  shaded as solid, sunlit shapes instead of flat discs.
+- All of it is drawn on the lowest effects setting too.
+- New bomb models: the Mk 82 and Mk 84 have their real shape, with a nose
+  fuze, a yellow band, suspension lugs and a fin assembly, and the B83 is the
+  long white weapon with red bands and a blunt nose.
+- Nothing else has changed: this version plays with 0.6.0 in a shared game.
+
 OpenFlightSim 0.6.0 Launcher
 
 - New aircraft: the B-52H Stratofortress. Eight engines, Mach 0.86, slow to

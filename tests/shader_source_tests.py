@@ -58,6 +58,14 @@ pbr = (SHADERS / 'pbr_fs.glsl').read_text(encoding='utf-8')
 damage_size = int(re.search(r'uniform vec4 u_damage\[(\d+)\];', pbr).group(1))
 source = (ROOT / 'client/src/renderer.cpp').read_text(encoding='utf-8')
 assert f'createUniform("u_damage", vec4, {damage_size})' in source, 'u_damage size differs between pbr_fs.glsl and the renderer'
+
+# --- Nuclear cloud: the renderer fills as many slots as the shader reads -------
+nuke = (SHADERS / 'nuke_fs.glsl').read_text(encoding='utf-8')
+nuke_size = int(re.search(r'uniform vec4 u_nuke\[(\d+)\];', nuke).group(1))
+assert f'createUniform("u_nuke", vec4, {nuke_size})' in source, 'u_nuke size differs between nuke_fs.glsl and the renderer'
+stores = (ROOT / 'client/src/renderer_stores.cpp').read_text(encoding='utf-8')
+assert f'const glm::vec4 shape[{nuke_size}]' in stores and f'glm::value_ptr(shape[0]), {nuke_size})' in stores, 'the nuclear cloud is uploaded at a different size'
+assert max(int(i) for i in re.findall(r'(?<!vec4 )u_nuke\[(\d+)\]', nuke)) == nuke_size - 1, 'nuke_fs.glsl names a slot the renderer does not fill'
 assert source.count(f'damageUniform[{damage_size}]') == 1 and source.count(f'damage[{damage_size}]{{') == 1, 'renderer fills a different u_damage size'
 visuals = (ROOT / 'client/src/damage_visuals.hpp').read_text(encoding='utf-8')
 # Wing: mix(1.25, 0.08, smoothstep(0.4, 1.0, d)); fin: mix(1.25, 0.1, ...).

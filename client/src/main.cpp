@@ -50,6 +50,7 @@ struct Options {
       airborne{}, afterburnerBench{}, map{}, noSound{};
   unsigned frames{}, seconds{};
   double ejectAt{-1};  // a scripted run fires the seat after this many seconds
+  double frameStep{};  // seconds every frame advances, in place of the clock
   double bombAt{-1};   // and holds the bomb release down from this many seconds on
   std::string screenshot, server, name{"pilot"}, asset, config{"graphics.cfg"}, soundCapture;
   unsigned port{27020}, bots{};
@@ -83,6 +84,7 @@ Options parse(int argc, char** argv) {
     else if (arg == "--asset" && i + 1 < argc) result.asset = argv[++i];
     else if (arg == "--config" && i + 1 < argc) result.config = argv[++i];
     else if (arg == "--no-sound") result.noSound = true;
+    else if (arg == "--frame-step" && i + 1 < argc) result.frameStep = std::clamp(std::stod(argv[++i]), 0., .1);
     else if (arg == "--sound-capture" && i + 1 < argc) result.soundCapture = argv[++i];
     else if (arg == "--width" && i + 1 < argc) result.width = std::atoi(argv[++i]);
     else if (arg == "--height" && i + 1 < argc) result.height = std::atoi(argv[++i]);
@@ -152,7 +154,7 @@ Options parse(int argc, char** argv) {
       throw std::runtime_error(
           "Usage: ofs_client [--smoke-test|--gun-smoke] [--frames N] [--screenshot path.ppm] "
           "[--aircraft a320|su57|typhoon|sr71|jf17|b52] [--asset path.glb] [--config path.cfg] [--airborne] [--width N] [--height N] "
-          "[--map] [--free-camera|--pursuit|--chase|--close-chase|--orbit|--cockpit] [--visual-bench N] "
+          "[--map] [--free-camera|--pursuit|--chase|--close-chase|--orbit|--cockpit] [--visual-bench N] [--frame-step seconds] "
           "[--no-sound] [--sound-capture path.wav] "
           "[--bots 0..8] [--server host --name name] [--team red|blue|auto] [--loadout mk82|mk84|nuke] "
           "[--teams [--score-limit 50..5000]]");
@@ -192,7 +194,7 @@ Options parse(int argc, char** argv) {
     throw std::runtime_error("gun smoke requires ordinary offline flight");
   if (!result.scenario.empty()) {
     if (!result.server.empty()) throw std::runtime_error("visual scenarios are offline fixtures only");
-    const std::vector<std::string> names{"parked","surfaces","flaps","gear","flight","high-altitude","high-mach","exhaust","contrail","gun","impact","destruction","mixed","idle","military","afterburner","afterburner-multiple","afterburner-transition","vectoring","high-aoa","condensation","environment","forest","grass","clouds","above-clouds","lake","mountains","valley","ranges","village","farmland","fields","eject","blackout","damage","damage-heavy","breakup","missile","detonation","menu","controls","chat","airfield","apron","shelters","threshold","decoys","warning","service","nuclear"};
+    const std::vector<std::string> names{"parked","surfaces","flaps","gear","flight","high-altitude","high-mach","exhaust","contrail","gun","impact","destruction","mixed","idle","military","afterburner","afterburner-multiple","afterburner-transition","vectoring","high-aoa","condensation","environment","forest","grass","clouds","above-clouds","lake","mountains","valley","ranges","village","farmland","fields","eject","blackout","damage","damage-heavy","breakup","missile","detonation","menu","controls","chat","airfield","apron","shelters","threshold","decoys","warning","service","nuclear","bombs"};
     if (std::find(names.begin(), names.end(), result.scenario) == names.end())
       throw std::runtime_error("Unknown visual scenario");
     if (result.screenshot.empty() || !result.frames) throw std::runtime_error("visual scenarios require --frames and --screenshot");
@@ -517,7 +519,7 @@ int main(int argc, char** argv) {
       fixture.pos_ned.z = -(simulation().config().gear_nose.z - .15);
       controls = {};
       controls.gear01 = 1;
-      const bool onGround = options.scenario == "parked" || options.scenario == "surfaces" || options.scenario == "flaps" ||
+      const bool onGround = options.scenario == "parked" || options.scenario == "bombs" || options.scenario == "surfaces" || options.scenario == "flaps" ||
           options.scenario == "mixed" || options.scenario == "apron" || options.scenario == "shelters" ||
           options.scenario == "threshold" || options.scenario == "service";
       if (!onGround) {
@@ -723,7 +725,8 @@ int main(int argc, char** argv) {
       const double realElapsed = std::chrono::duration<double>(now - last).count();
       last = now;
       // Only smoke mode substitutes time, so its assertions stay repeatable.
-      const double elapsed = (options.smoke || options.gunSmoke) ? 1.0 / 60.0 : realElapsed;
+      // --frame-step does the same for a capture of something slow.
+      const double elapsed = options.frameStep > 0 ? options.frameStep : (options.smoke || options.gunSmoke) ? 1.0 / 60.0 : realElapsed;
 
 #ifdef OFS_NETWORK_ENABLED
       if (options.dogfightSmoke) {
@@ -1563,7 +1566,7 @@ int main(int argc, char** argv) {
           ++missileDetonations;
           // A nuclear burst whites the view out, less the further off it is.
           if (event.missile.type == weapons::WeaponType::Nuclear)
-            nuclearFlash = std::max(nuclearFlash, 4.5 * clamp(1.25 - (event.missile.position - camera.eye).norm() / 60000, .15, 1));
+            nuclearFlash = std::max(nuclearFlash, 3.2 * clamp(1.25 - (event.missile.position - camera.eye).norm() / 60000, .15, 1));
         }
         for (auto miss = pendingMissileMisses.begin();
              miss != pendingMissileMisses.end();) {
@@ -1728,12 +1731,29 @@ int main(int argc, char** argv) {
           if (options.scenario == "detonation" && frame == 36)
             combat.missileDetonations.push_back({aircraft.pos_ned + aircraft.att.rotate({70, 26, -4})});
         }
+        if (options.scenario == "bombs") {
+          // The three bombs hung in the air beside the aircraft, to look at,
+          // and one of each of the two that are not nuclear going off on the
+          // ground ahead.
+          for (unsigned i = 0; i < 3; ++i) {
+            const auto type = i == 0 ? weapons::WeaponType::Bomb500 : i == 1 ? weapons::WeaponType::Bomb2000 : weapons::WeaponType::Nuclear;
+            // Broadside to a camera behind the aircraft, a little nose-down.
+            const Quat side = aircraft.att * Quat{std::cos(.62), 0, 0, std::sin(.62)} * Quat{std::cos(-.07), 0, std::sin(-.07), 0};
+            combat.stores.push_back({aircraft.pos_ned + aircraft.att.rotate({-9., 0, -4.3 + 1.25 * i}), side, type, false, false});
+          }
+          if (frame == 36 || frame == 156) {
+            const bool large = frame == 36;
+            Vec3 ground = aircraft.pos_ned + aircraft.att.rotate({large ? 420. : 260., large ? 55. : -45., 0});
+            ground.z = groundHeightNed(ground.x, ground.y);
+            combat.missileDetonations.push_back({ground, large ? weapons::WeaponType::Bomb2000 : weapons::WeaponType::Bomb500});
+          }
+        }
         // A nuclear burst on the ground some kilometres ahead, to look at.
         if (options.scenario == "nuclear" && frame == 36) {
           Vec3 ground = aircraft.pos_ned + aircraft.att.rotate({11000, 1500, 0});
           ground.z = groundHeightNed(ground.x, ground.y);
           combat.missileDetonations.push_back({ground, weapons::WeaponType::Nuclear});
-          nuclearFlash = 4.5;
+          nuclearFlash = 3.2;
         }
         // The menu and its reference window, for a look at them without a keyboard.
         if (options.scenario == "menu" || options.scenario == "controls") {
@@ -1808,7 +1828,7 @@ int main(int argc, char** argv) {
 
       // Resolve the camera, then render and overlay from the same pose.
       const bool firstFrame = frame == 1;
-      const double renderDt = !options.scenario.empty() || !options.flightDemo.empty() ? 1.0/60.0 : std::min(realElapsed, .1);
+      const double renderDt = !options.scenario.empty() || !options.flightDemo.empty() ? (options.frameStep > 0 ? options.frameStep : 1.0/60.0) : std::min(realElapsed, .1);
       const Vec3 aimView = mouseAim.viewDirection();
       camera.dynamicFov = graphics.dynamicFov;
       if (options.scenario.empty() && options.flightDemo.empty() && !options.smoke) applyRealTime(graphics.sky);
@@ -1883,8 +1903,9 @@ int main(int argc, char** argv) {
       if (weapons::decoyCapacity(options.aircraft)) { hud.flares = soloFlares; hud.chaff = soloChaff; }
       hud.threats = threats;
       hud.firing = input.firing(captureKeyboard, ImGui::GetIO().WantCaptureMouse);
-      nuclearFlash = std::max(0., nuclearFlash - realElapsed);
-      hud.flash = clamp(nuclearFlash / 3, 0, 1);
+      nuclearFlash = std::max(0., nuclearFlash - (options.frameStep > 0 ? options.frameStep : realElapsed));
+      // Blinding for a moment, then clearing fast enough to watch the fireball.
+      hud.flash = std::pow(clamp(nuclearFlash / 2.6, 0, 1), 1.6);
 #ifdef OFS_NETWORK_ENABLED
       if (network && network->ready()) {
         hud.multiplayer = true;

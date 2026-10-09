@@ -4,6 +4,7 @@
 #include "ejection.hpp"
 #include "chat.hpp"
 #include "damage_visuals.hpp"
+#include "nuclear_cloud.hpp"
 #include "effects.hpp"
 #include "ofs/trim.hpp"
 #include "weapon_visuals.hpp"
@@ -260,20 +261,62 @@ void effects() {
     EffectPool pool(1024);
     CombatEffects fx(pool, EffectsQuality::High);
     fx.onDetonation({0, 0, -3000});
-    check(pool.countOf(EffectKind::Flash) == 1 && pool.countOf(EffectKind::Shockwave) == 1 && pool.countOf(EffectKind::Explosion) == 1 &&
-              pool.countOf(EffectKind::Spark) == 36 && pool.countOf(EffectKind::Smoke) == 12 && pool.countOf(EffectKind::Debris) == 0,
-          "a warhead is a flash, a ring and fragments");
-    pool.update(8);
+    // A core of fire and four lobes, and six burning pieces that trail smoke.
+    check(pool.countOf(EffectKind::Flash) == 1 && pool.countOf(EffectKind::Light) == 1 && pool.countOf(EffectKind::Shockwave) == 1 &&
+              pool.countOf(EffectKind::Explosion) == 5 && pool.countOf(EffectKind::Spark) == 36 && pool.countOf(EffectKind::Smoke) == 10 &&
+              pool.countOf(EffectKind::Debris) == 6 && pool.countOf(EffectKind::GroundRing) == 0 && pool.countOf(EffectKind::Dust) == 0,
+          "a warhead is a flash, a ball of fire, a ring and fragments");
+    for (unsigned i = 0; i < 8 * 60; ++i) pool.update(1. / 60);
     check(pool.size() == 0, "a detonation is gone within seconds");
+    // A bomb on the ground throws earth up and dust out, and its ring lies on the ground.
+    Vec3 ground{4000, 4000, 0};
+    ground.z = groundHeightNed(ground.x, ground.y);
+    fx.onDetonation(ground, 7);
+    check(pool.countOf(EffectKind::GroundRing) == 1 && pool.countOf(EffectKind::Shockwave) == 0 && pool.countOf(EffectKind::Explosion) == 7 &&
+              pool.countOf(EffectKind::Dust) == 16 && pool.countOf(EffectKind::Smoke) == 14 && pool.countOf(EffectKind::Debris) == 5 + 16,
+          "a bomb on the ground throws up earth and dust");
+    for (const auto& effect : pool.effects())
+      if (effect.kind == EffectKind::Smoke) check(effect.velocity.z < 0, "a bomb's smoke rises");
+    // Every part of it is there on the lowest setting too, with fewer particles.
+    EffectPool lowPool(1024);
+    CombatEffects low(lowPool, EffectsQuality::Low);
+    low.onDetonation(ground, 7);
+    check(lowPool.countOf(EffectKind::GroundRing) == 1 && lowPool.countOf(EffectKind::Explosion) >= 3 && lowPool.countOf(EffectKind::Dust) >= 6 &&
+              lowPool.countOf(EffectKind::Smoke) == 14 && lowPool.countOf(EffectKind::Debris) >= 8 && lowPool.size() < pool.size(),
+          "the lowest setting keeps the whole picture");
+    for (unsigned i = 0; i < 60 * 60; ++i) pool.update(1. / 60);
+    check(pool.size() == 0, "a bomb's smoke clears within a minute");
     fx.onDestroyed({0, 0, -3000}, {200, 0, 0});
-    check(pool.countOf(EffectKind::Explosion) == 1 && pool.countOf(EffectKind::Shockwave) == 1 && pool.countOf(EffectKind::Debris) == 28,
+    check(pool.countOf(EffectKind::Explosion) == 7 && pool.countOf(EffectKind::Shockwave) == 1 && pool.countOf(EffectKind::Debris) == 28,
           "an aircraft blows up with wreckage");
     // Burning wreckage leaves smoke behind it as it falls.
     const auto smoke = pool.countOf(EffectKind::Smoke);
     for (unsigned i = 0; i < 30; ++i) pool.update(1. / 60);
     check(pool.countOf(EffectKind::Smoke) > smoke, "burning debris trails smoke");
-    pool.update(30);
+    for (unsigned i = 0; i < 30 * 60; ++i) pool.update(1. / 60);
     check(pool.size() == 0, "wreckage effects expire");
+    // A nuclear burst is a flash and a shock here; its cloud is the renderer's,
+    // and stands for three minutes.
+    fx.onNuclear(ground);
+    check(pool.countOf(EffectKind::Light) == 2 && pool.countOf(EffectKind::Shockwave) == 2 && fx.nuclearClouds().size() == 1,
+          "a nuclear burst leaves a cloud to draw");
+    for (unsigned i = 0; i < 60; ++i) fx.updateNuclear(1. / 60);
+    check(std::abs(fx.nuclearClouds().front().age - 1) < 1e-6, "the cloud ages with the clock");
+    for (unsigned i = 0; i < unsigned(kCloudSeconds * 10) + 10; ++i) { fx.updateNuclear(.1); pool.update(.1); }
+    check(fx.nuclearClouds().empty() && pool.size() == 0, "the cloud is gone when its time is up");
+    // The cloud's shape: a fireball on the ground that lifts off, opens into a
+    // ring and cools, inside the bounds the renderer marches.
+    double height = 0, heat = 9;
+    for (double age = 0; age < kCloudSeconds; age += .5) {
+      const NuclearVolume v = nuclearVolume(age);
+      check(v.tube > 0 && v.stem >= 1 && v.surgeHeight > 0 && v.ring >= 0 && v.opacity >= 0 && v.opacity <= 1 &&
+                v.height >= height - 1e-9 && v.heat <= heat + 1e-9 && v.boundRadius >= v.ring + v.tube && v.boundHeight >= v.height + v.tube,
+            "the cloud grows, rises and cools");
+      height = v.height; heat = v.heat;
+    }
+    check(nuclearVolume(1).ring == 0 && nuclearVolume(60).ring > 1000 && nuclearVolume(60).height > 4000 &&
+              nuclearVolume(kCloudSeconds).opacity == 0 && nuclearVolume(60).glow[0] < 1e-2f,
+          "fireball first, mushroom after");
     fx.onPartLost({0, 0, -3000}, {200, 0, 0});
     check(pool.countOf(EffectKind::Flash) == 1 && pool.countOf(EffectKind::Spark) == 8 && pool.countOf(EffectKind::Debris) == 8,
           "a part breaking off throws fragments");

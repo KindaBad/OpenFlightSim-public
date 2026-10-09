@@ -109,7 +109,8 @@ void effects() {
     for(const auto& e:pool.effects()) if(e.kind==EffectKind::Debris || e.kind==EffectKind::Spark)
       check(e.position.z<=groundHeightNed(e.position.x,e.position.y)+.001,"debris collides with terrain");
   }
-  check(explosions==1,"exactly one crash fireball");
+  // One fireball is a core and the six lobes that burst out of it.
+  check(explosions==7,"exactly one crash fireball");
   check(pool.countOf(EffectKind::Smoke)>0 && pool.countOf(EffectKind::Fire)>0,"wreck continues smoking and burning");
   pool.update(15);check(pool.size()==0,"crash particles expire after emission stops");
   fx.setQuality(EffectsQuality::Off);fx.onGroundImpact(impact);fx.onDestroyed({},{});

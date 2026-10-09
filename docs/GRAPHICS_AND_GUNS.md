@@ -118,3 +118,58 @@ bgfx uniforms keep the value an earlier draw left in them.
 `battle.weapons` checks the origins and what each decoy emits; `client.shader_conformance`
 draws the shock-diamond shell and checks its ends and its interior. Visual
 scenarios `afterburner`, `decoys` and `warning` render them.
+
+## Explosions, bombs and the nuclear cloud (0.6.1)
+
+- **Fire and smoke.** Smoke, dust and fire particles are shaded as lumpy
+  balls (`client/shaders/effect_fs.glsl`): a normal is built across the quad
+  and pushed about by noise that belongs to the particle, so each has a
+  sunlit side, a shaded side and hollows between its lumps, and thins toward
+  its edge so neighbours run together. Fire reads its age: it cools from the
+  outside in, from white through orange to red, and soot closes over it. The
+  particle's age and its own random number ride in a second texture
+  coordinate of the effect vertex (13 floats a vertex, from 9).
+- **Warheads and bombs.** `CombatEffects::onDetonation` builds a fireball
+  from a core and lobes, a knot of dark smoke, fragments and a few burning
+  pieces that trail smoke. Within a few metres of the ground it becomes a
+  ground burst: the fireball is a dome, fingers of earth are thrown up and
+  leave dust where they went, a ring of dust is driven out along the ground
+  under a blast ring that lies flat on it (`EffectKind::GroundRing`), and the
+  smoke stands as a column. An aircraft blowing up uses the same fireball
+  with burning fuel and black smoke. Every part is emitted at every effects
+  setting; the lower ones use fewer particles, never none.
+- **The nuclear cloud** is a volume, not particles and not a mesh
+  (`client/shaders/nuke_fs.glsl`, `client/src/nuclear_cloud.hpp`). Four
+  bodies are described analytically about the vertical through the burst: a
+  vortex ring under a dome (the fireball at first), a flared stem, a ring of
+  dust on the ground and a collar of condensation. A fullscreen pass,
+  scissored to the cloud's bounds, marches each view ray through them. The
+  fields give a lower bound on the distance to anything dense, so empty air
+  is skipped; inside, the cloud noise volume breaks the bodies into billows
+  in coordinates that rise with the cap and climb the stem. Each sample is
+  lit by the sun through two further density taps and the cap's own shadow,
+  by the sky, and by its own heat, which is high through the body and low in
+  the crust of the billows once the cloud has cooled, so fire shows in the
+  creases. The same pass adds the fireball's light on the terrain and a
+  glow round it in the air. `nuclearVolume(age)` gives every number from the
+  age of the burst alone, so all clients draw the same cloud; it lasts 190 s.
+  Steps a ray: 44, 60 or 84 by effects setting. On the reference laptop on
+  battery at 1920x1200, low preset, a burst 11 km ahead costs about 5 ms a
+  frame averaged over its first 75 s.
+- **Bombs.** `buildBombMesh` (`client/src/missile_mesh.hpp`) gives the Mk 82
+  and Mk 84 an ogive nose with a fuze, a tapering body, a conical fin
+  assembly with four fins, a yellow band and two suspension lugs, and the B83
+  a flat-fronted crushable nose, a long cylinder with red bands and a short
+  finned tail.
+- **Looking at them.** `--visual-scenario bombs` hangs the three bombs behind
+  a parked aircraft and sets a Mk 84 and a Mk 82 off on the ground ahead;
+  `--visual-scenario nuclear` sets the weapon off 11 km ahead. `--frame-step
+  SECONDS` (at most 0.1) advances a scripted scene by a fixed time each
+  frame, so frame N of a capture is always the same moment. A new shader file
+  needs CMake to be run again before the build sees it.
+
+`battle.effects` counts what a warhead, a ground burst at high and low
+settings, an aircraft and a nuclear burst emit, and checks the cloud's shape
+over its life. `client.shader_sources` checks that the renderer fills as many
+`u_nuke` slots as the shader reads. Captures were made on Linux/OpenGL;
+Windows/D3D11 output is unverified beyond the HLSL compile.

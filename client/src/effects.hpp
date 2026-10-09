@@ -40,6 +40,7 @@ enum class EffectKind : std::uint8_t {
   Flash,         // a burst of light with rays: gun muzzle, warhead, impact
   Shockwave,     // the expanding ring of a detonation
   Flare,         // a decoy flare: a falling point of light that trails smoke
+  GroundRing,    // a blast wave running out along the ground, lying flat on it
   Count
 };
 
@@ -62,6 +63,10 @@ struct Effect {
   std::uint64_t projectile{};
   // Burning wreckage leaves smoke behind it: seconds between puffs, 0 for none.
   float smokeInterval{}, smokeClock{};
+  // What each of those puffs is: its colour, its size against the piece's own
+  // and how long it hangs. Thrown earth leaves dust in the same way.
+  std::uint32_t smokeTint{0xa0303438u};
+  float smokeSize{1.6f}, smokeLife{1.6f};
 };
 
 // Fixed-capacity pool. Exceeding capacity replaces effects round-robin rather than
@@ -120,12 +125,12 @@ class CombatEffects {
   // An aircraft destroyed: fireball, shock ring, smoke column and burning debris.
   void onDestroyed(const Vec3& position, const Vec3& velocity);
   // A warhead going off: smaller and sharper than an aircraft blowing up.
-  // `scale` enlarges it for a bomb, which also throws up earth.
+  // `scale` enlarges it for a bomb. One that bursts on the ground throws up a
+  // fountain of earth, a ring of dust along the ground and a column of smoke.
   void onDetonation(const Vec3& position, float scale = 1);
-  // A nuclear burst: a flash that fills the sky, then a fireball that rises on
-  // a stem of smoke and rolls out into a cap, a ring of dust racing outward
-  // along the ground and a shell of cloud around the shock. The cloud is fed
-  // for more than a minute by updateNuclear, which is called once a frame.
+  // A nuclear burst: a flash and the shock running out through the air. The
+  // cloud itself is a volume the renderer marches from nuclearClouds(); see
+  // nuclear_cloud.hpp. updateNuclear ages the clouds, once a frame.
   void onNuclear(const Vec3& position);
   void updateNuclear(double dt);
   // Every burst whose cloud still stands: where, and how old.
@@ -159,9 +164,6 @@ class CombatEffects {
   struct Cloud {
     Vec3 ground;
     double age{};
-    // Fractions of a puff owed to each part of the cloud.
-    double fire{}, cap{}, stem{}, surge{}, skirt{};
-    std::uint32_t seed{};
   };
   std::vector<Cloud> clouds_;
   EffectPool& pool_;
