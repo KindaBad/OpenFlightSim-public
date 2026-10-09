@@ -38,7 +38,7 @@ void cruise() {
   }
 }
 void taxi() {
-  Simulator sim(referenceConfig());State s;s.pos_ned.z=-2.044;sim.setState(s);Controls c;c.brake01=1;sim.setControls(c);advance(sim,3600);
+  Simulator sim(referenceConfig());State s;s.pos_ned.z=-1.876;sim.setState(s);Controls c;c.brake01=1;sim.setControls(c);advance(sim,3600);
   check(sim.instruments().tas<1e-5,"parked stable");
   c.brake01=0;c.throttle[0]=c.throttle[1]=.3;sim.setControls(c);advance(sim,1200);
   const auto speed=sim.instruments().tas;check(speed>1 && speed<20,"controlled taxi speed");
@@ -48,7 +48,7 @@ void taxi() {
   check(sim.instruments().tas<1e-5 && sim.instruments().alt_msl>1.5,"stable braking stop");
 }
 void takeoff() {
-  Simulator sim(referenceConfig());State s;s.pos_ned.z=-2.044;sim.setState(s);Controls c;c.brake01=1;c.flap01=.35;
+  Simulator sim(referenceConfig());State s;s.pos_ned.z=-1.876;sim.setState(s);Controls c;c.brake01=1;c.flap01=.35;
   bool lifted=false;double time=0,x=0,speed=0;
   auto m=run(sim,9600,[&](int tick,const auto& a){
     if(tick>360){c.brake01=0;c.throttle[0]=c.throttle[1]=1;}

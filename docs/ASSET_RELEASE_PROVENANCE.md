@@ -25,31 +25,34 @@ imposed dimensions proves export scale, not accurate aerodynamic planform.
 
 ## JF-17 donor
 
-**PUBLIC SOURCE EXCLUDED / PUBLIC GAME RELEASE NOT APPROVED: ORIGIN UNRESOLVED.**
-The owner supplied `jf-17-thunder-with-ls-6.zip` (SHA-256
-`6da5c8ba054f69b53793967eb5cf304d09b87c763b09a00f810c68a1629987d7`) on 2026-10-08,
-with the Sketchfab attribution line for
-[JF-17 Thunder with LS-6 by Jeyhun1985](https://sketchfab.com/3d-models/jf-17-thunder-with-ls-6-10ee4421a360468ebc21c65bdb780c06),
-and asked for the aircraft to be added. Sketchfab's API record for model
-`10ee4421a360468ebc21c65bdb780c06` was read the same day: published 2026-08-03,
-license CC Attribution, 316,220 faces, matching the archive's OBJ.
+**PUBLIC SOURCE EXCLUDED / UNENCRYPTED GAME RELEASE UNDER CC BY 4.0.**
+The owner supplied `jf-17.zip` (SHA-256
+`e423710d0aedd2c1eddf7e216764f9b9cc3a181c61b6ffcd50e43770d532ac70`) on 2026-10-09
+and asked for the JF-17 to use it. The archive matches the Sketchfab listing
+[JF-17 by dimal965](https://sketchfab.com/3d-models/jf-17-b57660f346314df1877e15b85d6e74be)
+by name and triangle count (8,321). Sketchfab's API record for model
+`b57660f346314df1877e15b85d6e74be` was read the same day: published 2019-04-08,
+license CC Attribution, description "JF-17 for game" with a link to a mobile
+game, which presents the model as the uploader's own work for their own
+product. Nothing in the file suggests otherwise: one low-polygon mesh set with
+generic object names and a single painted texture set. The archive carries no
+license file; a byte comparison against a fresh download was not performed.
 
-The same record's description reads "JF-17 Thunder with LS-6 gps-guided bomb
-from War Thunder". The archive agrees with it: objects are named `vehicle#fuse`,
-`optic1_turret`, `ch_lgb_ls_6_500_na` and `tr_aselpod_pod` and textures
-`jf_17_c`, `jf_17_n_n`, in that game's conventions, and the model is stored
-gear-up with its rig stripped, as an extracted game asset would be. War Thunder
-is published by Gaijin Entertainment. A Creative Commons license binds only
-rights the licensor holds, so the listing's CC BY 4.0 does not by itself show
-that this artwork may be redistributed. No statement from Gaijin about the
-upload was found or sought.
-
-The aircraft is therefore built and flown locally, behind `OFS_INCLUDE_JF17`,
-and its GLBs are not in the approved release pack. Shipping it to players needs
-the owner's decision with this in view: either evidence that the uploader could
-license the model, or a different JF-17 donor. `licenses/assets/JF17.md`
-carries the credit and this caveat. This is the project's reading, not a
+CC BY 4.0 permits sharing and adapting, commercially or not, with credit, a
+link to the license and a note that changes were made, and forbids technical
+measures that restrict those rights. The JF-17 therefore ships as ordinary
+GLBs from 0.5.8, with credit, terms and the list of changes in
+`licenses/assets/JF17.md`. This is the project's reading of the license, not a
 lawyer's review.
+
+The livery is traced from a photograph the owner supplied of a Pakistan Air
+Force display aircraft. The photograph itself is not stored or distributed;
+`assets/aircraft/jf17/livery_plan.png` is a flat four-colour plan derived from
+it. National markings and the scheme do not imply endorsement.
+
+The JF-17 of 0.5.7 was built locally from a different donor, "JF-17 Thunder
+with LS-6" by Jeyhun1985, whose listing described it as taken from War Thunder.
+It was never in a player build or a content pack and is no longer used.
 
 Import measurements and known differences from the flight model are recorded in
 `assets/aircraft/jf17/README.md` and its generated `lod_stats.json`.

@@ -1,64 +1,81 @@
 # JF-17 runtime asset
 
-Donor: [JF-17 Thunder with LS-6 by Jeyhun1985](https://sketchfab.com/3d-models/jf-17-thunder-with-ls-6-10ee4421a360468ebc21c65bdb780c06),
-Sketchfab model `10ee4421a360468ebc21c65bdb780c06`, published 2026-08-03 and
-listed as CC BY 4.0. The project owner supplied the download on 2026-10-08. The
-listing's license, its 316,220-triangle count and its description, "JF-17
-Thunder with LS-6 gps-guided bomb from War Thunder", were read the same day
-through Sketchfab's API. The archive (SHA-256 `6da5c8ba…9987d7`) holds an OBJ,
-its material file and loose textures, and no license text. Credit, terms and
-the open question about the artwork's origin are in `licenses/assets/JF17.md`
-and `docs/ASSET_RELEASE_PROVENANCE.md`.
+Donor: [JF-17 by dimal965](https://sketchfab.com/3d-models/jf-17-b57660f346314df1877e15b85d6e74be),
+Sketchfab model `b57660f346314df1877e15b85d6e74be`, published 2019-04-08 under
+CC BY 4.0. The project owner supplied the download on 2026-10-09. The listing's
+license, its 8,321-triangle count and its description, "JF-17 for game" with a
+link to the author's own game, were read the same day through Sketchfab's API;
+the triangle count matches the archive. The archive (SHA-256 `e423710d…32ac70`)
+holds one FBX and eight textures and no license text, so the listing is the
+license record. Credit and terms ship in `licenses/assets/JF17.md`.
+
+It replaces the model used for the local-only JF-17 of 0.5.7, a War Thunder
+extract that was never distributed.
 
 `jf17_lod0.glb` through `jf17_lod3.glb` are generated and not version
 controlled. Rebuild them headless from the unmodified donor:
 
 ```sh
 blender -b --factory-startup --disable-autoexec \
-  --python scripts/jf17_donor_import.py -- --source /path/to/JF-17.obj
+  --python scripts/jf17_donor_import.py -- --source /path/to/source/JF-17_4.fbx
 ```
 
-The textures must lie beside the OBJ, as they do in the inner `source/JF-17.zip`.
-The script writes the four GLBs and `lod_stats.json` here and an editable
+The archive's `textures` folder must lie beside `source`. The script writes the
+four GLBs and `lod_stats.json` here and an editable
 `output/JF17_Thunder_donor.blend`. It is deterministic and safe to repeat.
 
 ## What the import changes
 
-- The donor is already in metres and is not rescaled. It measures 15.19 m over
-  the pitot boom against the published 14.93 m, and 9.41 m across the wingtip
-  rails against 9.44 m.
-- The listing's four LS-6 bombs, its targeting pod, the two inboard and the
-  centreline pylons and two placeholder meshes are left out. The outer pylons
-  stay, for the radar missiles.
-- The donor has no rig and is modelled with the undercarriage stowed and every
-  door shut. Each main leg carries two pins that give its trunnion axis; the
-  leg is swung 81.8 degrees about them until the wheel is at the bottom of its
-  arc. That alone brings the stowed, canted wheel upright with its axle within
-  1.6 degrees of lateral, which is why the single swing is taken to be the real
-  mechanism. The nose leg swings 97.8 degrees forward and down about the clevis
-  at the front of its barrel and is lengthened 4.9 cm so all three tyres share
-  one plane. Retracting plays the same swings backwards, so the stowed pose in
-  flight is exactly the donor's.
-- Wheel track is then 2.34 m and wheelbase 5.15 m. The aircraft stands 5.37 m
-  high on fully extended oleos; the published height is 4.77 m. The airframe is
-  not squashed to hide that difference.
-- Nose and main doors are opened about their long edges, 88 and 115 degrees.
-- Tailplanes, rudder, ailerons, flaps, leading-edge flaps, four airbrake panels
-  and 48 of the 84 nozzle parts are grouped under pivots with the channel names
-  the renderer animates. No surface is re-modelled.
-- Glass and lens materials have no runtime equivalent and are replaced by
-  plain ones. The 2048 px colour and normal maps are embedded unchanged in LOD0.
+- Scale is one uniform factor, 1.0737 m per donor unit, set by the published
+  14.93 m length. Span then measures 9.57 m against the published 9.44 m.
+- The donor's main tyres hang 7.7 cm above the plane its nose tyre stands on;
+  both main legs are lowered onto it. Overall height is 5.15 m against the
+  published 4.77 m. The airframe is not squashed to hide that difference.
+- The canopy is modelled raised 60 degrees and is closed about its own hinge.
+- The airframe, canopy frame and wheels get one level of subdivision with every
+  edge sharper than 42 degrees creased, which rounds the nose, intakes and
+  spine without softening panel breaks. The donor has 8,321 triangles.
+- The livery is repainted; see below.
+- The donor's skin is bare, polished metal (metallic 0.7, roughness 0.3). The
+  repainted skin is set to a semi-gloss dielectric. The donor's ambient
+  occlusion map is multiplied into the colour because the runtime has none.
+- Tailplanes, rudder, ailerons, flaps and leading-edge flaps are grouped under
+  pivots with the channel names the renderer animates. No surface is re-modelled.
+- The six gear doors stand open in the donor; each closes by undoing its own
+  rotation about its own origin, 60 or 85 degrees.
+- Wheels are split from the legs so they turn. The donor gives no stowed pose:
+  each leg folds a quarter turn about a lateral trunnion at its top and slides
+  into the fuselage, where the closed doors hide it.
 
-LOD triangles: **93,977 / 40,199 / 16,668 / 8,491**, from the donor's 260,814
-without stores. Every level, the nearest included, is Blender collapse
-decimation of the donor meshes; reduced levels reuse LOD0 materials by name.
+LOD triangles: **34,416 / 17,469 / 8,513 / 3,955**. Reduced levels are Blender collapse decimation of
+the refined meshes and reuse LOD0 materials by name.
+
+## Livery
+
+The Pakistan Air Force's navy, pale grey, cream and green JF-17 display scheme,
+traced from one overhead photograph the owner supplied. The photograph is not
+in the repository. `scripts/jf17_livery_trace.py` recovers the photograph's
+camera from thirteen points found on both the aircraft and the model (worst
+14 px, mean 7 px), looks up each centimetre of the model's upper skin in it and
+sorts it into one of four paints. The result, `livery_plan.png` here, is a
+flat-colour plan at one pixel per centimetre that the import paints from.
+
+- Only the port half of the photograph is read, and the scheme is mirrored.
+- The fin stands over the spine in the photograph, so the spine aft of the wing
+  is plain navy, and the fin's sides, which the photograph does not show, carry
+  a navy, cream, grey and green flash that is this project's own.
+- Everything below the wing line is the scheme's pale grey.
+- The donor's panel lines and serial are carried over; its roundels, badge and
+  fin flash are painted out. Stencils in the photograph are not reproduced.
+- The donor's planform differs a little from the real aircraft's, most at the
+  tailplane tips, so the pattern is cut off there where the model is narrower.
 
 ## Known approximations
 
 - The simulated CG is placed 0.55 m ahead of the main axles on the thrust line.
   Nothing published fixes it.
-- The retraction jack in the nose bay stays where the donor has it, so it does
-  not follow the leg.
-- The main wheel doors hang from their inboard edge; the donor gives no hinge.
-- Airbrake actuator links stay inside the fuselage when the panels open.
-- Markings are the donor's Pakistan Air Force 11-134 "Black Panthers" scheme.
+- The nozzle is a fixed part of the airframe and does not open with reheat.
+- The donor has no airbrakes.
+- Retraction is a single fold per leg and is not the real mechanism.
+- The model's own two underwing pylons per side stay bare; missiles hang from
+  the pylons the renderer draws.

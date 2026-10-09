@@ -297,9 +297,9 @@ void hierarchy(const std::string& root) {
       for(const char* name:{"aileron_L","aileron_R","elevator","rudder","flap","slat","levcon","gear_fold","gear_door","wheel","nose_wheel","steering","vector_L","vector_R"})
         check(channels.contains(name),"Su57 articulated channel present");
     } else if(definition.type==AircraftType::JF17) {
-      for(const char* name:{"aileron_L","aileron_R","elevator","rudder","flap","slat","spoiler","gear_fold","gear_door","wheel","nose_wheel","steering","nozzle_L","compression_L","compression_R","compression_nose"})
+      for(const char* name:{"aileron_L","aileron_R","elevator","rudder","flap","slat","gear_fold","gear_door","wheel","nose_wheel","steering","compression_L","compression_R","compression_nose"})
         check(channels.contains(name),"JF-17 articulated channel present");
-      check(!channels.contains("nozzle_R") && !channels.contains("canard"),"JF-17 has one nozzle and no foreplanes");
+      check(!channels.contains("canard") && !channels.contains("elevon_L"),"JF-17 has a conventional tail");
     } else for(const char* name:{"aileron_L","aileron_R","elevator","rudder","flap","gear","wheel","nose_wheel","steering"})
       check(channels.contains(name),"required articulated channel present");
     if(definition.type==AircraftType::A320) check(channels.contains("spoiler") && channels.contains("fan_L") && channels.contains("fan_R"),"A320 spoiler and engine rigs");

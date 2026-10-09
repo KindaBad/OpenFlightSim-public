@@ -1,3 +1,12 @@
+OpenFlightSim 0.5.8 Launcher
+
+- New aircraft: the JF-17 Thunder, in the Pakistan Air Force's navy, grey and
+  green display livery. One RD-93 engine, Mach 1.6 at height, +8 g, a 23 mm
+  twin-barrel gun with 200 rounds, two heat seekers on the wingtip rails and
+  two radar missiles under the wings. It is light and quick to turn, slower
+  than the Typhoon and Su-57, and it cannot go supersonic without reheat.
+- Everyone in a shared game needs this version.
+
 OpenFlightSim 0.5.7 Launcher
 
 - The fighters are as fast as the real ones. The Typhoon and Su-57 used to top

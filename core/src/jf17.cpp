@@ -49,10 +49,10 @@ AircraftConfig jf17Config() {
   c.thrust_density_exponent=.55; c.thrust_ram_gain=.22; c.thrust_ram_supersonic=.22;
   c.dry_tsfc=2.18e-5; c.reheat_tsfc=5.8e-5;
   // Anchors measured from the donor model; see assets/aircraft/jf17/README.md.
-  c.engine_pos_l=c.engine_pos_r={-6.04,0,0};
-  c.gear_nose={4.602,0,2.044};
-  c.gear_main_l={-.55,-1.169,2.044}; c.gear_main_r={-.55,1.169,2.044};
-  c.belly_contacts={{{4.5,0,.84},{-3.0,-.45,.88},{-3.0,.45,.88},{0,0,.89},{-1.9,-4.7,.25},{-1.9,4.7,.25}}};
+  c.engine_pos_l=c.engine_pos_r={-5.81,0,0};
+  c.gear_nose={4.547,0,1.876};
+  c.gear_main_l={-.55,-1.188,1.876}; c.gear_main_r={-.55,1.188,1.876};
+  c.belly_contacts={{{4.5,0,.78},{-3.0,-.45,.76},{-3.0,.45,.76},{0,0,.84},{-1.9,-4.75,.33},{-1.9,4.75,.33}}};
   c.oleo_stroke=.25; c.oleo_k=330000; c.oleo_c=20000;
   c.mu_brake_max=.58; c.mu_side=.65; c.mu_roll=.023;
   c.elev_min=-25*kDeg2Rad; c.elev_max=15*kDeg2Rad;

@@ -40,7 +40,7 @@ Notes on the figures:
   3.6 at 20 km, where the real limit was inlet temperature and not thrust.
 - **JF-17.** Empty mass is quoted as 6,411 or 6,586 kg and internal fuel as
   2,268 or 2,330 kg; the later figures are used. The published height is
-  4.77 m. No sea-level speed is published. It cannot hold supersonic speed
+  4.77 m; the model stands 5.15 m. No sea-level speed is published. It cannot hold supersonic speed
   without reheat, which is right for the type.
 - **A320.** Top speed is the Mach 0.82 operating limit; nothing changed.
 

@@ -81,10 +81,10 @@ void Inventory::reset(AircraftType type) {
                 {{-3.4, .42, .30}, 6, WeaponType::ActiveRadar}};
   // JF-17: two PL-5EII on the wingtip rails and two SD-10A on the outer pylons.
   if (type == AircraftType::JF17)
-    stations = {{{-1.1, -4.70, .415}, 6, WeaponType::Infrared, true},
-                {{-1.1, 4.70, .415}, 6, WeaponType::Infrared, true},
-                {{-.6, -3.063, .745}, 6, WeaponType::ActiveRadar, true},
-                {{-.6, 3.063, .745}, 6, WeaponType::ActiveRadar, true}};
+    stations = {{{-1.1, -4.786, .43}, 6, WeaponType::Infrared, true},
+                {{-1.1, 4.786, .43}, 6, WeaponType::Infrared, true},
+                {{-.9, -3.1, .62}, 6, WeaponType::ActiveRadar, true},
+                {{-.9, 3.1, .62}, 6, WeaponType::ActiveRadar, true}};
 }
 unsigned Inventory::remaining(WeaponType type) const {
   return std::count_if(stations.begin(), stations.end(),

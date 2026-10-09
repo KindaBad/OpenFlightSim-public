@@ -96,13 +96,13 @@ std::span<const AircraftDefinition> aircraftDefinitions() {
     // GSh-23-2 twin-barrel 23 mm cannon in the belly, left of the centreline.
     GunConfig jf17Gun;
     jf17Gun.rpm=3400;jf17Gun.muzzleVelocity=715;jf17Gun.ammo=200;
-    jf17Gun.muzzle={3.4,-.30,.85};jf17Gun.damage=20; // Gameplay damage scaled from shell mass.
+    jf17Gun.muzzle={3.4,-.30,.78};jf17Gun.damage=20; // Gameplay damage scaled from shell mass.
     const std::array<AircraftDefinition::CollisionSphere,17> jf17Boxes{{
-      {{8.3,0,.45},.25},{{7.0,0,.40},.50},{{5.6,0,.15},.75},{{4.1,0,0},.90},
-      {{2.4,0,.03},.90},{{.6,0,.04},.88},{{-1.6,0,.05},.90},{{-4.2,0,.05},.85},
-      {{-.9,-1.6,.20},.85},{{-1.3,-2.6,.20},.70},{{-1.6,-3.5,.20},.55},{{-1.7,-4.4,.25},.40},
-      {{-.9,1.6,.20},.85},{{-1.3,2.6,.20},.70},{{-1.6,3.5,.20},.55},{{-1.7,4.4,.25},.40},
-      {{-4.9,0,-1.9},.95}}};
+      {{8.4,0,.35},.22},{{7.2,0,.35},.42},{{5.8,0,.20},.62},{{4.3,0,-.10},.85},
+      {{2.6,0,-.03},.90},{{.8,0,-.02},.88},{{-1.4,0,-.02},.88},{{-4.0,0,-.10},.80},
+      {{-.6,-1.7,.25},.85},{{-1.1,-2.7,.25},.70},{{-1.4,-3.6,.25},.55},{{-1.5,-4.4,.30},.40},
+      {{-.6,1.7,.25},.85},{{-1.1,2.7,.25},.70},{{-1.4,3.6,.25},.55},{{-1.5,4.4,.30},.40},
+      {{-4.7,0,-1.9},.95}}};
 #endif
     auto definitions = std::vector{
       AircraftDefinition
@@ -136,9 +136,9 @@ std::span<const AircraftDefinition> aircraftDefinitions() {
     // Anchors measured from the donor rig; see assets/aircraft/jf17/README.md.
     definitions.push_back(AircraftDefinition{AircraftType::JF17,"jf17","PAC JF-17 Thunder | Block II, RD-93",
         "assets/aircraft/jf17/jf17_lod0.glb",jf17Config(),
-        {{9.155,2.044,0},{4.56,0,-.63},{-27,5,-7.5},{-18,0,-4.5},{-1,0,0},{-1,0,0},
-          {{-6.04,0,0},{-6.04,0,0}},{{-1.9,-4.705,.23},{-1.9,4.705,.23}},
-          9,4,2,.341,.263,.045,true}, {.43,.29,.50},jf17Gun,
+        {{9.122,1.876,0},{4.45,0,-.72},{-27,5,-7.5},{-18,0,-4.5},{-1,0,0},{-1,0,0},
+          {{-5.81,0,0},{-5.81,0,0}},{{-1.9,-4.786,.30},{-1.9,4.786,.30}},
+          9,4,2,.344,.257,.045,true}, {.43,.29,.50},jf17Gun,
         {"assets/aircraft/jf17/jf17_lod1.glb","assets/aircraft/jf17/jf17_lod2.glb","assets/aircraft/jf17/jf17_lod3.glb"},jf17Boxes});
 #endif
     // A320/Su-57 renderer and physics consume the same geometry anchors.
