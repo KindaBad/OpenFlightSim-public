@@ -8,11 +8,11 @@ import sys
 import threading
 import uuid
 
-from PySide6.QtCore import Qt, QThread, Signal, QTimer, QUrl, QPointF, QSize
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QLinearGradient, QFont, QDesktopServices, QPixmap, QIcon
+from PySide6.QtCore import Qt, QThread, Signal, QTimer, QUrl, QSize
+from PySide6.QtGui import QDesktopServices, QPixmap, QIcon
 from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QLabel,
     QPushButton, QListWidget, QStackedWidget, QFrame, QFormLayout, QComboBox,
-    QCheckBox, QSpinBox, QDoubleSpinBox, QLineEdit, QProgressBar, QMessageBox,
+    QCheckBox, QDoubleSpinBox, QLineEdit, QProgressBar, QMessageBox,
     QFileDialog, QScrollArea, QPlainTextEdit, QListWidgetItem, QSizePolicy)
 
 from . import lan
@@ -25,90 +25,37 @@ from .manifest import select_release, https_url
 from .platform_process import spawn
 from .storage import LauncherError, read_json, write_json, safe_path
 from .version import Version
-from .presentation import STYLE, CoverArt, AircraftGallery, ResponsiveRow, DropDown, icon, wordmark
+from .presentation import (STYLE, CoverArt, AircraftGallery, ResponsiveRow, DropDown, Toggle, SpinBox,
+    DoubleSpinBox, WrapLabel, Facts, icon, wordmark)
 
 log = logging.getLogger('ofs.ui')
 
 
-def aircraft_summary(a):
+def aircraft_facts(a):
     """The aircraft page's data sheet, from the game's own catalogue and the
     published figures in data/launcher/aircraft-info.json."""
     def number(key):
         value = a.get(key)
         return value if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0 else None
     engines = a.get('engines', '?')
-    lines = [f'{a.get("manufacturer", "Manufacturer not provided")} · {a.get("type", "Aircraft")}',
-             a.get('role', 'Role not provided'),
-             f'{engines} {"engine" if engines == 1 else "engines"} · {a.get("engine_type", "Engine type not provided")}']
+    facts = [('Role', a.get('role', 'Not provided')),
+             ('Engines', f'{engines} × {a.get("engine_type", "engine type not provided")}')]
     dry, reheat = number('thrust_dry_kn'), number('thrust_reheat_kn')
     if dry:
-        lines.append(f'Thrust: {dry:g} kN' + (f' dry · {reheat:g} kN with reheat' if reheat else ''))
+        facts.append(('Thrust', f'{dry:g} kN' + (f' dry · {reheat:g} kN with reheat' if reheat else '')))
     empty, fuel = number('empty_mass_kg'), number('fuel_capacity_kg')
-    masses = [f'Empty: {empty:,.0f} kg' if empty else f'Reference mass: {a.get("reference_mass_kg", "?")} kg']
+    facts.append(('Empty mass', f'{empty:,.0f} kg') if empty else ('Reference mass', f'{a.get("reference_mass_kg", "?")} kg'))
     if fuel:
-        masses.append(f'internal fuel: {fuel:,.0f} kg')
-    lines.append(' · '.join(masses))
+        facts.append(('Internal fuel', f'{fuel:,.0f} kg'))
     area = number('wing_area_m2')
-    lines.append(f'Span: {a.get("span_m", "?")} m' + (f' · wing area: {area:g} m²' if area else ''))
+    facts.append(('Wingspan', f'{a.get("span_m", "?")} m' + (f' · wing area {area:g} m²' if area else '')))
     if isinstance(a.get('max_speed'), str):
-        lines.append('Top speed: ' + a['max_speed'])
+        facts.append(('Top speed', a['max_speed']))
     if isinstance(a.get('armament'), str) and (a['armed'] or a.get('bomber')):
-        lines.append('Armament: ' + a['armament'])
+        facts.append(('Armament', a['armament']))
     else:
-        lines.append('Armed aircraft · local dogfight available' if a['armed'] else 'Unarmed aircraft')
-    return '\n'.join(lines)
-
-
-class FlightArt(QWidget):
-    """Small procedural vector art; optional aircraft thumbnail takes precedence."""
-    def __init__(self, compact=False):
-        super().__init__()
-        self.compact = compact
-        self.thumbnail = None
-        self.setMinimumHeight(135 if compact else 210)
-        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
-
-    def paintEvent(self, event):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        w, h = self.width(), self.height()
-        gradient = QLinearGradient(0, 0, w, h)
-        gradient.setColorAt(0, QColor('#1b4f68'))
-        gradient.setColorAt(.6, QColor('#1a354e'))
-        gradient.setColorAt(1, QColor('#142234'))
-        p.fillRect(self.rect(), gradient)
-        p.setPen(QColor('#2d5369'))
-        for i in range(-4, 14):
-            p.drawLine(QPointF(i * 80, h), QPointF(i * 80 + 150, 0))
-        p.setPen(QColor('#50798b'))
-        p.drawLine(0, int(h * .73), w, int(h * .73))
-        p.setPen(QColor('#6fa1b7'))
-        p.setFont(QFont('DejaVu Sans', 9))
-        p.drawText(22, 27, 'OPENFLIGHTSIM   /   FLIGHT OPERATIONS')
-        if self.thumbnail and not self.thumbnail.isNull():
-            image = self.thumbnail.scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            p.drawPixmap((w - image.width()) // 2, (h - image.height()) // 2, image)
-        else:
-            p.save()
-            p.translate(w * .64, h * .47)
-            p.rotate(-18)
-            scale = min(w / 400, h / 130)
-            p.scale(scale, scale)
-            path = QPainterPath()
-            points = [(0, -42), (5, -30), (6, -8), (65, 22), (65, 30), (5, 15),
-                      (4, 40), (22, 52), (22, 58), (0, 50), (-22, 58), (-22, 52),
-                      (-4, 40), (-5, 15), (-65, 30), (-65, 22), (-6, -8), (-5, -30)]
-            path.moveTo(*points[0])
-            for point in points[1:]:
-                path.lineTo(*point)
-            path.closeSubpath()
-            p.setPen(QColor('#acd4e6'))
-            p.setBrush(QColor('#76a9c1'))
-            p.drawPath(path)
-            p.restore()
-            p.setPen(QColor('#80a8ba'))
-            p.drawText(22, h - 17, 'ILLUSTRATIVE AIRCRAFT SILHOUETTE')
-        p.end()
+        facts.append(('Armament', 'Armed · local dogfight available' if a['armed'] else 'Unarmed'))
+    return facts
 
 
 class Job(QThread):
@@ -265,7 +212,7 @@ class Window(QMainWindow):
         self.navigation.setSpacing(2)
         self.nav_pages = [0, 1, 10, 2, 8, 9]
         for title, symbol in [('Home', 'home'), ('Aircraft', 'aircraft'), ('Multiplayer', 'network'),
-                              ('Settings', 'settings'), ('Downloads', 'download'), ('Installation', 'repair')]:
+                              ('Settings', 'settings'), ('Updates', 'download'), ('Installation', 'repair')]:
             self.navigation.addItem(QListWidgetItem(icon(symbol), '  ' + title))
         self.navigation.currentRowChanged.connect(self.navigate)
         side.addWidget(self.navigation, 1)
@@ -274,17 +221,16 @@ class Window(QMainWindow):
         divider.setStyleSheet('background: #203243;')
         side.addWidget(divider)
         side.addSpacing(12)
-        support = button('Support  ↗', self.open_support)
-        support.setObjectName('link')
-        support.setIcon(icon('support'))
-        side.addWidget(support, alignment=Qt.AlignmentFlag.AlignLeft)
-        notes = button('Release notes', lambda: self.show_page(8))
-        notes.setObjectName('link')
-        notes.setIcon(icon('notes'))
-        side.addWidget(notes, alignment=Qt.AlignmentFlag.AlignLeft)
-        side.addSpacing(24)
-        self.version_label = label(f'●  Launcher {self.build["version"]}', 'muted')
-        self.version_label.setContentsMargins(12, 0, 0, 0)
+        for text, symbol, action in (('  Support  ↗', 'support', self.open_support),
+                                     ('  Release notes', 'notes', lambda: self.show_page(8))):
+            link = button(text, action)
+            link.setObjectName('sideLink')
+            link.setIcon(icon(symbol))
+            link.setIconSize(QSize(20, 20))
+            side.addWidget(link)
+        side.addSpacing(14)
+        self.version_label = label(f'Launcher {self.build["version"]}', 'muted')
+        self.version_label.setContentsMargins(20, 0, 0, 0)
         side.addWidget(self.version_label)
         body.addWidget(sidebar)
         main = QWidget()
@@ -311,15 +257,15 @@ class Window(QMainWindow):
         outer.addWidget(self.stack, 1)
         footer = QFrame()
         footer.setObjectName('downloadBar')
-        footer.setMinimumHeight(88)
+        footer.setMinimumHeight(70)
         bottom = QHBoxLayout(footer)
-        bottom.setContentsMargins(20, 14, 20, 14)
-        bottom.setSpacing(18)
+        bottom.setContentsMargins(20, 10, 20, 10)
+        bottom.setSpacing(16)
         self.operation_icon = QLabel()
-        self.operation_icon.setPixmap(icon('refresh', '#259eff', 30).pixmap(QSize(30, 30)))
+        self.show_operation('check')
         bottom.addWidget(self.operation_icon)
         state = QVBoxLayout()
-        state.setSpacing(5)
+        state.setSpacing(3)
         self.operation_label = label('Ready for departure', 'operationTitle')
         state.addWidget(self.operation_label)
         self.status = label('Preparing flight operations…', 'muted')
@@ -362,6 +308,9 @@ class Window(QMainWindow):
         self.make_lan()
         self.show_page(0)
 
+    def show_operation(self, symbol):
+        self.operation_icon.setPixmap(icon(symbol, '#259eff', 26).pixmap(QSize(26, 26)))
+
     def navigate(self, row):
         if 0 <= row < len(self.nav_pages):
             self.show_page(self.nav_pages[row])
@@ -388,9 +337,12 @@ class Window(QMainWindow):
         box = QVBoxLayout(content)
         box.setContentsMargins(0, 0, 8, 0)
         box.setSpacing(16)
-        box.addWidget(label(eyebrow.upper(), 'eyebrow'))
-        box.addWidget(label(title, 'title'))
-        box.addWidget(label(description, 'muted'))
+        heading = QVBoxLayout()
+        heading.setSpacing(5)
+        heading.addWidget(label(eyebrow.upper(), 'eyebrow'))
+        heading.addWidget(label(title, 'title'))
+        heading.addWidget(label(description, 'muted'))
+        box.addLayout(heading)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setWidget(content)
@@ -401,8 +353,10 @@ class Window(QMainWindow):
         card = QFrame()
         card.setObjectName('card')
         form = QFormLayout(card)
-        form.setContentsMargins(20, 20, 20, 20)
+        form.setContentsMargins(20, 18, 20, 18)
+        form.setHorizontalSpacing(22)
         form.setVerticalSpacing(12)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
         box.addWidget(card)
         return form
@@ -551,28 +505,58 @@ class Window(QMainWindow):
             self.aircraft_combo.setCurrentIndex(index)
 
     def make_aircraft(self):
-        box = self.page('Your hangar', 'Choose your aircraft', 'Select an aircraft for your next flight. Your selection is saved automatically.')
-        self.hangar_aircraft = AircraftGallery(height=160)
-        self.hangar_aircraft.selected.connect(self.select_card)
-        box.addWidget(self.hangar_aircraft)
-        self.aircraft_combo = DropDown()
+        box = self.page('Your hangar', 'Choose your aircraft', 'Pick the aircraft for your next flight. Your choice is saved automatically.')
+        # The catalogue lives in this unseen list; the cards and the data sheet follow it.
+        self.aircraft_combo = DropDown(self)
+        self.aircraft_combo.hide()
         self.aircraft_combo.currentIndexChanged.connect(self.select_aircraft)
-        box.addWidget(self.aircraft_combo)
-        self.aircraft_art = FlightArt(compact=True)
-        box.addWidget(self.aircraft_art)
-        self.aircraft_detail = label('', 'muted')
-        box.addWidget(self.aircraft_detail)
+        row = ResponsiveRow(narrow=700)
+        hangar = QWidget()
+        hangar.setObjectName('gallery')
+        hangar_box = QVBoxLayout(hangar)
+        hangar_box.setContentsMargins(0, 0, 0, 0)
+        self.hangar_aircraft = AircraftGallery(height=132, card_width=185)
+        self.hangar_aircraft.selected.connect(self.select_card)
+        hangar_box.addWidget(self.hangar_aircraft)
+        hangar_box.addStretch()
+        row.box.addWidget(hangar, 3)
+        sheet = QFrame()
+        sheet.setObjectName('card')
+        sheet.setMinimumWidth(360)
+        sheet_box = QVBoxLayout(sheet)
+        sheet_box.setContentsMargins(18, 18, 18, 18)
+        sheet_box.setSpacing(12)
+        self.aircraft_art = CoverArt()
+        self.aircraft_art.setFixedHeight(164)
+        sheet_box.addWidget(self.aircraft_art)
+        self.aircraft_title = label('', 'detailTitle')
+        sheet_box.addWidget(self.aircraft_title)
+        self.aircraft_maker = label('', 'muted')
+        sheet_box.addWidget(self.aircraft_maker)
+        self.aircraft_detail = Facts()
+        sheet_box.addWidget(self.aircraft_detail)
         # Only a bomber has a load to choose; the row is hidden for the rest.
         self.loadout_row = QWidget()
-        loadout_form = QFormLayout(self.loadout_row)
-        loadout_form.setContentsMargins(0, 0, 0, 0)
+        self.loadout_row.setObjectName('gallery')
+        loadout_box = QVBoxLayout(self.loadout_row)
+        loadout_box.setContentsMargins(0, 4, 0, 0)
+        loadout_box.setSpacing(6)
+        loadout_box.addWidget(label('Bomb load', 'factKey'))
         self.loadout_combo = self.combo([('mk82', '51 × Mk 82 (500 lb) · carpet bombing'), ('mk84', '18 × Mk 84 (2,000 lb) · hard targets'),
                                          ('nuke', '1 × B83 nuclear · levels a whole base')],
                                         self.prefs.loadout, lambda v: self.set_pref('loadout', v))
         self.loadout_combo.setToolTip('What the bomber takes off with. In flight, O asks for another load, fitted the next time you land and rearm. Space drops.')
-        loadout_form.addRow('Bomb load', self.loadout_combo)
-        box.addWidget(self.loadout_row)
-        box.addWidget(label('Specifications below are simulator configuration values. Aircraft presentation metadata is optional.', 'muted'))
+        loadout_box.addWidget(self.loadout_combo)
+        sheet_box.addWidget(self.loadout_row)
+        sheet_box.addSpacing(4)
+        self.hangar_play = button('Play', self.play)
+        self.hangar_play.setObjectName('primary')
+        self.hangar_play.setIcon(icon('play', '#ffffff', 18))
+        sheet_box.addWidget(self.hangar_play)
+        sheet_box.addWidget(label('Figures are the values the simulator flies with.', 'factKey'))
+        sheet_box.addStretch()
+        row.box.addWidget(sheet, 2)
+        box.addWidget(row)
         box.addStretch()
 
     def make_mode(self):
@@ -581,11 +565,11 @@ class Window(QMainWindow):
         self.mode_combo = DropDown()
         self.mode_combo.currentIndexChanged.connect(self.select_mode)
         form.addRow('Flight mode', self.mode_combo)
-        self.airborne = QCheckBox('Start airborne in trimmed flight')
+        self.airborne = Toggle('Start airborne in trimmed flight')
         self.airborne.setChecked(self.prefs.airborne)
         self.airborne.toggled.connect(lambda v: self.set_pref('airborne', v))
         form.addRow('Initial state', self.airborne)
-        self.bots = QSpinBox()
+        self.bots = SpinBox()
         self.bots.setRange(1, 8)
         self.bots.setValue(self.prefs.bots)
         self.bots.valueChanged.connect(lambda v: self.set_pref('bots', v))
@@ -600,11 +584,11 @@ class Window(QMainWindow):
         if choices:
             widget = self.combo(choices, int(value), lambda v: self.graphic_change(key, v))
         elif low == 0 and high == 1 and isinstance(default, int):
-            widget = QCheckBox('Enabled')
+            widget = Toggle()
             widget.setChecked(bool(value))
             widget.toggled.connect(lambda v: self.graphic_change(key, int(v)))
         else:
-            widget = QDoubleSpinBox() if isinstance(default, float) else QSpinBox()
+            widget = DoubleSpinBox() if isinstance(default, float) else SpinBox()
             widget.setRange(low, high)
             if isinstance(default, float):
                 # Fractions such as the glare amount need finer steps than distances or stops.
@@ -612,6 +596,8 @@ class Window(QMainWindow):
                 widget.setSingleStep(.005 if high <= 1 else .1)
             widget.setValue(value if isinstance(default, float) else int(value))
             widget.valueChanged.connect(lambda v: self.graphic_change(key, v))
+        if not isinstance(widget, QCheckBox):
+            widget.setMinimumWidth(210)
         widget.setToolTip(tip or 'Saved to the simulator graphics.cfg. Takes effect on the next flight.')
         form.addRow(title, widget)
         self.graphic_widgets[key] = widget
@@ -639,7 +625,7 @@ class Window(QMainWindow):
         self.preset_combo.setCurrentText(self.prefs.preset if self.prefs.preset in (*PRESETS, 'Auto / Recommended') else 'Custom')
         self.preset_combo.currentTextChanged.connect(self.apply_preset)
         form.addRow('Quality preset', self.preset_combo)
-        self.recommendation_label = label('Detecting hardware…', 'muted')
+        self.recommendation_label = WrapLabel('Detecting hardware…', 'muted')
         form.addRow('Recommendation', self.recommendation_label)
         levels = list(enumerate(['Off', 'Low', 'Medium', 'High']))
         self.graphic(form, 'msaa', 'Anti-aliasing', [(n, 'Off' if n == 1 else f'{n}× MSAA') for n in (1, 2, 4, 8, 16)])
@@ -739,7 +725,7 @@ class Window(QMainWindow):
                             ('Pilots and scores', 'Hold K in multiplayer'),
                             ('Menu', 'Esc opens the in-flight menu: settings, controls, quit'),
                             ('Gamepad', 'SDL compatible gamepads are discovered in flight')]:
-            form.addRow(title, label(text, 'muted'))
+            form.addRow(title, WrapLabel(text, 'factValue'))
         box.addWidget(label('Binding remapping and sensitivity profiles are not yet supported by the simulator.', 'muted'))
         box.addStretch()
 
@@ -750,7 +736,7 @@ class Window(QMainWindow):
         self.server_field.setPlaceholderText('Numeric IPv4 or IPv6 address')
         self.server_field.editingFinished.connect(lambda: self.set_network(server=self.server_field.text()))
         form.addRow('Server address', self.server_field)
-        self.port_field = QSpinBox()
+        self.port_field = SpinBox()
         self.port_field.setRange(1, 65535)
         self.port_field.setValue(self.prefs.port)
         self.port_field.valueChanged.connect(lambda v: self.set_network(port=v))
@@ -759,7 +745,7 @@ class Window(QMainWindow):
         self.pilot_field.setMaxLength(64)
         self.pilot_field.editingFinished.connect(lambda: self.set_network(name=self.pilot_field.text()))
         form.addRow('Pilot name', self.pilot_field)
-        self.host = QCheckBox('Start a dedicated server on this computer (loopback)')
+        self.host = Toggle('Start a dedicated server on this computer (loopback)')
         self.host.setChecked(self.prefs.host)
         self.host.toggled.connect(lambda v: (self.server_field.setEnabled(not v), self.set_pref('host', v)))
         self.server_field.setEnabled(not self.prefs.host)
@@ -831,13 +817,13 @@ class Window(QMainWindow):
         self.lobby_field.setPlaceholderText(lan.lobby_name(self.prefs.name + "'s game"))
         self.lobby_field.editingFinished.connect(lambda: self.set_pref('lobby', self.lobby_field.text()))
         host_form.addRow(label('Game name', 'muted'), self.lobby_field)
-        self.lan_bots = QSpinBox()
+        self.lan_bots = SpinBox()
         self.lan_bots.setRange(0, 8)
         self.lan_bots.setValue(self.prefs.lan_bots)
         self.lan_bots.setToolTip('AI opponents that fly in your game. They need an armed aircraft to fight.')
         self.lan_bots.valueChanged.connect(lambda v: self.set_pref('lan_bots', v))
         host_form.addRow(label('AI opponents', 'muted'), self.lan_bots)
-        self.lan_missile_reload = QSpinBox()
+        self.lan_missile_reload = SpinBox()
         self.lan_missile_reload.setRange(0, 3600)
         self.lan_missile_reload.setSingleStep(10)
         self.lan_missile_reload.setSuffix(' s')
@@ -850,7 +836,7 @@ class Window(QMainWindow):
                                     lambda v: (self.set_pref('lan_teams', bool(v)), self.lan_score_limit.setEnabled(bool(v))))
         self.lan_teams.setToolTip('In a team battle each side has an airfield, a depot and three outposts, defended by guns and missiles. Bomb the other side\'s to score, shoot its aircraft down, and land at your own airfield to repair and rearm.')
         host_form.addRow(label('Game type', 'muted'), self.lan_teams)
-        self.lan_score_limit = QSpinBox()
+        self.lan_score_limit = SpinBox()
         self.lan_score_limit.setRange(50, 5000)
         self.lan_score_limit.setSingleStep(50)
         self.lan_score_limit.setSuffix(' points')
@@ -894,7 +880,7 @@ class Window(QMainWindow):
         self.direct_address.setPlaceholderText('Address shown on the host, such as 192.168.1.20')
         self.direct_address.editingFinished.connect(lambda: self.set_network(server=self.direct_address.text()))
         line.addWidget(self.direct_address, 3)
-        self.direct_port = QSpinBox()
+        self.direct_port = SpinBox()
         self.direct_port.setRange(1, 65535)
         self.direct_port.setValue(self.prefs.port)
         self.direct_port.setToolTip('UDP port of the game; 27020 unless the host changed it.')
@@ -1005,51 +991,84 @@ class Window(QMainWindow):
         box.addStretch()
 
     def make_updates(self):
-        box = self.page('Release control', 'Updates', 'Verified releases arrive over HTTPS. Updates preserve settings and the previous release.')
+        box = self.page('Release control', 'Updates', 'Updates are downloaded over HTTPS and verified before they are installed. Your settings and the previous version are kept.')
+        state, state_box, _ = self.card('OpenFlightSim', 'download')
+        self.update_label.setObjectName('factValue')
+        state_box.addWidget(self.update_label)
+        controls = QHBoxLayout()
+        controls.setSpacing(10)
+        check = button('Check for updates', self.check_updates)
+        check.setIcon(icon('refresh', '#cfe4fb', 18))
+        controls.addWidget(check)
+        self.install_update_button = button('Download && install', self.install_update)
+        self.install_update_button.setObjectName('primary')
+        self.install_update_button.setIcon(icon('download', '#ffffff', 18))
+        self.install_update_button.setEnabled(False)
+        controls.addWidget(self.install_update_button)
+        self.rollback_button = button('Roll back', self.do_rollback)
+        self.rollback_button.setIcon(icon('undo', '#cfe4fb', 18))
+        self.rollback_button.setToolTip('Return to the version that was installed before the last update.')
+        controls.addWidget(self.rollback_button)
+        controls.addStretch()
+        state_box.addLayout(controls)
+        box.addWidget(state)
+        notes, notes_box, _ = self.card('Release notes', 'notes')
+        self.notes = QPlainTextEdit()
+        self.notes.setReadOnly(True)
+        self.notes.setMinimumHeight(150)
+        self.notes.setPlaceholderText('Release notes appear here after a check for updates.')
+        notes_box.addWidget(self.notes, 1)
+        box.addWidget(notes, 1)
         form = self.form(box)
         form.addRow('Release channel', self.combo([('stable', 'Stable'), ('development', 'Development / Experimental')], self.prefs.channel, self.change_channel))
         self.url = QLineEdit(self.prefs.manifest_url)
         self.url.setPlaceholderText('https://your-update-host/manifest.json')
+        self.url.setToolTip('Where this launcher looks for new versions. An installed game sets this for you.')
         self.url.editingFinished.connect(self.change_endpoint)
-        form.addRow('Publisher manifest', self.url)
-        for key, text in [('auto_check', 'Check automatically on launcher start'), ('auto_install', 'Install available updates automatically when the game is idle')]:
-            check = QCheckBox(text)
+        form.addRow('Update address', self.url)
+        for key, title, text in [('auto_check', 'On start', 'Check for updates when the launcher opens'),
+                                 ('auto_install', 'When idle', 'Install updates automatically while no flight is running')]:
+            check = Toggle(text)
             check.setChecked(getattr(self.prefs, key))
             check.toggled.connect(lambda v, k=key: self.set_pref(k, v))
-            form.addRow('', check)
-        controls = QHBoxLayout()
-        controls.addWidget(button('Check for updates', self.check_updates))
-        self.install_update_button = button('Download & install', self.install_update)
-        self.install_update_button.setEnabled(False)
-        controls.addWidget(self.install_update_button)
-        self.rollback_button = button('Roll back', self.do_rollback)
-        controls.addWidget(self.rollback_button)
-        box.addLayout(controls)
-        self.notes = QPlainTextEdit()
-        self.notes.setReadOnly(True)
-        self.notes.setPlaceholderText('Release notes will appear here after checking the publisher manifest.')
-        box.addWidget(self.notes, 1)
-        box.addWidget(self.update_label)
-        box.addWidget(label('Publishing requires an HTTPS update host. The launcher contains no repository credentials. Automatic updates begin after the publisher endpoint is configured.', 'muted'))
+            form.addRow(title, check)
 
     def make_installation(self):
-        box = self.page('Ground services', 'Installation / Repair', 'Inspect your installation, verify files, and repair a staged copy without touching user settings.')
-        self.installation_label = label('', 'muted')
-        box.addWidget(self.installation_label)
-        box.addWidget(button('Choose installation folder', self.choose_installation))
-        controls = QHBoxLayout()
-        controls.addWidget(button('Open game folder', lambda: self.open_folder(self.installation.directory if self.installation else self.prefs.installation)))
-        controls.addWidget(button('Open logs folder', lambda: self.open_folder(self.logs)))
-        box.addLayout(controls)
+        box = self.page('Ground services', 'Installation / Repair', 'See where the game is installed, check its files and repair them. Your settings are never touched.')
+        place, place_box, _ = self.card('This installation', 'folder')
+        self.installation_label = Facts()
+        place_box.addWidget(self.installation_label)
+        folders = QHBoxLayout()
+        folders.setSpacing(10)
+        for text, symbol, action in (('Change folder…', 'folder', self.choose_installation),
+                                     ('Open game folder', 'folder', lambda: self.open_folder(self.installation.directory if self.installation else self.prefs.installation)),
+                                     ('Open logs folder', 'notes', lambda: self.open_folder(self.logs))):
+            control = button(text, action)
+            control.setIcon(icon(symbol, '#cfe4fb', 18))
+            folders.addWidget(control)
+        folders.addStretch()
+        place_box.addLayout(folders)
+        box.addWidget(place)
+        files, files_box, _ = self.card('Verify and repair', 'shield')
+        files_box.addWidget(label('Verifying compares every installed file with the published release. Repairing downloads only the files that differ.', 'muted'))
         services = QHBoxLayout()
-        services.addWidget(button('Verify installation', self.verify_installation))
-        services.addWidget(button('Repair affected files', self.repair_installation))
-        box.addLayout(services)
+        services.setSpacing(10)
+        verify_button = button('Verify installation', self.verify_installation)
+        verify_button.setObjectName('primary')
+        verify_button.setIcon(icon('shield', '#ffffff', 18))
+        services.addWidget(verify_button)
+        repair_button = button('Repair affected files', self.repair_installation)
+        repair_button.setIcon(icon('repair', '#cfe4fb', 18))
+        services.addWidget(repair_button)
+        services.addStretch()
+        files_box.addLayout(services)
         self.verify_report = QPlainTextEdit()
         self.verify_report.setReadOnly(True)
+        self.verify_report.setMinimumHeight(120)
         self.verify_report.setPlaceholderText('Verification results will appear here.')
-        box.addWidget(self.verify_report, 1)
-        box.addWidget(label(f'User settings: {self.data}\nRepairs require the publisher’s manifest for the installed version. Source checkouts use asset preflight checks.', 'muted'))
+        files_box.addWidget(self.verify_report, 1)
+        box.addWidget(files, 1)
+        box.addWidget(label(f'Your settings are kept in {self.data}', 'factKey'))
 
     def set_installation(self, root):
         if self.session.running() or self.job:
@@ -1100,14 +1119,19 @@ class Window(QMainWindow):
             self.save()
             missing = self.installation.missing_assets()
             self.status.setText('Installation ready' if not missing else f'{len(missing)} required assets are missing. See Installation / Repair.')
-            self.installation_label.setText(f'{self.installation.root}\nOpenFlightSim {self.installation.build["version"]} · {self.installation.build.get("commit", "unknown")}\nInstalled channel: {self.installation.build.get("channel", "unknown")} · {"Managed release" if self.installation.managed else "Developer checkout / unpacked simulator"}')
-            self.disk_usage()
+            build = self.installation.build
+            self.installation_label.show_facts([
+                ('Folder', self.installation.root),
+                ('Version', f'OpenFlightSim {build["version"]} · {build.get("commit", "unknown")}'),
+                ('Channel', str(build.get('channel', 'unknown')).capitalize()),
+                ('Kind', 'Managed release' if self.installation.managed else 'Developer checkout / unpacked simulator'),
+                *self.disk_usage()])
         except (LauncherError, OSError) as exc:
             if self.lease:
                 self.lease.close()
                 self.lease = None
             self.status.setText(str(exc))
-            self.installation_label.setText(f'{root}\n{exc}')
+            self.installation_label.show_facts([('Folder', root), ('Problem', exc)])
         self.select_aircraft()
         self.select_mode()
         self.sync_graphics()
@@ -1121,9 +1145,10 @@ class Window(QMainWindow):
                 total = sum(r['size'] for r in metadata['files'].values())
                 import shutil
                 free = shutil.disk_usage(self.installation.root).free
-                self.installation_label.setText(self.installation_label.text() + f'\nActive release: {total / 1024**3:.2f} GiB · free disk: {free / 1024**3:.1f} GiB')
+                return [('Size', f'{total / 1024**3:.2f} GiB'), ('Free disk space', f'{free / 1024**3:.1f} GiB')]
             except (OSError, LauncherError, KeyError, TypeError):
                 pass
+        return []
 
     def select_aircraft(self):
         if self.installation:
@@ -1133,7 +1158,9 @@ class Window(QMainWindow):
             a = next((a for a in self.installation.aircraft if a['id'] == self.aircraft_combo.currentData()), None)
             self.loadout_row.setVisible(bool(a and a.get('bomber')))
             if a:
-                self.aircraft_detail.setText(aircraft_summary(a))
+                self.aircraft_title.setText(a['name'].split(' | ')[0])
+                self.aircraft_maker.setText(f'{a.get("manufacturer", "Manufacturer not provided")} · {a.get("type", "Aircraft")}')
+                self.aircraft_detail.show_facts(aircraft_facts(a))
                 preview = None
                 if a.get('thumbnail'):
                     try:
@@ -1165,6 +1192,7 @@ class Window(QMainWindow):
             self.stack.widget(index).setEnabled(not busy)
         self.stop_button.setVisible(self.session.running())
         self.play_button.setEnabled(bool(self.installation) and not busy and not self.graphics_error)
+        self.hangar_play.setEnabled(self.play_button.isEnabled())
         if hasattr(self, 'host_button'):
             ready = bool(self.installation) and not busy and not self.graphics_error and 'multiplayer' in self.installation.catalog['modes']
             self.host_button.setEnabled(ready)
@@ -1180,7 +1208,7 @@ class Window(QMainWindow):
         self.rollback_button.setEnabled(bool(self.installation and self.installation.managed) and not busy)
         if self.installation:
             a = next((a for a in self.installation.aircraft if a['id'] == self.prefs.aircraft), None)
-            self.version_label.setText(f'●  OpenFlightSim v{self.installation.build["version"]}')
+            self.version_label.setText(f'OpenFlightSim {self.installation.build["version"]}')
             self.version_label.setToolTip(f'Launcher {self.build["version"]} · {self.prefs.channel} channel')
             self.aircraft_label.setText(a['name'].split(' | ')[0] if a else 'Choose aircraft')
             self.home_aircraft.select(self.prefs.aircraft)
@@ -1189,6 +1217,8 @@ class Window(QMainWindow):
             self.summary_label.setText(f'{MODES.get(self.prefs.mode, self.prefs.mode)}  ·  {self.prefs.camera.replace("-", " ").title()} camera')
         if not busy:
             self.operation_label.setText('Update available' if update else 'Ready for departure')
+        elif not self.job:
+            self.operation_label.setText('In flight')
 
     def start_background(self):
         if self.initial_error:
@@ -1233,6 +1263,7 @@ class Window(QMainWindow):
         self.progress.setRange(0, 0)
         self.progress.show()
         self.cancel_button.show()
+        self.show_operation('refresh')
         self.job = Job(function)
         self.job.metric.connect(self.job_progress)
         def receive(value):
@@ -1267,6 +1298,7 @@ class Window(QMainWindow):
         self.progress.hide()
         self.transfer_label.hide()
         self.cancel_button.hide()
+        self.show_operation('check')
         self.refresh_summary()
         if self.pending_close:
             self.close()

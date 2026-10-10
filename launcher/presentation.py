@@ -3,7 +3,8 @@ from PySide6.QtCore import Qt, QRectF, QSize, Signal
 from PySide6.QtGui import QColor, QIcon, QLinearGradient, QPainter, QPainterPath, QPixmap, QPen
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (QWidget, QLabel, QPushButton, QVBoxLayout, QBoxLayout,
-                             QGridLayout, QSizePolicy, QComboBox)
+                             QGridLayout, QSizePolicy, QComboBox, QCheckBox, QSpinBox,
+                             QDoubleSpinBox)
 
 from .storage import LauncherError, safe_path
 
@@ -13,7 +14,13 @@ QWidget { background: #0b141e; color: #edf3fc; font-family: 'Segoe UI', 'DejaVu 
 QMainWindow, QWidget#surface { background: #0b141e; }
 QLabel, QWidget#page, QWidget#gallery, QWidget#heroCopy { background: transparent; }
 QLabel#eyebrow { color: #a7c5e7; font-size: 10px; font-weight: 600; letter-spacing: 3px; }
-QLabel#title { font-size: 30px; font-weight: 600; }
+QLabel#title { font-size: 28px; font-weight: 600; }
+QLabel#detailTitle { font-size: 21px; font-weight: 600; }
+QLabel#factKey { color: #8ea5c0; font-size: 12px; }
+QLabel#factValue { color: #dde8f5; }
+QLabel#error { color: #ff9d8a; }
+QLabel#success { color: #7fdca4; }
+QLabel#percent { font-size: 13px; font-weight: 600; color: #cfe4fb; }
 QLabel#sectionTitle { font-size: 17px; font-weight: 600; }
 QLabel#muted, QLabel#cardRole { color: #9db2cc; }
 QLabel#cardRole { font-size: 12px; }
@@ -45,8 +52,9 @@ QPushButton#primary:disabled { background: #223b54; color: #879eb8; border-color
 QListWidget#lobbies { background: #0d1924; border: 1px solid #1e3041; border-radius: 6px; padding: 4px; }
 QListWidget#lobbies::item { padding: 11px 12px; margin: 1px 0; border-left: 3px solid transparent; }
 QListWidget#lobbies::item:disabled { color: #62788e; }
-QPushButton#link, QPushButton#profile { background: transparent; border-color: transparent; color: #b4c9e2; padding: 8px 4px; font-weight: 400; }
-QPushButton#link:hover, QPushButton#profile:hover { color: #55abff; }
+QPushButton#link, QPushButton#profile, QPushButton#sideLink { background: transparent; border-color: transparent; color: #b4c9e2; padding: 8px 4px; font-weight: 400; }
+QPushButton#link:hover, QPushButton#profile:hover, QPushButton#sideLink:hover { color: #55abff; }
+QPushButton#sideLink { padding: 8px 18px; text-align: left; }
 QPushButton#settingsTab { background: transparent; border: none; border-bottom: 2px solid transparent; border-radius: 0; color: #9db2cc; padding: 11px 13px; }
 QPushButton#settingsTab:checked { color: #63b3ff; border-bottom-color: #168bff; }
 QPushButton#settingsTab:hover { color: white; background: #112438; }
@@ -58,10 +66,17 @@ QPushButton#aircraftCard QLabel { background: transparent; }
 QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QPlainTextEdit { background: #182635; border: 1px solid #2b4055; border-radius: 6px; padding: 8px; selection-background-color: #1268ac; }
 QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus { border-color: #2699ff; }
 QComboBox { padding-right: 24px; min-height: 20px; }
+QSpinBox, QDoubleSpinBox { padding-right: 28px; min-height: 20px; }
+QSpinBox::up-button, QDoubleSpinBox::up-button { subcontrol-origin: border; subcontrol-position: top right; width: 24px; border: none; border-left: 1px solid #2b4055; border-top-right-radius: 6px; background: transparent; }
+QSpinBox::down-button, QDoubleSpinBox::down-button { subcontrol-origin: border; subcontrol-position: bottom right; width: 24px; border: none; border-left: 1px solid #2b4055; border-bottom-right-radius: 6px; background: transparent; }
+QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover, QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover { background: #223a52; }
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow, QSpinBox::down-arrow, QDoubleSpinBox::down-arrow { width: 0; height: 0; }
+QLineEdit:disabled, QComboBox:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled { color: #687d95; background: #14212e; border-color: #233241; }
+QPlainTextEdit { background: #0d1924; border-color: #1e3041; padding: 10px; }
 QComboBox::drop-down { border: none; width: 25px; }
 QComboBox::down-arrow { width: 0; height: 0; }
 QComboBox QAbstractItemView { background: #142638; selection-background-color: #145687; color: #edf3fc; padding: 4px; }
-QCheckBox { spacing: 10px; padding: 5px; }
+QCheckBox { background: transparent; spacing: 10px; padding: 5px; }
 QCheckBox::indicator { width: 17px; height: 17px; border: 1px solid #426079; border-radius: 4px; background: #0b1723; }
 QCheckBox::indicator:checked { background: #168bff; border: 2px solid #85c6ff; }
 QProgressBar { background: #223447; border: none; border-radius: 4px; min-height: 8px; max-height: 8px; }
@@ -91,6 +106,10 @@ ICON_PATHS = {
     'pilot': '<circle cx="12" cy="8" r="4"/><path d="M4 22v-3a8 8 0 0 1 16 0v3"/>',
     'chevron': '<path d="m9 4 8 8-8 8"/>',
     'close': '<path d="m5 5 14 14M5 19 19 5"/>',
+    'check': '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
+    'folder': '<path d="M3 5h6l2 3h10v11H3Z"/>',
+    'shield': '<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6Z"/><path d="m9 12 2 2 4-4"/>',
+    'undo': '<path d="M8 5 3 10l5 5M3 10h12a5 5 0 0 1 0 10h-4"/>',
     'network': '<circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M12 7.5v4.5l-5.3 5M12 12l5.3 5"/>',
 }
 
@@ -207,10 +226,10 @@ class AircraftCard(QPushButton):
 class AircraftGallery(QWidget):
     selected = Signal(str)
 
-    def __init__(self, height=120):
+    def __init__(self, height=120, card_width=158):
         super().__init__()
         self.setObjectName('gallery')
-        self.image_height = height
+        self.image_height, self.card_width = height, card_width
         self.cards = {}
         self.columns = 0
         self.grid = QGridLayout(self)
@@ -229,7 +248,7 @@ class AircraftGallery(QWidget):
 
     def reflow(self):
         # Allow cards to wrap on smaller displays instead of compressing their labels.
-        columns = max(1, min(4, self.width() // 158))
+        columns = max(1, min(4, self.width() // self.card_width))
         for column in range(4):
             self.grid.setColumnStretch(column, 0)
         for index, card in enumerate(self.cards.values()):
@@ -240,7 +259,7 @@ class AircraftGallery(QWidget):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        if max(1, min(4, self.width() // 158)) != self.columns:
+        if max(1, min(4, self.width() // self.card_width)) != self.columns:
             self.reflow()
 
     def select(self, aircraft_id):
@@ -249,17 +268,18 @@ class AircraftGallery(QWidget):
 
 
 class ResponsiveRow(QWidget):
-    """Stack the home panels when the available content width becomes narrow."""
-    def __init__(self):
+    """Stack side-by-side panels when the available content width becomes narrow."""
+    def __init__(self, narrow=1010):
         super().__init__()
         self.setObjectName('gallery')
+        self.narrow = narrow
         self.box = QBoxLayout(QBoxLayout.Direction.LeftToRight, self)
         self.box.setContentsMargins(0, 0, 0, 0)
         self.box.setSpacing(16)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        direction = QBoxLayout.Direction.TopToBottom if self.width() < 1010 else QBoxLayout.Direction.LeftToRight
+        direction = QBoxLayout.Direction.TopToBottom if self.width() < self.narrow else QBoxLayout.Direction.LeftToRight
         if self.box.direction() != direction:
             self.box.setDirection(direction)
 
@@ -276,4 +296,168 @@ class DropDown(QComboBox):
         path.lineTo(self.width() - 16, self.height() / 2 + 2)
         path.lineTo(self.width() - 12, self.height() / 2 - 2)
         painter.drawPath(path)
+        painter.end()
+
+
+class Toggle(QCheckBox):
+    """A switch. The whole control is the click target, not only the track."""
+    def __init__(self, text=''):
+        super().__init__(text)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def sizeHint(self):
+        text = self.fontMetrics().horizontalAdvance(self.text()) + 14 if self.text() else 0
+        return QSize(44 + text, 30)
+
+    def minimumSizeHint(self):
+        return self.sizeHint()
+
+    def hitButton(self, position):
+        return self.rect().contains(position)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        on, enabled = self.isChecked(), self.isEnabled()
+        track = QRectF(2, (self.height() - 20) / 2, 38, 20)
+        if self.hasFocus():
+            painter.setPen(QPen(QColor('#8dcaff'), 1.4))
+        else:
+            painter.setPen(QPen(QColor('#3c5a76' if not on else '#3aa0ff'), 1))
+        painter.setBrush(QColor(('#168bff' if on else '#16273a') if enabled else ('#27425c' if on else '#14212e')))
+        painter.drawRoundedRect(track, 10, 10)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(('#ffffff' if on else '#9db2cc') if enabled else '#62788e'))
+        painter.drawEllipse(QRectF(track.right() - 17 if on else track.left() + 3, track.top() + 3, 14, 14))
+        if self.text():
+            painter.setPen(QColor('#edf3fc' if enabled else '#687d95'))
+            painter.drawText(self.rect().adjusted(52, 0, 0, 0),
+                             Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, self.text())
+        painter.end()
+
+
+class Stepper:
+    """Up and down chevrons for spin boxes, drawn like the dropdown's."""
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(QPen(QColor('#a6c4e6' if self.isEnabled() else '#62788e'), 1.5))
+        x, middle = self.width() - 12, self.height() / 2
+        for y, direction in ((middle - 7, -1), (middle + 7, 1)):
+            path = QPainterPath()
+            path.moveTo(x - 3.5, y - direction * 1.8)
+            path.lineTo(x, y + direction * 1.8)
+            path.lineTo(x + 3.5, y - direction * 1.8)
+            painter.drawPath(path)
+        painter.end()
+
+
+class SpinBox(Stepper, QSpinBox):
+    pass
+
+
+class DoubleSpinBox(Stepper, QDoubleSpinBox):
+    pass
+
+
+class WrapLabel(QLabel):
+    """Wrapped text that claims its full height in a form or grid row."""
+    def __init__(self, text='', name=None):
+        super().__init__(text)
+        if name:
+            self.setObjectName(name)
+        self.setWordWrap(True)
+        self.setTextFormat(Qt.TextFormat.PlainText)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+
+    def hasHeightForWidth(self):
+        # Layouts would otherwise reserve room for a narrower, taller wrapping.
+        return False
+
+    def fit(self):
+        # Measured here: the label's own answers guess at a width, and never fall
+        # below a height it was given earlier.
+        height = self.fontMetrics().boundingRect(0, 0, self.width(), 10000,
+                                                 int(Qt.TextFlag.TextWordWrap), self.text()).height()
+        if height > 0 and (self.minimumHeight(), self.maximumHeight()) != (height, height):
+            self.setFixedHeight(height)
+
+    def setText(self, text):
+        super().setText(text)
+        self.fit()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.fit()
+
+    def showEvent(self, event):
+        # The style sheet's font arrives after the first hidden layout.
+        super().showEvent(event)
+        self.fit()
+
+
+class Facts(QWidget):
+    """A short table of labelled values, such as an aircraft's data sheet."""
+    def __init__(self):
+        super().__init__()
+        self.setObjectName('gallery')
+        self.grid = QGridLayout(self)
+        self.grid.setContentsMargins(0, 0, 0, 0)
+        self.grid.setHorizontalSpacing(18)
+        self.grid.setVerticalSpacing(9)
+        self.grid.setColumnStretch(1, 1)
+
+    def show_facts(self, pairs):
+        while self.grid.count():
+            old = self.grid.takeAt(0).widget()
+            old.setParent(None)
+            old.deleteLater()
+        for row, (key, value) in enumerate(pairs):
+            name = QLabel(key)
+            name.setObjectName('factKey')
+            self.grid.addWidget(name, row, 0, Qt.AlignmentFlag.AlignTop)
+            self.grid.addWidget(WrapLabel(str(value), 'factValue'), row, 1)
+
+    def text(self):
+        return '\n'.join(self.grid.itemAt(i).widget().text() for i in range(self.grid.count()))
+
+
+class Banner(QWidget):
+    """The installer's header. It is painted, as no game artwork exists before installation."""
+    def __init__(self, tagline):
+        super().__init__()
+        self.setFixedHeight(148)
+        box = QVBoxLayout(self)
+        box.setContentsMargins(26, 0, 26, 0)
+        box.setSpacing(6)
+        box.addStretch()
+        eyebrow = QLabel('FLIGHT SIMULATOR')
+        eyebrow.setObjectName('eyebrow')
+        box.addWidget(eyebrow)
+        box.addWidget(wordmark(34))
+        line = QLabel(tagline)
+        line.setStyleSheet('color: #c9d9ea;')
+        box.addWidget(line)
+        box.addStretch()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = QRectF(self.rect())
+        clip = QPainterPath()
+        clip.addRoundedRect(rect, 10, 10)
+        painter.setClipPath(clip)
+        sky = QLinearGradient(0, 0, self.width(), self.height())
+        sky.setColorAt(0, QColor('#0c1d2e'))
+        sky.setColorAt(.55, QColor('#10385c'))
+        sky.setColorAt(1, QColor('#1a5f93'))
+        painter.fillRect(rect, sky)
+        painter.setPen(QPen(QColor(120, 180, 235, 26), 1))
+        for offset in range(-2, 12):
+            painter.drawLine(int(self.width() * .45) + offset * 46, self.height(),
+                             int(self.width() * .45) + offset * 46 + self.height(), 0)
+        size = self.height() - 44
+        painter.setOpacity(.55)
+        icon('wing', '#5fb6ff', size).paint(painter, self.width() - size - 30, 22, size, size)
         painter.end()

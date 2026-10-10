@@ -1,3 +1,15 @@
+OpenFlightSim 0.6.2 Launcher
+
+- A new setup window. It opens on a banner, shows the folder to install to
+  with the free space on its disk, and says what it is doing as it works.
+  The button reads Install, then Play once the game is in place.
+- The aircraft page shows a data sheet for the chosen aircraft: maker, type,
+  role, engines, thrust, masses, wingspan, top speed, armament and bomb load.
+- The Downloads page is now Updates.
+- Switches, number boxes and drop-downs are restyled to match the rest of the
+  launcher, and the bomb load is labelled on the aircraft page.
+- Nothing in the game has changed: only the launcher is new.
+
 OpenFlightSim 0.6.1 Launcher
 
 - A nuclear explosion that looks like one. A blinding flash, then a fireball

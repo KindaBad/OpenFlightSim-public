@@ -38,7 +38,7 @@ cmake --build --preset release
 
 **From the standalone setup (players):** download the platform's `*-setup.exe`
 on Windows (or `*-setup` on Linux), then double-click that one file. Click
-**INSTALL GAME**; the setup downloads the complete simulator, aircraft, launcher
+**Install**; the setup downloads the complete simulator, aircraft, launcher
 and runtime dependencies, checks their hashes, installs them, adds a Start Menu /
 application menu shortcut, and opens the full launcher. Choose your aircraft and
 press **PLAY**. Python, Qt, compilers, repository access and administrator rights
@@ -102,7 +102,7 @@ account. Support opens the public project's issue page.
 | Section | Working controls / information |
 | --- | --- |
 | Home | Start simulator, end flight, flight summary, aircraft cards, quick graphics controls |
-| Aircraft | Generated registry, name, optional manufacturer/type/role/engine metadata, engine count, configuration span/mass, thumbnail |
+| Aircraft | Generated registry as cards, with a data sheet for the chosen aircraft: maker, type, role, engines, thrust, masses, span, top speed, armament, bomb load, preview, Play |
 | Flight Mode | Free Flight, direct-connect Multiplayer, Local Dogfight (only in network-enabled builds), airborne start, 1–8 bots |
 | Graphics | Low/Medium/High/Ultra/Custom/Auto presets, MSAA, texture cap, shadows, effects/particles, clouds, anisotropic sampling, bloom, cloud shadows, vegetation |
 | Display | Detected resolutions, window dimensions, desktop fullscreen, VSync, cockpit vertical FOV, desktop refresh information |
@@ -110,7 +110,7 @@ account. Support opens the public project's issue page.
 | Multiplayer (navigation) | Pilot name; Host and fly with a game name and 0–8 AI opponents; a live list of games on the local network with Join; join by address |
 | Network (settings tab) | Numeric IPv4/IPv6, UDP port, 1–64 printable ASCII pilot name, locally managed loopback dedicated server, as used by Play in Multiplayer flight mode |
 | Advanced | Starting camera, draw/scenery distance, model LOD bias, shadow resolution/extent, bloom strength, fog, contrails, wing vapour, exhaust bands, HUD/player labels, hardware report |
-| Downloads | Stable/development channel, HTTPS publisher endpoint, startup check, opt-in automatic installation, release notes, progress/speed/cancel/retry/resume, rollback |
+| Updates | Stable/development channel, HTTPS publisher endpoint, startup check, opt-in automatic installation, release notes, progress/speed/cancel/retry/resume, rollback |
 | Installation / Repair | Location, version/commit/channel, active release size/free disk, folder links, file verification, staged selective repair |
 
 Local Dogfight requires an armed registry aircraft. The launcher rejects an

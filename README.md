@@ -12,7 +12,7 @@ verified HTTPS updates, selective repair and rollback. The same guide covers
 running it from source, packaging releases and publishing update manifests.
 
 Windows player releases include a single **OpenFlightSim Setup executable**:
-open it, click **INSTALL GAME**, and then press **PLAY** in the launcher.
+open it, click **Install**, and then press **Play** in the launcher.
 It downloads the complete game, installs without administrator access, and adds
 a Start Menu shortcut. The publisher must configure the release host and approved
 asset pack before this download can be distributed; see [the release guide](docs/LAUNCHER.md).
