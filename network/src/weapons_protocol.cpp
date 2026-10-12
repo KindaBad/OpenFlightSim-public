@@ -75,6 +75,7 @@ void missile(Writer &w, const MissileNetState &m) {
   w.u(unsigned(m.motor), 1);
   w.u(unsigned(m.seeker), 1);
   w.u(std::uint16_t(clamp(m.age * 100, 0, 7500)), 2);
+  w.u(unsigned(m.model), 1);
 }
 MissileNetState missile(Reader &r) {
   MissileNetState m;
@@ -93,6 +94,11 @@ MissileNetState missile(Reader &r) {
   m.motor = weapons::MotorPhase(r.u(1));
   m.seeker = weapons::SeekerPhase(r.u(1));
   m.age = double(r.u(2)) / 100;
+  m.model = weapons::MissileModel(r.u(1));
+  if (m.model >= weapons::MissileModel::Count ||
+      (!weapons::isBomb(m.type) && unsigned(m.type) >= 1 && unsigned(m.type) <= unsigned(WeaponType::ActiveRadar) &&
+       weapons::missileDefinition(m.model).type != m.type))
+    r.ok = false;
   if (!m.id || !m.owner.id || unsigned(m.type) < 1 || unsigned(m.type) > unsigned(WeaponType::Nuclear) ||
       unsigned(m.motor) > 3 ||
       unsigned(m.seeker) > unsigned(weapons::SeekerPhase::Decoyed) ||
@@ -421,6 +427,7 @@ bool WeaponReplicationReceiver::receive(const WeaponMessage &m, Tick now) {
       // The removal names only the missile; what it was is remembered here.
       if (const auto known = missiles_.find(e.missile.id); known != missiles_.end()) {
         e.missile.type = known->second.type;
+        e.missile.model = known->second.model;
         e.missile.owner = known->second.owner;
         e.missile.velocity = known->second.velocity;
       }

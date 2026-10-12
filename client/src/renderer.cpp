@@ -437,6 +437,8 @@ void Renderer::destroy() {
     if (bgfx::isValid(programs[i])) bgfx::destroy(programs[i]);
   for (auto& type : storeMeshes_) for (auto& detail : type) for (auto& part : detail)
     if (bgfx::isValid(part.vertices)) bgfx::destroy(part.vertices);
+  for (auto& model : missileMeshes_) for (auto& detail : model) for (auto& part : detail)
+    if (bgfx::isValid(part.vertices)) bgfx::destroy(part.vertices);
   if (bgfx::isValid(pylonMesh_.vertices)) bgfx::destroy(pylonMesh_.vertices);
   for (auto& part : chuteMeshes_)
     if (bgfx::isValid(part.vertices)) { bgfx::destroy(part.vertices); part = {}; }

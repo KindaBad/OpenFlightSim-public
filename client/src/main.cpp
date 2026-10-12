@@ -1488,7 +1488,7 @@ int main(int argc, char** argv) {
             combat.stores.push_back({position, missile.attitude, missile.type, false, false});
             continue;
           }
-          const auto &d = weapons::missileDefinition(missile.type);
+          const auto &d = weapons::missileDefinition(missile.model);
           // A missile fired at this pilot, for the warning.
           if (missile.target.id == self && missile.target.generation == network->life().generation && network->life().alive())
             threats.push_back({missile.position, missile.velocity, missile.type,
@@ -1507,7 +1507,8 @@ int main(int argc, char** argv) {
               {missile.id, position, missile.velocity, missile.attitude, d.length, d.diameter, missile.age,
                missile.motor == weapons::MotorPhase::Boost || missile.motor == weapons::MotorPhase::Sustain});
           combat.stores.push_back({position, missile.attitude, missile.type, false,
-                                   missile.motor == weapons::MotorPhase::Boost || missile.motor == weapons::MotorPhase::Sustain});
+                                   missile.motor == weapons::MotorPhase::Boost || missile.motor == weapons::MotorPhase::Sustain,
+                                   missile.model});
           soundMissiles.push_back({missile.id, position, missile.velocity, combat.missiles.back().powered,
                                    missile.owner.id == self, missile.age});
         }
@@ -1529,9 +1530,10 @@ int main(int argc, char** argv) {
             if (span > wingRemaining(damage[station.position.y < 0 ? DamagePart::LeftWing : DamagePart::RightWing]) - .05)
               continue;
             const Vec3 position = stationPosition(state, type, station.position);
-            combat.pylons.push_back({position, state.att, type, std::uint8_t(i), station.mounted, local});
+            const auto model = weapons::missileModel(station.mounted, type);
+            combat.pylons.push_back({position, state.att, type, std::uint8_t(i), station.mounted, local, model});
             if (shown & (1u << i))
-              combat.stores.push_back({position, state.att, station.mounted, local});
+              combat.stores.push_back({position, state.att, station.mounted, local, false, model});
           }
         };
         if (network->life().alive()) {
@@ -1590,6 +1592,24 @@ int main(int argc, char** argv) {
                 : 0.0;
       }
 #endif
+      // A flight with no game to fire in still carries its type's missiles,
+      // for the look of it.
+#ifdef OFS_NETWORK_ENABLED
+      const bool unarmedFlight = !network;
+#else
+      const bool unarmedFlight = true;
+#endif
+      if (unarmedFlight && options.scenario.empty() && options.visualBench == 0 && !aircraftCrashed(aircraft)) {
+        weapons::Inventory loadout;
+        loadout.reset(options.aircraft);
+        for (std::size_t i = 0; i < loadout.stations.size() && i < 8; ++i) {
+          const auto &station = loadout.stations[i];
+          const Vec3 position = stationPosition(aircraft, options.aircraft, station.position);
+          const auto model = weapons::missileModel(station.mounted, options.aircraft);
+          combat.pylons.push_back({position, aircraft.att, options.aircraft, std::uint8_t(i), station.mounted, true, model});
+          combat.stores.push_back({position, aircraft.att, station.mounted, true, false, model});
+        }
+      }
       // ---- Turn-round: standing on the ground repairs, refuels and rearms ----
       // A shared game does the work on the server; here the wait is counted
       // down from what this client can see, and a solo flight serves itself.
@@ -1718,15 +1738,15 @@ int main(int argc, char** argv) {
           servicedSeconds = frame < 60 ? 0 : 3;
         }
         if (options.scenario == "missile" || options.scenario == "detonation") {
-          // One missile of each kind flying in formation off the right wing,
-          // motors burning, so the airframes, plumes and trails can be judged.
-          for (unsigned i = 0; i < 2; ++i) {
-            const auto type = i ? weapons::WeaponType::ActiveRadar : weapons::WeaponType::Infrared;
-            const auto& d = weapons::missileDefinition(type);
-            const Vec3 position = aircraft.pos_ned + aircraft.att.rotate({4. + 3 * i, 7. + 3.5 * i, -1.5 + .8 * i});
+          // Each fighter's two missiles flying in formation off the right wing,
+          // motors burning, so the airframes, plumes and trails can be judged:
+          // the heat seekers in the near row, the radar missiles behind.
+          for (unsigned i = 0; i < 6; ++i) {
+            const auto& d = weapons::missileDefinition(weapons::MissileModel(unsigned(weapons::MissileModel::IrisT) + i));
+            const Vec3 position = aircraft.pos_ned + aircraft.att.rotate({4. + 3 * (i % 2), 6. + 2.6 * (i / 2) + 1.3 * (i % 2), -1.5 + .9 * (i % 2)});
             combat.missiles.push_back({1000 + i, position, aircraft.vel_ned, aircraft.att, d.length, d.diameter, fixtureTime, true});
             soundMissiles.push_back({1000 + i, position, aircraft.vel_ned, true, true, fixtureTime});
-            combat.stores.push_back({position, aircraft.att, type, false, true});
+            combat.stores.push_back({position, aircraft.att, d.type, false, true, d.model});
           }
           if (options.scenario == "detonation" && frame == 36)
             combat.missileDetonations.push_back({aircraft.pos_ned + aircraft.att.rotate({70, 26, -4})});

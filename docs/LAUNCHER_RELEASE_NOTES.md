@@ -1,3 +1,19 @@
+OpenFlightSim 0.6.6 Launcher
+
+- Every fighter now fires its own missiles instead of the same two stand-ins.
+  The Typhoon carries 2 IRIS-T and 4 Meteor, the Su-57 2 R-74M2 and 4 R-77M,
+  and the JF-17 2 PL-5EII and 4 SD-10A: the numbers were already right, the
+  missiles now are too.
+- They fly differently. The Meteor's ramjet keeps burning for half a minute,
+  so it reaches furthest and is hardest to outrun. The IRIS-T pulls 60 g and
+  its seeker looks 90 degrees off the nose; the R-74M2 is close behind; the
+  PL-5EII is the old-fashioned one, with a narrow seeker and 40 g. The R-77M
+  outranges the SD-10A.
+- Each missile is drawn to its own shape, size and finish, on the pylon and
+  in flight, and the weapon panel names the missile you have selected.
+- Missiles now hang on your aircraft in a solo flight as well.
+- Everyone in a game needs 0.6.6.
+
 OpenFlightSim 0.6.5 Launcher
 
 - Fixed mouse aim jumping back to the nose in multiplayer. Now and then the

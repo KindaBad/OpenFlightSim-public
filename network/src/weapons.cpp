@@ -17,7 +17,8 @@ MissileNetState projectMissile(const Missile &m, EntityId viewer) {
           m.state.attitude,
           m.state.motor,
           m.decoy ? weapons::SeekerPhase::Decoyed : m.state.seeker.phase,
-          m.state.age};
+          m.state.age,
+          m.model};
 }
 bool missileInterest(const Missile &m, EntityId viewer, Vec3 position) {
   // A nuclear weapon is everyone's business, wherever they are.
@@ -100,7 +101,7 @@ bool MissileCombat::release(Tick tick, EntityRef owner, const State &aircraft,
 bool MissileCombat::launch(Tick tick, EntityRef owner, const State &aircraft,
                            Vec3 station, WeaponType type,
                            const weapons::Track &target, Team team,
-                           bool autonomous) {
+                           bool autonomous, weapons::MissileModel model) {
   if (missiles_.size() >= capacity || !finiteState(aircraft) || !owner.id ||
       !target.entity.id || target.entity == owner ||
       (type != WeaponType::Infrared && type != WeaponType::ActiveRadar)) {
@@ -114,8 +115,13 @@ bool MissileCombat::launch(Tick tick, EntityRef owner, const State &aircraft,
   m.type = type;
   m.born = tick;
   m.team = team;
+  m.model = model < weapons::MissileModel::Count ? model : weapons::missileDefinition(type).model;
+  if (weapons::missileDefinition(m.model).type != type) {
+    ++stats_.rejected;
+    return false;
+  }
   m.state =
-      weapons::launchState(weapons::missileDefinition(type), aircraft, station,
+      weapons::launchState(weapons::missileDefinition(m.model), aircraft, station,
                            {target.position, target.velocity, true});
   m.state.autonomous = autonomous;
   missiles_.push_back(m);
@@ -219,7 +225,7 @@ void MissileCombat::step(
       emit({projectMissile(missile, missile.owner.id), tick, finite});
       continue;
     }
-    const auto &d = weapons::missileDefinition(missile.type);
+    const auto &d = weapons::missileDefinition(missile.model);
     const CombatTarget *target = nullptr;
     for (const auto &t : targets)
       if (EntityRef{t.id, t.life->generation} == missile.target &&

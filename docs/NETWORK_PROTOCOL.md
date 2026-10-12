@@ -322,6 +322,10 @@ and user/account authentication remain outside this protocol milestone.
 
 ## v22 additions
 
+Version 23 adds one byte to every missile record: which missile it is
+(`weapons::MissileModel`). A model whose guidance is not the record's weapon
+type is refused. Missile records are 64 bytes.
+
 Version 22 adds the bomber, bombs and the team game ([rules](TEAM_GAME.md)).
 
 - `Hello` ends with the side asked for (0 none, 1 Red, 2 Blue) and a bomb

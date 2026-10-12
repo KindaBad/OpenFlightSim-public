@@ -49,8 +49,21 @@ struct SeekerDefinition {
   // this many m/s of the one it is following compete with it.
   double dopplerGate{80};
 };
+// The missiles themselves. A WeaponType says how a missile is guided; the
+// model says which missile it is. The two development weapons are what the
+// ground defences fire; each fighter carries its own type's pair. Published
+// sizes and masses; motors, seekers and limits are estimates set from the
+// published ranges and manoeuvre limits. See docs/MISSILE_PHYSICS_PROVENANCE.md.
+enum class MissileModel : std::uint8_t {
+  DevInfrared, DevRadar,
+  IrisT, Meteor,   // Typhoon
+  R74M2, R77M,     // Su-57
+  PL5EII, SD10A,   // JF-17
+  Count
+};
 struct MissileDefinition {
   WeaponType type;
+  MissileModel model{MissileModel::DevInfrared};
   const char *name;
   double length{}, diameter{}, launchMass{};
   MotorDefinition motor;
@@ -61,7 +74,14 @@ struct MissileDefinition {
       damageRadius{18}, damage{180}, armTime{.35}, minimumRange{350},
       lifetime{45};
 };
+// The development weapon of each kind.
 const MissileDefinition &missileDefinition(WeaponType);
+const MissileDefinition &missileDefinition(MissileModel);
+// The missile of each kind an aircraft carries.
+MissileModel missileModel(WeaponType, AircraftType);
+inline const MissileDefinition &missileDefinition(WeaponType type, AircraftType aircraft) {
+  return missileDefinition(missileModel(type, aircraft));
+}
 // Free-fall bombs. They have no motor, seeker or fins that steer: a bomb goes
 // where the aircraft that let it go was heading, less what the air takes.
 // Gameplay blast figures, not weapon effects data.
@@ -99,6 +119,8 @@ struct Station {
   bool wing{};
 };
 struct Inventory {
+  // Whose load this is: it decides which missile each station carries.
+  AircraftType aircraft{AircraftType::Typhoon};
   std::vector<Station> stations;
   WeaponType selected{WeaponType::Infrared};
   // A bomber's load is counted, not hung on stations: all of one kind.

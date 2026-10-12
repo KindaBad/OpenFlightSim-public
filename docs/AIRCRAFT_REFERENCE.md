@@ -113,17 +113,47 @@ no primary source was found. Damage per round is a gameplay value: 34 for the
 
 ## Missiles
 
-Stations follow each aircraft's usual air-to-air load. The missiles themselves
-remain the two development weapons described in
-[MISSILE_PHYSICS_PROVENANCE.md](MISSILE_PHYSICS_PROVENANCE.md): every heat
-seeker flies as the Dev IR-90 and every radar missile as the Dev AR-157,
-whatever the station is named for.
+Stations follow each aircraft's usual air-to-air load, and since 0.6.6 each
+carries its own type's missiles. Lengths, diameters and launch masses are the
+commonly published ones, entered from general references and not checked
+against a primary source for this release. Little is published about the
+R-74M2 and R-77M themselves, so those two use the R-74M's and R-77-1's
+sizes and masses. Motors, seekers and manoeuvre limits are estimates set from
+the published range, off-boresight angle and load limit of each; none is a
+manufacturer's figure. See
+[MISSILE_PHYSICS_PROVENANCE.md](MISSILE_PHYSICS_PROVENANCE.md). Until 0.6.6 every heat seeker flew as the Dev IR-90 and
+every radar missile as the Dev AR-157; those two remain as what the ground
+defences fire.
 
 | | Heat seekers | Radar missiles |
 |---|---|---|
 | Typhoon | 2 × IRIS-T, outer wing pylons | 4 × Meteor, half sunk into the fuselage |
 | Su-57 | 2 × R-74M2, wing-root bays | 4 × R-77M, two tandem bays between the engines |
 | JF-17 | 2 × PL-5EII, wingtip rails | 4 × SD-10A, outer and inner wing pylons |
+
+| | Length | Diameter | Mass | Load limit | Seeker off the nose | Published range |
+|---|---|---|---|---|---|---|
+| IRIS-T | 2.94 m | 127 mm | 87.4 kg | 60 g | 90° | 25 km |
+| R-74M2 | 2.90 m | 170 mm | 106 kg | 50 g | 75° | 40 km |
+| PL-5EII | 2.89 m | 127 mm | 83 kg | 40 g | 40° | 16 km |
+| Meteor | 3.65 m | 178 mm | 190 kg | 36 g (estimate) | 50° (estimate) | over 100 km |
+| R-77M | 3.71 m | 200 mm | 190 kg | 35 g (estimate) | 55° (estimate) | about 190 km |
+| SD-10A | 3.93 m | 203 mm | 199 kg | 38 g | 45° (estimate) | 70 km |
+
+Published ranges are for a launch at height and speed against a target that
+does not turn; the game's battles are far closer, and its missiles are sized
+to them. What is kept is the order and the character. Flown head-on at 8 km
+against a target that does not turn, the farthest hit is 72 km for the
+Meteor, 60 km for the R-77M and 57 km for the SD-10A; against one that
+breaks at 7 g the Meteor still hits from 52 km and the others from about 30,
+because its ramjet is still burning when it arrives. Among the heat seekers
+the IRIS-T and R-74M2 hit a breaking target from 8 km and the PL-5EII from
+under 2 km.
+
+Each is drawn to its own layout: the IRIS-T's long strakes, the R-74M2's
+nose vanes and canards, the PL-5EII's Sidewinder canards and rollerons, the
+Meteor's two intake ducts and no wings, the R-77M's strakes and plain fins,
+the SD-10A's four mid-body wings.
 
 The Su-57 carries all six inside, so none is visible until it is launched. The
 model has no bay doors; a missile leaves through the skin. Until 0.5.7 the

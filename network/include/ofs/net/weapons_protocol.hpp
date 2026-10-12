@@ -3,7 +3,7 @@
 #include <deque>
 #include <set>
 namespace ofs::net {
-constexpr std::size_t missileWireBytes = 63, maxMissileRecords = 16;
+constexpr std::size_t missileWireBytes = 64, maxMissileRecords = 16;
 static_assert(24 + 1 + maxMissileRecords * missileWireBytes <=
               applicationPayload);
 struct WeaponMessage {

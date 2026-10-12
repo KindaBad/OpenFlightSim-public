@@ -28,7 +28,8 @@ constexpr float kPylonLength = .46f, kPylonWidth = .075f;
 // Beyond this the paint bands and nozzle are sub-pixel and are not drawn.
 constexpr double kDetailRange = 250, kTrimRange = 900;
 
-Material storeMaterial(weapons::WeaponType type, StorePart part) {
+Material storeMaterial(weapons::WeaponType type, weapons::MissileModel model, StorePart part) {
+  using weapons::MissileModel;
   const bool infrared = type == weapons::WeaponType::Infrared;
   Material material;
   const auto set = [&](float r, float g, float b, float metallic, float roughness) {
@@ -57,15 +58,30 @@ Material storeMaterial(weapons::WeaponType type, StorePart part) {
   }
   switch (part) {
     case StorePart::Body:
-      if (infrared) set(.56f, .58f, .60f, .15f, .42f); else set(.74f, .75f, .74f, .1f, .46f);
+      // Each type in its service finish: greys in the west, white in the rest.
+      switch (model) {
+        case MissileModel::IrisT: set(.50f, .52f, .54f, .15f, .44f); break;
+        case MissileModel::Meteor: set(.63f, .65f, .66f, .1f, .46f); break;
+        case MissileModel::R74M2: set(.80f, .80f, .78f, .05f, .40f); break;
+        case MissileModel::R77M: set(.76f, .77f, .77f, .05f, .42f); break;
+        case MissileModel::PL5EII: set(.84f, .84f, .82f, .05f, .38f); break;
+        case MissileModel::SD10A: set(.82f, .82f, .80f, .05f, .40f); break;
+        default: if (infrared) set(.56f, .58f, .60f, .15f, .42f); else set(.74f, .75f, .74f, .1f, .46f); break;
+      }
       break;
     case StorePart::Seeker:
       // A dark glass dome over a heat seeker; a ceramic radome over a radar.
       if (infrared) { set(.012f, .016f, .022f, 0, .05f); material.environmentReflection = 1; }
+      else if (model == MissileModel::R77M || model == MissileModel::SD10A) set(.86f, .86f, .84f, 0, .5f);
+      else if (model == MissileModel::Meteor) set(.80f, .80f, .78f, 0, .5f);
       else set(.70f, .66f, .56f, 0, .55f);
       break;
     case StorePart::Band:
-      if (infrared) set(.72f, .50f, .04f, 0, .6f); else set(.38f, .22f, .10f, 0, .6f);
+      // Yellow for a live warhead in the west; the others band in black or red.
+      if (model == MissileModel::R74M2 || model == MissileModel::R77M) set(.05f, .05f, .05f, 0, .6f);
+      else if (model == MissileModel::PL5EII || model == MissileModel::SD10A) set(.62f, .08f, .06f, 0, .6f);
+      else if (infrared || model == MissileModel::Meteor) set(.72f, .50f, .04f, 0, .6f);
+      else set(.38f, .22f, .10f, 0, .6f);
       break;
     default:
       set(.035f, .033f, .032f, .6f, .7f);
@@ -97,7 +113,7 @@ std::array<float, 8> measurePylonHeights(const GpuMesh& mesh, AircraftType type)
   const Vec3 cg = aircraftDefinition(type).visual.assetCg;
   for (std::size_t i = 0; i < inventory.stations.size() && i < heights.size(); ++i) {
     const auto& station = inventory.stations[i];
-    const auto& definition = weapons::missileDefinition(station.mounted);
+    const auto& definition = weapons::missileDefinition(station.mounted, type);
     const double top = station.position.z - definition.diameter * .5;
     double gap = 1e9;
     for (const double along : {-.4, 0., .4}) {
@@ -142,6 +158,12 @@ void Renderer::createStoreMeshes() {
       const StoreMesh mesh = buildStoreMesh(weapons::WeaponType(type + 1), detail);
       for (std::size_t part = 0; part < mesh.parts.size(); ++part)
         storeMeshes_[type][detail][part] = upload(mesh.parts[part]);
+    }
+  for (int model = 0; model < int(missileMeshes_.size()); ++model)
+    for (int detail = 0; detail < 2; ++detail) {
+      const StoreMesh mesh = buildMissileMesh(weapons::MissileModel(model), detail);
+      for (std::size_t part = 0; part < mesh.parts.size(); ++part)
+        missileMeshes_[model][detail][part] = upload(mesh.parts[part]);
     }
   pylonMesh_ = upload(buildPylonMesh());
 }
@@ -228,12 +250,13 @@ void Renderer::drawStores(const CombatVisuals& combat, const Camera& camera, boo
     const double distance = (store.position - camera.eye).norm();
     if (distance > settings_.renderDistance) continue;
     const auto index = std::size_t(store.type) - 1;
-    if (index >= storeMeshes_.size()) continue;
-    const auto& parts = storeMeshes_[index][distance < kDetailRange];
+    if (index >= storeMeshes_.size() || store.model >= weapons::MissileModel::Count) continue;
+    const auto& parts = weapons::isBomb(store.type) ? storeMeshes_[index][distance < kDetailRange]
+                                                    : missileMeshes_[std::size_t(store.model)][distance < kDetailRange];
     const glm::mat4 model = storeMatrix(store.position, store.attitude, origin_);
     for (std::size_t part = 0; part < parts.size(); ++part) {
       if (distance > kTrimRange && part > std::size_t(StorePart::Seeker)) continue;
-      Material material = storeMaterial(store.type, StorePart(part));
+      Material material = storeMaterial(store.type, store.model, StorePart(part));
       if (store.burning && StorePart(part) == StorePart::Nozzle) {
         // White-hot inside the throat while the motor burns.
         material.emissive[0] = 9; material.emissive[1] = 5.5f; material.emissive[2] = 2;
@@ -250,7 +273,7 @@ void Renderer::drawStores(const CombatVisuals& combat, const Camera& camera, boo
     if (asset == models_.end() || pylon.station >= asset->second.pylonHeight.size()) continue;
     const float height = asset->second.pylonHeight[pylon.station];
     if (height < .02f || (pylon.position - camera.eye).norm() > kTrimRange * 2) continue;
-    const auto& definition = weapons::missileDefinition(pylon.type);
+    const auto& definition = weapons::missileDefinition(pylon.model);
     glm::mat4 model = storeMatrix(pylon.position, pylon.attitude, origin_);
     // The skin end is sunk a little so the pylon never shows a gap on a curved wing.
     model = glm::translate(model, glm::vec3(0, 0, -static_cast<float>(definition.diameter * .5)));

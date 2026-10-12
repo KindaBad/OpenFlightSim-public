@@ -258,9 +258,13 @@ connects; rebuilding the server and client is sufficient, with no protocol chang
 
 ## Radar and missiles
 
-Online Typhoon and Su-57 carry two **Dev IR-90** and two **Dev AR-157** development
-missiles on underwing pylons, drawn on every armed aircraft and seen to leave it.
-A320 and SR-71 remain unarmed.
+Each fighter carries two heat seekers and four radar missiles of its own type:
+the Typhoon **IRIS-T** and **Meteor**, the Su-57 **R-74M2** and **R-77M**, the
+JF-17 **PL-5EII** and **SD-10A**. They differ in range, agility and how far off
+the nose their seekers look, and each is drawn to its own shape on every armed
+aircraft and seen to leave it; see
+[docs/AIRCRAFT_REFERENCE.md](docs/AIRCRAFT_REFERENCE.md). The A320 and SR-71
+are unarmed.
 
 The heat seeker (2) needs no radar. Its field of view is a ring at the nose; it
 takes the hottest target inside the ring, follows it off the nose within its

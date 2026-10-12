@@ -32,6 +32,7 @@ struct Missile {
   std::uint64_t id{};
   EntityRef owner, target;
   WeaponType type{WeaponType::Infrared};
+  weapons::MissileModel model{weapons::MissileModel::DevInfrared};
   Tick born{};
   weapons::MissileState state;
   // The decoy its seeker is following in place of its target, or zero.
@@ -59,6 +60,8 @@ struct MissileNetState {
   weapons::MotorPhase motor{};
   weapons::SeekerPhase seeker{};
   double age{};
+  // Which missile it is, for how it looks and sounds. Bombs carry none.
+  weapons::MissileModel model{weapons::MissileModel::DevInfrared};
 };
 struct MissileEvent {
   MissileNetState missile;
@@ -141,9 +144,12 @@ public:
   MissileCombat();
   // `autonomous` is a launch with nobody to guide it: the seeker is on its own
   // from the rail.
+  // `model` is the missile fired; left out, it is the development weapon of
+  // that kind, which is what the ground defences fire.
   bool launch(Tick, EntityRef owner, const State &, Vec3 station, WeaponType,
               const weapons::Track &target, Team team = Team::None,
-              bool autonomous = false);
+              bool autonomous = false,
+              weapons::MissileModel model = weapons::MissileModel::Count);
   // Lets a bomb go from `station`, the `count`th this aircraft has dropped.
   bool release(Tick, EntityRef owner, const State &, Vec3 station, WeaponType,
                unsigned count, Team team = Team::None);

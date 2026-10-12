@@ -189,11 +189,46 @@ inline StoreMesh buildBombMesh(weapons::WeaponType type, int detail) {
   return mesh;
 }
 
-// `detail` 1 is the mesh seen up close; 0 halves the facets for distant stores.
-inline StoreMesh buildStoreMesh(weapons::WeaponType type, int detail) {
+namespace store_detail {
+
+// A box standing on the body at `roll`, `height` proud of the skin and `width`
+// across, from xAft to xFore, its front face raked back by `rake`: a ramjet's
+// intake duct.
+inline void duct(std::vector<SurfaceVertex>& out, double roll, double radius, double height, double width,
+                 double xAft, double xFore, double rake) {
+  const Vec3 outward{0, std::cos(roll), std::sin(roll)}, side{0, -std::sin(roll), std::cos(roll)};
+  const auto point = [&](double x, double h, double offset) {
+    return Vec3{x, 0, 0} + outward * (radius * .8 + h) + side * offset;
+  };
+  const double half = width * .5, top = radius * .2 + height;
+  const auto quad = [&](Vec3 a, Vec3 b, Vec3 c, Vec3 d, Vec3 facing) {
+    Vec3 n = (b - a).cross(c - a).normalized();
+    if (n.dot(facing) < 0) n = n * -1.;
+    sceneryTriangle(out, a, b, c, n, n, n, 0);
+    sceneryTriangle(out, a, c, d, n, n, n, 0);
+  };
+  quad(point(xAft, top, -half), point(xFore - rake, top, -half), point(xFore - rake, top, half), point(xAft, top, half), outward);
+  for (const double sign : {-1., 1.})
+    quad(point(xAft, 0, sign * half), point(xFore, 0, sign * half), point(xFore - rake, top, sign * half),
+         point(xAft, top, sign * half), side * sign);
+  quad(point(xFore, 0, -half), point(xFore, 0, half), point(xFore - rake, top, half), point(xFore - rake, top, -half),
+       Vec3{1, 0, 0});
+  quad(point(xAft, 0, -half), point(xAft, 0, half), point(xAft, top, half), point(xAft, top, -half), Vec3{-1, 0, 0});
+}
+
+}  // namespace store_detail
+
+// A missile's airframe. Body is the painted tube and its fins, Seeker the
+// dome or radome, Band the colour markings and Nozzle the dark fittings.
+// Each is drawn to its own type's layout: where its fins are, how many sets
+// it has and what its nose is, from published drawings and photographs, to
+// the published length and diameter. `detail` 1 is the mesh seen up close; 0
+// halves the facets for distant stores.
+inline StoreMesh buildMissileMesh(weapons::MissileModel model, int detail) {
   using namespace store_detail;
-  if (weapons::isBomb(type)) return buildBombMesh(type, detail);
-  const auto& d = weapons::missileDefinition(type);
+  using weapons::MissileModel;
+  const auto& d = weapons::missileDefinition(model);
+  const bool infrared = d.type == weapons::WeaponType::Infrared;
   const double r = d.diameter * .5, nose = d.length * .5, tail = -d.length * .5;
   const int sides = detail ? 18 : 8;
   StoreMesh mesh;
@@ -202,40 +237,142 @@ inline StoreMesh buildStoreMesh(weapons::WeaponType type, int detail) {
   auto& band = mesh.parts[std::size_t(StorePart::Band)];
   auto& nozzle = mesh.parts[std::size_t(StorePart::Nozzle)];
   const double bandRadius = r * 1.03;
-  if (type == weapons::WeaponType::Infrared) {
-    // Short-range heat seeker: glass dome, nose canards, clipped tail fins.
-    const double dome = r * .82;
+  const auto ring = [&](double fore, double width) {
+    lathe(band, {{fore, bandRadius}, {fore - width, bandRadius}}, sides);
+  };
+  // A glass dome of `radius` at the nose and the body's taper out to full width behind it.
+  const auto dome = [&](double radius, double taper) {
     std::vector<std::pair<double, double>> glass;
     for (int i = 0; i <= 5; ++i) {
       const double a = kPi * .5 * i / 5;
-      glass.push_back({nose - dome + dome * std::cos(a), std::max(dome * std::sin(a), 1e-4)});
+      glass.push_back({nose - radius + radius * std::cos(a), std::max(radius * std::sin(a), 1e-4)});
     }
     lathe(seeker, glass, sides);
-    lathe(body, {{nose - dome, dome}, {nose - dome - .30, r}, {tail + .10, r}, {tail, r * .86}}, sides);
-    lathe(band, {{nose - .62, bandRadius}, {nose - .70, bandRadius}}, sides);
-    lathe(band, {{-.18, bandRadius}, {-.25, bandRadius}}, sides);
-    cruciform(body, r, .14, nose - .78, nose - .52, nose - .76, nose - .70, .012);
-    cruciform(body, r, .24, tail + .04, tail + .52, tail + .04, tail + .22, .016);
-  } else {
-    // Medium-range radar missile: ogive radome, mid-body wings, tail controls.
-    std::vector<std::pair<double, double>> radome;
-    const double ogive = .62;
+    lathe(body, {{nose - radius, radius}, {nose - radius - taper, r}}, sides);
+    return nose - radius - taper;
+  };
+  // A pointed radome `length` long.
+  const auto radome = [&](double length) {
+    std::vector<std::pair<double, double>> profile;
     for (int i = 0; i <= 7; ++i) {
       const double t = double(i) / 7;
-      radome.push_back({nose - ogive * t, std::max(r * std::sqrt(1 - (1 - t) * (1 - t)), 1e-4)});
+      profile.push_back({nose - length * t, std::max(r * std::sqrt(1 - (1 - t) * (1 - t)), 1e-4)});
     }
-    lathe(seeker, radome, sides);
-    lathe(body, {{nose - ogive, r}, {tail + .12, r}, {tail, r * .84}}, sides);
-    lathe(band, {{nose - ogive - .30, bandRadius}, {nose - ogive - .39, bandRadius}}, sides);
-    lathe(band, {{-.55, bandRadius}, {-.63, bandRadius}}, sides);
-    cruciform(body, r, .22, -.36, .34, -.34, -.12, .018);
-    cruciform(body, r, .23, tail + .05, tail + .46, tail + .05, tail + .26, .018);
+    lathe(seeker, profile, sides);
+    return nose - length;
+  };
+  double boatTail = .86;
+  switch (model) {
+    case MissileModel::IrisT: {
+      // No canards: four long shallow strakes down the middle of the body and
+      // four cropped fins at the tail, round a nozzle with vanes in it.
+      const double shoulder = dome(r * .86, .22);
+      lathe(body, {{shoulder, r}, {tail + .08, r}, {tail, r * .9}}, sides);
+      cruciform(body, r, .075, -.62, .52, -.62, .30, .012);
+      cruciform(body, r, .155, tail + .03, tail + .36, tail + .03, tail + .17, .014);
+      ring(nose - .55, .06);
+      ring(-.25, .06);
+      boatTail = .9;
+      break;
+    }
+    case MissileModel::R74M2: {
+      // The R-73's nose: small fixed vanes right behind the dome, then the
+      // canards, and broad cropped wings at the tail.
+      const double shoulder = dome(r * .78, .30);
+      lathe(body, {{shoulder, r}, {tail + .10, r}, {tail, r * .88}}, sides);
+      cruciform(body, r, .045, shoulder - .13, shoulder - .03, shoulder - .12, shoulder - .08, .010);
+      cruciform(body, r, .115, shoulder - .40, shoulder - .19, shoulder - .39, shoulder - .31, .012);
+      cruciform(body, r, .19, tail + .04, tail + .60, tail + .04, tail + .30, .016);
+      ring(shoulder - .50, .05);
+      ring(-.30, .05);
+      boatTail = .88;
+      break;
+    }
+    case MissileModel::PL5EII: {
+      // The Sidewinder pattern: double-delta canards on a slim nose and wide
+      // wings at the tail with a rolleron at each tip.
+      const double shoulder = dome(r * .80, .26);
+      lathe(body, {{shoulder, r}, {tail + .06, r}, {tail, r * .9}}, sides);
+      cruciform(body, r, .075, shoulder - .22, shoulder - .02, shoulder - .21, shoulder - .16, .010);
+      cruciform(body, r, .15, shoulder - .44, shoulder - .20, shoulder - .43, shoulder - .37, .012);
+      cruciform(body, r, .245, tail + .03, tail + .58, tail + .03, tail + .34, .016);
+      // Rollerons: a block at each wing tip.
+      for (int i = 0; i < 4; ++i)
+        fin(nozzle, kPi * .25 + kPi * .5 * i, r + .225, .022, tail + .03, tail + .12, tail + .03, tail + .12, .05);
+      ring(shoulder - .52, .06);
+      ring(-.20, .06);
+      boatTail = .9;
+      break;
+    }
+    case MissileModel::Meteor: {
+      // No wings at all: two intake ducts along the lower quarters of the
+      // body feeding the ramjet, and four fins at the tail.
+      const double shoulder = radome(.60);
+      lathe(body, {{shoulder, r}, {tail + .10, r}, {tail, r * .9}}, sides);
+      for (const double roll : {kPi * .25, kPi * .75}) {
+        duct(body, roll, r, .075, .11, tail + .52, .12, .16);
+        // The dark mouth of each intake.
+        duct(nozzle, roll, r, .060, .085, .10, .135, .16);
+      }
+      cruciform(body, r, .20, tail + .05, tail + .46, tail + .05, tail + .24, .018);
+      ring(shoulder - .28, .08);
+      boatTail = .9;
+      break;
+    }
+    case MissileModel::R77M: {
+      // Long thin strakes down the body and plain cropped fins at the tail, in
+      // place of the R-77's lattice fins, so that it fits the Su-57's bays.
+      const double shoulder = radome(.72);
+      lathe(body, {{shoulder, r}, {tail + .12, r}, {tail, r * .86}}, sides);
+      cruciform(body, r, .07, -.95, .40, -.95, .10, .014);
+      cruciform(body, r, .19, tail + .05, tail + .42, tail + .05, tail + .22, .018);
+      ring(shoulder - .30, .07);
+      ring(-1.15, .07);
+      boatTail = .86;
+      break;
+    }
+    case MissileModel::SD10A: {
+      // Four cropped delta wings at the middle and four fins at the tail.
+      const double shoulder = radome(.66);
+      lathe(body, {{shoulder, r}, {tail + .12, r}, {tail, r * .84}}, sides);
+      cruciform(body, r, .225, -.38, .30, -.36, -.14, .018);
+      cruciform(body, r, .235, tail + .05, tail + .50, tail + .05, tail + .28, .018);
+      ring(shoulder - .30, .09);
+      ring(-.62, .08);
+      boatTail = .84;
+      break;
+    }
+    default:
+      if (infrared) {
+        // Short-range heat seeker: glass dome, nose canards, clipped tail fins.
+        const double shoulder = dome(r * .82, .30);
+        lathe(body, {{shoulder, r}, {tail + .10, r}, {tail, r * .86}}, sides);
+        ring(nose - .62, .08);
+        ring(-.18, .07);
+        cruciform(body, r, .14, nose - .78, nose - .52, nose - .76, nose - .70, .012);
+        cruciform(body, r, .24, tail + .04, tail + .52, tail + .04, tail + .22, .016);
+      } else {
+        // Medium-range radar missile: ogive radome, mid-body wings, tail controls.
+        const double shoulder = radome(.62);
+        lathe(body, {{shoulder, r}, {tail + .12, r}, {tail, r * .84}}, sides);
+        ring(shoulder - .30, .09);
+        ring(-.55, .08);
+        cruciform(body, r, .22, -.36, .34, -.34, -.12, .018);
+        cruciform(body, r, .23, tail + .05, tail + .46, tail + .05, tail + .26, .018);
+        boatTail = .84;
+      }
+      break;
   }
   // Recessed motor nozzle: a dark throat inside the boat-tail.
-  const double exit = r * (type == weapons::WeaponType::Infrared ? .86 : .84);
+  const double exit = r * boatTail;
   lathe(nozzle, {{tail, exit}, {tail + .07, exit * .45}}, sides);
   disc(nozzle, tail + .07, exit * .45, -1, sides);
   return mesh;
+}
+
+inline StoreMesh buildStoreMesh(weapons::WeaponType type, int detail) {
+  if (weapons::isBomb(type)) return buildBombMesh(type, detail);
+  return buildMissileMesh(weapons::missileDefinition(type).model, detail);
 }
 
 // Pylon of unit size: X spans -0.5..0.5 along the store, Y -0.5..0.5 across

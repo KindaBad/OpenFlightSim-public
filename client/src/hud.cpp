@@ -431,8 +431,8 @@ void drawWeapons(ImDrawList* draw, ImVec2 display, const HudFrame& frame, const 
     const bool chosen = frame.missileSelected;
     slot(x + 14, "1", "GUN", weapons::WeaponType::None, !chosen);
     text(draw, {x + 14, y + 28}, number(frame.ammo), !chosen ? kAccent : kMuted, 12);
-    slot(x + 108, "2", "IR-90", weapons::WeaponType::Infrared, chosen && infrared);
-    slot(x + 202, "3", "AR-157", weapons::WeaponType::ActiveRadar, chosen && !infrared);
+    slot(x + 108, "2", weapons::missileDefinition(weapons::WeaponType::Infrared, frame.type).name, weapons::WeaponType::Infrared, chosen && infrared);
+    slot(x + 202, "3", weapons::missileDefinition(weapons::WeaponType::ActiveRadar, frame.type).name, weapons::WeaponType::ActiveRadar, chosen && !infrared);
     const unsigned left = infrared ? frame.irCount : frame.radarCount;
     std::string status = "L RADAR LOCK    SPACE FIRE";
     ImU32 statusColor = kMuted;
@@ -481,7 +481,7 @@ void drawWeapons(ImDrawList* draw, ImVec2 display, const HudFrame& frame, const 
   if (missile && infrared && frame.irCount) {
     // The seeker's field of view, as a ring the pilot puts over a target. It
     // leaves the nose and tightens onto the target as the lock builds.
-    const auto& seeker = weapons::missileDefinition(weapons::WeaponType::Infrared).seeker;
+    const auto& seeker = weapons::missileDefinition(weapons::WeaponType::Infrared, frame.type).seeker;
     ImVec2 edge;
     float ring = 90;
     const Vec3 up = state.att.rotate({0, 0, -1});

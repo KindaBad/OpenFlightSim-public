@@ -109,6 +109,8 @@ struct CombatVisuals {
     weapons::WeaponType type{weapons::WeaponType::Infrared};
     bool onLocalAircraft{}; // drawn with the pilot's own airframe from the flight deck
     bool burning{};         // its motor is lit: the nozzle glows
+    // Which missile it is; bombs are told apart by `type` alone.
+    weapons::MissileModel model{weapons::MissileModel::DevInfrared};
   };
   // The pylon a station hangs from, which stays after its missile has gone.
   struct Pylon {
@@ -118,6 +120,7 @@ struct CombatVisuals {
     std::uint8_t station{};
     weapons::WeaponType type{weapons::WeaponType::Infrared};
     bool onLocalAircraft{};
+    weapons::MissileModel model{weapons::MissileModel::DevInfrared};
   };
   std::vector<MissileVisual> missiles;
   std::vector<Store> stores;
@@ -481,6 +484,8 @@ class Renderer {
   };
   // One per weapon type after None, near and far.
   std::array<std::array<std::array<PartBuffer, 4>, 2>, 5> storeMeshes_{};
+  // One per missile model, near and far.
+  std::array<std::array<std::array<PartBuffer, 4>, 2>, std::size_t(weapons::MissileModel::Count)> missileMeshes_{};
   PartBuffer pylonMesh_{};
   // The cloud of each nuclear burst, marched as a volume over the scene.
   void drawNuclearClouds();

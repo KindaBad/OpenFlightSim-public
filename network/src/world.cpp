@@ -845,7 +845,7 @@ void World::step() {
       w.lockProgress = 0;
     }
     if (w.inventory.nextStation() >= 0) {
-      const auto &definition = weapons::missileDefinition(w.inventory.selected);
+      const auto &definition = weapons::missileDefinition(w.inventory.selected, w.inventory.aircraft);
       const auto &own = p.sim.state();
       if (w.inventory.selected == WeaponType::ActiveRadar) {
         const auto *selected = w.radar.find(w.radar.selected);
@@ -1024,7 +1024,7 @@ void World::step() {
         if (!tracked || !w.seekerReady ||
             station.mounted != w.inventory.selected ||
             w.envelope.targetRange <
-                weapons::missileDefinition(w.inventory.selected).minimumRange ||
+                weapons::missileDefinition(w.inventory.selected, w.inventory.aircraft).minimumRange ||
             tick_ < w.readyTick) {
           ++missiles_.stats().rejected;
           break;
@@ -1032,7 +1032,8 @@ void World::step() {
         const auto offset =
             station.position - loadedCg(p.sim.config(), p.sim.state());
         if (missiles_.launch(tick_, {id, p.life.generation}, p.sim.state(),
-                             offset, station.mounted, target, p.team)) {
+                             offset, station.mounted, target, p.team, false,
+                             weapons::missileModel(station.mounted, w.inventory.aircraft))) {
           w.inventory.consume(action.station, station.mounted);
           w.readyTick = tick_ + 60;
           auto state = p.sim.state();

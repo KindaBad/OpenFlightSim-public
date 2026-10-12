@@ -270,7 +270,7 @@ void inventory() {
     inventory.applyPayload(sim.config(), s);
     sim.setState(s);
     const auto after = sim.massProperties();
-    check(std::abs(before.mass - after.mass - 90) < 1e-8 &&
+    check(std::abs(before.mass - after.mass - missileDefinition(WeaponType::Infrared, type).launchMass) < 1e-8 &&
               after.cg.y > before.cg.y &&
               (before.inertia - after.inertia).norm() > 0 &&
               after.tensor().positiveDefinite(),
@@ -677,7 +677,7 @@ void protocol() {
                           SeekerPhase::Tracking,
                           1.23});
   auto bytes = encodeWeapon(m);
-  check(bytes.size() == 1033 && decodeWeapon(bytes, out), "max packet budget");
+  check(bytes.size() == 1049 && decodeWeapon(bytes, out), "max packet budget");
   check((out.missiles[0].position - m.missiles[0].position).norm() <= .11 &&
             (out.missiles[0].velocity - m.missiles[0].velocity).norm() <= .22,
         "quantization precision");
@@ -710,7 +710,7 @@ void protocol() {
     fuzz[rng() % fuzz.size()] = rng() % 256;
     (void)decodeWeapon(fuzz, out);
   }
-  std::printf("missileRecord=63 maxState=1033 action=38 mutations=10000\n");
+  std::printf("missileRecord=64 maxState=1049 action=38 mutations=10000\n");
 }
 // A heat seeker fired from two and a half kilometres astern, and what the
 // aircraft in front does about it. Returns the hit points it has left.
@@ -1251,6 +1251,86 @@ void reload() {
           "gun and dispensers fill and stop there");
   }
 }
+// Each fighter carries its own type's missiles, and they differ where the
+// real ones do.
+void models() {
+  // Closest approach to a target that flies straight, from `range` head-on.
+  const auto reaches = [](const MissileDefinition &d, double range) {
+    State aircraft = launchAircraft(8000);
+    Vec3 position{range, 0, -8000};
+    const Vec3 velocity{-260, 0, 0};
+    auto s = launchState(d, aircraft, {0, 0, 1}, {position, velocity, true});
+    for (unsigned i = 0; i < unsigned(d.lifetime * 120); ++i) {
+      position += velocity * tickSeconds;
+      auto target = targetAt(position, velocity);
+      target.attitude = quatFromEuler(0, 0, kPi);
+      const Measurement support{position, velocity, true};
+      advanceMissile(d, s, &target, &support, {}, tickSeconds);
+      if ((position - s.position).norm() < d.fuseRadius)
+        return true;
+    }
+    return false;
+  };
+  for (unsigned i = 0; i < unsigned(MissileModel::Count); ++i) {
+    const auto &d = missileDefinition(MissileModel(i));
+    check(d.model == MissileModel(i) && d.name && d.length > 2.5 && d.length < 4.2 && d.diameter > .12 &&
+              d.diameter < .21 && d.motor.propellant < d.launchMass * .45 && d.aero.area > 0,
+          "missile model is whole");
+    check(reaches(d, d.type == WeaponType::Infrared ? 5000 : 30000), "every missile reaches a target inside its range");
+  }
+  check(missileDefinition(WeaponType::Infrared).model == MissileModel::DevInfrared &&
+            missileDefinition(WeaponType::ActiveRadar).model == MissileModel::DevRadar,
+        "the development weapons are the defaults");
+  struct Carried { AircraftType type; MissileModel infrared, radar; };
+  for (const auto &c : {Carried{AircraftType::Typhoon, MissileModel::IrisT, MissileModel::Meteor},
+                        Carried{AircraftType::Su57, MissileModel::R74M2, MissileModel::R77M},
+                        Carried{AircraftType::JF17, MissileModel::PL5EII, MissileModel::SD10A}}) {
+    if (!validAircraftType(c.type))
+      continue;
+    check(missileModel(WeaponType::Infrared, c.type) == c.infrared &&
+              missileModel(WeaponType::ActiveRadar, c.type) == c.radar &&
+              missileDefinition(c.infrared).type == WeaponType::Infrared &&
+              missileDefinition(c.radar).type == WeaponType::ActiveRadar,
+          "each fighter carries its own missiles");
+    // The load's weight is the real missiles'.
+    Inventory inventory;
+    inventory.reset(c.type);
+    State state;
+    inventory.applyPayload(aircraftDefinition(c.type).flight, state);
+    check(std::abs(state.payload_mass - aircraftDefinition(c.type).flight.initial_payload -
+                   2 * missileDefinition(c.infrared).launchMass - 4 * missileDefinition(c.radar).launchMass) < 1e-6,
+          "the load weighs what its missiles weigh");
+  }
+  const auto &iris = missileDefinition(MissileModel::IrisT), &r74 = missileDefinition(MissileModel::R74M2),
+             &pl5 = missileDefinition(MissileModel::PL5EII), &meteor = missileDefinition(MissileModel::Meteor),
+             &r77 = missileDefinition(MissileModel::R77M), &sd10 = missileDefinition(MissileModel::SD10A);
+  check(iris.maxG > r74.maxG && r74.maxG > pl5.maxG && iris.seeker.gimbal > r74.seeker.gimbal &&
+            r74.seeker.gimbal > pl5.seeker.gimbal,
+        "the heat seekers rank as published: IRIS-T, R-74M2, PL-5EII");
+  check(meteor.motor.sustainTime > 2 * r77.motor.sustainTime && meteor.motor.sustainTime > 2 * sd10.motor.sustainTime,
+        "the Meteor's ramjet burns far longer than a rocket");
+  check(reaches(meteor, 70000) && !reaches(sd10, 70000) && reaches(r77, 62500) && !reaches(pl5, 9000) &&
+            reaches(iris, 9000),
+        "ranges rank as published");
+  // The model crosses the wire with the missile, and one that does not match
+  // its kind of guidance is refused.
+  WeaponMessage message;
+  message.type = Type::MissileSpawn;
+  message.tick = 9;
+  message.sequence = 1;
+  MissileNetState flying;
+  flying.id = 5;
+  flying.owner = {1, 0};
+  flying.type = WeaponType::ActiveRadar;
+  flying.model = MissileModel::Meteor;
+  message.missiles.push_back(flying);
+  WeaponMessage decoded;
+  check(decodeWeapon(encodeWeapon(message), decoded) && decoded.missiles.size() == 1 &&
+            decoded.missiles[0].model == MissileModel::Meteor,
+        "missile model replicated");
+  message.missiles[0].model = MissileModel::IrisT;
+  check(!decodeWeapon(encodeWeapon(message), decoded), "a model of the wrong kind is refused");
+}
 int main(int argc, char **argv) {
   try {
     const std::string suite = argc > 1 ? argv[1] : "guidance";
@@ -1292,6 +1372,8 @@ int main(int argc, char **argv) {
       respawn();
     else if (suite == "reload")
       reload();
+    else if (suite == "models")
+      models();
     else
       throw std::runtime_error("unknown suite");
     std::printf("m4.%s PASS\n", suite.c_str());

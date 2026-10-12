@@ -1,6 +1,7 @@
 #include "ofs/weapons.hpp"
 #include "ofs/terrain.hpp"
 #include <algorithm>
+#include <array>
 #include <stdexcept>
 namespace ofs::weapons {
 namespace {
@@ -33,6 +34,7 @@ const MissileDefinition &missileDefinition(WeaponType type) {
   static const MissileDefinition ar = [] {
     MissileDefinition d{};
     d.type = WeaponType::ActiveRadar;
+    d.model = MissileModel::DevRadar;
     d.name = "Dev AR-157";
     d.length = 3.66;
     d.diameter = .178;
@@ -55,6 +57,110 @@ const MissileDefinition &missileDefinition(WeaponType type) {
   if (type == WeaponType::ActiveRadar)
     return ar;
   throw std::invalid_argument("invalid missile type");
+}
+const MissileDefinition &missileDefinition(MissileModel model) {
+  // A real missile: its published length, diameter and launch mass, and a
+  // motor given as propellant, boost thrust and time, sustain thrust and time.
+  const auto make = [](WeaponType type, MissileModel model, const char *name, double length, double diameter,
+                       double mass, MotorDefinition motor) {
+    MissileDefinition d{};
+    d.type = type;
+    d.model = model;
+    d.name = name;
+    d.length = length;
+    d.diameter = diameter;
+    d.launchMass = mass;
+    d.motor = motor;
+    d.aero.area = kPi * diameter * diameter / 4;
+    if (type == WeaponType::ActiveRadar) {
+      d.aero.cd0 = .4;
+      d.seeker = {16 * kDeg2Rad, 45 * kDeg2Rad, 80 * kDeg2Rad, 18000, .15, .7, 12000};
+      d.maxG = 30;
+      d.fuseRadius = 9;
+      d.damageRadius = 25;
+      d.damage = 230;
+      d.lifetime = 75;
+      d.minimumRange = 600;
+    } else {
+      d.seeker = {24 * kDeg2Rad, 60 * kDeg2Rad, 120 * kDeg2Rad, 8000, .12, .5, 0};
+    }
+    return d;
+  };
+  static const std::array<MissileDefinition, std::size_t(MissileModel::Count)> models = [&] {
+    std::array<MissileDefinition, std::size_t(MissileModel::Count)> m{};
+    m[std::size_t(MissileModel::DevInfrared)] = missileDefinition(WeaponType::Infrared);
+    m[std::size_t(MissileModel::DevRadar)] = missileDefinition(WeaponType::ActiveRadar);
+    {
+      // IRIS-T: imaging seeker that looks 90 degrees off the nose, thrust
+      // vectoring, 60 g. An 11.4 kg warhead. About 25 km.
+      auto &d = m[std::size_t(MissileModel::IrisT)] =
+          make(WeaponType::Infrared, MissileModel::IrisT, "IRIS-T", 2.936, .127, 87.4, {22, 16000, 2.0, 4000, 5.0});
+      d.seeker.gimbal = 90 * kDeg2Rad; d.seeker.rate = 180 * kDeg2Rad; d.seeker.signalRange = 9500;
+      d.seeker.memoryTime = .8;
+      d.maxG = 60; d.maxAlpha = 40 * kDeg2Rad; d.actuatorRate = 260 * kDeg2Rad; d.navigation = 4;
+      d.damage = 185; d.minimumRange = 250;
+    }
+    {
+      // Meteor: a boost motor, then a throttled ducted ramjet that burns for
+      // most of the flight, so it still has thrust where a rocket is coasting.
+      // The air it breathes is not carried, which is why so little propellant
+      // gives so much impulse. Over 100 km.
+      auto &d = m[std::size_t(MissileModel::Meteor)] =
+          make(WeaponType::ActiveRadar, MissileModel::Meteor, "Meteor", 3.65, .178, 190, {40, 22000, 2.5, 5500, 28, .3});
+      d.aero.cd0 = .46;   // the two intakes
+      d.seeker.gimbal = 50 * kDeg2Rad; d.seeker.signalRange = 19000; d.seeker.activationRange = 13000;
+      d.maxG = 36; d.damage = 235;
+    }
+    {
+      // R-74M2 (izdeliye 760): the R-73 family's seeker to 75 degrees off the
+      // nose and gas-vane thrust vectoring, in a body made to fit the Su-57's
+      // side bays. A 7.4 kg warhead. About 40 km.
+      auto &d = m[std::size_t(MissileModel::R74M2)] =
+          make(WeaponType::Infrared, MissileModel::R74M2, "R-74M2", 2.9, .17, 106, {34, 21000, 2.6, 5500, 6.0, .25});
+      d.seeker.gimbal = 75 * kDeg2Rad; d.seeker.rate = 150 * kDeg2Rad; d.seeker.signalRange = 10500;
+      d.maxG = 50; d.maxAlpha = 35 * kDeg2Rad; d.actuatorRate = 220 * kDeg2Rad;
+      d.damage = 165; d.minimumRange = 300;
+    }
+    {
+      // R-77M (izdeliye 180): a two-pulse motor, given here as a boost and a
+      // long second burn, and a seeker that wakes further out. A 22.5 kg
+      // warhead. About 190 km.
+      auto &d = m[std::size_t(MissileModel::R77M)] =
+          make(WeaponType::ActiveRadar, MissileModel::R77M, "R-77M", 3.71, .2, 190, {77, 24000, 3.2, 9500, 11, .3});
+      d.seeker.gimbal = 55 * kDeg2Rad; d.seeker.signalRange = 21000; d.seeker.activationRange = 14000;
+      d.maxG = 35; d.damage = 235;
+    }
+    {
+      // PL-5EII: a Sidewinder-pattern missile with canards and rollerons, 40 g,
+      // a seeker that looks 40 degrees off the nose. A 6 kg warhead. 16 km.
+      auto &d = m[std::size_t(MissileModel::PL5EII)] =
+          make(WeaponType::Infrared, MissileModel::PL5EII, "PL-5EII", 2.893, .127, 83, {19, 14000, 2.0, 3600, 4.6});
+      d.seeker.fov = 20 * kDeg2Rad; d.seeker.gimbal = 40 * kDeg2Rad; d.seeker.rate = 90 * kDeg2Rad;
+      d.seeker.signalRange = 7000;
+      d.maxG = 40; d.damage = 150; d.minimumRange = 400;
+    }
+    {
+      // SD-10A (the export PL-12): 38 g, a 24 kg warhead. 70 km.
+      auto &d = m[std::size_t(MissileModel::SD10A)] =
+          make(WeaponType::ActiveRadar, MissileModel::SD10A, "SD-10A", 3.934, .203, 199, {60, 24000, 3.5, 7000, 8, .3});
+      d.maxG = 38; d.damage = 240;
+    }
+    return m;
+  }();
+  if (model >= MissileModel::Count)
+    throw std::invalid_argument("invalid missile model");
+  return models[std::size_t(model)];
+}
+MissileModel missileModel(WeaponType type, AircraftType aircraft) {
+  const bool infrared = type == WeaponType::Infrared;
+  if (!infrared && type != WeaponType::ActiveRadar)
+    throw std::invalid_argument("invalid missile type");
+  switch (aircraft) {
+  case AircraftType::Typhoon: return infrared ? MissileModel::IrisT : MissileModel::Meteor;
+  case AircraftType::Su57: return infrared ? MissileModel::R74M2 : MissileModel::R77M;
+  case AircraftType::JF17: return infrared ? MissileModel::PL5EII : MissileModel::SD10A;
+  default: return infrared ? MissileModel::DevInfrared : MissileModel::DevRadar;
+  }
 }
 const BombDefinition &bombDefinition(WeaponType type) {
   // Mk 82 and Mk 84 general-purpose bombs and a B83-class weapon, which is
@@ -107,6 +213,7 @@ bool bombImpact(const BombDefinition &d, Vec3 position, Vec3 velocity, const Wea
   return false;
 }
 void Inventory::reset(AircraftType type, unsigned loadout) {
+  aircraft = type;
   stations.clear();
   selected = WeaponType::Infrared;
   const auto load = bombLoad(type, loadout);
@@ -176,7 +283,7 @@ void Inventory::applyPayload(const AircraftConfig &cfg, State &state) const {
   point(total, cfg.payload_position);
   for (const auto &station : stations)
     if (station.mounted != WeaponType::None) {
-      const auto mass = missileDefinition(station.mounted).launchMass;
+      const auto mass = missileDefinition(station.mounted, aircraft).launchMass;
       total += mass;
       moment += station.position * mass;
       point(mass, station.position);

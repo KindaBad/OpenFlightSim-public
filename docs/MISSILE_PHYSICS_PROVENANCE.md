@@ -21,6 +21,28 @@ listed assumptions. `ESTIMATE` means a transparent engineering design choice.
 this simulator's deterministic scenarios; it is not calibration against real
 missile flight data. Angles below are degrees for readability; code uses radians.
 
+## Named missiles since 0.6.6
+
+Each fighter carries its own type's missiles (`weapons::MissileModel`): IRIS-T
+and Meteor, R-74M2 and R-77M, PL-5EII and SD-10A. They share the development
+weapons' flight, guidance and seeker models and differ only in parameters.
+
+- Length, diameter and launch mass: `REFERENCE` in intent, but entered from
+  commonly published figures without retrieving a primary source for this
+  release. The R-74M2 and R-77M use the R-74M's and R-77-1's, since their own
+  are not published. Treat all of them as unverified until checked.
+- Load limit and seeker off-boresight angle: the commonly published figure
+  where there is one (IRIS-T, R-74M2, PL-5EII, SD-10A load limit), otherwise
+  `ESTIMATE`.
+- Motor thrust, burn times and propellant, seeker ranges, warhead damage:
+  `ESTIMATE`, chosen so the six rank as their published ranges do. The Meteor's
+  ramjet is a long, low sustain stage whose propellant is small for its
+  impulse because the air it burns is not carried; it is not throttled here.
+  The R-77M's two pulses are a boost and one long second burn.
+- Shapes are drawn from public photographs to the lengths and diameters above.
+
+None of this is a performance claim about the real weapons.
+
 ## Definitions
 
 | Parameter | IR-90 / AR-157 | Units | Category | Source/derivation | Confidence |
