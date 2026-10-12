@@ -1,3 +1,16 @@
+OpenFlightSim 0.6.5 Launcher
+
+- Fixed mouse aim jumping back to the nose in multiplayer. Now and then the
+  aim ring snapped onto the gun cross and kept being pulled back there, so
+  you could not hold an aim. It happened when a correction from the server
+  arrived between two frames, mostly at high frame rates. The ring now stays
+  where you put it.
+- The Eurofighter Typhoon turns much better. Holding the stick back used to
+  drag it past its best angle and bleed it down to a wallow; it now holds the
+  angle where the wing lifts most and keeps its speed, so a full circle takes
+  about 18 seconds instead of 23 to 28. It also rolls and answers the stick
+  quicker. Thrust, weight, top speed and the 9 g limit are unchanged.
+
 OpenFlightSim 0.6.4 Launcher
 
 - Mouse aim now gets out of the way when you take the stick. Hold W, A, S or

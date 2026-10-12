@@ -35,6 +35,8 @@ struct MouseAim {
   static constexpr double kRadiansPerCount = .0012;
   // Short of vertical, so the level-horizon view never reaches its pole.
   static constexpr double kPitchLimit = 1.48;
+  // The aircraft's clock running back by more than this is a reset.
+  static constexpr double kResetSeconds = .25;
 
   Vec3 direction() const { return quatFromEuler(0, pitch, yaw).rotate({1, 0, 0}); }
   double viewYaw() const { return yaw + lookYaw; }
@@ -76,8 +78,11 @@ struct MouseAim {
 
   // Called once per frame. Recentres when mouse aim engages and when the
   // aircraft is repositioned (reset, respawn), which no flight can do in a frame.
+  // A server correction replays the same ticks and can leave the clock a
+  // rounding error behind where it was; that is not a reset.
   void sync(bool enable, const State& aircraft) {
-    const bool moved = aircraft.time < lastTime_ || (aircraft.pos_ned - lastPosition_).norm() > 2000;
+    const bool moved = aircraft.time < lastTime_ - kResetSeconds ||
+                       (aircraft.pos_ned - lastPosition_).norm() > 2000;
     if (enable && (!active || moved)) recenter(aircraft);
     active = enable;
     lastTime_ = aircraft.time;

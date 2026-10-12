@@ -10,9 +10,9 @@ AircraftConfig typhoonConfig() {
   AircraftConfig c;
   c.initial_fuel=3000; c.initial_payload=0; c.fuel_position={-.25,0,0}; c.payload_position={0,0,.5};
   c.control_law=FlightControlLaw::Canard; c.pitch_arm=3.1; c.pitch_span=1.6;
-  c.max_pitch_rate=.80; c.max_roll_rate=3.7; c.response_time=.25;
-  c.g_positive=9; c.g_negative=-3; c.alpha_limit=28*kDeg2Rad;
-  c.actuator_rate=6;
+  c.max_pitch_rate=.95; c.max_roll_rate=4.4; c.response_time=.20;
+  c.g_positive=9; c.g_negative=-3; c.alpha_limit=23*kDeg2Rad;
+  c.actuator_rate=7;
   // Wave drag and thrust lapse fitted to the published Mach 1.25 at sea level,
   // Mach 2.0 at altitude and Mach 1.5 without reheat.
   c.mach_drag_onset=.90; c.mach_drag_peak=.012; c.mach_drag_supersonic=.006;
@@ -41,10 +41,10 @@ AircraftConfig typhoonConfig() {
   }
   c.wing_area=51.2; c.wing_span=10.95; c.mac=4.3;
   c.alpha0=-.5*kDeg2Rad; c.cl_alpha=3.8;
-  c.cl_max_clean=1.56; c.cl_max_full_flap=1.91;
+  c.cl_max_clean=1.85; c.cl_max_full_flap=2.15;
   c.flap_lift=.35;
-  c.alpha_crit_clean=21*kDeg2Rad;
-  c.cd0_clean=.0235; c.oswald_e=.77;
+  c.alpha_crit_clean=27*kDeg2Rad;
+  c.cd0_clean=.0235; c.oswald_e=.90;
   // Stable equivalent to augmented canard/delta response. Not raw unstable FCS.
   c.cm0=.018; c.cm_alpha=-.15; c.cm_de=-1.10; c.cm_q=-18;
   c.cl_beta=-.055; c.cl_p=-.55; c.cl_da=.24;

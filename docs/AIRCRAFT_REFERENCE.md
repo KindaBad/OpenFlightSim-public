@@ -78,6 +78,26 @@ speeds:
 
 The Su-57 figures leave out thrust vectoring and its post-stall flight.
 
+### Typhoon since 0.6.5
+
+The Typhoon was strengthened again in 0.6.5, after it proved the weakest
+fighter in a turning fight. A stick held fully back took it several degrees
+past the angle of best lift, where it lost speed until it wallowed at about
+100 m/s. Its canard law now holds the angle-of-attack limit firmly, the limit
+(23°) sits below a later stall (27°, as a close-coupled canard delta's vortex
+lift allows), maximum lift is 1.85 and induced drag is lower (span efficiency
+0.90). Pitch and roll rate limits are 0.95 and 4.4 rad/s. All of these are
+estimates; thrust, mass, the load limit and the top speeds are as above.
+
+Flown rather than computed: reheat, clean, spawn mass, 1,000 m, rolled to 80°
+of bank and the stick held back for 30 s.
+
+| Entry speed | 360° before / after | Turn rate at the end, before / after |
+|---|---|---|
+| 120 m/s | not completed / 19.9 s | 9.9 / 17.5 °/s |
+| 180 m/s | 28.3 / 18.0 s | 9.9 / 17.7 °/s |
+| 250 m/s | 23.3 / 18.1 s | 16.2 / 20.2 °/s |
+
 ## Guns
 
 | | Typhoon | Su-57 | JF-17 |

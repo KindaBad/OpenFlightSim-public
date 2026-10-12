@@ -77,6 +77,16 @@ int main() {
     level.time = 1;
     aim.sync(true, level);
     check((aim.direction() - held).norm() < 1e-12, "the aim is held from frame to frame");
+    // A server correction replays the ticks since its snapshot, and the clock
+    // it leaves can be a rounding error short of the one it replaced.
+    State corrected = level;
+    corrected.time = std::nextafter(level.time, 0.);
+    aim.sync(true, corrected);
+    check((aim.direction() - held).norm() < 1e-12, "a server correction leaves the aim alone");
+    State restarted = level;
+    restarted.time = 0;
+    aim.sync(true, restarted);
+    check(degreesOff(restarted, aim) < 1e-6, "a restarted flight recentres the aim");
     State respawned = level;
     respawned.pos_ned = {9000, 0, -1000};
     respawned.time = 1.01;

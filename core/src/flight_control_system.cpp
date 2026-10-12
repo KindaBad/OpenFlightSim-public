@@ -126,8 +126,10 @@ Controls Simulator::controlTargets() const {
         mass.inertia.x / (responseTime * rollAuthority);
     // AoA protection and load command soft limits through surfaces, never rate
     // clamps.
+    // The canard law holds its limit firmly, so a stick held back turns at
+    // the wing's best lift instead of mushing past it and bleeding to a stall.
     if (alpha > alphaLimit && target.elevator_stick > 0)
-      target.elevator_stick -= 3 * (alpha - alphaLimit);
+      target.elevator_stick -= (cfg_.control_law == FlightControlLaw::Canard ? 14 : 3) * (alpha - alphaLimit);
     if (load > cfg_.g_positive && target.elevator_stick > 0)
       target.elevator_stick -= .25 * (load - cfg_.g_positive);
     if (load < cfg_.g_negative && target.elevator_stick < 0)
