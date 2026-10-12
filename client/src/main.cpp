@@ -57,7 +57,8 @@ struct Options {
   // The side and bomb load to ask a game for, and a private team game.
   ofs::Team team{ofs::Team::None};
   unsigned loadout{}, scoreLimit{300};
-  bool teams{}, localGame{};
+  // The Typhoon's original Luftwaffe paint instead of the 7L-WO display scheme.
+  bool originalLivery{}, teams{}, localGame{};
   int visualBench{};
   ofs::AircraftType aircraft{ofs::AircraftType::A320};
   std::string scenario;
@@ -128,6 +129,11 @@ Options parse(int argc, char** argv) {
       else if (load == "nuke") result.loadout = 2;
       else throw std::runtime_error("--loadout expects mk82, mk84 or nuke");
     }
+    else if (arg == "--livery" && i + 1 < argc) {
+      const std::string_view paint = argv[++i];
+      if (paint == "luftwaffe") result.originalLivery = true;
+      else if (paint != "7lwo") throw std::runtime_error("--livery expects 7lwo or luftwaffe");
+    }
     else if (arg == "--teams") result.teams = true;
     else if (arg == "--score-limit" && i + 1 < argc) result.scoreLimit = ofs::net::number(argv[++i], 50, 5000);
     else if (arg == "--port" && i + 1 < argc) result.port = ofs::net::number(argv[++i], 1, 65535);
@@ -156,7 +162,7 @@ Options parse(int argc, char** argv) {
           "[--aircraft a320|su57|typhoon|sr71|jf17|b52] [--asset path.glb] [--config path.cfg] [--airborne] [--width N] [--height N] "
           "[--map] [--free-camera|--pursuit|--chase|--close-chase|--orbit|--cockpit] [--visual-bench N] [--frame-step seconds] "
           "[--no-sound] [--sound-capture path.wav] "
-          "[--bots 0..8] [--server host --name name] [--team red|blue|auto] [--loadout mk82|mk84|nuke] "
+          "[--bots 0..8] [--server host --name name] [--team red|blue|auto] [--loadout mk82|mk84|nuke] [--livery 7lwo|luftwaffe] "
           "[--teams [--score-limit 50..5000]]");
     }
   }
@@ -455,8 +461,8 @@ int main(int argc, char** argv) {
     // Resolve the canonical per-type paths beside the executable, in the
     // checkout or at the configured source root. Required asset failures are
     // reported before entering the loop; --asset overrides only the local type.
-    auto assetPathFor = [&](const AircraftDefinition& d) {
-      const std::filesystem::path relative(d.modelAsset);
+    auto assetPathFor = [&](std::string_view model) {
+      const std::filesystem::path relative(model);
       const char* base = SDL_GetBasePath();
       const std::filesystem::path roots[]{std::filesystem::path(base ? base : ""),
         std::filesystem::path(base ? base : "").parent_path().parent_path(),
@@ -470,9 +476,14 @@ int main(int argc, char** argv) {
     // window system; a window silent for a few seconds is reported as hung.
     {
       std::vector<std::future<Renderer::AircraftSource>> pending;
-      for (const auto& d : aircraftDefinitions())
+      for (const auto& d : aircraftDefinitions()) {
+        // The pilot's livery applies to their type; others load their default.
+        const bool alternate = d.type == options.aircraft && options.originalLivery && d.alternateLivery;
+        const auto model = alternate ? d.alternateLivery->modelAsset : d.modelAsset;
+        const auto lods = alternate ? d.alternateLivery->lodAssets : d.lodAssets;
         pending.push_back(renderer.prepareAircraft(
-            d.type == options.aircraft && !options.asset.empty() ? options.asset : assetPathFor(d), d.type));
+            d.type == options.aircraft && !options.asset.empty() ? options.asset : assetPathFor(model), d.type, lods));
+      }
       for (std::size_t i = 0; i < pending.size(); ++i) {
         const auto status = "Loading aircraft " + std::to_string(i + 1) + " of " + std::to_string(pending.size());
         do {

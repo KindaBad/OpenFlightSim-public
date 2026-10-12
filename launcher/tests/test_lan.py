@@ -263,6 +263,22 @@ class Hosting(unittest.TestCase):
         with self.assertRaises(LauncherError):
             server_arguments(self.installation, Preferences(lan_teams=True, lan_score_limit=10), lan=True)
 
+    def test_livery_is_passed_only_when_the_game_has_the_alternate(self):
+        graphics = Graphics(self.root / 'user/graphics.cfg')
+        typhoon = next(a for a in self.installation.aircraft if a['id'] == 'typhoon') if any(a['id'] == 'typhoon' for a in self.installation.aircraft) else self.installation.aircraft[0]
+        typhoon['liveries'] = [{'id': 'luftwaffe', 'name': 'Luftwaffe', 'model': 'assets/luft.glb', 'lods': []}]
+        prefs = Preferences(livery='luftwaffe', aircraft=typhoon['id'])
+        self.assertNotIn('--livery', arguments(self.installation, prefs, graphics))
+        self.installation.catalog['version'] = '0.6.6'
+        self.assertNotIn('--livery', arguments(self.installation, prefs, graphics))
+        self.installation.catalog['version'] = '0.6.7'
+        command = arguments(self.installation, prefs, graphics)
+        self.assertEqual(command[command.index('--livery') + 1], 'luftwaffe')
+        self.assertNotIn('--livery', arguments(self.installation, Preferences(aircraft=typhoon['id']), graphics))
+        self.assertIn('assets/luft.glb', self.installation.missing_assets())
+        with self.assertRaises(LauncherError):
+            arguments(self.installation, Preferences(livery='pink', aircraft=typhoon['id']), graphics)
+
     def test_side_and_bomb_load_are_passed_to_a_game_that_knows_them(self):
         graphics = Graphics(self.root / 'user/graphics.cfg')
         prefs = Preferences(mode='multiplayer', team='blue', loadout='nuke', aircraft=self.installation.aircraft[0]['id'])

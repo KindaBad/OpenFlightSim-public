@@ -51,6 +51,8 @@ def user_directory():
 TEAMS = ('auto', 'red', 'blue')
 # The bomber's loads, in the order the game numbers them.
 LOADOUTS = ('mk82', 'mk84', 'nuke')
+# The Typhoon's paint: the Austrian 7L-WO display scheme, or the donor's original.
+LIVERIES = ('7lwo', 'luftwaffe')
 
 
 @dataclass
@@ -84,6 +86,7 @@ class Preferences:
     lan_score_limit: int = 300
     team: str = 'auto'
     loadout: str = 'mk82'
+    livery: str = '7lwo'
     channel: str = 'stable'
     manifest_url: str = ''  # Publisher configures a public HTTPS host; no guessed endpoint.
     auto_check: bool = True
@@ -114,6 +117,8 @@ class Preferences:
             raise LauncherError('Invalid missile reload time')
         if not 50 <= prefs.lan_score_limit <= 5000 or prefs.team not in TEAMS or prefs.loadout not in LOADOUTS:
             raise LauncherError('Invalid team game settings')
+        if prefs.livery not in LIVERIES:
+            raise LauncherError('Invalid livery')
         return prefs
 
     def save(self, path):

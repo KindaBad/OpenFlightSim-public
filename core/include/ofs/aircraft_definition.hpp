@@ -46,6 +46,10 @@ struct AircraftDefinition {
   std::array<CollisionSphere,17> collision{};
   // Carries bombs in place of a gun and missiles; see weapons::Inventory.
   bool bomber{};
+  // A second livery of the same airframe, chosen by the pilot beside the
+  // default one. Empty when the type has only one.
+  struct Livery { std::string_view key, name, modelAsset; std::array<std::string_view, 3> lodAssets{}; };
+  std::optional<Livery> alternateLivery{};
 };
 
 AircraftConfig typhoonConfig();

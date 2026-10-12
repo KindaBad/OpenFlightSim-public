@@ -6,9 +6,9 @@ import os
 from pathlib import Path
 import subprocess
 import time
-from .config import PURSUIT_CAMERA_VERSION
+from .config import PURSUIT_CAMERA_VERSION, LIVERIES
 from .installation import active_directory
-from .lan import LAN_VERSION, MISSILE_RELOAD_VERSION, TEAMS_VERSION, lobby_name
+from .lan import LAN_VERSION, LIVERY_VERSION, MISSILE_RELOAD_VERSION, TEAMS_VERSION, lobby_name
 from .config import LOADOUTS, TEAMS
 from .platform_process import spawn
 from .storage import LauncherError, read_json, safe_path, relative_name
@@ -80,7 +80,7 @@ class Installation:
         return cls(root, directory, executable, catalog, aircraft, build, managed)
 
     def missing_assets(self):
-        return [name for a in self.aircraft for name in (a['model'], *a['lods']) if not (safe_path(self.directory, name).is_file() or safe_path(self.directory, name + '.ofspack').is_file())]
+        return [name for a in self.aircraft for name in aircraft_files(a) if not (safe_path(self.directory, name).is_file() or safe_path(self.directory, name + '.ofspack').is_file())]
 
     def server_executable(self):
         suffix = '.exe' if os.name == 'nt' else ''
@@ -89,6 +89,14 @@ class Installation:
         if not found:
             raise LauncherError('Dedicated server executable is missing from this installation')
         return found
+
+
+def aircraft_files(aircraft):
+    """Every model file an aircraft needs: its own and those of each alternate livery."""
+    files = [aircraft['model'], *aircraft['lods']]
+    for livery in aircraft.get('liveries', []):
+        files += [livery['model'], *livery['lods']]
+    return files
 
 
 def arguments(installation, preferences, graphics):
@@ -128,6 +136,10 @@ def arguments(installation, preferences, graphics):
             args += ['--team', preferences.team]
         if selected.get('bomber'):
             args += ['--loadout', preferences.loadout]
+    if preferences.livery not in LIVERIES:
+        raise LauncherError('Choose a livery from the list')
+    if preferences.livery == 'luftwaffe' and selected.get('liveries') and Version(installation.catalog['version']) >= Version(LIVERY_VERSION):
+        args += ['--livery', 'luftwaffe']
     return args
 
 

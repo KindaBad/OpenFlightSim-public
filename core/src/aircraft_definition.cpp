@@ -111,7 +111,7 @@ std::span<const AircraftDefinition> aircraftDefinitions() {
         {{-.2, -5.75, 1.71}, {-.2, 5.75, 1.71}}, {{-6.0, -17.6, -.5}, {-6.0, 17.6, -.5}},
         26, 5, 4, .61, .39, .025}, {1, 1, 1}, std::nullopt},
       // Anchors measured from the Luftwaffe donor rig; see assets/aircraft/typhoon/README.md.
-      AircraftDefinition{AircraftType::Typhoon, "typhoon", "Eurofighter Typhoon | Luftwaffe", "assets/aircraft/typhoon/typhoon_lod0.glb", typhoonConfig(),
+      AircraftDefinition{AircraftType::Typhoon, "typhoon", "Eurofighter Typhoon | 7L-WO", "assets/aircraft/typhoon/typhoon_lod0.glb", typhoonConfig(),
        {{8.55,2.05,0}, {4.53,0,-1.19}, {-29,5,-8}, {-20,0,-5}, {-1,0,0}, {-1,0,0},
         {{-6.33,-.49,0},{-6.33,.49,0}}, {{-4.60,-5.33,.25},{-4.60,5.33,.25}},
         9.5,4,2,.385,.247,.045,true}, {.46,.33,.55}, typhoonGun,
@@ -161,6 +161,13 @@ std::span<const AircraftDefinition> aircraftDefinitions() {
       if(g) {d.visual.assetCg=g->asset_cg;
         for(unsigned e=0;e<2;++e)d.visual.exhaust[e]=g->engines[e];}
     }
+    // The Typhoon's original Luftwaffe 30+47 paint, as the donor had it.
+    for (auto& d : definitions)
+      if (d.type == AircraftType::Typhoon)
+        d.alternateLivery = AircraftDefinition::Livery{"luftwaffe", "Luftwaffe 30+47 (original)",
+            "assets/aircraft/typhoon/typhoon_luftwaffe_lod0.glb",
+            {"assets/aircraft/typhoon/typhoon_luftwaffe_lod1.glb", "assets/aircraft/typhoon/typhoon_luftwaffe_lod2.glb",
+             "assets/aircraft/typhoon/typhoon_luftwaffe_lod3.glb"}};
     return definitions;
   }();
   return definitions;

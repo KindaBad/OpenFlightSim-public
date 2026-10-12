@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT))
 from launcher.download import download
 from launcher.manifest import MAX_EXPANDED, MAX_FILES
 from launcher.storage import LauncherError, read_json, safe_path, relative_name
-from scripts.package_release import check_asset_approval
+from scripts.package_release import aircraft_files, check_asset_approval
 
 
 def main():
@@ -24,7 +24,7 @@ def main():
     args = parser.parse_args()
     record = {'url': os.environ['OFS_ASSET_PACK_URL'], 'sha256': os.environ['OFS_ASSET_PACK_SHA256'], 'size': int(os.environ['OFS_ASSET_PACK_SIZE'])}
     catalog = read_json(args.catalog)
-    required = {name for a in catalog['aircraft'] for name in (a['model'], *a['lods'])}
+    required = {name for a in catalog['aircraft'] for name in aircraft_files(a)}
     allowed = required | {name + '.ofspack' for name in required}
     package = download(record, args.cache)
     seen = set()

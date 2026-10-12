@@ -8,7 +8,14 @@ License: **Creative Commons Attribution-NonCommercial-ShareAlike 4.0 Internation
 OpenFlightSim's adaptation converts the model to metres, raises the undercarriage
 to a static stance, groups its existing control surfaces, nozzle petals, airbrake,
 doors and gear under animation pivots, replaces the glazing materials and adds
-three reduced levels of detail. No geometry or texture artwork was added.
+three reduced levels of detail. No geometry was added. The base colour is
+repainted from the donor's Luftwaffe markings to the Austrian Air Force 7L-WO
+display scheme, drawn by OpenFlightSim after photographs; the donor's panel
+lines and its normal and surface maps are kept.
+
+The Typhoon's original Luftwaffe 30+47 paint, as the donor had it, is offered beside
+the display scheme as `assets/aircraft/typhoon/typhoon_luftwaffe_lod*.glb`: the same
+model with the donor's own base colour and no repainting.
 
 The four installed `assets/aircraft/typhoon/typhoon_lod*.glb` files are that
 adaptation and are offered under the same CC BY-NC-SA 4.0 license. They are

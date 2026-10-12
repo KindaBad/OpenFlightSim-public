@@ -1,4 +1,4 @@
-"""Import, rig and export the Luftwaffe Typhoon donor model as four native GLBs.
+"""Import, rig, repaint and export the Typhoon donor model as four native GLBs.
 
 Donor: "Eurofighter Typhoon - Fighter Jet - Free" by bohmerang (Sketchfab
 992bcc8987964ca09d55410330aa8579), CC BY-NC-SA 4.0. The derived GLBs remain
@@ -12,6 +12,10 @@ Run headless, never from inside the extracted donor directory:
 The donor is 10 units per metre with nose +X, port +Y and up +Z. Its control
 surfaces, nozzle petals and undercarriage are already separate shells, so this
 stage only groups them under OpenFlightSim pivots; no surface is re-modelled.
+
+The donor's Luftwaffe 30+47 markings are painted over with the Austrian Air
+Force 7L-WO display scheme: assets/aircraft/typhoon/livery_paint.png, traced
+from photographs by scripts/typhoon_livery_trace.py in the donor's UV layout.
 """
 import argparse
 import json
@@ -21,6 +25,7 @@ from pathlib import Path
 
 import bmesh
 import bpy
+import numpy as np
 from mathutils import Matrix, Vector
 from mathutils.bvhtree import BVHTree
 
@@ -29,10 +34,14 @@ parser.add_argument('--project-root', type=Path, default=Path(__file__).resolve(
 parser.add_argument('--source', type=Path, required=True)
 parser.add_argument('--output-dir', type=Path)
 parser.add_argument('--working-output', type=Path)
+# 7lwo: the Austrian 7L-WO display paint (the default). luftwaffe: the donor's
+# own 30+47 paint, written beside it as typhoon_luftwaffe_lod*.glb.
+parser.add_argument('--livery', choices=('7lwo', 'luftwaffe'), default='7lwo')
 options = parser.parse_args(sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else [])
 ROOT = options.project_root.resolve()
 EXPORT_DIR = (options.output_dir or ROOT / 'assets/aircraft/typhoon').resolve()
-WORKING_PATH = (options.working_output or ROOT / 'output/Typhoon_Luftwaffe.blend').resolve()
+WORKING_PATH = (options.working_output or ROOT / ('output/Typhoon_7LWO.blend' if options.livery == '7lwo' else 'output/Typhoon_Luftwaffe.blend')).resolve()
+PREFIX = 'typhoon' if options.livery == '7lwo' else 'typhoon_luftwaffe'
 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
 WORKING_PATH.parent.mkdir(parents=True, exist_ok=True)
 
@@ -263,6 +272,55 @@ airframe_material = bpy.data.materials['Airframe']
 airframe_material.name = 'Typhoon | airframe'
 light_material = bpy.data.materials['Lights']
 light_material.name = 'Typhoon | landing lights'
+
+
+if options.livery == '7lwo':
+    # --- Livery -------------------------------------------------------------------
+    def pixels(image):  # Rows from the bottom, as UV space runs.
+        data = np.empty(image.size[0] * image.size[1] * 4, dtype=np.float32)
+        image.pixels.foreach_get(data)
+        return data.reshape(image.size[1], image.size[0], 4)
+
+
+    base_node = next(node for node in airframe_material.node_tree.nodes
+                     if node.type == 'TEX_IMAGE' and node.image and node.image.name == 'basecolor.png')
+    original = pixels(base_node.image)
+    paint_image = bpy.data.images.load(str(ROOT / 'assets/aircraft/typhoon/livery_paint.png'))
+    if tuple(paint_image.size) != tuple(base_node.image.size):
+        raise RuntimeError('Livery paint and donor base colour differ in size')
+    paint = pixels(paint_image)
+    bpy.data.images.remove(paint_image)
+
+
+    def extreme(values, radius, largest):
+        out = values
+        for axis in (0, 1):
+            stack = [np.roll(out, shift, axis=axis) for shift in range(-radius, radius + 1)]
+            out = np.maximum.reduce(stack) if largest else np.minimum.reduce(stack)
+        return out
+
+
+    # Carry the donor's panel lines across: thin strokes a little darker than
+    # their surroundings. Its own markings are left behind: the broad ones are not
+    # thin, and the serials and stencils are thin but black.
+    luminance = original[:, :, :3] @ np.array((.2126, .7152, .0722), np.float32)
+    radius = max(2, original.shape[0] // 512)
+    lines = luminance / np.maximum(extreme(extreme(luminance, radius, True), radius, False), 1e-4)
+    lines = np.where(extreme(lines < .5, 2, True), 1, np.clip(lines, .5, 1))
+    painted = paint[:, :, 3] > .5
+    repainted = original.copy()
+    repainted[painted, :3] = (paint[:, :, :3] * lines[:, :, None])[painted]
+    repainted[:, :, 3] = 1
+    livery_image = bpy.data.images.new('Typhoon 7L-WO livery', original.shape[1], original.shape[0], alpha=False)
+    livery_image.pixels.foreach_set(repainted.reshape(-1))
+    livery_path = WORKING_PATH.parent / 'Typhoon_7LWO_livery.png'
+    livery_image.filepath_raw = str(livery_path)
+    livery_image.file_format = 'PNG'
+    livery_image.save()
+    bpy.data.images.remove(livery_image)
+    base_node.image = bpy.data.images.load(str(livery_path))
+    base_node.image.pack()
+    del original, paint, repainted, lines, luminance
 
 
 def glazing(name, color, alpha):
@@ -499,7 +557,7 @@ report['fuselage_top_bottom_body_z'] = stations
 def export_lod(level):
     visibility, modifiers, links, selected = [], [], [], []
     ratio = [1, .6, .3, .1][level]
-    path = EXPORT_DIR / f'typhoon_lod{level}.glb'
+    path = EXPORT_DIR / f'{PREFIX}_lod{level}.glb'
     try:
         bpy.ops.object.select_all(action='DESELECT')
         for obj in aircraft.objects:
@@ -549,7 +607,8 @@ def export_lod(level):
 
 
 report['lods'] = [export_lod(level) for level in range(4)]
-(EXPORT_DIR / 'lod_stats.json').write_text(json.dumps(report, indent=2) + '\n')
+if options.livery == '7lwo':
+    (EXPORT_DIR / 'lod_stats.json').write_text(json.dumps(report, indent=2) + '\n')
 for scene_to_remove in [s for s in bpy.data.scenes if s is not scene]:
     bpy.data.scenes.remove(scene_to_remove)
 bpy.ops.wm.save_as_mainfile(filepath=str(WORKING_PATH))

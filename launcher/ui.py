@@ -553,6 +553,18 @@ class Window(QMainWindow):
         self.loadout_combo.setToolTip('What the bomber takes off with. In flight, O asks for another load, fitted the next time you land and rearm. Space drops.')
         loadout_box.addWidget(self.loadout_combo)
         sheet_box.addWidget(self.loadout_row)
+        # Only the Typhoon has a second paint; the row is hidden for the rest.
+        self.livery_row = QWidget()
+        self.livery_row.setObjectName('gallery')
+        livery_box = QVBoxLayout(self.livery_row)
+        livery_box.setContentsMargins(0, 4, 0, 0)
+        livery_box.setSpacing(6)
+        livery_box.addWidget(label('Livery', 'factKey'))
+        self.livery_combo = self.combo([('7lwo', 'Austrian 7L-WO · the display scheme'), ('luftwaffe', 'Luftwaffe 30+47 · the original paint')],
+                                       self.prefs.livery, lambda v: self.set_pref('livery', v))
+        self.livery_combo.setToolTip('The paint on the Eurofighter. The choice applies to every Typhoon you see.')
+        livery_box.addWidget(self.livery_combo)
+        sheet_box.addWidget(self.livery_row)
         sheet_box.addSpacing(4)
         self.hangar_play = button('Play', self.play)
         self.hangar_play.setObjectName('primary')
@@ -1222,6 +1234,7 @@ class Window(QMainWindow):
                 self.save()
             a = next((a for a in self.installation.aircraft if a['id'] == self.aircraft_combo.currentData()), None)
             self.loadout_row.setVisible(bool(a and a.get('bomber')))
+            self.livery_row.setVisible(bool(a and a.get('liveries')))
             if a:
                 self.aircraft_title.setText(a['name'].split(' | ')[0])
                 self.aircraft_maker.setText(f'{a.get("manufacturer", "Manufacturer not provided")} · {a.get("type", "Aircraft")}')

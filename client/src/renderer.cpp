@@ -455,7 +455,8 @@ void Renderer::destroy() {
 
 namespace {
 Renderer::AircraftSource prepareAircraftSource(const std::string& path, AircraftType type,
-                                               unsigned maximum, bool anisotropic) {
+                                               std::array<std::string_view, 3> lodAssets, unsigned maximum,
+                                               bool anisotropic) {
   Renderer::AircraftSource source;
   source.type = type;
   source.path = path;
@@ -465,7 +466,6 @@ Renderer::AircraftSource prepareAircraftSource(const std::string& path, Aircraft
     // Cell sizes tuned against the measured A320 primitive histogram: 0.15 m
     // keeps the silhouette within 0.02 m, 0.45 m is a distant-aircraft proxy.
     const float cells[kLodCount - 1] = {0.15f, 0.45f};
-    const auto& lodAssets=aircraftDefinition(type).lodAssets;
     source.gpu = buildGpuMesh(mesh, cells, lodAssets[0].empty() ? kLodCount : 1);
     if (!lodAssets[0].empty()) {
       for (const auto lodPath : lodAssets) {
@@ -558,9 +558,14 @@ Renderer::AircraftSource prepareAircraftSource(const std::string& path, Aircraft
 }
 }  // namespace
 
-std::future<Renderer::AircraftSource> Renderer::prepareAircraft(const std::string& path, AircraftType type) const {
+std::future<Renderer::AircraftSource> Renderer::prepareAircraft(const std::string& path, AircraftType type,
+                                                                std::array<std::string_view, 3> lods) const {
   const unsigned maximum=std::min<unsigned>(unsigned(std::clamp(settings_.textureMaxSize,512,8192)),bgfx::getCaps()->limits.maxTextureSize);
-  return std::async(std::launch::async, prepareAircraftSource, path, type, maximum, settings_.anisotropic);
+  return std::async(std::launch::async, prepareAircraftSource, path, type, lods, maximum, settings_.anisotropic);
+}
+
+std::future<Renderer::AircraftSource> Renderer::prepareAircraft(const std::string& path, AircraftType type) const {
+  return prepareAircraft(path, type, aircraftDefinition(type).lodAssets);
 }
 
 bool Renderer::loadAircraft(const std::string& path, AircraftType type) {

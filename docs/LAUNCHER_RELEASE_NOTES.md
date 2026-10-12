@@ -1,3 +1,14 @@
+OpenFlightSim 0.6.7 Launcher
+
+- The Typhoon wears the Austrian Air Force 7L-WO display scheme: black wings and
+  spine with white contour lines, the red-white-red band, the 7L WO code and
+  roundels. Its name in the game is now Eurofighter Typhoon | 7L-WO.
+- Livery is a choice, as the bomb load is for the B-52. On the Typhoon the
+  launcher's Livery list offers the 7L-WO scheme and the donor's original
+  Luftwaffe 30+47 paint. The choice applies to every Typhoon you see.
+- The launcher needs the new aircraft content pack (aircraft-content-v8); it
+  adds the Luftwaffe files.
+
 OpenFlightSim 0.6.6 Launcher
 
 - Every fighter now fires its own missiles instead of the same two stand-ins.

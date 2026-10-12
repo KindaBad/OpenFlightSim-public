@@ -409,7 +409,7 @@ launch instructions, bandwidth costs and remaining limitations are documented in
 
 The Eurofighter Typhoon is available with `--aircraft typhoon`.
 It has an independently configured twin-engine flight model, reheat above 85%
-throttle, articulated foreplanes/elevons/airbrake/gear/nozzles, Luftwaffe markings
+throttle, articulated foreplanes/elevons/airbrake/gear/nozzles, and the Austrian 7L-WO display scheme (or the donor's Luftwaffe 30+47 paint, chosen in the launcher's Livery list)
 and four LODs. Its model is by bohmerang (CC BY-NC-SA 4.0); the original
 Austrian 7L-WA model described in the M3.65 report is retired from the runtime. M3.6 originally introduced protocol v5; current client/server builds require v17. Rebuild both together. See the inspected Blender
 and native captures, measurements and approximations in

@@ -16,7 +16,7 @@ blender -b --factory-startup --disable-autoexec \
 ```
 
 The script writes the four GLBs and `lod_stats.json` here and an editable
-`output/Typhoon_Luftwaffe.blend`. It is deterministic and safe to repeat.
+`output/Typhoon_7LWO.blend`. It is deterministic and safe to repeat.
 
 ## What the import changes
 
@@ -32,11 +32,48 @@ The script writes the four GLBs and `lod_stats.json` here and an editable
 - Door hinges are fitted so each open door lands on the donor's own flush
   gear-up skin; residuals are 0.8 to 2.4 cm RMS.
 - Glass BSDF and transmissive HUD materials have no runtime equivalent and are
-  replaced by alpha-blended materials. The 4096 px base colour, normal and
-  metallic/roughness atlas is embedded unchanged in LOD0.
+  replaced by alpha-blended materials. The 4096 px normal and
+  metallic/roughness atlas is embedded unchanged in LOD0; the base colour is
+  repainted, as below.
 
 LOD triangles: **27,769 / 16,716 / 6,972 / 1,872**. Reduced levels are Blender
 collapse decimation of the same meshes and reuse LOD0 materials by name.
+
+## Livery
+
+The donor's Luftwaffe 30+47 markings are painted over with the Austrian Air
+Force 7L-WO display scheme: black wings and spine with white contour lines,
+red shapes along the fuselage, a red-white-red band behind the leading edges
+that turns up the fuselage side and runs forward to the canopy, eyes on the
+foreplanes, the arms on the spine and a tiger on the fin.
+
+`livery_paint.png` is that paint in the donor's UV layout, transparent where
+the airframe is not painted (nozzles, wells, cockpit, fittings). The import
+lays it over the donor's base colour and keeps the donor's panel lines. It is
+made by `scripts/typhoon_livery_trace.py` from two photographs the project
+owner supplied on 2026-10-12, one from above and one from the port quarter;
+the photographs are not in the repository.
+
+The photographs are read rather than copied, because at their size a contour
+line is two pixels wide. A camera is fitted to the photograph from above and
+every texel is carried through it, which says where the scheme is red, lined,
+grey or black. The paint is then laid down afresh: flat colours with clean
+edges, each contour line redrawn along its centre at one width, and the band,
+the `7L-WO` code and the roundels drawn from measurements. Only the eyes, the
+arms and the fin are taken from the photographs' own pixels. To paint it
+again (the second step needs numpy, Pillow, scipy and scikit-image):
+
+```sh
+blender -b --factory-startup --disable-autoexec \
+  --python scripts/typhoon_livery_trace.py -- --source /path/to/Eurofighter.blend --dump /tmp/typhoon
+python3 scripts/typhoon_livery_trace.py --dump /tmp/typhoon \
+  --top /path/above.jpg --rear /path/quarter.jpg --preview /tmp/typhoon
+```
+
+What the photographs do not show is filled in, not known: the starboard side
+of the fuselage and the starboard face of the fin mirror the port ones (with
+the code and the fin's lettering turned to read the right way), and the
+underside and lower flanks are left plain grey.
 
 ## Known approximations
 
@@ -46,4 +83,7 @@ collapse decimation of the same meshes and reuse LOD0 materials by name.
 - Retraction is a single 90 degree fold per leg. The stowed main legs also slide
   inboard because the wing is too thin for the folded side brace.
 - Nozzle petals open 4.3 degrees with reheat around the donor's inner ring.
-- Markings are the donor's Luftwaffe 30+47 scheme.
+- The fin's tiger and the foreplanes' eyes are as sharp as the photographs,
+  which is not very: about 200 pixels across the fin.
+- The arms on the spine are a red-white-red flag without the eagle, which the
+  photograph does not resolve.

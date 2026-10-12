@@ -205,6 +205,10 @@ class Renderer {
     std::vector<int> textureUpload;  // per glTF texture; -1 without an image
     std::vector<std::string> largest;
   };
+  // `lods` are the reduced levels that go with `path`: the type's own, or those
+  // of an alternate livery.
+  std::future<AircraftSource> prepareAircraft(const std::string& path, AircraftType type,
+                                              std::array<std::string_view, 3> lods) const;
   std::future<AircraftSource> prepareAircraft(const std::string& path, AircraftType type) const;
   bool finishAircraft(AircraftSource source);
   // Presents a plain status frame while assets are still being prepared.

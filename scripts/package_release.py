@@ -21,13 +21,21 @@ from launcher.manifest import platform_id, https_url, Release
 from launcher.game import Installation
 
 
+def aircraft_files(aircraft):
+    """Every model file an aircraft needs: its own and those of each alternate livery."""
+    files = [aircraft['model'], *aircraft['lods']]
+    for livery in aircraft.get('liveries', []):
+        files += [livery['model'], *livery['lods']]
+    return files
+
+
 def check_asset_approval(stage, approval_path):
     approval = read_json(approval_path)
     if approval.get('schema') != 1 or not isinstance(approval.get('assets'), dict):
         raise LauncherError('Invalid asset release approval')
     catalog = read_json(stage / 'launcher-catalog.json')
     for aircraft in catalog['aircraft']:
-        for name in [aircraft['model'], *aircraft['lods']]:
+        for name in aircraft_files(aircraft):
             packed = stage / (name + '.ofspack')
             if packed.is_file():
                 if (stage / name).exists():
@@ -60,7 +68,7 @@ def check_public_payload(stage):
             raise LauncherError(f'Private authoring/key file cannot be published: {path.name}')
     catalog = read_json(stage / 'launcher-catalog.json')
     registered = {name + '.ofspack' for aircraft in catalog['aircraft']
-                  for name in (aircraft['model'], *aircraft['lods'])}
+                  for name in aircraft_files(aircraft)}
     for path in stage.rglob('*.ofspack'):
         if path.relative_to(stage).as_posix() not in registered:
             raise LauncherError('Unregistered protected asset cannot be published')

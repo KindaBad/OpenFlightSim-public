@@ -24,6 +24,8 @@ LAN_VERSION = '0.5.0'
 MISSILE_RELOAD_VERSION = '0.5.6'
 # The first simulator version with the team game, the bomber and its loads.
 TEAMS_VERSION = '0.6.0'
+# The first simulator version that takes --livery for the Typhoon's original paint.
+LIVERY_VERSION = '0.6.7'
 
 
 @dataclass(frozen=True)

@@ -60,6 +60,21 @@ int main(int argc, char** argv) {
       firstLod = false;
       out << std::quoted(std::string(lod));
     }
+    out << "]"
+        << ",\"liveries\":[";
+    if (d.alternateLivery) {
+      const auto& livery = *d.alternateLivery;
+      out << "{\"id\":" << std::quoted(std::string(livery.key))
+          << ",\"name\":" << std::quoted(std::string(livery.name))
+          << ",\"model\":" << std::quoted(std::string(livery.modelAsset)) << ",\"lods\":[";
+      bool firstLivery = true;
+      for (const auto& lod : livery.lodAssets) {
+        if (lod.empty()) continue;
+        out << (firstLivery ? "" : ",") << std::quoted(std::string(lod));
+        firstLivery = false;
+      }
+      out << "]}";
+    }
     out << "]}";
   }
   out << "]}\n";
