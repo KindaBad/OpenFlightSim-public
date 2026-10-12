@@ -88,7 +88,7 @@ int main() {
     aim.sync(false, respawned);
     check(!aim.active, "mouse aim disengages");
 
-    // --- Other controls keep priority, axis by axis ---
+    // --- The pilot's stick suspends the instructor ---
     const MouseAimCommand command{.4, -.6, .2};
     Controls controls;
     applyMouseAim(controls, command);
@@ -98,15 +98,22 @@ int main() {
     controls = {};
     controls.aileron_stick = 1;
     applyMouseAim(controls, command);
-    check(controls.aileron_stick == 1 && controls.elevator_stick == .4 && controls.rudder_pedal == .2,
-          "a held roll key overrides roll only");
+    check(controls.aileron_stick == 1 && controls.elevator_stick == 0 && controls.rudder_pedal == 0 &&
+              controls.steering == 0,
+          "a held roll key suspends the instructor on every axis");
     controls = {};
     controls.elevator_stick = -1;
     controls.rudder_pedal = -1;
     applyMouseAim(controls, command);
     check(controls.elevator_stick == -1 && controls.rudder_pedal == -1 && controls.steering == -1 &&
+              controls.aileron_stick == 0,
+          "a held pitch key suspends the instructor on every axis");
+    controls = {};
+    controls.rudder_pedal = 1;
+    applyMouseAim(controls, command);
+    check(controls.rudder_pedal == 1 && controls.steering == 1 && controls.elevator_stick == .4 &&
               controls.aileron_stick == -.6,
-          "held pitch and rudder keys override pitch and rudder only");
+          "a held rudder key alone overrides yaw only");
 
     // --- Instructor, against every aircraft's real flight model ---
     for (const auto& definition : aircraftDefinitions()) {

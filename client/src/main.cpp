@@ -980,7 +980,7 @@ int main(int argc, char** argv) {
         else if (brakeHeld) controls.spoiler01 = airbrakeBefore;
         brakeHeld = braking;
       }
-      // The instructor takes only the axes the keys and the gamepad left neutral.
+      // The instructor flies only while the pilot's stick is neutral.
       if (mouseAim.active && conscious) applyMouseAim(controls, mouseAimCommand(simulation(), mouseAim.direction()));
       if (!conscious) controls.elevator_stick = controls.aileron_stick = controls.rudder_pedal = 0;
       if (soloEjected >= 0) {

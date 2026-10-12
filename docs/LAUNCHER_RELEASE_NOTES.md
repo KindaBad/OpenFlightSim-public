@@ -1,3 +1,11 @@
+OpenFlightSim 0.6.4 Launcher
+
+- Mouse aim now gets out of the way when you take the stick. Hold W, A, S or
+  D and the aircraft flies by hand, exactly as it does with mouse aim off;
+  let go and it turns back to the aim ring, which stays where you left it.
+  Before, a held key took over only its own axis and mouse aim kept flying
+  the others. Q and E still nudge the rudder without interrupting it.
+
 OpenFlightSim 0.6.3 Launcher
 
 - Public games: play with friends who are not on your Wi-Fi. On the

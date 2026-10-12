@@ -8,9 +8,10 @@
 // camera looks along the aim direction rather than along the airframe, so the
 // circle stays near the centre of the screen and the aircraft swings toward it.
 //
-// The instructor only fills control axes the pilot leaves neutral. Any keyboard
-// or gamepad deflection wins on its own axis, so manual rolls, pulls and rudder
-// work exactly as they do without mouse aim.
+// The pilot's stick wins outright. While W, A, S or D (or the gamepad stick) is
+// held the instructor lets go of every axis, so the aircraft flies exactly as it
+// does without mouse aim; the aim stays where it is and the instructor returns
+// to it on release. Rudder held by itself overrides yaw only.
 //
 // Header-only and free of window or renderer dependencies, so the instructor is
 // exercised against the real flight model by the headless tests.
@@ -192,11 +193,14 @@ inline MouseAimCommand mouseAimCommand(const Simulator& sim, const Vec3& aimDire
   return out;
 }
 
-// Applies the instructor to every axis the pilot left neutral.
+// Applies the instructor unless the pilot holds the stick. A held pitch or roll
+// input suspends it on every axis; a held rudder alone keeps yaw.
 inline void applyMouseAim(Controls& controls, const MouseAimCommand& command) {
-  if (controls.elevator_stick == 0) controls.elevator_stick = command.elevator;
-  if (controls.aileron_stick == 0) controls.aileron_stick = command.aileron;
-  if (controls.rudder_pedal == 0) controls.rudder_pedal = command.rudder;
+  if (controls.elevator_stick == 0 && controls.aileron_stick == 0) {
+    controls.elevator_stick = command.elevator;
+    controls.aileron_stick = command.aileron;
+    if (controls.rudder_pedal == 0) controls.rudder_pedal = command.rudder;
+  }
   controls.steering = controls.rudder_pedal;
 }
 

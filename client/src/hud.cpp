@@ -915,7 +915,7 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
     hints += frame.mouseAimEnabled ? "   X MOUSE AIM ON" : "   X MOUSE AIM";
     text(draw,{24,display.y-24},hints,kMuted,11);
     if (frame.mouseAim)
-      text(draw,{24,display.y-40},"MOUSE AIM   WASD/QE OVERRIDE   HOLD RIGHT MOUSE TO LOOK",kMuted,11);
+      text(draw,{24,display.y-40},"MOUSE AIM   HOLD WASD TO FLY BY HAND   HOLD RIGHT MOUSE TO LOOK",kMuted,11);
   }
   drawChat(draw, {chatAnchor.x, chatAnchor.y - (frame.mouseAim ? 14.f : 0.f)}, frame);
   if (settings.showStall && flight.stall_warn) centred(draw,{cx,cy-104},"STALL",kDanger,22);

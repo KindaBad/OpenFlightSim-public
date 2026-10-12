@@ -176,8 +176,9 @@ world, the pursuit and chase cameras look along it, and an instructor flies the 
 flight model until the nose (the small cross) reaches the ring: wings level
 with elevator and rudder for small corrections, banking into the turn and
 pulling for large ones, within the stall margin and g limit of the aircraft.
-It only fills axes left neutral, so W/S, A/D, Q/E and the gamepad sticks
-override pitch, roll and yaw individually while held. In the flight deck the
+Holding W, A, S or D (or the gamepad stick) suspends the instructor on every
+axis, so the aircraft flies by hand; the ring stays where it is and the
+instructor returns to it on release. Q/E alone override yaw only. In the flight deck the
 view stays fixed to the airframe and the ring is kept within sight of the
 nose. The pointer is released while the game is paused, F1 is open or the
 aircraft is destroyed. The setting and its sensitivity are saved in
