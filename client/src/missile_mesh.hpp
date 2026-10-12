@@ -16,7 +16,7 @@
 
 namespace ofs::client {
 
-enum class StorePart : std::uint8_t { Body, Seeker, Band, Nozzle, Count };
+enum class StorePart : std::uint8_t { Body, Seeker, Band, Nozzle, Metal, Throat, Count };
 
 struct StoreMesh {
   std::array<std::vector<SurfaceVertex>, std::size_t(StorePart::Count)> parts;
@@ -25,8 +25,9 @@ struct StoreMesh {
 namespace store_detail {
 
 // Surface of revolution about the X axis through (x, radius) stations.
+// `inward` turns the surface to face the axis: the inside of a nozzle.
 inline void lathe(std::vector<SurfaceVertex>& out, const std::vector<std::pair<double, double>>& profile,
-                  int sides) {
+                  int sides, bool inward = false) {
   const auto ring = [&](std::size_t i, int side) {
     const double angle = 2 * kPi * side / sides;
     return Vec3{profile[i].first, profile[i].second * std::cos(angle), profile[i].second * std::sin(angle)};
@@ -36,7 +37,7 @@ inline void lathe(std::vector<SurfaceVertex>& out, const std::vector<std::pair<d
     // Perpendicular to the profile slope, turned about the axis.
     const double along = profile[b].first - profile[a].first, out_ = profile[b].second - profile[a].second;
     const double angle = 2 * kPi * side / sides;
-    return Vec3{-out_, along * std::cos(angle), along * std::sin(angle)}.normalized() * (along < 0 ? -1. : 1.);
+    return Vec3{-out_, along * std::cos(angle), along * std::sin(angle)}.normalized() * ((along < 0) != inward ? -1. : 1.);
   };
   for (std::size_t i = 0; i + 1 < profile.size(); ++i)
     for (int side = 0; side < sides; ++side) {
@@ -219,49 +220,79 @@ inline void duct(std::vector<SurfaceVertex>& out, double roll, double radius, do
 }  // namespace store_detail
 
 // A missile's airframe. Body is the painted tube and its fins, Seeker the
-// dome or radome, Band the colour markings and Nozzle the dark fittings.
-// Each is drawn to its own type's layout: where its fins are, how many sets
-// it has and what its nose is, from published drawings and photographs, to
-// the published length and diameter. `detail` 1 is the mesh seen up close; 0
-// halves the facets for distant stores.
+// dome or radome, Band the colour markings, Nozzle the dark fittings, Metal
+// the bare steel (hangers, nozzle rim and jet vanes) and Throat the inside of
+// the motor, which glows while it burns. Each is drawn to its own
+// type's layout: where its fins are, how many sets it has and what its nose
+// is, from published drawings and photographs, to the published length and
+// diameter. `detail` 1 is the mesh seen up close; 0 is the bare shape, with
+// fewer facets, for distant stores.
 inline StoreMesh buildMissileMesh(weapons::MissileModel model, int detail) {
   using namespace store_detail;
   using weapons::MissileModel;
   const auto& d = weapons::missileDefinition(model);
   const bool infrared = d.type == weapons::WeaponType::Infrared;
   const double r = d.diameter * .5, nose = d.length * .5, tail = -d.length * .5;
-  const int sides = detail ? 18 : 8;
+  const int sides = detail ? 24 : 8, steps = detail ? 12 : 5;
   StoreMesh mesh;
   auto& body = mesh.parts[std::size_t(StorePart::Body)];
   auto& seeker = mesh.parts[std::size_t(StorePart::Seeker)];
   auto& band = mesh.parts[std::size_t(StorePart::Band)];
   auto& nozzle = mesh.parts[std::size_t(StorePart::Nozzle)];
-  const double bandRadius = r * 1.03;
+  auto& metal = mesh.parts[std::size_t(StorePart::Metal)];
+  auto& throat = mesh.parts[std::size_t(StorePart::Throat)];
+  const double bandRadius = r * 1.03, proud = r * .08;
   const auto ring = [&](double fore, double width) {
     lathe(band, {{fore, bandRadius}, {fore - width, bandRadius}}, sides);
   };
-  // A glass dome of `radius` at the nose and the body's taper out to full width behind it.
+  // A glass dome of `radius` at the nose, the steel collar it is set in and
+  // the body's taper out to full width behind it.
   const auto dome = [&](double radius, double taper) {
     std::vector<std::pair<double, double>> glass;
-    for (int i = 0; i <= 5; ++i) {
-      const double a = kPi * .5 * i / 5;
+    for (int i = 0; i <= steps; ++i) {
+      const double a = kPi * .5 * i / steps;
       glass.push_back({nose - radius + radius * std::cos(a), std::max(radius * std::sin(a), 1e-4)});
     }
     lathe(seeker, glass, sides);
-    lathe(body, {{nose - radius, radius}, {nose - radius - taper, r}}, sides);
+    const double collar = detail ? .035 : 0;
+    if (detail) lathe(metal, {{nose - radius, radius}, {nose - radius - collar, radius + (r - radius) * collar / taper}}, sides);
+    lathe(body, {{nose - radius - collar, radius + (r - radius) * collar / taper}, {nose - radius - taper, r}}, sides);
     return nose - radius - taper;
   };
-  // A pointed radome `length` long.
+  // A pointed radome `length` long: a tangent ogive, which meets the body
+  // without a corner.
   const auto radome = [&](double length) {
+    const double rho = (r * r + length * length) / (2 * r);
     std::vector<std::pair<double, double>> profile;
-    for (int i = 0; i <= 7; ++i) {
-      const double t = double(i) / 7;
-      profile.push_back({nose - length * t, std::max(r * std::sqrt(1 - (1 - t) * (1 - t)), 1e-4)});
+    for (int i = 0; i <= steps; ++i) {
+      const double x = length * i / steps;  // back from the tip
+      profile.push_back({nose - x, std::max(std::sqrt(rho * rho - (length - x) * (length - x)) + r - rho, 1e-4)});
     }
+    // The tip is a little blunted, as a real radome's is.
+    profile.front().second = r * .06;
+    disc(seeker, nose, r * .06, 1, sides);
     lathe(seeker, profile, sides);
     return nose - length;
   };
+  // What is only seen from close to. A joint between two sections of the body.
+  const auto joint = [&](double x) {
+    if (detail) lathe(nozzle, {{x + .005, r * 1.006}, {x - .005, r * 1.006}}, sides);
+  };
+  // The windows of the proximity fuze, round the body.
+  const auto fuze = [&](double fore, double length) {
+    if (!detail) return;
+    for (int i = 0; i < 4; ++i) fin(nozzle, kPi * .5 * i, r, proud + .002, fore - length, fore, fore - length, fore, r * .42);
+  };
+  // A hanger on top, by which the missile sits on its rail or is held to its ejector.
+  const auto hanger = [&](double x, double length) {
+    if (detail) block(metal, {x, 0, -r - .011}, {length * .5, r * .28, .016});
+  };
+  // A fairing along the body for the wiring that passes the motor.
+  const auto raceway = [&](double roll, double aft, double fore) {
+    if (detail) fin(body, roll, r, proud + .011, aft, fore, aft + .03, fore - .05, r * .34);
+  };
   double boatTail = .86;
+  bool vanes = false;
   switch (model) {
     case MissileModel::IrisT: {
       // No canards: four long shallow strakes down the middle of the body and
@@ -272,7 +303,13 @@ inline StoreMesh buildMissileMesh(weapons::MissileModel model, int detail) {
       cruciform(body, r, .155, tail + .03, tail + .36, tail + .03, tail + .17, .014);
       ring(nose - .55, .06);
       ring(-.25, .06);
+      joint(shoulder - .12);
+      joint(.60);
+      joint(tail + .44);
+      fuze(shoulder - .16, .09);
+      for (const double x : {.72, -.10, -.92}) hanger(x, .09);
       boatTail = .9;
+      vanes = true;
       break;
     }
     case MissileModel::R74M2: {
@@ -285,7 +322,14 @@ inline StoreMesh buildMissileMesh(weapons::MissileModel model, int detail) {
       cruciform(body, r, .19, tail + .04, tail + .60, tail + .04, tail + .30, .016);
       ring(shoulder - .50, .05);
       ring(-.30, .05);
+      joint(shoulder - .46);
+      joint(.10);
+      joint(tail + .66);
+      fuze(shoulder - .58, .10);
+      for (const double x : {.55, -.20, -.95}) hanger(x, .10);
+      raceway(kPi * .5, tail + .66, .06);
       boatTail = .88;
+      vanes = true;
       break;
     }
     case MissileModel::PL5EII: {
@@ -301,13 +345,18 @@ inline StoreMesh buildMissileMesh(weapons::MissileModel model, int detail) {
         fin(nozzle, kPi * .25 + kPi * .5 * i, r + .225, .022, tail + .03, tail + .12, tail + .03, tail + .12, .05);
       ring(shoulder - .52, .06);
       ring(-.20, .06);
+      joint(shoulder - .48);
+      joint(.34);
+      joint(tail + .62);
+      fuze(shoulder - .62, .10);
+      for (const double x : {.60, -.15, -.90}) hanger(x, .08);
       boatTail = .9;
       break;
     }
     case MissileModel::Meteor: {
       // No wings at all: two intake ducts along the lower quarters of the
       // body feeding the ramjet, and four fins at the tail.
-      const double shoulder = radome(.60);
+      const double shoulder = radome(.66);
       lathe(body, {{shoulder, r}, {tail + .10, r}, {tail, r * .9}}, sides);
       for (const double roll : {kPi * .25, kPi * .75}) {
         duct(body, roll, r, .075, .11, tail + .52, .12, .16);
@@ -316,29 +365,45 @@ inline StoreMesh buildMissileMesh(weapons::MissileModel model, int detail) {
       }
       cruciform(body, r, .20, tail + .05, tail + .46, tail + .05, tail + .24, .018);
       ring(shoulder - .28, .08);
+      joint(shoulder - .02);
+      joint(shoulder - .62);
+      joint(.14);
+      fuze(shoulder - .40, .12);
+      for (const double x : {.52, -.60}) hanger(x, .10);
       boatTail = .9;
       break;
     }
     case MissileModel::R77M: {
       // Long thin strakes down the body and plain cropped fins at the tail, in
       // place of the R-77's lattice fins, so that it fits the Su-57's bays.
-      const double shoulder = radome(.72);
+      const double shoulder = radome(.78);
       lathe(body, {{shoulder, r}, {tail + .12, r}, {tail, r * .86}}, sides);
       cruciform(body, r, .07, -.95, .40, -.95, .10, .014);
       cruciform(body, r, .19, tail + .05, tail + .42, tail + .05, tail + .22, .018);
       ring(shoulder - .30, .07);
       ring(-1.15, .07);
+      joint(shoulder - .02);
+      joint(shoulder - .56);
+      joint(tail + .50);
+      fuze(shoulder - .42, .12);
+      for (const double x : {.62, -.70}) hanger(x, .10);
       boatTail = .86;
       break;
     }
     case MissileModel::SD10A: {
       // Four cropped delta wings at the middle and four fins at the tail.
-      const double shoulder = radome(.66);
+      const double shoulder = radome(.72);
       lathe(body, {{shoulder, r}, {tail + .12, r}, {tail, r * .84}}, sides);
       cruciform(body, r, .225, -.38, .30, -.36, -.14, .018);
       cruciform(body, r, .235, tail + .05, tail + .50, tail + .05, tail + .28, .018);
       ring(shoulder - .30, .09);
       ring(-.62, .08);
+      joint(shoulder - .02);
+      joint(shoulder - .60);
+      joint(tail + .58);
+      fuze(shoulder - .44, .12);
+      for (const double x : {.70, -.55}) hanger(x, .10);
+      raceway(kPi * .5, tail + .58, -.42);
       boatTail = .84;
       break;
     }
@@ -363,10 +428,16 @@ inline StoreMesh buildMissileMesh(weapons::MissileModel model, int detail) {
       }
       break;
   }
-  // Recessed motor nozzle: a dark throat inside the boat-tail.
+  // The motor's nozzle: the rim of the boat-tail, a steel cone inside it down
+  // to the throat, and the dark of the motor beyond.
   const double exit = r * boatTail;
-  lathe(nozzle, {{tail, exit}, {tail + .07, exit * .45}}, sides);
-  disc(nozzle, tail + .07, exit * .45, -1, sides);
+  lathe(metal, {{tail, exit}, {tail + .012, exit * .86}}, sides, true);
+  lathe(throat, {{tail + .012, exit * .86}, {tail + .10, exit * .40}}, sides, true);
+  disc(throat, tail + .10, exit * .40, -1, sides);
+  // Jet vanes standing in the exhaust, which turn it.
+  if (vanes && detail)
+    for (int i = 0; i < 4; ++i)
+      fin(metal, kPi * .5 * i, exit * .16, exit * .66, tail - .03, tail + .03, tail - .02, tail + .03, .008);
   return mesh;
 }
 

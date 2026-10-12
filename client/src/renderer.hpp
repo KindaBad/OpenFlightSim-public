@@ -487,9 +487,9 @@ class Renderer {
     std::uint32_t count{};
   };
   // One per weapon type after None, near and far.
-  std::array<std::array<std::array<PartBuffer, 4>, 2>, 5> storeMeshes_{};
+  std::array<std::array<std::array<PartBuffer, 6>, 2>, 5> storeMeshes_{};
   // One per missile model, near and far.
-  std::array<std::array<std::array<PartBuffer, 4>, 2>, std::size_t(weapons::MissileModel::Count)> missileMeshes_{};
+  std::array<std::array<std::array<PartBuffer, 6>, 2>, std::size_t(weapons::MissileModel::Count)> missileMeshes_{};
   PartBuffer pylonMesh_{};
   // The cloud of each nuclear burst, marched as a volume over the scene.
   void drawNuclearClouds();

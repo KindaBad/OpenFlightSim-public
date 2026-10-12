@@ -269,7 +269,9 @@ are unarmed.
 The heat seeker (2) needs no radar. Its field of view is a ring at the nose; it
 takes the hottest target inside the ring, follows it off the nose within its
 gimbal limits and is ready to fire after about half a second, when the ring and
-the diamond on the target turn red. L, T or Y break the lock and the seeker moves
+the diamond on the target turn red. With a radar lock held it is shown the
+locked target instead, wherever that is within the seeker's reach, so an
+IRIS-T or R-74M2 can be fired far off the nose. L, T or Y break the lock and the seeker moves
 on to another target. The radar missile (3) needs a radar lock: L locks the
 contact nearest the nose, T/Y step the lock through the other contacts and L
 again releases it. A lock box closes on the target and turns red when the shot is

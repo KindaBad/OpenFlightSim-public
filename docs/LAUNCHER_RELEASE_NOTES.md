@@ -1,3 +1,23 @@
+OpenFlightSim 0.6.8 Launcher
+
+- Missiles fly and hit better. They now steer for where the target is going
+  and allow for its turn, so a hard break close in no longer shakes one off
+  as easily; flares, chaff and running a missile out of energy still work.
+- The IRIS-T and R-74M2 turn their exhaust as well as their fins and can be
+  fired at a target far off the nose: lock it on radar (L) with the heat
+  seeker selected and the seeker is shown that target wherever it is, up to
+  90 degrees round for the IRIS-T and 75 for the R-74M2. Before, a heat
+  seeker fired off the nose simply lost its target.
+- The Meteor's ramjet is now throttled to hold about Mach 3.6 for the whole
+  flight. It reaches about a quarter further and is much harder to outrun.
+- Radar missiles fired from long range climb on the way and dive on the
+  target, which carries them further.
+- The missiles are drawn in more detail: smooth pointed radomes, section
+  joints, fuze windows, hangers, steel nozzles and the jet vanes of the two
+  that have them. The Meteor's intakes no longer glow with its motor.
+- How missiles fly is decided by whoever hosts the game, so a game hosted on
+  0.6.8 has the new missiles.
+
 OpenFlightSim 0.6.7 Launcher
 
 - The Typhoon wears the Austrian Air Force 7L-WO display scheme: black wings and

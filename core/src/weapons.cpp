@@ -81,6 +81,7 @@ const MissileDefinition &missileDefinition(MissileModel model) {
       d.damage = 230;
       d.lifetime = 75;
       d.minimumRange = 600;
+      d.loft = .25;
     } else {
       d.seeker = {24 * kDeg2Rad, 60 * kDeg2Rad, 120 * kDeg2Rad, 8000, .12, .5, 0};
     }
@@ -94,22 +95,23 @@ const MissileDefinition &missileDefinition(MissileModel model) {
       // IRIS-T: imaging seeker that looks 90 degrees off the nose, thrust
       // vectoring, 60 g. An 11.4 kg warhead. About 25 km.
       auto &d = m[std::size_t(MissileModel::IrisT)] =
-          make(WeaponType::Infrared, MissileModel::IrisT, "IRIS-T", 2.936, .127, 87.4, {22, 16000, 2.0, 4000, 5.0});
+          make(WeaponType::Infrared, MissileModel::IrisT, "IRIS-T", 2.936, .127, 87.4, {26, 17500, 2.4, 4000, 4.75});
       d.seeker.gimbal = 90 * kDeg2Rad; d.seeker.rate = 180 * kDeg2Rad; d.seeker.signalRange = 9500;
       d.seeker.memoryTime = .8;
       d.maxG = 60; d.maxAlpha = 40 * kDeg2Rad; d.actuatorRate = 260 * kDeg2Rad; d.navigation = 4;
+      d.thrustVector = 1; d.anticipation = 1;
       d.damage = 185; d.minimumRange = 250;
     }
     {
-      // Meteor: a boost motor, then a throttled ducted ramjet that burns for
-      // most of the flight, so it still has thrust where a rocket is coasting.
-      // The air it breathes is not carried, which is why so little propellant
-      // gives so much impulse. Over 100 km.
+      // Meteor: a boost motor, then a ducted ramjet throttled to hold its
+      // speed, which burns for most of the flight, so it still has thrust
+      // where a rocket is coasting. The air it breathes is not carried, which
+      // is why so little propellant gives so much impulse. Over 100 km.
       auto &d = m[std::size_t(MissileModel::Meteor)] =
-          make(WeaponType::ActiveRadar, MissileModel::Meteor, "Meteor", 3.65, .178, 190, {40, 22000, 2.5, 5500, 28, .3});
+          make(WeaponType::ActiveRadar, MissileModel::Meteor, "Meteor", 3.65, .178, 190, {50, 30000, 3.0, 8000, 24, .3, 3.6});
       d.aero.cd0 = .46;   // the two intakes
       d.seeker.gimbal = 50 * kDeg2Rad; d.seeker.signalRange = 19000; d.seeker.activationRange = 13000;
-      d.maxG = 36; d.damage = 235;
+      d.maxG = 36; d.damage = 235; d.anticipation = 1;
     }
     {
       // R-74M2 (izdeliye 760): the R-73 family's seeker to 75 degrees off the
@@ -119,6 +121,7 @@ const MissileDefinition &missileDefinition(MissileModel model) {
           make(WeaponType::Infrared, MissileModel::R74M2, "R-74M2", 2.9, .17, 106, {34, 21000, 2.6, 5500, 6.0, .25});
       d.seeker.gimbal = 75 * kDeg2Rad; d.seeker.rate = 150 * kDeg2Rad; d.seeker.signalRange = 10500;
       d.maxG = 50; d.maxAlpha = 35 * kDeg2Rad; d.actuatorRate = 220 * kDeg2Rad;
+      d.thrustVector = .8; d.anticipation = 1;
       d.damage = 165; d.minimumRange = 300;
     }
     {
@@ -128,7 +131,7 @@ const MissileDefinition &missileDefinition(MissileModel model) {
       auto &d = m[std::size_t(MissileModel::R77M)] =
           make(WeaponType::ActiveRadar, MissileModel::R77M, "R-77M", 3.71, .2, 190, {77, 24000, 3.2, 9500, 11, .3});
       d.seeker.gimbal = 55 * kDeg2Rad; d.seeker.signalRange = 21000; d.seeker.activationRange = 14000;
-      d.maxG = 35; d.damage = 235;
+      d.maxG = 35; d.damage = 235; d.anticipation = 1;
     }
     {
       // PL-5EII: a Sidewinder-pattern missile with canards and rollerons, 40 g,
@@ -143,7 +146,7 @@ const MissileDefinition &missileDefinition(MissileModel model) {
       // SD-10A (the export PL-12): 38 g, a 24 kg warhead. 70 km.
       auto &d = m[std::size_t(MissileModel::SD10A)] =
           make(WeaponType::ActiveRadar, MissileModel::SD10A, "SD-10A", 3.934, .203, 199, {60, 24000, 3.5, 7000, 8, .3});
-      d.maxG = 38; d.damage = 240;
+      d.maxG = 38; d.damage = 240; d.anticipation = 1;
     }
     return m;
   }();
@@ -398,6 +401,12 @@ MissileState launchState(const MissileDefinition &d, const State &aircraft,
                s.mass * d.length * d.length / 12,
                s.mass * d.length * d.length / 12};
   s.seeker.boresight = aircraft.att.rotate({1, 0, 0});
+  // The seeker leaves the rail looking where it was told its target is, if it
+  // can look that far round: a lock held off the nose is not thrown away.
+  if (const Vec3 line = target.position - s.position;
+      target.valid && line.norm2() > 1 &&
+      angle(s.seeker.boresight, line) <= d.seeker.gimbal)
+    s.seeker.boresight = line.normalized();
   s.midcourse = target;
   s.seeker.phase = d.type == WeaponType::ActiveRadar ? SeekerPhase::Midcourse
                                                      : SeekerPhase::Searching;
@@ -622,6 +631,24 @@ void advanceMissile(const MissileDefinition &d, MissileState &s,
           s.estimateAge < 12)
         measurement = s.midcourse;
     }
+    // The target's acceleration, from how its measured velocity changes and
+    // smoothed over a quarter of a second. What is measured arrives in steps
+    // (a track from the launch aircraft several times a second), so each
+    // change is taken over the time since the last one; a seeker that goes
+    // over to a decoy sees the velocity jump once, which then counts for little.
+    s.targetInterval += h;
+    if (!measurement.valid || !s.targetMeasured) {
+      s.targetAcceleration = {};
+      s.targetVelocity = measurement.velocity;
+      s.targetInterval = 0;
+    } else if ((measurement.velocity - s.targetVelocity).norm2() > 1e-12) {
+      const auto seen = limited((measurement.velocity - s.targetVelocity) / s.targetInterval, 12 * kG0);
+      s.targetAcceleration += (seen - s.targetAcceleration) * std::min(1., s.targetInterval / .25);
+      s.targetVelocity = measurement.velocity;
+      s.targetInterval = 0;
+    } else if (s.targetInterval > .3)
+      s.targetAcceleration -= s.targetAcceleration * std::min(1., h / .25);
+    s.targetMeasured = measurement.valid;
     const auto air = isaAtAltitude(-s.position.z, weather.temp_offset_c);
     const auto airVelocity = s.velocity - weather.wind_ned;
     const double speed = airVelocity.norm(), q = .5 * air.rho * speed * speed,
@@ -629,41 +656,75 @@ void advanceMissile(const MissileDefinition &d, MissileState &s,
     const auto body = s.attitude.inverseRotate(airVelocity);
     const double alpha = std::atan2(body.z, std::max(1., body.x)),
                  beta = std::atan2(body.y, std::hypot(body.x, body.z));
+    const bool burning = s.propellant > 0 && s.age >= d.motor.ignitionDelay;
+    const bool ramjet = d.motor.cruiseMach > 0 && burning &&
+                        s.age >= d.motor.ignitionDelay + d.motor.boostTime;
+    double thrust = burning ? motorThrust(d.motor, s.age) : 0;
+    if (ramjet) {
+      // Throttled to hold the cruise speed, never below a third, and starved
+      // in thin air.
+      const double throttle = clamp(.65 + 4 * (d.motor.cruiseMach - mach), .3, 1);
+      thrust = d.motor.sustainThrust * throttle * clamp(air.rho / .5, .35, 1);
+    }
     Vec3 command{};
     if (measurement.valid) {
-      const auto r = measurement.position - s.position,
-                 rv = measurement.velocity - s.velocity;
+      auto r = measurement.position - s.position;
+      const auto rv = measurement.velocity - s.velocity;
+      const double range = r.norm();
+      if (d.loft > 0 && s.seeker.phase == SeekerPhase::Midcourse &&
+          range > d.loftRange)
+        r.z -= d.loft * (range - d.loftRange);
       command =
           proportionalNavigation(r, rv, s.velocity, d.navigation, d.maxG * kG0);
-      // Bounded initial heading capture through the same autopilot. PN alone
-      // gives zero demand for a stationary target from an off-axis launch.
+      // The part of the target's turn that is across the line of sight.
+      if (d.anticipation > 0 && range > 1) {
+        const auto line = r / range;
+        command += (s.targetAcceleration - line * s.targetAcceleration.dot(line)) *
+                   (d.anticipation * d.navigation * .5);
+      }
+      // Bounded initial heading capture through the same autopilot, towards
+      // where the target will be when the missile gets there. PN alone gives
+      // zero demand for a stationary target from an off-axis launch.
       const auto direction = s.velocity.normalized();
-      command += limited((r.normalized() - direction) * speed * .6, 8 * kG0);
+      const double closing = range > 1 ? -r.dot(rv) / range : 0;
+      const double toGo =
+          std::min(range / std::max({closing, speed * .5, 100.}), 20.);
+      const auto lead = r + measurement.velocity * toGo;
+      // Hard while the motor can pay for it, gently once it is coasting.
+      command += limited((lead.normalized() - direction) * speed * .6,
+                         (thrust > 0 ? d.maxG * .5 : 8) * kG0);
       command.z -= kG0;
       command = limited(command, d.maxG * kG0);
     }
     const auto cb = s.attitude.inverseRotate(command);
     const double effectiveness = std::max(q * d.aero.area, 1.);
+    // A vectored motor holds the body far off the airflow, and the thrust
+    // itself then does the turning.
+    const bool vectored = d.thrustVector > 0 && thrust > 0;
+    const double alphaLimit = vectored ? std::max(d.maxAlpha, d.vectoredAlpha) : d.maxAlpha;
+    const double turning = effectiveness * d.aero.normalSlope + thrust;
     const double desiredAlpha =
-        clamp(-cb.z * s.mass / (effectiveness * d.aero.normalSlope),
-              -d.maxAlpha, d.maxAlpha);
+        clamp(-cb.z * s.mass / turning, -alphaLimit, alphaLimit);
     const double desiredBeta =
-        clamp(-cb.y * s.mass / (effectiveness * d.aero.normalSlope),
-              -d.maxAlpha, d.maxAlpha);
+        clamp(-cb.y * s.mass / turning, -alphaLimit, alphaLimit);
     // Static stability + attitude-rate feedback; control creates moments, then
     // body incidence creates lift. No kinematic turning or velocity rotation.
+    const double momentScale = q * d.aero.area * d.length;
+    // The jet's share of the control moment, as a coefficient like the fins'.
+    const double jet = vectored ? thrust * .5 * d.thrustVector / std::max(q * d.aero.area, 1.) : 0;
+    const double authority = d.aero.controlMoment + jet;
     const double pitch = clamp((d.aero.stability * desiredAlpha +
                                 4 * (desiredAlpha - alpha) - 2 * s.omega.y) /
-                                   d.aero.controlMoment,
+                                   authority,
                                -d.controlLimit, d.controlLimit);
     const double yaw = clamp((-d.aero.stability * desiredBeta -
                               4 * (desiredBeta - beta) - 2 * s.omega.z) /
-                                 d.aero.controlMoment,
+                                 authority,
                              -d.controlLimit, d.controlLimit);
     s.pitchControl = approach(s.pitchControl, pitch, d.actuatorRate * h);
     s.yawControl = approach(s.yawControl, yaw, d.actuatorRate * h);
     const double degradation =
-        1 / (1 + std::pow(std::hypot(alpha, beta) / d.maxAlpha, 4));
+        1 / (1 + std::pow(std::hypot(alpha, beta) / alphaLimit, 4));
     const double cnz = -d.aero.normalSlope * std::sin(alpha) * std::cos(alpha) +
                        d.aero.controlLift * s.pitchControl * degradation;
     const double cny = -d.aero.normalSlope * std::sin(beta) * std::cos(beta) -
@@ -671,7 +732,6 @@ void advanceMissile(const MissileDefinition &d, MissileState &s,
     Vec3 lateral =
         limited(Vec3{0, cny, cnz} * q * d.aero.area, d.maxG * kG0 * s.mass);
     const double cd = dragCoefficient(d.aero, mach, std::hypot(cnz, cny));
-    const double thrust = s.propellant > 0 ? motorThrust(d.motor, s.age) : 0;
     const double impulse = d.motor.boostThrust * d.motor.boostTime +
                            d.motor.sustainThrust * d.motor.sustainTime;
     const double burn =
@@ -692,12 +752,11 @@ void advanceMissile(const MissileDefinition &d, MissileState &s,
     s.distance += delta.norm();
     const double damping =
         d.aero.damping * d.length / (2 * std::max(speed, 1.));
-    const double momentScale = q * d.aero.area * d.length;
     const Vec3 moment =
         Vec3{0,
-             d.aero.controlMoment * s.pitchControl * degradation -
+             (d.aero.controlMoment * degradation + jet) * s.pitchControl -
                  d.aero.stability * std::sin(alpha),
-             d.aero.controlMoment * s.yawControl * degradation +
+             (d.aero.controlMoment * degradation + jet) * s.yawControl +
                  d.aero.stability * std::sin(beta)} *
         momentScale;
     const InertiaTensor tensor{s.inertia.x, s.inertia.y, s.inertia.z};

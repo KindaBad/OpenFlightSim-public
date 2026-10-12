@@ -37,11 +37,50 @@ weapons' flight, guidance and seeker models and differ only in parameters.
 - Motor thrust, burn times and propellant, seeker ranges, warhead damage:
   `ESTIMATE`, chosen so the six rank as their published ranges do. The Meteor's
   ramjet is a long, low sustain stage whose propellant is small for its
-  impulse because the air it burns is not carried; it is not throttled here.
-  The R-77M's two pulses are a boost and one long second burn.
+  impulse because the air it burns is not carried; since 0.6.8 it is
+  throttled. The R-77M's two pulses are a boost and one long second burn.
 - Shapes are drawn from public photographs to the lengths and diameters above.
 
 None of this is a performance claim about the real weapons.
+
+## Flight and guidance since 0.6.8
+
+All of the following are `CALIBRATED_APPROXIMATION`: mechanisms the real
+missiles are published to have, with coefficients set against this
+simulator's own scenarios and not against any flight data.
+
+- **Thrust vectoring** (IRIS-T 1.0, R-74M2 0.8, the rest none). While the
+  motor burns the jet adds `thrust × 0.5 × thrustVector` per radian of fin to
+  the control moment, the autopilot may hold the body up to 60 degrees off the
+  airflow in place of the fin-only limit, and it counts the thrust's own
+  sideways part when choosing the incidence. Nothing is turned kinematically:
+  the missile turns because its thrust and lift point where the body does.
+- **Heading capture** aims at where the target will be after the time to
+  close, not at where it is, and is bounded at half the load limit while the
+  motor burns and 8 g afterwards (it was 8 g throughout).
+- **Launch cue.** The seeker leaves the rail looking along the line to the
+  target it was launched at, if that is inside its gimbal limit, in place of
+  along the nose. In the game a heat seeker is also shown the radar's locked
+  target before launch, inside the same limit.
+- **Turn anticipation** (every named missile but the PL-5EII). The target's
+  acceleration is estimated from how its measured velocity changes, over the
+  interval between changes, limited to 12 g and smoothed over 0.25 s; the
+  part of it across the line of sight is added to the proportional-navigation
+  demand times half the navigation constant. This is the published
+  augmented form of the law.
+- **Lofting** (radar missiles, 0.25 beyond 12 km). A missile still flying on
+  its launch aircraft's guidance aims above its target by a quarter of the
+  range in excess of 12 km.
+- **Ramjet** (Meteor, cruise Mach 3.6). After the boost the sustain thrust is
+  `sustainThrust × clamp(0.65 + 4 (cruise − Mach), 0.3, 1) × clamp(ρ/0.5,
+  0.35, 1)`, and propellant is used in proportion to thrust, so the burn
+  lasts until the propellant is gone and not for a set time. Its motor is now
+  50 kg, 30 kN for 3 s and 8 kN nominal; the IRIS-T's is 26 kg, 17.5 kN for
+  2.4 s and 4 kN for 4.75 s (241 s of specific impulse), since its earlier
+  2 s boost ended before a hard turn off the nose was finished.
+
+The two development weapons the ground defences fire share the heading
+capture and launch cue; they have no vectoring, lofting or anticipation.
 
 ## Definitions
 
@@ -80,7 +119,7 @@ None of this is a performance claim about the real weapons.
 | Measurement coast | 0.5 / 0.7 | s | ESTIMATE | Inertial estimate after missed measurement | low |
 | Active seeker activation | n/a / 12000 | m estimate | ESTIMATE | Trigger uses predicted target range | low |
 | Navigation constant | 3.5 / 3.5 | dimensionless | ESTIMATE | Public PN law with bounded development gain | medium for theory, low for weapon |
-| Initial heading capture | 0.6, capped at 8 | 1/s, g | CALIBRATED_APPROXIMATION | Lateral heading-error acceleration through autopilot | low |
+| Initial heading capture | 0.6, capped at half the load limit under power, 8 after | 1/s, g | CALIBRATED_APPROXIMATION | Lateral acceleration towards the predicted meeting point, through the autopilot | low |
 | Maximum commanded/structural load | 35 / 30 | g | ESTIMATE | Bounds force demand and actual normal-force magnitude | low |
 | Maximum requested incidence | 25 / 25 | deg | ESTIMATE | Autopilot limit; actual attitude emerges from motion | low |
 | Fin travel | 25 / 25 | deg | ESTIMATE | Actuator stops | low |

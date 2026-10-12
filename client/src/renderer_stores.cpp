@@ -83,6 +83,9 @@ Material storeMaterial(weapons::WeaponType type, weapons::MissileModel model, St
       else if (infrared || model == MissileModel::Meteor) set(.72f, .50f, .04f, 0, .6f);
       else set(.38f, .22f, .10f, 0, .6f);
       break;
+    case StorePart::Metal:
+      set(.46f, .46f, .45f, .85f, .38f);
+      break;
     default:
       set(.035f, .033f, .032f, .6f, .7f);
       break;
@@ -145,6 +148,7 @@ std::array<float, 8> measurePylonHeights(const GpuMesh& mesh, AircraftType type)
 }
 
 void Renderer::createStoreMeshes() {
+  static_assert(std::tuple_size_v<decltype(missileMeshes_)::value_type::value_type> == std::size_t(StorePart::Count));
   const auto upload = [&](const std::vector<SurfaceVertex>& data) {
     PartBuffer buffer;
     if (data.empty()) return buffer;
@@ -257,7 +261,7 @@ void Renderer::drawStores(const CombatVisuals& combat, const Camera& camera, boo
     for (std::size_t part = 0; part < parts.size(); ++part) {
       if (distance > kTrimRange && part > std::size_t(StorePart::Seeker)) continue;
       Material material = storeMaterial(store.type, store.model, StorePart(part));
-      if (store.burning && StorePart(part) == StorePart::Nozzle) {
+      if (store.burning && StorePart(part) == StorePart::Throat) {
         // White-hot inside the throat while the motor burns.
         material.emissive[0] = 9; material.emissive[1] = 5.5f; material.emissive[2] = 2;
       }

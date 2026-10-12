@@ -420,6 +420,47 @@ void acquisition() {
             loadouts[0].mounted == 0b111111 && loadouts[1].entity.id == a &&
             loadouts[1].mounted == 0b111110,
         "nearby stores projected nearest first");
+  {
+    // The radar's lock shows the seeker a target it could not find by itself.
+    World cued;
+    const auto shooter = cued.join(AircraftType::Typhoon),
+               wide = cued.join(AircraftType::Su57);
+    auto &q = fixture(cued, shooter);
+    const auto &qw = q.weapons;
+    const auto set = [&] {
+      auto s = launchAircraft();
+      q.sim.setState(s);
+      s.pos_ned = {2000, 1400, -3000}; // 35 degrees off the nose
+      fixture(cued, wide).sim.setState(s);
+      cued.step();
+    };
+    for (unsigned i = 0; i < 300; ++i)
+      set();
+    check(!qw.acquisitionTarget.id && qw.radar.tracks().size() == 1,
+          "a seeker looking along the nose misses a target well off it");
+    check(cued.enqueueWeapon(shooter, {1, cued.tick(), q.life.generation,
+                                       WeaponActionKind::Lock, 0}),
+          "lock admitted");
+    for (unsigned i = 0; i < 200 && !qw.seekerReady; ++i)
+      set();
+    check(qw.radar.locked.id == wide && qw.acquisitionTarget.id == wide &&
+              qw.seekerReady,
+          "the radar's lock cues the heat seeker off the nose");
+    check(cued.enqueueWeapon(shooter, {2, cued.tick(), q.life.generation,
+                                       WeaponActionKind::Launch, 0}),
+          "launch admitted");
+    set();
+    check(cued.missiles().missiles().size() == 1 &&
+              cued.missiles().missiles()[0].target.id == wide &&
+              cued.missiles().missiles()[0].type == WeaponType::Infrared,
+          "the cued seeker launches at the locked target");
+    for (unsigned i = 0; i < 30; ++i)
+      set();
+    check(cued.missiles().missiles().size() == 1 &&
+              cued.missiles().missiles()[0].state.seeker.phase ==
+                  SeekerPhase::Tracking,
+          "a lock held off the nose survives the launch");
+  }
   auto &motor = missileDefinition(WeaponType::ActiveRadar);
   auto s = launchState(motor, launchAircraft(), {}, {});
   advanceMissile(motor, s, nullptr, nullptr, {}, tickSeconds);
@@ -1312,6 +1353,69 @@ void models() {
   check(reaches(meteor, 70000) && !reaches(sd10, 70000) && reaches(r77, 62500) && !reaches(pl5, 9000) &&
             reaches(iris, 9000),
         "ranges rank as published");
+  // Thrust vectoring: a shot at a target well off the nose, crossing. The
+  // closest the missile comes.
+  const auto offNose = [](const MissileDefinition &d, double degrees) {
+    const State aircraft = launchAircraft(4000);
+    const double off = degrees * kDeg2Rad;
+    Vec3 position{2500 * std::cos(off), 2500 * std::sin(off), -4000};
+    const Vec3 velocity{-250 * std::sin(off), 250 * std::cos(off), 0};
+    auto s = launchState(d, aircraft, {0, 0, 1}, {position, velocity, true});
+    double nearest = 1e9;
+    for (unsigned i = 0; i < 20 * 120; ++i) {
+      position += velocity * tickSeconds;
+      auto target = targetAt(position, velocity);
+      target.attitude = quatFromEuler(0, 0, off + kPi / 2);
+      target.afterburner = 1;
+      advanceMissile(d, s, &target, nullptr, {}, tickSeconds);
+      nearest = std::min(nearest, (position - s.position).norm());
+    }
+    return nearest;
+  };
+  check(offNose(iris, 60) < iris.fuseRadius && offNose(r74, 60) < r74.fuseRadius && offNose(pl5, 60) > 500,
+        "a vectored missile turns onto a target its seeker was shown far off the nose");
+  check(iris.thrustVector > 0 && r74.thrustVector > 0 && !pl5.thrustVector && !meteor.thrustVector,
+        "only the two modern heat seekers vector their thrust");
+  {
+    // The ramjet is still pushing when a rocket has long burnt out, and holds
+    // its speed; a long shot is lofted.
+    const State aircraft = launchAircraft(8000);
+    const Measurement far{{60000, 0, -8000}, {-260, 0, 0}, true};
+    auto ramjet = launchState(meteor, aircraft, {0, 0, 1}, far), rocket = launchState(r77, aircraft, {0, 0, 1}, far);
+    double top = 0;
+    for (unsigned i = 0; i < 30 * 120; ++i) {
+      advanceMissile(meteor, ramjet, nullptr, &far, {}, tickSeconds);
+      advanceMissile(r77, rocket, nullptr, &far, {}, tickSeconds);
+      top = std::max(top, rocket.telemetry.altitude);
+    }
+    check(ramjet.motor == MotorPhase::Sustain && ramjet.telemetry.thrust > 1000 &&
+              ramjet.telemetry.thrust < meteor.motor.sustainThrust && ramjet.telemetry.mach > 3 &&
+              ramjet.telemetry.mach < meteor.motor.cruiseMach + .3,
+          "the ramjet is throttled to hold its speed");
+    check(rocket.motor == MotorPhase::Burnout && rocket.telemetry.mach < ramjet.telemetry.mach,
+          "a rocket is coasting by then");
+    check(top > 8500 && r77.loft > 0 && !iris.loft, "a long radar shot climbs before it comes down");
+  }
+  {
+    // Guidance that allows for the target's turn learns the turn from what it
+    // is shown, and forgets it when it is shown nothing.
+    const State aircraft = launchAircraft(5000);
+    Vec3 position{6000, 0, -5000}, velocity{0, 250, 0};
+    auto s = launchState(r77, aircraft, {0, 0, 1}, {position, velocity, true});
+    const double turn = 7 * kG0 / 250;
+    for (unsigned i = 0; i < 240; ++i) {
+      const double heading = kPi / 2 + turn * i * tickSeconds;
+      velocity = {250 * std::cos(heading), 250 * std::sin(heading), 0};
+      position += velocity * tickSeconds;
+      const Measurement support{position, velocity, true};
+      advanceMissile(r77, s, nullptr, &support, {}, tickSeconds);
+    }
+    check(std::abs(s.targetAcceleration.norm() / kG0 - 7) < 1 && r77.anticipation > 0 && !pl5.anticipation,
+          "the target's turn is estimated from its measured velocity");
+    for (unsigned i = 0; i < 12 * 120 + 60; ++i)
+      advanceMissile(r77, s, nullptr, nullptr, {}, tickSeconds);
+    check(s.targetAcceleration.norm() < 1e-6, "no target, no turn to allow for");
+  }
   // The model crosses the wire with the missile, and one that does not match
   // its kind of guidance is refused.
   WeaponMessage message;

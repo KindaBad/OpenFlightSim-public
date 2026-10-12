@@ -34,6 +34,11 @@ struct MotorDefinition {
       sustainTime{};
   // Seconds between release and motor ignition; ejected stores fall clear.
   double ignitionDelay{};
+  // A ducted ramjet's sustain stage is throttled to hold this Mach number and
+  // burns until its propellant is gone, however long that takes; it breathes
+  // air, so it makes less thrust where the air is thin. Zero for a rocket,
+  // whose sustain stage burns at full thrust for its set time.
+  double cruiseMach{};
 };
 struct AeroDefinition {
   double area{}, normalSlope{20}, controlLift{2}, cd0{.45}, induced{.07},
@@ -73,6 +78,18 @@ struct MissileDefinition {
       controlLimit{25 * kDeg2Rad}, actuatorRate{180 * kDeg2Rad}, fuseRadius{7},
       damageRadius{18}, damage{180}, armTime{.35}, minimumRange{350},
       lifetime{45};
+  // Thrust vectoring: how far the jet is turned for each radian of fin, and
+  // the incidence the missile may fly at while its motor burns. A missile
+  // without it has only its fins, which do little at launch speed.
+  double thrustVector{}, vectoredAlpha{60 * kDeg2Rad};
+  // Lofting: beyond `loftRange` a missile still flying on its launch
+  // aircraft's guidance aims above its target by this fraction of the range
+  // in excess, climbing into thinner air and coming down on it.
+  double loft{}, loftRange{12000};
+  // How much of the target's own turn the guidance adds to its steering, from
+  // none to all of it. A missile that only follows the line of sight is always
+  // answering a turn late; one that allows for the turn is not.
+  double anticipation{};
 };
 // The development weapon of each kind.
 const MissileDefinition &missileDefinition(WeaponType);
@@ -160,10 +177,17 @@ struct MissileState {
   Measurement midcourse;
   double estimateAge{};
   bool autonomous{};
+  // The target's velocity as last measured and its acceleration as estimated
+  // from that, for guidance that allows for a turning target.
+  Vec3 targetVelocity, targetAcceleration;
+  double targetInterval{};  // seconds since that velocity last changed
+  bool targetMeasured{};
   MissileTelemetry telemetry;
 };
 MissileState launchState(const MissileDefinition &, const State &, Vec3 station,
                          Measurement);
+// Full thrust `age` seconds after release. A ramjet's sustain stage is
+// throttled below this in flight.
 double motorThrust(const MotorDefinition &, double age);
 double dragCoefficient(const AeroDefinition &, double mach,
                        double normalCoefficient);

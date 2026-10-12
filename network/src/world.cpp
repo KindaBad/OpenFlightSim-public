@@ -895,6 +895,20 @@ void World::step() {
             w.acquisitionTarget = sensor->entity;
             w.acquisition.boresight = nose;
           }
+          // The radar's locked target is shown to the seeker wherever it is,
+          // as far round as the seeker can look: that is what a wide gimbal
+          // is for. It is taken ahead of whatever is nearer the nose.
+          if (const auto cued = sensorOf(w.radar.locked);
+              w.radar.locked.id && cued != sensorTargets.end() &&
+              cued->entity.id != id &&
+              !(cued->entity == w.seekerRejected && tick_ < w.seekerRejectedUntil)) {
+            const auto line = (cued->position - seeker.position).normalized();
+            if (weapons::seekerDetects(definition, seeker.position, nose, line, *cued)) {
+              sensor = cued;
+              w.acquisitionTarget = cued->entity;
+              w.acquisition.boresight = line;
+            }
+          }
         }
         if (sensor != sensorTargets.end()) {
           seeker.seeker = w.acquisition;

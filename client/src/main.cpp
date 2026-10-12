@@ -200,7 +200,7 @@ Options parse(int argc, char** argv) {
     throw std::runtime_error("gun smoke requires ordinary offline flight");
   if (!result.scenario.empty()) {
     if (!result.server.empty()) throw std::runtime_error("visual scenarios are offline fixtures only");
-    const std::vector<std::string> names{"parked","surfaces","flaps","gear","flight","high-altitude","high-mach","exhaust","contrail","gun","impact","destruction","mixed","idle","military","afterburner","afterburner-multiple","afterburner-transition","vectoring","high-aoa","condensation","environment","forest","grass","clouds","above-clouds","lake","mountains","valley","ranges","village","farmland","fields","eject","blackout","damage","damage-heavy","breakup","missile","detonation","menu","controls","chat","airfield","apron","shelters","threshold","decoys","warning","service","nuclear","bombs"};
+    const std::vector<std::string> names{"parked","surfaces","flaps","gear","flight","high-altitude","high-mach","exhaust","contrail","gun","impact","destruction","mixed","idle","military","afterburner","afterburner-multiple","afterburner-transition","vectoring","high-aoa","condensation","environment","forest","grass","clouds","above-clouds","lake","mountains","valley","ranges","village","farmland","fields","eject","blackout","damage","damage-heavy","breakup","missile","detonation","menu","controls","chat","airfield","apron","shelters","threshold","decoys","warning","service","nuclear","bombs","stores"};
     if (std::find(names.begin(), names.end(), result.scenario) == names.end())
       throw std::runtime_error("Unknown visual scenario");
     if (result.screenshot.empty() || !result.frames) throw std::runtime_error("visual scenarios require --frames and --screenshot");
@@ -1761,6 +1761,15 @@ int main(int argc, char** argv) {
           }
           if (options.scenario == "detonation" && frame == 36)
             combat.missileDetonations.push_back({aircraft.pos_ned + aircraft.att.rotate({70, 26, -4})});
+        }
+        if (options.scenario == "stores") {
+          // The six missiles hung in the air broadside to a camera behind the
+          // aircraft, motors out, so the airframes can be compared.
+          for (unsigned i = 0; i < 6; ++i) {
+            const auto& d = weapons::missileDefinition(weapons::MissileModel(unsigned(weapons::MissileModel::IrisT) + i));
+            const Quat side = aircraft.att * Quat{std::cos(.62), 0, 0, std::sin(.62)} * Quat{std::cos(-.07), 0, std::sin(-.07), 0};
+            combat.stores.push_back({aircraft.pos_ned + aircraft.att.rotate({-20., 1.5, -7.1 + .62 * i}), side, d.type, false, false, d.model});
+          }
         }
         if (options.scenario == "bombs") {
           // The three bombs hung in the air beside the aircraft, to look at,

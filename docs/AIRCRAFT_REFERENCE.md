@@ -142,18 +142,28 @@ defences fire.
 
 Published ranges are for a launch at height and speed against a target that
 does not turn; the game's battles are far closer, and its missiles are sized
-to them. What is kept is the order and the character. Flown head-on at 8 km
-against a target that does not turn, the farthest hit is 72 km for the
-Meteor, 60 km for the R-77M and 57 km for the SD-10A; against one that
-breaks at 7 g the Meteor still hits from 52 km and the others from about 30,
-because its ramjet is still burning when it arrives. Among the heat seekers
-the IRIS-T and R-74M2 hit a breaking target from 8 km and the PL-5EII from
-under 2 km.
+to them. What is kept is the order and the character. Since 0.6.8, flown at
+8 km against a target that does not turn, the farthest hit head-on is 91 km
+for the Meteor, 70 km for the R-77M and 63 km for the SD-10A, and in a tail
+chase 48, 26 and 21 km: the Meteor's ramjet is throttled to hold about
+Mach 3.6 and is still burning when it arrives, where the rockets are
+coasting. A radar missile fired from beyond 12 km climbs on the way and comes
+down on its target.
+
+The IRIS-T and R-74M2 turn their exhaust as well as their fins, so they can
+be fired at a target far off the nose: at 2.5 km the IRIS-T hits one crossing
+70 degrees off the nose and the R-74M2 one at 60, where the PL-5EII's seeker
+looks no further than 40 and its fins cannot make the turn from even 30. A heat seeker is shown the radar's locked
+target wherever it is, as far round as its seeker can look; without a radar
+lock it finds its own target in the ring at the nose. Every missile but the
+PL-5EII also allows for its target's turn instead of following it.
 
 Each is drawn to its own layout: the IRIS-T's long strakes, the R-74M2's
 nose vanes and canards, the PL-5EII's Sidewinder canards and rollerons, the
 Meteor's two intake ducts and no wings, the R-77M's strakes and plain fins,
-the SD-10A's four mid-body wings.
+the SD-10A's four mid-body wings. Close to, each also shows the joints
+between its sections, the windows of its proximity fuze, its hangers and its
+nozzle, with jet vanes in the two that have them.
 
 The Su-57 carries all six inside, so none is visible until it is launched. The
 model has no bay doors; a missile leaves through the skin. Until 0.5.7 the
