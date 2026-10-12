@@ -62,10 +62,13 @@ normal four-aircraft `ofs_provenance_export` target, refresh the records with
 ## Public game host
 
 Public games (0.6.3 onward) run on the owner's mini server, reached through
-the one forwarded port, UDP 27020; see `docs/PUBLIC_HOSTING.md`. The server
-builds `ofs_server` for each new version by itself from the public source
-repository's `main`, so deliver the public source before reporting that a
-version can host public games, and check `ls /var/lib/ofs-public/builds` there.
+the one forwarded port, UDP 27020; see `docs/PUBLIC_HOSTING.md`. The owner's
+standing instruction is that every change to the game is also brought to the
+server: updating it is part of delivering a game change, not a separate task.
+The server builds `ofs_server` for each new version by itself from the public
+source repository's `main`, so after delivering the public source, start
+`ofs-public-build.service` there, confirm the new version is in
+`/var/lib/ofs-public/builds`, and report the server's state with the release.
 Changes under `hosting/` are not picked up automatically: copy the folder to
 the server and run `sudo sh ./install.sh`, which restarts the host and ends
 the games in progress. Keep the launcher's side (`launcher/public.py`) and the

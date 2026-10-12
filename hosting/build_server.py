@@ -71,9 +71,15 @@ def main():
     target = builds / version
     record = target / 'source'
     if not (options.source is None and record.is_file() and record.read_text() == fingerprint and (target / 'ofs_server').is_file()):
-        tree = work / 'build'
-        run('cmake', '-S', str(source), '-B', str(tree), '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release',
-            '-DOFS_BUILD_CLIENT=OFF', '-DOFS_BUILD_TESTS=OFF')
+        tree = work / ('build-local' if options.source else 'build')
+        configure = ('cmake', '-S', str(source), '-B', str(tree), '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release',
+                     '-DOFS_BUILD_CLIENT=OFF', '-DOFS_BUILD_TESTS=OFF')
+        try:
+            run(*configure)
+        except subprocess.CalledProcessError:
+            # A build folder left by something else, or by an older CMake: start it again.
+            shutil.rmtree(tree, ignore_errors=True)
+            run(*configure)
         run('cmake', '--build', str(tree), '--target', 'ofs_server', '--parallel', str(options.jobs))
         target.mkdir(exist_ok=True)
         # Games already running keep the file they started from; new ones get this.
