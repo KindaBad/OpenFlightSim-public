@@ -1,0 +1,30 @@
+[Unit]
+Description=OpenFlightSim public games (UDP 27020)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ofs-public
+ExecStart=/usr/bin/python3 /opt/ofs-public/public_host.py --builds /var/lib/ofs-public/builds --state /var/lib/ofs-public/host
+Restart=always
+RestartSec=3
+# Games are real-time; builds and backups on the same computer give way to them.
+Nice=-5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_NETLINK AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryMax=2G
+TasksMax=64
+ReadWritePaths=/var/lib/ofs-public/host
+ReadOnlyPaths=/var/lib/ofs-public/builds
+
+[Install]
+WantedBy=multi-user.target

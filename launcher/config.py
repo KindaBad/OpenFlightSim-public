@@ -78,6 +78,9 @@ class Preferences:
     # A hosted game as Red against Blue, first to this many points; the side to
     # ask any game for ('auto' lets the game choose); and the bomber's load.
     lan_teams: bool = False
+    # A hosted game runs on the public server for anyone to join, or on this
+    # computer for the local network.
+    host_public: bool = True
     lan_score_limit: int = 300
     team: str = 'auto'
     loadout: str = 'mk82'

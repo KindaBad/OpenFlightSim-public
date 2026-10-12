@@ -1,0 +1,9 @@
+[Unit]
+Description=Check the OpenFlightSim public server's address every few minutes
+
+[Timer]
+OnBootSec=1min
+OnUnitInactiveSec=5min
+
+[Install]
+WantedBy=timers.target

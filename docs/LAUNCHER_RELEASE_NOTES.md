@@ -1,3 +1,19 @@
+OpenFlightSim 0.6.3 Launcher
+
+- Public games: play with friends who are not on your Wi-Fi. On the
+  Multiplayer page, Host and fly now starts your game on the OpenFlightSim
+  public server, and it shows up in every player's list wherever they are.
+  They select it and press Join. Nobody types an address or changes anything
+  on a router.
+- A public game takes the same settings as before: a name, AI opponents,
+  weapon reload, free-for-all or team battle. It stays open while anyone is
+  flying in it and closes by itself five minutes after the last pilot leaves,
+  so you can leave and come back, or leave it to your friends.
+- "Open to" on the host card chooses between a public game and one for this
+  network only, hosted on your own computer as before. Games on your network
+  and public games are listed together; public ones are marked Public.
+- Everyone needs 0.6.3 to see and join public games.
+
 OpenFlightSim 0.6.2 Launcher
 
 - A new setup window. It opens on a banner, shows the folder to install to

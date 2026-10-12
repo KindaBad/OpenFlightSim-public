@@ -107,7 +107,7 @@ account. Support opens the public project's issue page.
 | Graphics | Low/Medium/High/Ultra/Custom/Auto presets, MSAA, texture cap, shadows, effects/particles, clouds, anisotropic sampling, bloom, cloud shadows, vegetation |
 | Display | Detected resolutions, window dimensions, desktop fullscreen, VSync, cockpit vertical FOV, desktop refresh information |
 | Controls / Input | Current built-in keyboard/mouse/gamepad bindings; automatic SDL gamepad detection in the simulator |
-| Multiplayer (navigation) | Pilot name; Host and fly with a game name and 0–8 AI opponents; a live list of games on the local network with Join; join by address |
+| Multiplayer (navigation) | Pilot name; Host and fly, as a public game on the public server or for this network only, with a game name and 0–8 AI opponents; a live list of public games and games on the local network with Join; join by address |
 | Network (settings tab) | Numeric IPv4/IPv6, UDP port, 1–64 printable ASCII pilot name, locally managed loopback dedicated server, as used by Play in Multiplayer flight mode |
 | Advanced | Starting camera, draw/scenery distance, model LOD bias, shadow resolution/extent, bloom strength, fog, contrails, wing vapour, exhaust bands, HUD/player labels, hardware report |
 | Updates | Stable/development channel, HTTPS publisher endpoint, startup check, opt-in automatic installation, release notes, progress/speed/cancel/retry/resume, rollback |
@@ -116,8 +116,29 @@ account. Support opens the public project's issue page.
 Local Dogfight requires an armed registry aircraft. The launcher rejects an
 unarmed choice instead of silently switching it. Multiplayer spawn state comes
 from the server. Direct connect launches the existing transport, and the
-simulator shows why a connection failed. DNS names, NAT traversal and public
-hosting setup are outside the current transport's capabilities.
+simulator shows why a connection failed. DNS names and NAT traversal are
+outside the current transport's capabilities; games over the internet go
+through the public server instead.
+
+### Playing over the internet
+
+With **Open to** set to Public (the default), **Host and fly** asks the
+OpenFlightSim public server to start the game instead of starting a server on
+this computer, then joins it like any other player. The game is listed on
+every 0.6.3 or newer launcher's Multiplayer page, marked Public, and **Join**
+there tells the server which game this computer is about to enter before
+starting the simulator against the server's one address and port. The server
+closes a game five minutes after its last pilot leaves. `launcher/public.py`
+holds the launcher's side; the server and its protocol are described in
+[PUBLIC_HOSTING.md](PUBLIC_HOSTING.md).
+
+The server's address is read over HTTPS from `public.json` in
+`KindaBad/OpenFlightSim-servers`, at most every ten minutes, and kept in
+`public-server.json` beside the launcher's settings for when that file cannot
+be reached. Only a numeric IPv4 address and a port are accepted from it. What
+the server answers is validated field by field and only ever shown in the list
+or used as the address of a game. A server that does not answer is reported in
+words, and games on the local network keep working without it.
 
 ### Playing on the local network
 

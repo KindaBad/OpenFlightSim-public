@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, Q
     QCheckBox, QDoubleSpinBox, QLineEdit, QProgressBar, QMessageBox,
     QFileDialog, QScrollArea, QPlainTextEdit, QListWidgetItem, QSizePolicy)
 
-from . import lan
+from . import lan, public
 from .config import Preferences, Graphics, GRAPHICS, PRESETS, CUSTOM_PRESET
 from .download import download, fetch_manifest, Cancelled
 from .game import Installation, Session, MODES, arguments
@@ -82,24 +82,27 @@ class Job(QThread):
 
 
 class Scan(QThread):
-    """One look for games on the local network, off the UI thread."""
-    found = Signal(object, object, object)
+    """One look for games, on the local network and on the public server, off the UI thread."""
+    found = Signal(object, object, object, object)
 
-    def __init__(self, parent, firewall_port=None):
+    def __init__(self, parent, firewall_port=None, directory=None):
         super().__init__(parent)
         # Asking the firewall starts other programs, so it is done when the
         # caller wants it and not on every look.
         self.firewall_port = firewall_port
+        # Where the public server's address is remembered; None leaves it unasked.
+        self.directory = directory
 
     def run(self):
         advice = False  # not asked
+        listing = public.browse(self.directory) if self.directory else None
         try:
             if self.firewall_port:
                 advice = lan.firewall_advice(self.firewall_port)
-            self.found.emit(lan.discover(), lan.local_addresses(), advice)
+            self.found.emit(lan.discover(), lan.local_addresses(), advice, listing)
         except OSError as exc:
             log.info('LAN discovery unavailable: %s', exc)
-            self.found.emit([], [], advice)
+            self.found.emit([], [], advice, listing)
 
 
 def label(text, name=None, wrap=True):
@@ -145,8 +148,10 @@ class Window(QMainWindow):
         self.installation = None
         self.release = None
         self.job = None
+        self.after_job = None
         self.scan = None
         self.lobbies = []
+        self.addresses = []
         self.updating = True
         self.pending_close = False
         self.setWindowTitle('OpenFlightSim Launcher')
@@ -730,7 +735,7 @@ class Window(QMainWindow):
         box.addStretch()
 
     def make_multiplayer(self):
-        box = self.page('Flight network', 'Network', 'These settings are used by Play in Multiplayer flight mode. To play with friends on your own network, use the Multiplayer page instead.')
+        box = self.page('Flight network', 'Network', 'These settings are used by Play in Multiplayer flight mode. To play with friends, on your own network or over the internet, use the Multiplayer page instead.')
         form = self.form(box)
         self.server_field = QLineEdit(self.prefs.server)
         self.server_field.setPlaceholderText('Numeric IPv4 or IPv6 address')
@@ -750,7 +755,7 @@ class Window(QMainWindow):
         self.host.toggled.connect(lambda v: (self.server_field.setEnabled(not v), self.set_pref('host', v)))
         self.server_field.setEnabled(not self.prefs.host)
         form.addRow('Local host', self.host)
-        box.addWidget(label('This loopback server is for flights on this computer only. The Multiplayer page hosts a game the whole local network can join; a public server uses the standalone ofs_server, see the networking documentation.', 'muted'))
+        box.addWidget(label('This loopback server is for flights on this computer only. The Multiplayer page hosts a game the whole local network can join; it can also start a public game that anyone can join over the internet.', 'muted'))
         box.addStretch()
 
     def set_network(self, **changes):
@@ -796,7 +801,7 @@ class Window(QMainWindow):
         return frame, box, heading
 
     def make_lan(self):
-        box = self.page('Fly together', 'Multiplayer', 'Play with friends on the same Wi-Fi or network. One of you hosts a game; everyone else picks it from the list. No addresses to type.')
+        box = self.page('Fly together', 'Multiplayer', 'Play with friends anywhere. One of you hosts a game, public for anyone over the internet or kept to your own Wi-Fi, and everyone else picks it from the list. No addresses to type.')
         form = self.form(box)
         self.lan_pilot = QLineEdit(self.prefs.name)
         self.lan_pilot.setMaxLength(64)
@@ -812,6 +817,10 @@ class Window(QMainWindow):
         host_form = QFormLayout()
         host_form.setVerticalSpacing(10)
         host_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        self.host_where = self.combo([(True, 'Public · anyone can join'), (False, 'This network only')],
+                                     self.prefs.host_public, lambda v: (self.set_pref('host_public', bool(v)), self.host_note()))
+        self.host_where.setToolTip('A public game runs on the OpenFlightSim public server, so friends on other networks can join it and nothing has to be set up on your router. A game for this network runs on this computer and is seen only by computers on the same Wi-Fi or network.')
+        host_form.addRow(label('Open to', 'muted'), self.host_where)
         self.lobby_field = QLineEdit(self.prefs.lobby)
         self.lobby_field.setMaxLength(lan.MAX_LOBBY_NAME)
         self.lobby_field.setPlaceholderText(lan.lobby_name(self.prefs.name + "'s game"))
@@ -850,11 +859,12 @@ class Window(QMainWindow):
         self.host_button.setObjectName('primary')
         self.host_button.setIcon(icon('play', '#ffffff', 18))
         host_box.addWidget(self.host_button)
-        self.lan_address = label('Your game appears on other computers on this network as soon as you take off.', 'muted')
+        self.lan_address = label('', 'muted')
         host_box.addWidget(self.lan_address)
+        self.host_note()
         host_box.addStretch()
         row.box.addWidget(host, 2)
-        join, join_box, heading = self.card('Games on your network', 'network')
+        join, join_box, heading = self.card('Games to join', 'network')
         refresh = button('Refresh', self.scan_lan)
         refresh.setObjectName('link')
         refresh.setIcon(icon('refresh'))
@@ -889,7 +899,7 @@ class Window(QMainWindow):
         self.direct_button = button('Connect', self.join_address)
         line.addWidget(self.direct_button)
         direct_box.addLayout(line)
-        direct_box.addWidget(label('Use this if a game does not show in the list, as happens on large networks such as a school or an office. The host\'s address is shown on their Multiplayer page. A Windows host must allow OpenFlightSim through the firewall on private networks when asked; a Linux host is told on that page if its firewall is in the way.', 'muted'))
+        direct_box.addWidget(label('Use this if a game on your own network does not show in the list, as happens on large networks such as a school or an office. The host\'s address is shown on their Multiplayer page. A Windows host must allow OpenFlightSim through the firewall on private networks when asked; a Linux host is told on that page if its firewall is in the way.', 'muted'))
         box.addWidget(direct)
         box.addStretch()
 
@@ -900,7 +910,8 @@ class Window(QMainWindow):
         # The firewall is asked about once, and again if the game's port changes.
         ask = self.prefs.port if self.firewall_port != self.prefs.port else None
         self.firewall_port = self.prefs.port
-        self.scan = Scan(self, ask)
+        public_games = self.installation and Version(self.installation.catalog['version']) >= Version(public.PUBLIC_VERSION)
+        self.scan = Scan(self, ask, self.data / 'public-server.json' if public_games else None)
         self.scan.found.connect(self.show_lobbies)
         self.scan.finished.connect(self.scan_finished)
         self.scan.start()
@@ -913,11 +924,23 @@ class Window(QMainWindow):
         value = self.installation.catalog.get('protocol') if self.installation else None
         return value if type(value) is int else None
 
-    def show_lobbies(self, lobbies, addresses=(), firewall=False):
+    def host_note(self):
+        """Under the host button: who will see the game, and how to reach it if they do not."""
+        if self.prefs.host_public:
+            self.lan_address.setText('Your game runs on the OpenFlightSim public server and appears in every player\'s list, wherever they are. '
+                                     'It stays open for your friends and closes by itself a few minutes after the last pilot leaves.')
+            return
+        text = 'Your game appears on other computers on this network as soon as you take off.'
+        if self.addresses:
+            text += f' If someone has to join by address, yours is {self.addresses[0]}, port {self.prefs.port}.'
+        self.lan_address.setText(text + (f'\n\n{self.firewall}' if self.firewall else ''))
+
+    def show_lobbies(self, lobbies, addresses=(), firewall=False, listing=None):
         if firewall is not False:
             self.firewall = firewall  # None when nothing is in the way
         chosen = self.selected_lobby()
-        self.lobbies = list(lobbies)
+        # Public games first: they are the ones a friend elsewhere is waiting in.
+        self.lobbies = list(listing.lobbies if listing else ()) + list(lobbies)
         protocol = self.protocol()
         self.lobby_list.blockSignals(True)
         self.lobby_list.clear()
@@ -927,19 +950,21 @@ class Window(QMainWindow):
             if not lan.joinable(lobby, protocol):
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             self.lobby_list.addItem(item)
-            if chosen and (lobby.address, lobby.port) == (chosen.address, chosen.port):
+            if chosen and (lobby.address, lobby.port, lobby.game) == (chosen.address, chosen.port, chosen.game):
                 self.lobby_list.setCurrentItem(item)
         if self.lobby_list.currentRow() < 0:
             first = next((i for i, lobby in enumerate(self.lobbies) if lan.joinable(lobby, protocol)), -1)
             self.lobby_list.setCurrentRow(first)
         self.lobby_list.blockSignals(False)
         count = len(self.lobbies)
-        self.lan_status.setText(f'{count} game{"" if count == 1 else "s"} found. Select one and press Join.' if count else
-                                'No games found yet. Ask the host to press Host and fly, and check that you are on the same network.')
+        status = (f'{count} game{"" if count == 1 else "s"} found. Select one and press Join.' if count else
+                  'No games found yet. Host one yourself, or ask a friend to press Host and fly.')
+        if listing and not listing.reachable:
+            status += ' The public server cannot be reached right now, so only games on your own network are shown.'
+        self.lan_status.setText(status)
         if addresses:
-            self.lan_address.setText('Your game appears on other computers on this network as soon as you take off. '
-                                     f'If someone has to join by address, yours is {addresses[0]}, port {self.prefs.port}.'
-                                     + (f'\n\n{self.firewall}' if self.firewall else ''))
+            self.addresses = list(addresses)
+        self.host_note()
         self.lobby_selected()
 
     def selected_lobby(self):
@@ -952,13 +977,53 @@ class Window(QMainWindow):
         self.join_button.setEnabled(bool(lobby) and lan.joinable(lobby, self.protocol()) and not busy)
 
     def host_lan(self):
+        if self.prefs.host_public:
+            self.host_public()
+            return
         self.fly(dataclasses.replace(self.prefs, mode='multiplayer', host=True), lan=True,
                  message='Hosting your game · friends on this network can join from their Multiplayer page')
+
+    def public_flight(self, title, work, message):
+        """Ask the public server for a game off the UI thread, then fly in it.
+
+        `work` returns the address and port to connect to. The flight is checked
+        first, so a game is not started for a pilot who could not then take off.
+        """
+        if not self.installation:
+            self.error('Choose a valid installation first.')
+            return
+        if self.job or self.session.running():
+            self.error('Finish the current flight or operation first.')
+            return
+        try:
+            if Version(self.installation.catalog['version']) < Version(public.PUBLIC_VERSION):
+                raise LauncherError(f'Public games need OpenFlightSim {public.PUBLIC_VERSION} or newer. Update the game first.')
+            flight = dataclasses.replace(self.prefs, mode='multiplayer', host=False, server='192.0.2.1', port=27020)
+            arguments(self.installation, flight, self.graphics)
+        except LauncherError as exc:
+            self.error(str(exc))
+            return
+
+        def found(where):
+            address, port = where[0], where[1]
+            # The flight starts once this operation has been cleared away.
+            self.after_job = lambda: self.fly(dataclasses.replace(flight, server=address, port=port), message=message)
+        self.start_job(title, lambda cancel, progress: work(), found)
+
+    def host_public(self):
+        cache, prefs = self.data / 'public-server.json', dataclasses.replace(self.prefs)
+        version = self.installation.catalog['version'] if self.installation else ''
+        self.public_flight('Starting your public game', lambda: public.host(cache, prefs, version),
+                           'Flying in your public game · friends anywhere can join from their Multiplayer page')
 
     def join_selected(self):
         lobby = self.selected_lobby()
         if not lobby or not lan.joinable(lobby, self.protocol()):
             self.error('Select a game you can join first.')
+            return
+        if lobby.game:
+            cache = self.data / 'public-server.json'
+            self.public_flight(f'Joining {lobby.name}', lambda: public.join(cache, lobby.game), f'Joining {lobby.name}')
             return
         self.fly(dataclasses.replace(self.prefs, mode='multiplayer', host=False, server=lobby.address, port=lobby.port),
                  message=f'Joining {lobby.name}')
@@ -1295,11 +1360,14 @@ class Window(QMainWindow):
     def job_finished(self):
         self.job.deleteLater()
         self.job = None
+        after, self.after_job = self.after_job, None
         self.progress.hide()
         self.transfer_label.hide()
         self.cancel_button.hide()
         self.show_operation('check')
         self.refresh_summary()
+        if after and not self.pending_close:
+            after()
         if self.pending_close:
             self.close()
 

@@ -39,11 +39,17 @@ int main(int argc, char **argv) {
         config.scoreLimit = number(argument(i, argc, argv), 50, 5000);
       else if (a == "--lan-name")
         config.lobbyName = lobbyName(std::string(argument(i, argc, argv)));
+      else if (a == "--discovery-port")
+        // Several named games on one computer each answer for themselves; a
+        // public host gives every game its own port and asks it how full it is.
+        config.discoveryPort = static_cast<std::uint16_t>(
+            number(argument(i, argc, argv), 1, 65535));
       else
         throw std::invalid_argument(
             "ofs_server [--bind IP] [--port N] [--max-players 1..64] "
             "[--snapshot-hz 1..60] [--bots 0..8] [--ground] [--seconds N] "
-            "[--lan-name NAME] [--missile-reload SECONDS] "
+            "[--lan-name NAME] [--discovery-port N] "
+            "[--missile-reload SECONDS] "
             "[--teams] [--score-limit 50..5000]");
     }
     std::signal(SIGINT, stop);

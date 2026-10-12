@@ -1,0 +1,18 @@
+[Unit]
+Description=Build the OpenFlightSim server for newly published versions
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ofs-public
+ExecStart=/usr/bin/python3 /opt/ofs-public/build_server.py --root /var/lib/ofs-public
+Nice=15
+IOSchedulingClass=idle
+CPUWeight=20
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/ofs-public/builds /var/lib/ofs-public/work
+TimeoutStartSec=45min

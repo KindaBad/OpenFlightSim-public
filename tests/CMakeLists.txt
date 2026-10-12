@@ -164,6 +164,13 @@ if(OFS_BUILD_NETWORK)
     add_test(NAME lan.${suite} COMMAND ofs_lan_tests ${suite})
     set_tests_properties(lan.${suite} PROPERTIES TIMEOUT 120 LABELS "network")
   endforeach()
+  # The public game host with real servers and a real client behind its one port.
+  # The host itself runs on Linux only.
+  if(UNIX)
+    add_test(NAME lan.public_host COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/public_host_tests.py"
+      $<TARGET_FILE:ofs_server> $<TARGET_FILE:ofs_bot>)
+    set_tests_properties(lan.public_host PROPERTIES TIMEOUT 240 LABELS "network" RUN_SERIAL TRUE)
+  endif()
   add_executable(ofs_damage_tests damage_tests.cpp)
   target_link_libraries(ofs_damage_tests PRIVATE ofs_net)
   ofs_target_defaults(ofs_damage_tests)

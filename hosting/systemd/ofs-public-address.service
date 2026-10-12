@@ -1,0 +1,15 @@
+[Unit]
+Description=Publish the OpenFlightSim public server's address when it changes
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ofs-public
+ExecStart=/usr/bin/python3 /opt/ofs-public/publish_address.py --root /var/lib/ofs-public/address
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/ofs-public/address
+TimeoutStartSec=3min

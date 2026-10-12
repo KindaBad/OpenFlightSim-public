@@ -36,6 +36,8 @@ class Lobby:
     max_players: int
     bots: int
     version: str
+    # The game's identity on the public server; empty for a game on the local network.
+    game: str = ''
 
 
 def _printable(text):
@@ -241,7 +243,7 @@ def describe(lobby, protocol=None):
     pilots = f'{lobby.players}/{lobby.max_players} pilots'
     if lobby.bots:
         pilots += f' + {lobby.bots} bots'
-    line = f'{lobby.name}   ·   {pilots}   ·   {lobby.address}'
+    line = f'{lobby.name}   ·   {pilots}   ·   {"Public" if lobby.game else lobby.address}'
     if lobby.version:
         line += f'   ·   v{lobby.version}'
     if protocol is not None and lobby.protocol != protocol:

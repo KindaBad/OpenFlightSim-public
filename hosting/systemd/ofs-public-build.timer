@@ -1,0 +1,9 @@
+[Unit]
+Description=Look for a new OpenFlightSim version every few minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=4min
+
+[Install]
+WantedBy=timers.target

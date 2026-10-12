@@ -68,6 +68,10 @@ class UI(unittest.TestCase):
         # No test asks this computer's real firewall anything.
         self.firewall = patch('launcher.ui.lan.firewall_advice', return_value=None)
         self.firewall_advice = self.firewall.start()
+        # Nor is the public server asked; tests that list its games say what it answers.
+        from launcher import public
+        self.browse = patch('launcher.ui.public.browse', return_value=public.Listing((), (), True))
+        self.public_browse = self.browse.start()
         with patch.object(Window, 'start_background', lambda self: None):
             self.window = Window(self.directory, self.data, self.data / 'logs', {'version': '0.3.0'})
             self.window.show()
@@ -77,6 +81,7 @@ class UI(unittest.TestCase):
         self.window.close()
         self.app.processEvents()
         self.firewall.stop()
+        self.browse.stop()
         self.temp.cleanup()
 
     def test_all_sections_render_and_aircraft_discovered(self):
@@ -235,6 +240,7 @@ class UI(unittest.TestCase):
 
     def test_multiplayer_page_lists_games_and_joins_the_selected_one(self):
         self.window.installation.catalog['protocol'] = 15
+        self.window.host_where.setCurrentIndex(1)  # this network only
         self.window.show_page(10)
         self.assertEqual(self.window.navigation.currentRow(), 2)
         self.assertFalse(self.window.join_button.isEnabled())
@@ -275,6 +281,7 @@ class UI(unittest.TestCase):
         self.window.lobby_field.setText('Squadron night')
         self.window.lobby_field.editingFinished.emit()
         self.window.lan_bots.setValue(3)
+        self.window.host_where.setCurrentIndex(1)  # this network only
         with patch.object(self.window.session, 'start') as start:
             self.window.host_button.click()
             prefs = start.call_args.args[1]
@@ -322,6 +329,7 @@ class UI(unittest.TestCase):
     def test_a_linux_host_is_told_when_its_firewall_is_in_the_way(self):
         advice = 'This computer\'s firewall will turn other players away. To let them in until the next restart, run:  sudo firewall-cmd --add-port=27020/udp'
         self.firewall_advice.return_value = advice
+        self.window.host_where.setCurrentIndex(1)  # this network only
         with patch('launcher.ui.lan.discover', return_value=[]), patch('launcher.ui.lan.local_addresses', return_value=['192.168.1.23']):
             self.window.show_page(10)
             self.wait_for_scan()
@@ -340,6 +348,83 @@ class UI(unittest.TestCase):
             self.assertEqual(self.firewall_advice.call_count, 2)
             self.assertNotIn('firewall', self.window.lan_address.text())
             self.assertIn('port 27031', self.window.lan_address.text())
+
+    def finish_job(self):
+        deadline = time.monotonic() + 5
+        while self.window.job and time.monotonic() < deadline:
+            self.app.processEvents()
+            time.sleep(.01)
+        self.app.processEvents()
+        self.assertIsNone(self.window.job)
+
+    def test_a_public_game_is_hosted_on_the_public_server_and_then_flown_in(self):
+        self.window.installation.catalog['version'] = '0.6.3'
+        self.assertTrue(self.window.prefs.host_public)
+        self.assertIn('public server', self.window.lan_address.text())
+        self.window.lobby_field.setText('Open skies')
+        self.window.lobby_field.editingFinished.emit()
+        with patch('launcher.ui.public.host', return_value=('203.0.113.7', 27020, '0a1b2c3d')) as host, \
+                patch.object(self.window.session, 'start') as start:
+            self.window.host_button.click()
+            self.finish_job()
+            cache, prefs, version = host.call_args.args
+            self.assertEqual((cache, prefs.lobby, version), (self.data / 'public-server.json', 'Open skies', '0.6.3'))
+            flight = start.call_args.args[1]
+            # No server is started on this computer: the flight joins the public one.
+            self.assertEqual((flight.mode, flight.host, flight.server, flight.port), ('multiplayer', False, '203.0.113.7', 27020))
+            self.assertFalse(start.call_args.kwargs['lan'])
+        self.assertIn('public game', self.window.status.text())
+        # Hosting for this network is one choice away and is remembered.
+        self.window.host_where.setCurrentIndex(1)
+        self.assertFalse(self.window.prefs.host_public)
+        self.assertFalse(read_json(self.data / 'launcher.json')['host_public'])
+        self.assertIn('on this network', self.window.lan_address.text())
+        with patch('launcher.ui.public.host') as host, patch.object(self.window.session, 'start') as start:
+            self.window.host_button.click()
+            host.assert_not_called()
+            self.assertTrue(start.call_args.kwargs['lan'])
+
+    def test_public_games_are_listed_with_local_ones_and_joined_through_the_server(self):
+        from launcher import public
+        self.window.installation.catalog.update(version='0.6.3', protocol=16)
+        game = self.lobby(name='Anywhere', address='203.0.113.7', port=27020, protocol=16, game='0a1b2c3d')
+        self.public_browse.return_value = public.Listing((game,), ('0.6.3',), True)
+        with patch('launcher.ui.lan.discover', return_value=[self.lobby(protocol=16)]):
+            self.window.show_page(10)
+            self.wait_for_scan()
+        self.public_browse.assert_called_once_with(self.data / 'public-server.json')
+        self.assertEqual([self.window.lobby_list.item(i).text().split('   ·   ')[0] for i in range(2)], ['Anywhere', 'Friday night'])
+        self.assertIn('Public', self.window.lobby_list.item(0).text())
+        self.assertEqual(self.window.selected_lobby(), game)
+        with patch('launcher.ui.public.join', return_value=('203.0.113.7', 27020)) as join, patch.object(self.window.session, 'start') as start:
+            self.window.join_button.click()
+            self.finish_job()
+            join.assert_called_once_with(self.data / 'public-server.json', '0a1b2c3d')
+            flight = start.call_args.args[1]
+            self.assertEqual((flight.host, flight.server, flight.port), (False, '203.0.113.7', 27020))
+        # A refusal is shown and no flight starts.
+        from launcher.storage import LauncherError
+        with patch('launcher.ui.public.join', side_effect=LauncherError('That game is full.')), \
+                patch.object(self.window.session, 'start') as start, patch.object(self.window, 'error') as error:
+            self.window.join_selected()
+            self.finish_job()
+            start.assert_not_called()
+            error.assert_called_once_with('That game is full.')
+        # An unreachable public server is said so; local games still show.
+        self.window.show_lobbies([self.lobby(protocol=16)], listing=public.Listing())
+        self.assertEqual(self.window.lobby_list.count(), 1)
+        self.assertIn('cannot be reached', self.window.lan_status.text())
+
+    def test_an_older_game_is_not_offered_public_games(self):
+        self.window.installation.catalog['version'] = '0.6.2'
+        with patch('launcher.ui.lan.discover', return_value=[]):
+            self.window.show_page(10)
+            self.wait_for_scan()
+        self.public_browse.assert_not_called()
+        with patch('launcher.ui.public.host') as host, patch.object(self.window, 'error') as error:
+            self.window.host_lan()
+            host.assert_not_called()
+            self.assertIn('0.6.3 or newer', error.call_args.args[0])
 
     def test_multiplayer_actions_wait_for_a_flight_in_progress(self):
         self.window.show_page(10)

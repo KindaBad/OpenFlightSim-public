@@ -237,7 +237,10 @@ Hits are regional: wings, tail, engines and fuselage are damaged separately,
 change how the aircraft flies and break away when destroyed; see
 [the damage model](docs/DAMAGE_MODEL.md).
 
-To play with others on the same network, use the launcher's Multiplayer page
+To play with others anywhere, use the launcher's Multiplayer page: Host and
+fly starts a public game on the public server that friends on other networks
+can Join from their own list ([how it works](docs/PUBLIC_HOSTING.md)). To
+play on the same network only, choose "This network only" there
 (Host and fly, then Join on the other computers), or start a named server
 yourself: `ofs_server --lan-name "My game" --bots 2` answers discovery on UDP
 27019 and takes connections on UDP 27020.

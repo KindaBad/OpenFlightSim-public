@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+"""Keep the public host's game servers in step with the published game. Standard library only.
+
+Looks at the public source repository's main branch and, when the game there
+is a version this computer has no server for (or its server code has changed),
+builds `ofs_server` and puts it in builds/<version>/. The source is built as
+soon as it is pushed, which is before the players' update finishes publishing,
+so a server is waiting when they have it. The newest few versions are kept,
+for players who have not updated yet.
+
+With --source, builds a source tree already on this computer instead.
+"""
+import argparse
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+
+REPOSITORY = 'https://github.com/KindaBad/OpenFlightSim-public.git'
+FIRST_VERSION = (0, 6, 3)
+VERSION = re.compile(r'project\(OpenFlightSim VERSION (\d{1,4}\.\d{1,4}\.\d{1,4}) ')
+
+
+def run(*command, cwd=None, capture=False):
+    result = subprocess.run(command, cwd=cwd, check=True, text=True, stdin=subprocess.DEVNULL,
+                            stdout=subprocess.PIPE if capture else None)
+    return result.stdout.strip() if capture else None
+
+
+def version_key(text):
+    return tuple(int(part) for part in text.split('.'))
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument('--root', required=True, help='folder holding builds/ and work/')
+    parser.add_argument('--source', help='build this source tree instead of the public repository')
+    parser.add_argument('--repository', default=REPOSITORY)
+    parser.add_argument('--keep', type=int, default=3, help='versions to keep')
+    parser.add_argument('--jobs', type=int, default=max(1, (os.cpu_count() or 2) // 2))
+    options = parser.parse_args()
+    root = Path(options.root).resolve()
+    builds, work = root / 'builds', root / 'work'
+    builds.mkdir(parents=True, exist_ok=True)
+    work.mkdir(parents=True, exist_ok=True)
+    if options.source:
+        source, fingerprint = Path(options.source).resolve(), 'local'
+    else:
+        head = run('git', 'ls-remote', options.repository, 'refs/heads/main', capture=True).split()[0]
+        seen = work / 'head'
+        if seen.is_file() and seen.read_text().strip() == head:
+            return
+        source = work / 'src'
+        if not (source / '.git').is_dir():
+            run('git', 'init', '--quiet', str(source))
+        run('git', 'fetch', '--quiet', '--depth', '1', options.repository, head, cwd=source)
+        run('git', 'checkout', '--quiet', '--force', '--detach', 'FETCH_HEAD', cwd=source)
+        # What the server is made of; a change elsewhere needs no rebuild.
+        fingerprint = run('git', 'rev-parse', 'HEAD:core', 'HEAD:network', 'HEAD:cmake', 'HEAD:CMakeLists.txt', cwd=source, capture=True)
+    match = VERSION.search((source / 'CMakeLists.txt').read_text(encoding='utf-8'))
+    if not match:
+        raise SystemExit('No game version found in CMakeLists.txt')
+    version = match[1]
+    if version_key(version) < FIRST_VERSION:
+        # Servers before this cannot be run several to a computer by the host.
+        if not options.source:
+            (work / 'head').write_text(head)
+        return
+    target = builds / version
+    record = target / 'source'
+    if not (options.source is None and record.is_file() and record.read_text() == fingerprint and (target / 'ofs_server').is_file()):
+        tree = work / 'build'
+        run('cmake', '-S', str(source), '-B', str(tree), '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release',
+            '-DOFS_BUILD_CLIENT=OFF', '-DOFS_BUILD_TESTS=OFF')
+        run('cmake', '--build', str(tree), '--target', 'ofs_server', '--parallel', str(options.jobs))
+        target.mkdir(exist_ok=True)
+        # Games already running keep the file they started from; new ones get this.
+        fresh = target / 'ofs_server.new'
+        shutil.copy2(tree / 'network' / 'ofs_server', fresh)
+        os.replace(fresh, target / 'ofs_server')
+        record.write_text(fingerprint)
+        print(f'Built ofs_server {version}', flush=True)
+    if not options.source:
+        (work / 'head').write_text(head)
+    versions = sorted((entry.name for entry in builds.iterdir() if re.fullmatch(r'\d+\.\d+\.\d+', entry.name)), key=version_key)
+    for old in versions[:-options.keep]:
+        shutil.rmtree(builds / old)
+        print(f'Removed ofs_server {old}', flush=True)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except subprocess.CalledProcessError as exc:
+        sys.exit(f'{exc.cmd[0]} failed with {exc.returncode}')

@@ -58,3 +58,16 @@ normal four-aircraft `ofs_provenance_export` target, refresh the records with
 `scripts/export_aircraft_provenance.py --binary <exporter>`, and run
 `regression.provenance` before delivery. Keep source line endings governed by
 `.gitattributes` so Windows checkouts preserve the same source hashes.
+
+## Public game host
+
+Public games (0.6.3 onward) run on the owner's mini server, reached through
+the one forwarded port, UDP 27020; see `docs/PUBLIC_HOSTING.md`. The server
+builds `ofs_server` for each new version by itself from the public source
+repository's `main`, so deliver the public source before reporting that a
+version can host public games, and check `ls /var/lib/ofs-public/builds` there.
+Changes under `hosting/` are not picked up automatically: copy the folder to
+the server and run `sudo sh ./install.sh`, which restarts the host and ends
+the games in progress. Keep the launcher's side (`launcher/public.py`) and the
+host's (`hosting/public_host.py`) in step, and keep older launchers working
+when the conversation between them changes.
