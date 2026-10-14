@@ -42,8 +42,9 @@ foreach(stage vs_ocornut_imgui fs_ocornut_imgui)
     "${CMAKE_CURRENT_BINARY_DIR}/generated/${stage}.bin.h" COPYONLY)
 endforeach()
 
-# Embed the OFL-licensed Karla font supplied by the pinned ImGui dependency.
-# A 30 px atlas keeps the larger flight readouts sharp without runtime files.
+# Embed the OFL-licensed Karla font supplied by the pinned ImGui dependency, so no
+# runtime files are needed. The client rasterizes it at each size the interface
+# draws, scaled to the window (see client/src/ui_scale.hpp).
 file(READ "${imgui_SOURCE_DIR}/misc/fonts/Karla-Regular.ttf" ui_font_hex HEX)
 string(REGEX REPLACE "(..)" "0x\\1," ui_font_bytes "${ui_font_hex}")
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/generated/ofs_font.hpp"
@@ -87,6 +88,10 @@ install(FILES "${CMAKE_SOURCE_DIR}/assets/aircraft/b52/b52_lod0.glb"
   "${CMAKE_SOURCE_DIR}/assets/aircraft/b52/b52_lod1.glb"
   "${CMAKE_SOURCE_DIR}/assets/aircraft/b52/b52_lod2.glb"
   "${CMAKE_SOURCE_DIR}/assets/aircraft/b52/b52_lod3.glb" DESTINATION assets/aircraft/b52)
+install(FILES "${CMAKE_SOURCE_DIR}/assets/aircraft/b747/b747_lod0.glb"
+  "${CMAKE_SOURCE_DIR}/assets/aircraft/b747/b747_lod1.glb"
+  "${CMAKE_SOURCE_DIR}/assets/aircraft/b747/b747_lod2.glb"
+  "${CMAKE_SOURCE_DIR}/assets/aircraft/b747/b747_lod3.glb" DESTINATION assets/aircraft/b747)
 if(OFS_INCLUDE_JF17)
   install(FILES "${CMAKE_SOURCE_DIR}/assets/aircraft/jf17/jf17_lod0.glb"
     "${CMAKE_SOURCE_DIR}/assets/aircraft/jf17/jf17_lod1.glb"

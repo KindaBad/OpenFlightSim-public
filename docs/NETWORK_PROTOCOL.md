@@ -240,7 +240,7 @@ the shared registry. Weather is authoritative in Welcome/chunk headers.
 | next gun-ready tick | u64 |
 | scheduled respawn tick | u64; zero while alive |
 | kills / deaths | 2×u32 |
-| aircraft type | u8: A320=1, reserved/rejected=2, Typhoon=3, SR71=4, Su57=5 |
+| aircraft type | u8: A320=1, reserved/rejected=2, Typhoon=3, SR71=4, Su57=5, JF17=6, B52=7, Boeing 747=8 |
 | afterburner left/right | 2×binary32 [0,1], finite, server-simulated |
 | inlet-spike left/right | 2×binary64 [0,1], finite |
 | actual independent nozzle angle left/right | 2×binary64 radians; finite, within type-specific limits |
@@ -321,6 +321,9 @@ and user/account authentication remain outside this protocol milestone.
 
 
 ## v22 additions
+
+Version 24 adds the Boeing 747-206B as aircraft type 8. As with every version
+change, peers on another version are refused.
 
 Version 23 adds one byte to every missile record: which missile it is
 (`weapons::MissileModel`). A model whose guidance is not the record's weapon

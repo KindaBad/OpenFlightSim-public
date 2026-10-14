@@ -48,6 +48,29 @@ This is the project's reading of the license, not a lawyer's review.
 Import measurements and known differences from the flight model are recorded in
 `assets/aircraft/b52/README.md` and its generated `lod_stats.json`.
 
+## Boeing 747-206B donor
+
+The owner supplied `royal-dutch-airlines-boeing-747-206b.zip` (SHA-256
+`820f2c6af35540be36828491369b7a761152da38ac01e99276d9035a57fbc4a4`) on 2026-10-14 and
+asked for the 747 to be added for update 0.6.9.2000. The archive holds
+`source/747klm.fbx`, `textures/FAIB_B7471_T.jpg` and `textures/747_m.png`, and no
+licence file. It matches the listing
+[Royal Dutch Airlines Boeing 747-206B by Nobilis 2](https://sketchfab.com/3d-models/royal-dutch-airlines-boeing-747-206b-829cd4d3ccb6404fb503cb4c9115f3da)
+by name. Sketchfab's API record for model `829cd4d3ccb6404fb503cb4c9115f3da` was
+read the same day: published 2026-07-20, licence CC Attribution (CC BY 4.0),
+downloadable, 9,328 faces. Nothing in the file suggests a game extract: the
+object names are generic, the textures are one complete livery atlas, and the
+FBX's only path is a modeller's Windows location in its texture references.
+
+CC BY 4.0 permits sharing and adapting with credit, a link to the license and a
+note that changes were made, and forbids technical measures that restrict those
+rights. The 747 therefore ships as ordinary GLBs in the next content pack, with
+credit, terms and the list of changes in `licenses/assets/B747.md`. This is the
+project's reading of the license, not a lawyer's review.
+
+Import measurements and known differences from the flight model are recorded in
+`assets/aircraft/b747/README.md` and its generated `lod_stats.json`.
+
 ## JF-17 donor
 
 **PUBLIC SOURCE EXCLUDED / UNENCRYPTED GAME RELEASE UNDER CC BY 4.0.**

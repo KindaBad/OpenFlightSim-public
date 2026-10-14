@@ -131,6 +131,37 @@ void maneuver() {
   for(unsigned tick=0;tick<unsigned(6/FixedStepClock::tick);++tick){over.step(FixedStepClock::tick);turned+=over.state().omega_body.y*FixedStepClock::tick;}
   check(finite(over.state()) && turned>1.6*kPi,"a held pull turns the aircraft over in its own length");
  }
+ // Released from a full pull at 180 m/s the nose goes past vertical. alpha
+ // wraps at +-180 deg there, and the release brake must not flip with it:
+ // full nose-down all the way over the top, not full nose-up beyond the wrap.
+ {
+  Simulator over(cfg);const auto entry=solveTrim(cfg,TrimRequest{.altitude=3000,.tas=180});
+  check(entry.converged,"over-the-top entry trim");over.setState(entry.state);auto k=entry.controls;
+  k.elevator_stick=1;k.maneuver_mode=true;over.setControls(k);
+  const unsigned release=unsigned(1.3/FixedStepClock::tick),end=unsigned(6/FixedStepClock::tick);
+  for(unsigned tick=0;tick<end;++tick) {
+   if(tick==release){k.elevator_stick=0;over.setControls(k);}
+   over.step(FixedStepClock::tick);check(finite(over.state()),"over-the-top finite");
+   if(tick<release+unsigned(1/FixedStepClock::tick)) continue;
+   const double alpha=over.instruments().alpha_deg*kDeg2Rad,unwrapped=alpha<0?alpha+2*kPi:alpha;
+   if(unwrapped>cfg.alpha_limit && unwrapped<1.5*kPi)
+     check(over.state().elevator<=0,"release brake stays nose-down through the alpha wrap");
+  }
+ }
+ // A short pull at 260 m/s in maneuver mode moves the nozzles off neutral.
+ // Once the moment is balanced again they must come home, not hold the offset.
+ {
+  Simulator sim(cfg);const auto entry=solveTrim(cfg,TrimRequest{.altitude=1100,.tas=260});
+  check(entry.converged,"nozzle return trim");sim.setState(entry.state);auto k=entry.controls;
+  k.maneuver_mode=true;k.elevator_stick=1;k.throttle[0]=k.throttle[1]=1;sim.setControls(k);
+  const unsigned release=unsigned(.5/FixedStepClock::tick);
+  for(unsigned tick=0;tick<unsigned(15/FixedStepClock::tick);++tick) {
+   if(tick==release){k.elevator_stick=0;sim.setControls(k);}
+   sim.step(FixedStepClock::tick);check(finite(sim.state()),"nozzle return finite");
+  }
+  check(std::abs(sim.state().nozzle_angle[0])<.5*kDeg2Rad && std::abs(sim.state().nozzle_angle[1])<.5*kDeg2Rad,
+        "nozzles return to neutral after a short pull");
+ }
 }
 void poles() {
  for(const auto& d:aircraftDefinitions()) {

@@ -303,6 +303,9 @@ void hierarchy(const std::string& root) {
     } else if(definition.type==AircraftType::B52) {
       for(const char* name:{"aileron_L","aileron_R","elevator","rudder","flap","gear_fold","wheel","nose_wheel","steering","fan_L","fan_R"})
         check(channels.contains(name),"B-52 articulated channel present");
+    } else if(definition.type==AircraftType::B747) {
+      for(const char* name:{"aileron_L","aileron_R","elevator","rudder","flap","spoiler","gear_fold","gear_door","wheel","nose_wheel","steering"})
+        check(channels.contains(name),"Boeing 747 articulated channel present");
     } else for(const char* name:{"aileron_L","aileron_R","elevator","rudder","flap","gear","wheel","nose_wheel","steering"})
       check(channels.contains(name),"required articulated channel present");
     if(definition.type==AircraftType::A320) check(channels.contains("spoiler") && channels.contains("fan_L") && channels.contains("fan_R"),"A320 spoiler and engine rigs");

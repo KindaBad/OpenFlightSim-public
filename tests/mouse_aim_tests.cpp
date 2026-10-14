@@ -131,7 +131,8 @@ int main() {
       const TrimRequest slow;
       TrimRequest fast;
       fast.altitude = 6000;
-      fast.tas = definition.type == AircraftType::A320 ? 210 : definition.type == AircraftType::B52 ? 230 : 280;
+      fast.tas = definition.type == AircraftType::A320 || definition.type == AircraftType::B747 ? 210
+          : definition.type == AircraftType::B52 ? 230 : 280;
 
       // First response has the right sense on every axis.
       const auto trim = solveTrim(definition.flight, slow);
@@ -166,6 +167,7 @@ int main() {
       }
       // A reversal is the hard case: the shortest way round must not be a dive.
       auto flight = fly(definition, fast, 175, 0, 45);
+      std::printf("%-14s reversal: off %.2f deg, lost %.0f m\n", name.c_str(), flight.off, flight.altitudeLost);
       check(flight.altitudeLost < 250 && flight.off < 75, name + ": reverses course without diving away");
       // Dive onto an aim below the horizon and hold it.
       flight = fly(definition, slow, 0, -20, 15);

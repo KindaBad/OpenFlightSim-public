@@ -64,6 +64,13 @@ int main() {
       check(slick.x>5500 && slick.x<7000 && slickTime>34 && slickTime<38 && heavy.x<slick.x && heavyTime>slickTime+5,"bomb trajectories");
       std::printf("B-52 Mk 82 from 6 km at 200 m/s: %.0f m downrange in %.1f s; B83: %.0f m in %.1f s\n",slick.x,slickTime,heavy.x,heavyTime);
     }
+    {
+      // The airliner: published mass, fuel, wing and four engines, with no armament or bombs.
+      const auto& d=aircraftDefinition(AircraftType::B747);const auto& f=d.flight;
+      check(!d.bomber && !d.gun && f.empty_mass==174000 && f.fuel_capacity==146700 && f.wing_area==511 && f.wing_span==59.64,"747 published mass, fuel and wing");
+      check(f.engine_count*f.thrust_sl_static_each==4*208870. && f.afterburner_thrust_each==0,"747 four JT9D-7A without reheat");
+      check(weapons::bombLoadouts(AircraftType::B747)==0,"the airliner carries no bombs");
+    }
     const Reference references[]{
       {AircraftType::Typhoon,11000,4996,51.2,60000,90000,9,2.0,1.25,22000,true,1700,1025,150,2,4},
       {AircraftType::Su57,18500,10300,78.8,93000,147000,9,2.0,1.10,22000,true,1500,860,150,2,4},

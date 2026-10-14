@@ -182,8 +182,13 @@ Simulator::ControlAllocation Simulator::vectorFighterAllocation(double horizon_s
   // the law brings it back down by the shorter way round, which is what ends
   // a Cobra; hold it and the aircraft goes on over.
   if(maneuver>0) {
-    const double excess=aero.alpha>cfg_.alpha_limit?aero.alpha-cfg_.alpha_limit:
-        aero.alpha<-.5*cfg_.alpha_limit?aero.alpha+.5*cfg_.alpha_limit:0;
+    // atan2 wraps alpha at +-180 deg, which is where a Cobra goes over the top.
+    // Unwrapped, the brake stays nose-down from above the limit up to -90 deg,
+    // so the command does not flip when alpha crosses the wrap.
+    const double unwrapped=aero.alpha<0?aero.alpha+2*kPi:aero.alpha;
+    const double lowerEdge=2*kPi-.5*cfg_.alpha_limit;
+    const double excess=unwrapped>cfg_.alpha_limit&&unwrapped<1.5*kPi?unwrapped-cfg_.alpha_limit:
+        unwrapped>=1.5*kPi&&unwrapped<lowerEdge?unwrapped-lowerEdge:0;
     const double released=1-clamp(std::abs(state_.pilot_pitch)/.25,0.,1.);
     pitchCommand-=maneuver*released*clamp(2.2*excess,-pitchRate,pitchRate);
   }
@@ -227,7 +232,10 @@ Simulator::ControlAllocation Simulator::vectorFighterAllocation(double horizon_s
     lower[i]=std::max(-1-currentPosition[i],-travel);
     upper[i]=std::min(1-currentPosition[i],travel);
   }
-  const auto delta=boundedControlAllocation(columns,residual,weights,lower,upper);
+  // Nozzles are pulled back to neutral when the moment is already balanced; the
+  // surfaces are not, since their deflection carries the aerodynamic trim.
+  const std::array<double,5> neutral{0,0,0,-currentPosition[3],-currentPosition[4]};
+  const auto delta=boundedControlAllocation(columns,residual,weights,lower,upper,.0025,neutral);
   out.surfaces.elevator_stick=currentPosition[0]+delta[0];
   out.surfaces.aileron_stick=currentPosition[1]+delta[1];
   out.surfaces.rudder_pedal=currentPosition[2]+delta[2];

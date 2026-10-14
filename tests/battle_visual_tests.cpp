@@ -397,6 +397,32 @@ void effects() {
     }
     check(small.size() <= small.capacity() && small.peakSize() == small.capacity(), "effects stay bounded");
   }
+  {
+    // Navigation lights: one steady light per wingtip, placed where the wingtip
+    // is now. Sampling them along the path at a fast speed left a run of copies
+    // behind the aircraft.
+    EffectPool pool(512);
+    CombatEffects fx(pool, EffectsQuality::High);
+    fx.setEmissions(false, false);
+    fx.setCondensation(false, 0);
+    State state = flying(type, 250);
+    Vec3 previous{};
+    for (unsigned i = 0; i < 90; ++i) {
+      state.pos_ned += state.vel_ned * (1. / 60);
+      pool.update(1. / 60);
+      fx.updateAircraft(state, 1. / 60, type, 5, 1, 100);
+      unsigned red = 0, green = 0;
+      Vec3 redAt{};
+      for (const auto& effect : pool.effects()) {
+        if (effect.kind != EffectKind::Light) continue;
+        if (effect.tint == 0xe02020ffu) { ++red; redAt = effect.position; }
+        if (effect.tint == 0xe040ff40u) ++green;
+      }
+      check(red == 1 && green == 1, "each wingtip shows one navigation light per frame");
+      if (i > 0) check(std::abs((redAt - previous).norm() - 250. / 60) < 1e-6, "the red light moves with its wingtip");
+      previous = redAt;
+    }
+  }
   std::puts("battle effects: gun, hit, warhead, destruction, part loss, damage smoke and fire, bounds PASS");
 }
 // Shots and decoys are reported on the server's clock but drawn on the

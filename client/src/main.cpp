@@ -159,7 +159,7 @@ Options parse(int argc, char** argv) {
     } else {
       throw std::runtime_error(
           "Usage: ofs_client [--smoke-test|--gun-smoke] [--frames N] [--screenshot path.ppm] "
-          "[--aircraft a320|su57|typhoon|sr71|jf17|b52] [--asset path.glb] [--config path.cfg] [--airborne] [--width N] [--height N] "
+          "[--aircraft a320|su57|typhoon|sr71|jf17|b52|b747] [--asset path.glb] [--config path.cfg] [--airborne] [--width N] [--height N] "
           "[--map] [--free-camera|--pursuit|--chase|--close-chase|--orbit|--cockpit] [--visual-bench N] [--frame-step seconds] "
           "[--no-sound] [--sound-capture path.wav] "
           "[--bots 0..8] [--server host --name name] [--team red|blue|auto] [--loadout mk82|mk84|nuke] [--livery 7lwo|luftwaffe] "
@@ -974,6 +974,9 @@ int main(int argc, char** argv) {
         if (mouseAim.active && cameraMode == CameraMode::FirstPerson)
           mouseAim.confine(simulation().state(), std::min(.45, .4 * graphics.cockpitFov * kDeg2Rad));
       }
+      // The interface follows the window's size. Its fonts are rebuilt only when
+      // the scale changes, which is before the frame begins, never during it.
+      if (uiContext.updateScale(platform.window(), renderer.uiScale())) renderer.refreshFonts();
       ImGui_ImplSDL3_NewFrame();
       ImGui::NewFrame();
 
@@ -2182,7 +2185,7 @@ int main(int argc, char** argv) {
 
 #ifdef OFS_NETWORK_ENABLED
       if (network && graphics.showDevOverlay) {
-        ImGui::SetNextWindowPos({760, 14}, ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowPos({760 * uiPointScale(), 14 * uiPointScale()}, ImGuiCond_FirstUseEver);
         if (ImGui::Begin("Network diagnostics")) {
           const auto& n = network->stats();
           const auto& p = network->prediction().stats();

@@ -281,9 +281,12 @@ class Renderer {
   // ui() reads ids as a bgfx texture index plus one.
   std::uintptr_t mapTexture() const { return bgfx::isValid(mapTexture_) ? std::uintptr_t(mapTexture_.idx) + 1 : 0; }
 
-  // Projects a world point to pixels for HUD labels. False when behind the
-  // camera or off screen.
+  // Projects a world point to device pixels. False when behind the camera or off screen.
   bool projectToScreen(const Vec3& world, float& outX, float& outY, float& outDepth) const;
+  // Device pixels per design unit of the interface for the current framebuffer.
+  float uiScale() const;
+  // Uploads the interface font atlas again, after UiContext::updateScale rebuilt it.
+  void refreshFonts();
   // Model transform for the visual aircraft, exposed so tests can verify it.
   glm::mat4 modelTransform(const State& state) const;
   // Body-FRD -> render matrix, so tests and the HUD share one implementation.

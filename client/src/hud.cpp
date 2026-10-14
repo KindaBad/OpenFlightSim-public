@@ -3,6 +3,7 @@
 #include "ofs/ground_service.hpp"
 #include "ofs/pilot.hpp"
 #include "ofs/units.hpp"
+#include "ui_scale.hpp"
 #include <imgui.h>
 #include <algorithm>
 #include <initializer_list>
@@ -36,12 +37,43 @@ std::string number(double value, int decimals = 0) {
 void text(ImDrawList* draw, ImVec2 pos, const std::string& value, ImU32 color = kText,
           float size = 15) {
   const ImU32 shadow = IM_COL32(0, 0, 0, ((color >> 24) & 0xff) * 210 / 255);
-  draw->AddText(ImGui::GetFont(), size, {pos.x+1,pos.y+1}, shadow, value.c_str());
-  draw->AddText(ImGui::GetFont(), size, pos, color, value.c_str());
+  ImFont* font = uiFont(size);
+  draw->AddText(font, size, {pos.x+1,pos.y+1}, shadow, value.c_str());
+  draw->AddText(font, size, pos, color, value.c_str());
 }
 float textWidth(const std::string& value, float size) {
-  return ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0, value.c_str()).x;
+  return uiFont(size)->CalcTextSizeA(size, FLT_MAX, 0, value.c_str()).x;
 }
+// The renderer projects to device pixels; the flight display works in design units.
+bool projectHud(const Renderer& renderer, const Vec3& world, float& x, float& y, float& depth) {
+  if (!renderer.projectToScreen(world, x, y, depth)) return false;
+  const float scale = renderer.uiScale();
+  x /= scale;
+  y /= scale;
+  return true;
+}
+// Stretches everything drawn into `draw` after it was made to the window's
+// points. The flight display is laid out in design units, and the fonts are
+// already rasterized at the device size, so this moves the drawing without
+// blurring it.
+class ScaledDraw {
+ public:
+  ScaledDraw(ImDrawList* draw, float scale) : draw_(draw), scale_(scale), first_(draw->VtxBuffer.Size) {}
+  ~ScaledDraw() {
+    for (int i = first_; i < draw_->VtxBuffer.Size; ++i) {
+      ImDrawVert& vertex = draw_->VtxBuffer[i];
+      vertex.pos.x *= scale_;
+      vertex.pos.y *= scale_;
+    }
+  }
+  ScaledDraw(const ScaledDraw&) = delete;
+  ScaledDraw& operator=(const ScaledDraw&) = delete;
+
+ private:
+  ImDrawList* draw_;
+  float scale_;
+  int first_;
+};
 void textRight(ImDrawList* draw, ImVec2 pos, const std::string& value, ImU32 color = kText, float size = 15) {
   text(draw, {pos.x - textWidth(value, size), pos.y}, value, color, size);
 }
@@ -99,7 +131,9 @@ void dart(ImDrawList* draw, ImVec2 centre, double heading, float length, ImU32 c
 void drawMap(ImDrawList* draw, const MapFrame& map, const HudFrame& frame, const Renderer& renderer, bool full) {
   const ImVec2 min{map.x, map.y}, max{map.x + map.size, map.y + map.size};
   draw->AddRectFilled(min, max, IM_COL32(18, 22, 26, full ? 245 : 215));
-  draw->PushClipRect(min, max, true);
+  // Clip rectangles are in window points, not design units, so they are scaled here.
+  const float scale = uiPointScale();
+  draw->PushClipRect({min.x * scale, min.y * scale}, {max.x * scale, max.y * scale}, true);
   float left, top, right, bottom, u0, v0, u1, v1;
   if (renderer.mapTexture() && map.picture(left, top, right, bottom, u0, v0, u1, v1))
     draw->AddImage(static_cast<ImTextureID>(renderer.mapTexture()), {left, top}, {right, bottom}, {u0, v0}, {u1, v1},
@@ -259,7 +293,7 @@ void brokenRing(ImDrawList* draw, ImVec2 c, float radius, ImU32 color, float thi
   }
 }
 void centred(ImDrawList* draw, ImVec2 at, const std::string& value, ImU32 color, float size = 12) {
-  const float width = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0, value.c_str()).x;
+  const float width = textWidth(value, size);
   text(draw, {at.x - width * .5f, at.y}, value, color, size);
 }
 ImU32 faded(ImU32 color, float alpha) {
@@ -308,7 +342,7 @@ void drawThreats(ImDrawList* draw, ImVec2 display, const HudFrame& frame, const 
     // In the world, when it is in view.
     ImVec2 point;
     float depth;
-    if (renderer.projectToScreen(threat.position, point.x, point.y, depth)) {
+    if (projectHud(renderer, threat.position, point.x, point.y, depth)) {
       diamond(draw, point, 9, IM_COL32(0, 0, 0, 160), 3.5f);
       diamond(draw, point, 9, color, 1.8f);
     }
@@ -369,7 +403,7 @@ void drawWeapons(ImDrawList* draw, ImVec2 display, const HudFrame& frame, const 
     float depth;
     if (!worldOf(entity, position)) return false;
     range = (position - state.pos_ned).norm();
-    return renderer.projectToScreen(position, point.x, point.y, depth);
+    return projectHud(renderer, position, point.x, point.y, depth);
   };
   const weapons::EntityRef target = frame.seekerTarget;
   if (!(target == lockAnimation.target)) lockAnimation = {target, now};
@@ -473,7 +507,7 @@ void drawWeapons(ImDrawList* draw, ImVec2 display, const HudFrame& frame, const 
   ImVec2 boresight{};
   float depth;
   const Vec3 nose = state.att.rotate({1, 0, 0});
-  const bool boresightVisible = renderer.projectToScreen(state.pos_ned + nose * 3000, boresight.x, boresight.y, depth);
+  const bool boresightVisible = projectHud(renderer, state.pos_ned + nose * 3000, boresight.x, boresight.y, depth);
   ImVec2 point;
   double range = 0;
   const bool targetVisible = missile && target.id && screenOf(target, point, range);
@@ -486,7 +520,7 @@ void drawWeapons(ImDrawList* draw, ImVec2 display, const HudFrame& frame, const 
     float ring = 90;
     const Vec3 up = state.att.rotate({0, 0, -1});
     if (boresightVisible &&
-        renderer.projectToScreen(state.pos_ned + (nose * std::cos(seeker.fov * .5) + up * std::sin(seeker.fov * .5)) * 3000,
+        projectHud(renderer, state.pos_ned + (nose * std::cos(seeker.fov * .5) + up * std::sin(seeker.fov * .5)) * 3000,
                                  edge.x, edge.y, depth))
       ring = std::clamp(std::hypot(edge.x - boresight.x, edge.y - boresight.y), 40.f, display.y * .45f);
     if (targetVisible) {
@@ -537,7 +571,7 @@ void drawWeapons(ImDrawList* draw, ImVec2 display, const HudFrame& frame, const 
   // The pilot's own missiles, so a shot can be followed to its target.
   for (const Vec3& position : frame.ownMissiles) {
     ImVec2 at;
-    if (!renderer.projectToScreen(position, at.x, at.y, depth)) continue;
+    if (!projectHud(renderer, position, at.x, at.y, depth)) continue;
     draw->AddTriangle({at.x, at.y - 7}, {at.x - 6, at.y + 5}, {at.x + 6, at.y + 5}, kText, 1.4f);
   }
 }
@@ -673,7 +707,11 @@ float pill(ImDrawList* draw, ImVec2 at, const std::string& label, bool on, ImU32
 void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer& renderer) {
   if (!frame.local || !frame.controls) return;
   auto* draw = ImGui::GetBackgroundDrawList();
-  const ImVec2 display = ImGui::GetIO().DisplaySize;
+  // Laid out in design units; what it draws is stretched to the window's points on the way out.
+  const float scale = uiPointScale();
+  const ScaledDraw scaled(draw, scale);
+  const ImVec2 points = ImGui::GetIO().DisplaySize;
+  const ImVec2 display{points.x / scale, points.y / scale};
   if (display.x < 320 || display.y < 240) return;
   // A nuclear flash blinds whoever is looking, HUD or no HUD, and clears slowly.
   if (frame.flash > .002) {
@@ -819,7 +857,7 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
   if (cockpit && settings.showFlightPathMarker && state.vel_ned.norm()>10) {
     float x,y,depth;
     const Vec3 path = state.pos_ned + state.vel_ned.normalized()*1500;
-    if (renderer.projectToScreen(path,x,y,depth)) {
+    if (projectHud(renderer, path,x,y,depth)) {
       draw->AddCircle({x,y},7,kAccent,24,1.5f);
       draw->AddLine({x-19,y},{x-7,y},kAccent,1.5f);
       draw->AddLine({x+7,y},{x+19,y},kAccent,1.5f);
@@ -831,7 +869,7 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
   const bool gunsight = armed && settings.showGunsight && frame.gunPointValid && !frame.fullMap;
   if (gunsight) {
     float depth;
-    if (renderer.projectToScreen(frame.gunPoint,sight.x,sight.y,depth)) {
+    if (projectHud(renderer, frame.gunPoint,sight.x,sight.y,depth)) {
       const ImU32 color = frame.firing ? kAmber : kAccent;
       const float radius = frame.firing ? 9.f : 11.f;
       draw->AddCircle(sight,radius,IM_COL32(0,0,0,130),28,3.2f);
@@ -846,12 +884,12 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
   if (frame.mouseAim) {
     // The ring is where the pilot asked to go; the cross is where the nose is.
     float x,y,depth;
-    if (renderer.projectToScreen(frame.mouseAimPoint,x,y,depth)) {
+    if (projectHud(renderer, frame.mouseAimPoint,x,y,depth)) {
       draw->AddCircle({x,y},15,IM_COL32(0,0,0,150),32,3.5f);
       draw->AddCircle({x,y},15,kText,32,1.6f);
       draw->AddCircleFilled({x,y},1.6f,kText);
     }
-    if (!gunsight && renderer.projectToScreen(frame.nosePoint,x,y,depth)) {
+    if (!gunsight && projectHud(renderer, frame.nosePoint,x,y,depth)) {
       draw->AddLine({x-8,y},{x-3,y},kAccent,1.6f);
       draw->AddLine({x+3,y},{x+8,y},kAccent,1.6f);
       draw->AddLine({x,y-8},{x,y-3},kAccent,1.6f);
@@ -1010,7 +1048,7 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
     // The weapon's target carries its own marker and readout.
     if (frame.missileSelected && frame.seekerTarget.id == remote.entity) continue;
     float x,y,depth;
-    if (!renderer.projectToScreen(remote.state.pos_ned,x,y,depth)) continue;
+    if (!projectHud(renderer, remote.state.pos_ned,x,y,depth)) continue;
     const std::string label=(remote.name.empty()?"Aircraft":remote.name)+"  "+number(distance/1000,1)+" km";
     const auto color=frame.teams?teamColor(remote.team,kBlue):frame.dogfight?kDanger:kBlue;
     draw->AddTriangle({x,y-8},{x-4,y-15},{x+4,y-15},color,1.5f);
@@ -1025,7 +1063,7 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
     const double distance=(structure.position-state.pos_ned).norm();
     if (distance>18000) continue;
     float x,y,depth;
-    if (!renderer.projectToScreen(structure.position+Vec3{0,0,-12},x,y,depth)) continue;
+    if (!projectHud(renderer, structure.position+Vec3{0,0,-12},x,y,depth)) continue;
     const ImU32 color=faded(teamColor(structure.team,kText),distance<7000?.95f:.6f);
     diamond(draw,{x,y},distance<7000?6.f:4.f,color,1.4f);
     if (distance<7000) centred(draw,{x,y-22},std::string(structureName(structure.kind))+"  "+number(distance/1000,1)+" km",color,11);
@@ -1033,7 +1071,7 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
   // Where a bomb let go now would land.
   if (frame.bombSight && frame.alive && !frame.fullMap) {
     float x,y,depth;
-    if (renderer.projectToScreen(frame.bombPoint,x,y,depth)) {
+    if (projectHud(renderer, frame.bombPoint,x,y,depth)) {
       const ImU32 color=frame.bombs?kAmber:kMuted;
       draw->AddCircle({x,y},13,IM_COL32(0,0,0,150),28,3.4f);
       draw->AddCircle({x,y},13,color,28,1.6f);

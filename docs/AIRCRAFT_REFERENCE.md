@@ -202,6 +202,70 @@ damages them out to 8 km and levels buildings within 6 km. The nuclear weapon
 is given enough drag to take about a minute to fall from 9 km, which is what
 lets the bomber get clear; the real one is slowed by a parachute.
 
+## Boeing 747-206B
+
+Added in 0.6.9.2000 as the game's airliner. It has no gun, no missiles and no
+bombs. The figures are the commonly quoted ones and were not checked against a
+primary source for this release.
+
+| | Published | Simulator |
+|---|---|---|
+| Engines | 4 × JT9D-7A, 46,950 lbf (208.9 kN) each, as quoted | two engine slots of 417.7 kN, one per wing, two engines each |
+| Empty mass | 174,000 kg (quoted operating empty weight, estimate) | 174,000 kg |
+| Internal fuel | 146,700 kg (183,380 L at 0.8 kg/L) | capacity 146,700 kg; 60,000 kg at spawn |
+| Mass at spawn | | 234,000 kg |
+| Wing area / span / mean chord | 511 m² / 59.64 m / 8.3 m | the same; the donor's planform measures 413 m² |
+| Length / height | 70.66 m / 19.33 m | the model measures 70.66 m and 19.33 m |
+| Top speed | Mmo 0.92 | steady top 290 m/s at sea level, Mach 0.88 at 35,000 ft |
+| Load limit | +2.5 / −1 g | +2.5 / −1 g |
+
+The real aircraft is held to its structural limit of about 375 knots indicated
+at low altitude, well below 290 m/s at sea level; the simulator has no such
+limit. Drag, inertia, thrust lapse, control response and the wave-drag fit are
+engineering estimates set against the commonly quoted performance below.
+
+The engines lose thrust with speed as a bypass-ratio-5 fan does, about 79 % of
+static at Mach 0.5 and 62 % at Mach 0.8, and the wave drag rises from Mach 0.84,
+just short of the 747's drag-divergence Mach. Measured at the 234 t spawn mass
+against commonly quoted figures for a 747-200 of about that weight:
+
+| | Commonly quoted | Simulator |
+|---|---|---|
+| Cruise, Mach 0.85 at 35,000 ft | about 2° nose up, 9 to 11 t of fuel an hour | 1.4° nose up, 9.5 t an hour |
+| Climb at full thrust | | 5,200 ft/min at 3 km, 2,100 ft/min at 9 km |
+| Ceiling | 45,000 ft when light | about 13 km (42,600 ft) |
+| Stall, clean and flaps 30 | about 145 and 110 knots | 148 and 115 knots |
+| Roll from wings level, full wheel, 130 m/s | 10 to 15°/s | 31° in 3 s, 13°/s peak |
+| Lift-off, flaps 30, rotated at 136 knots | about 145 knots | 146 knots after about 1 km |
+
+Before 0.6.9.2000 shipped, the engines kept 83 % of their thrust at Mach 0.86
+and the wave drag began at Mach 0.80, which cost 100 drag counts at cruise: the
+747 burnt 11.4 t an hour at Mach 0.85 and reached Mach 0.86 at sea level.
+
+The scenarios in `tests/b747_scenarios.cpp` measure:
+
+- Static thrust of 835,487 N, the four engines at the quoted rating.
+- Level trim at 3 km with throttle at 53 %, 62 % and 76 % for 120, 180 and
+  230 m/s, with pitch of 5.7°, 0.8° and −0.8°.
+- A takeoff held to 7° of pitch from 70 m/s, which lifts off at 90 m/s after
+  1.49 km; pulled through to 10°, it lifts off at 75 m/s.
+- A landing from 73 m/s at 0.9 m/s sink, peaking at 5.0 MN (about 2.2 g), with a
+  420 m roll on the shared gameplay braking described below. A real 747 needs
+  a longer roll than this; the simulator does not model reverse thrust.
+- A stall recovery that loses 339 m of height.
+
+The 747 flies the B-52's transport control law, which eases the nose down in
+proportion to the load factor. With the B-52's 0.12 rad/s pitch rate a full
+pull then held only about 1.25 g in a 58-degree bank, the bank the mouse-aim
+instructor flies to the 747's 2.5 g limit, so every steep turn sank: the
+instructor's 175-degree reversal at 6 km and 210 m/s lost 765 m. The 747 now
+asks for 0.22 rad/s, and that reversal loses 7 m. Its ailerons and roll
+spoilers together are given a roll power of 0.18 per radian, so a held roll key
+banks it 11 degrees in the first 1.5 seconds; at 0.12 it managed 8.
+
+Wheels up, the 747 comes down on the bottoms of its inboard nacelles, which
+hang 0.8 m below the belly, as a real one does, and on its belly aft of them.
+
 ## Brakes and landing, all aircraft
 
 From 0.6.0 every wheel is braked, with each aircraft's own friction figures

@@ -7,18 +7,32 @@
 #include <imgui_impl_sdl3.h>
 
 #include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstddef>
 #include <cstdio>
 #include <stdexcept>
 #include <string>
 
 namespace ofs::client {
 
-UiContext::UiContext(SDL_Window* window, bool smokeFont) {
-  IMGUI_CHECKVERSION();
-  ImGui::CreateContext();
-  ImGui::GetIO().IniFilename = nullptr;
+namespace {
+
+// The design sizes the interface draws text at. Each one has its own font,
+// rasterized at its device size, so no glyph is stretched or blurred by scaling
+// a bitmap. The default is 15, the size of the menus and the flight display.
+constexpr std::array<float, 10> kFontSizes{11, 12, 13, 14, 15, 17, 18, 22, 26, 30};
+constexpr std::size_t kDefaultFont = 4;
+std::array<ImFont*, kFontSizes.size()> gFonts{};
+float gPointScale = 1;
+
+// The look of the interface at `scale` window points per design unit: the same
+// deep navy and blue as the launcher and the flight display, with every size
+// multiplied by the scale. Starts from the default style so that scaling again
+// does not compound.
+void applyStyle(float scale) {
+  ImGui::GetStyle() = ImGuiStyle();
   ImGui::StyleColorsDark();
-  // The same deep navy and blue as the launcher and the flight display.
   auto& style = ImGui::GetStyle();
   style.WindowRounding = 6;
   style.FrameRounding = 4;
@@ -54,21 +68,59 @@ UiContext::UiContext(SDL_Window* window, bool smokeFont) {
   colors[ImGuiCol_ScrollbarBg] = {.035f,.063f,.098f,.6f};
   colors[ImGuiCol_ScrollbarGrab] = {.16f,.27f,.37f,1};
   colors[ImGuiCol_NavHighlight] = {.25f,.64f,1,1};
-  // A slightly larger default font keeps the diagnostics readable at 1280x800
-  // without a separate atlas.
-  ImGui::GetIO().FontGlobalScale = 1.0f;
-  if (!smokeFont) {
-    ImFontConfig config;
-    config.FontDataOwnedByAtlas = false;
-    config.SizePixels = 30;
-    auto* font = ImGui::GetIO().Fonts->AddFontFromMemoryTTF(
-        const_cast<unsigned char*>(ofs_ui_font), sizeof(ofs_ui_font), 30, &config);
-    font->Scale = .5f;
-  }
+  style.ScaleAllSizes(scale);
+}
+
+}  // namespace
+
+ImFont* uiFont(float designSize) {
+  std::size_t nearest = 0;
+  for (std::size_t i = 1; i < kFontSizes.size(); ++i)
+    if (std::abs(kFontSizes[i] - designSize) < std::abs(kFontSizes[nearest] - designSize)) nearest = i;
+  return gFonts[nearest] ? gFonts[nearest] : ImGui::GetFont();
+}
+
+float uiPointScale() { return gPointScale; }
+
+UiContext::UiContext(SDL_Window* window, bool smokeFont) : smokeFont_(smokeFont) {
+  IMGUI_CHECKVERSION();
+  ImGui::CreateContext();
+  ImGui::GetIO().IniFilename = nullptr;
+  int width = 0, height = 0;
+  SDL_GetWindowSizeInPixels(window, &width, &height);
+  updateScale(window, uiDeviceScale(width, height));
   if (!ImGui_ImplSDL3_InitForOther(window)) {
     ImGui::DestroyContext();
     throw std::runtime_error("ImGui SDL3 backend failed");
   }
+}
+
+bool UiContext::updateScale(SDL_Window* window, float deviceScale) {
+  int width = 0, height = 0, pixelWidth = 0, pixelHeight = 0;
+  SDL_GetWindowSize(window, &width, &height);
+  SDL_GetWindowSizeInPixels(window, &pixelWidth, &pixelHeight);
+  // The same density ImGui's SDL3 backend reports for the window.
+  const float density = width > 0 ? float(pixelWidth) / float(width) : 1.f;
+  if (deviceScale == deviceScale_ && density == density_) return false;
+  deviceScale_ = deviceScale;
+  density_ = density;
+  // ImGui's windows are laid out in points, so their fonts are rasterized at the
+  // device size and shown at one device pixel per glyph pixel.
+  const float pointScale = deviceScale / density;
+  gPointScale = pointScale;
+  ImGuiIO& io = ImGui::GetIO();
+  io.FontGlobalScale = 1.f / density;
+  applyStyle(pointScale);
+  if (smokeFont_) return false;
+  io.Fonts->Clear();
+  ImFontConfig config;
+  config.FontDataOwnedByAtlas = false;
+  for (std::size_t i = 0; i < kFontSizes.size(); ++i)
+    gFonts[i] = io.Fonts->AddFontFromMemoryTTF(const_cast<unsigned char*>(ofs_ui_font), sizeof(ofs_ui_font),
+                                               kFontSizes[i] * deviceScale, &config);
+  io.FontDefault = gFonts[kDefaultFont];
+  io.Fonts->Build();
+  return true;
 }
 
 UiContext::~UiContext() {
@@ -87,8 +139,9 @@ void gameMenu(const Simulator& sim, Controls& controls, const Renderer& renderer
   const ImVec2 display = ImGui::GetIO().DisplaySize;
   // Dim the flight behind the menu.
   ImGui::GetBackgroundDrawList()->AddRectFilled({0, 0}, display, IM_COL32(3, 8, 14, 120));
+  const float s = uiPointScale();
   ImGui::SetNextWindowPos({display.x * .5f, display.y * .46f}, ImGuiCond_Always, {.5f, .5f});
-  ImGui::SetNextWindowSize({340, 0});
+  ImGui::SetNextWindowSize({340 * s, 0});
   ImGui::Begin("OpenFlightSim", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
                ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
   ImGui::TextDisabled("%s", ui.dogfight ? "Dogfight against bots" : ui.multiplayer ? "Multiplayer flight" :
@@ -119,8 +172,9 @@ void gameMenu(const Simulator& sim, Controls& controls, const Renderer& renderer
 }
 
 void controlsWindow(UiSettings& ui) {
-  ImGui::SetNextWindowPos({24, 24}, ImGuiCond_Appearing);
-  ImGui::SetNextWindowSize({400, 0});
+  const float s = uiPointScale();
+  ImGui::SetNextWindowPos({24 * s, 24 * s}, ImGuiCond_Appearing);
+  ImGui::SetNextWindowSize({400 * s, 0});
   if (ImGui::Begin("Controls", &ui.showControls, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
     const auto section = [](const char* title) {
       ImGui::Spacing();
@@ -129,7 +183,7 @@ void controlsWindow(UiSettings& ui) {
     };
     const auto row = [](const char* keys, const char* action) {
       ImGui::TextUnformatted(keys);
-      ImGui::SameLine(170);
+      ImGui::SameLine(170 * uiPointScale());
       ImGui::TextDisabled("%s", action);
     };
     section("FLYING");
@@ -169,9 +223,10 @@ void controlsWindow(UiSettings& ui) {
 // The line a pilot is typing, at the foot of the chat.
 void chatBox(UiSettings& ui) {
   const ImVec2 display = ImGui::GetIO().DisplaySize;
-  ImGui::SetNextWindowPos({18, display.y - 78}, ImGuiCond_Always);
-  ImGui::SetNextWindowSize({std::min(430.f, display.x - 36), 0});
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {10, 8});
+  const float s = uiPointScale();
+  ImGui::SetNextWindowPos({18 * s, display.y - 78 * s}, ImGuiCond_Always);
+  ImGui::SetNextWindowSize({std::min(430 * s, display.x - 36 * s), 0});
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {10 * s, 8 * s});
   ImGui::Begin("Chat", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
   ImGui::AlignTextToFramePadding();
   ImGui::TextDisabled("SAY");
@@ -200,9 +255,10 @@ void debugUi(const Simulator& sim, Controls& controls, const Camera& camera,
   if (ui.showControls) controlsWindow(ui);
 
   // ---- Simulation diagnostics ----
+  const float s = uiPointScale();
   if (settings.showDevOverlay) {
-    ImGui::SetNextWindowPos({14, 14}, ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize({372, 560}, ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos({14 * s, 14 * s}, ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize({372 * s, 560 * s}, ImGuiCond_FirstUseEver);
     if (ImGui::Begin("OpenFlightSim | M3.6", nullptr,
                      ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
       ImGui::Text("%s | %s", stats.backend.c_str(), OFS_BUILD_TYPE);
@@ -295,7 +351,7 @@ void debugUi(const Simulator& sim, Controls& controls, const Camera& camera,
 
   // ---- Simulation tooling ----
   if (settings.showDevOverlay && !ui.multiplayer) {
-    ImGui::SetNextWindowPos({14, 588}, ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos({14 * s, 588 * s}, ImGuiCond_FirstUseEver);
     if (ImGui::Begin("Simulation", nullptr, ImGuiWindowFlags_NoSavedSettings)) {
       ImGui::Checkbox("Pause simulation", &ui.paused);
       ImGui::SameLine();
@@ -315,8 +371,8 @@ void debugUi(const Simulator& sim, Controls& controls, const Camera& camera,
 
   // ---- Settings: opened from the menu, and always part of the developer windows ----
   if (!settings.showDevOverlay && !ui.showSettings) return;
-  ImGui::SetNextWindowPos({398, 14}, ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowSize({360, 640}, ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowPos({398 * s, 14 * s}, ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize({360 * s, 640 * s}, ImGuiCond_FirstUseEver);
   if (ImGui::Begin("Settings", settings.showDevOverlay ? nullptr : &ui.showSettings, ImGuiWindowFlags_NoSavedSettings)) {
     // Any individual change below turns the preset into "Custom".
     const GraphicsSettings before = settings;

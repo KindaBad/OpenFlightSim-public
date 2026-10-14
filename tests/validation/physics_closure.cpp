@@ -16,7 +16,8 @@ void mass() {
         State s;s.fuel_mass=fuel;s.payload_mass=payload;s.payload_offset={offset,.2,-.1};
         check(sim.setState(s),"all-aircraft load state accepted");const auto m=sim.massProperties();const auto I=m.tensor();
         near(m.mass,basic+fuel+payload,1e-8,"mass in kg");check(I.positiveDefinite(),"load tensor positive definite");
-        const Vec3 u{1,2,3},v{-2,5,4};near(u.dot(I.apply(v)),v.dot(I.apply(u)),1e-7,"tensor symmetric");
+        const Vec3 u{1,2,3},v{-2,5,4};// Rounding grows with the tensor: the 747's products reach 9e8 kg m2.
+        const double product=u.dot(I.apply(v));near(product,v.dot(I.apply(u)),std::max(1e-7,1e-14*std::abs(product)),"tensor symmetric");
         std::vector<double> principal;
         for(const auto axis:I.principalAxes()) {
           const double value=axis.dot(I.apply(axis));principal.push_back(value);

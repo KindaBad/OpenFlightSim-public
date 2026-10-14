@@ -17,6 +17,7 @@ add_library(ofs_core STATIC
   src/su57.cpp
   src/jf17.cpp
   src/b52.cpp
+  src/b747.cpp
   src/bases.cpp
   src/control_allocation.cpp
   src/data_model.cpp

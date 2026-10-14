@@ -1,0 +1,531 @@
+{
+  "scale_m_per_donor_unit": 1.005848,
+  "dimensions_m": {
+    "length": 70.66,
+    "span": 59.383,
+    "height": 17.792,
+    "ground": 0
+  },
+  "published": {
+    "length": 70.66,
+    "span": 59.64,
+    "height": 19.33,
+    "wing_area": 511.0
+  },
+  "wing_check": {
+    "area_from_donor_m2": 413.43,
+    "mac_m": 8.284,
+    "mac_spanwise_m": 11.54,
+    "mac_leading_edge_aft_of_nose_m": 28.802
+  },
+  "asset_cg_gltf": [
+    30.873,
+    5.122,
+    0
+  ],
+  "cg_aft_of_nose_m": 30.873,
+  "cg_height_m": 5.122,
+  "fuselage_sections": [
+    {
+      "x": 4,
+      "z_centre": 6.209,
+      "top": 8.699,
+      "bottom": 3.719,
+      "radius": 1.71
+    },
+    {
+      "x": 12,
+      "z_centre": 6.54,
+      "top": 10.403,
+      "bottom": 2.678,
+      "radius": 2.607
+    },
+    {
+      "x": 20,
+      "z_centre": 6.148,
+      "top": 9.788,
+      "bottom": 2.508,
+      "radius": 2.736
+    },
+    {
+      "x": 28,
+      "z_centre": 5.861,
+      "top": 9.387,
+      "bottom": 2.335,
+      "radius": 2.739
+    },
+    {
+      "x": 36,
+      "z_centre": 5.867,
+      "top": 9.387,
+      "bottom": 2.347,
+      "radius": 2.733
+    },
+    {
+      "x": 44,
+      "z_centre": 5.996,
+      "top": 9.387,
+      "bottom": 2.605,
+      "radius": 2.757
+    },
+    {
+      "x": 50,
+      "z_centre": 6.341,
+      "top": 9.387,
+      "bottom": 3.294,
+      "radius": 2.59
+    },
+    {
+      "x": 54,
+      "z_centre": 6.835,
+      "top": 9.577,
+      "bottom": 4.092,
+      "radius": 2.331
+    }
+  ],
+  "engines_body_frd": {
+    "inner": [
+      [
+        6.211,
+        -11.854,
+        2.283
+      ],
+      [
+        6.211,
+        11.854,
+        2.283
+      ]
+    ],
+    "outer": [
+      [
+        -2.683,
+        -21.059,
+        1.623
+      ],
+      [
+        -2.683,
+        21.059,
+        1.623
+      ]
+    ],
+    "exhaust_aft_body": [
+      -4.322,
+      -4.322
+    ]
+  },
+  "engine_slots_body_frd": {
+    "-1": {
+      "x": 1.764,
+      "y": -16.457
+    },
+    "1": {
+      "x": 1.764,
+      "y": 16.457
+    }
+  },
+  "wingtips_body_frd": {
+    "left": [
+      -14.055,
+      -29.692,
+      -0.791
+    ],
+    "right": [
+      -14.055,
+      29.692,
+      -0.791
+    ]
+  },
+  "tailplane_body_frd": {
+    "centre_x": -37.828,
+    "half_span": 11.091
+  },
+  "fin_body_frd": {
+    "top_above_cg": 14.208,
+    "leading_edge_x": -35.543,
+    "centre": [
+      -36.789,
+      0.0,
+      -14.097
+    ]
+  },
+  "damage_geometry": {
+    "wing_root_abs_y": 12.854,
+    "wing_tip_abs_y": 29.692,
+    "outer_wing_aft_x": -17.539,
+    "outer_wing_fore_x": 0.893,
+    "fin_base_above_cg": 4.455,
+    "fin_top_above_cg": 14.208,
+    "fin_fore_x": -35.543
+  },
+  "collision_spheres_body_frd": [
+    {
+      "centre": [
+        26.873,
+        0.0,
+        -1.087
+      ],
+      "radius": 1.71
+    },
+    {
+      "centre": [
+        18.873,
+        0.0,
+        -1.418
+      ],
+      "radius": 2.607
+    },
+    {
+      "centre": [
+        10.873,
+        0.0,
+        -1.026
+      ],
+      "radius": 2.736
+    },
+    {
+      "centre": [
+        2.873,
+        0.0,
+        -0.739
+      ],
+      "radius": 2.739
+    },
+    {
+      "centre": [
+        -5.127,
+        0.0,
+        -0.745
+      ],
+      "radius": 2.733
+    },
+    {
+      "centre": [
+        -13.127,
+        0.0,
+        -0.874
+      ],
+      "radius": 2.757
+    },
+    {
+      "centre": [
+        -19.127,
+        0.0,
+        -1.219
+      ],
+      "radius": 2.59
+    },
+    {
+      "centre": [
+        -23.127,
+        0.0,
+        -1.713
+      ],
+      "radius": 2.331
+    },
+    {
+      "centre": [
+        2.688,
+        -8.0,
+        0.0
+      ],
+      "radius": 2.285
+    },
+    {
+      "centre": [
+        -5.068,
+        -15.0,
+        0.0
+      ],
+      "radius": 3.0
+    },
+    {
+      "centre": [
+        -10.25,
+        -22.0,
+        0.0
+      ],
+      "radius": 2.387
+    },
+    {
+      "centre": [
+        -13.601,
+        -27.0,
+        0.0
+      ],
+      "radius": 1.562
+    },
+    {
+      "centre": [
+        2.688,
+        8.0,
+        0.0
+      ],
+      "radius": 2.285
+    },
+    {
+      "centre": [
+        -5.068,
+        15.0,
+        0.0
+      ],
+      "radius": 3.0
+    },
+    {
+      "centre": [
+        -10.25,
+        22.0,
+        0.0
+      ],
+      "radius": 2.387
+    },
+    {
+      "centre": [
+        -13.601,
+        27.0,
+        0.0
+      ],
+      "radius": 1.562
+    },
+    {
+      "centre": [
+        -36.789,
+        0.0,
+        -14.097
+      ],
+      "radius": 2.122
+    }
+  ],
+  "gear_body_frd": {
+    "nose": [
+      24.873300552368164,
+      0,
+      5.122
+    ],
+    "main_left": [
+      -2.0,
+      -5.8,
+      5.122
+    ],
+    "main_right": [
+      -2.0,
+      5.8,
+      5.122
+    ],
+    "wheel_radius_m": {
+      "main": 0.62,
+      "nose": 0.62
+    },
+    "wing_trucks": [
+      31.473,
+      5.5
+    ],
+    "body_trucks": [
+      34.273,
+      1.92
+    ],
+    "stowed": {
+      "wing_L": {
+        "lift_m": 0.089,
+        "folded_low": [
+          30.017,
+          -5.658,
+          3.114
+        ],
+        "folded_high": [
+          32.839,
+          -1.669,
+          4.714
+        ]
+      },
+      "body_L": {
+        "lift_m": 0.782,
+        "folded_low": [
+          34.206,
+          -2.72,
+          2.748
+        ],
+        "folded_high": [
+          37.611,
+          -1.12,
+          5.759
+        ]
+      },
+      "wing_R": {
+        "lift_m": 0.089,
+        "folded_low": [
+          30.017,
+          1.669,
+          3.114
+        ],
+        "folded_high": [
+          32.839,
+          5.658,
+          4.714
+        ]
+      },
+      "body_R": {
+        "lift_m": 0.782,
+        "folded_low": [
+          34.206,
+          1.12,
+          2.748
+        ],
+        "folded_high": [
+          37.611,
+          2.72,
+          5.759
+        ]
+      },
+      "nose": {
+        "lift_m": 0.0,
+        "folded_low": [
+          5.945,
+          -0.62,
+          3.756
+        ],
+        "folded_high": [
+          10.388,
+          0.62,
+          5.842
+        ]
+      }
+    }
+  },
+  "hinges_authoring": {
+    "inboard_flap_L": [
+      [
+        32.039,
+        -3.266,
+        3.425
+      ],
+      [
+        34.728,
+        -11.242,
+        4.671
+      ]
+    ],
+    "outboard_flap_L": [
+      [
+        35.749,
+        -12.923,
+        4.84
+      ],
+      [
+        41.019,
+        -20.753,
+        5.689
+      ]
+    ],
+    "aileron_L": [
+      [
+        42.38,
+        -21.8,
+        5.557
+      ],
+      [
+        46.804,
+        -28.6,
+        5.846
+      ]
+    ],
+    "inboard_flap_R": [
+      [
+        32.039,
+        3.266,
+        3.426
+      ],
+      [
+        34.728,
+        11.242,
+        4.671
+      ]
+    ],
+    "outboard_flap_R": [
+      [
+        35.749,
+        12.923,
+        4.84
+      ],
+      [
+        41.019,
+        20.753,
+        5.689
+      ]
+    ],
+    "aileron_R": [
+      [
+        42.38,
+        21.8,
+        5.557
+      ],
+      [
+        46.804,
+        28.6,
+        5.846
+      ]
+    ],
+    "elevator_L": [
+      [
+        65.464,
+        -1.6,
+        7.726
+      ],
+      [
+        68.986,
+        -10.7,
+        8.889
+      ]
+    ],
+    "elevator_R": [
+      [
+        65.464,
+        1.6,
+        7.726
+      ],
+      [
+        68.986,
+        10.7,
+        8.889
+      ]
+    ]
+  },
+  "channels": [
+    "aileron_L",
+    "aileron_R",
+    "elevator",
+    "flap",
+    "gear_door",
+    "gear_fold",
+    "nose_wheel",
+    "rudder",
+    "spoiler",
+    "steering",
+    "wheel"
+  ],
+  "lods": [
+    {
+      "level": 0,
+      "triangles": 25242,
+      "nodes": 165,
+      "bytes": 3213220
+    },
+    {
+      "level": 1,
+      "triangles": 21919,
+      "nodes": 165,
+      "bytes": 782164
+    },
+    {
+      "level": 2,
+      "triangles": 9581,
+      "nodes": 150,
+      "bytes": 516432
+    },
+    {
+      "level": 3,
+      "triangles": 6336,
+      "nodes": 107,
+      "bytes": 339404
+    }
+  ]
+}

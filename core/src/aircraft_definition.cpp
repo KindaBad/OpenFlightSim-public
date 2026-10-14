@@ -154,6 +154,19 @@ std::span<const AircraftDefinition> aircraftDefinitions() {
           {{.5,-14.9,.05},{.5,14.9,.05}},{{-12.3,-27.83,-1.48},{-12.3,27.83,-1.48}},
           31,7,5,.70,.70,.020}, {1,1,1},std::nullopt,
         {"assets/aircraft/b52/b52_lod1.glb","assets/aircraft/b52/b52_lod2.glb","assets/aircraft/b52/b52_lod3.glb"},b52Boxes,true});
+    // Anchors measured from the donor model by scripts/b747_donor_import.py; see assets/aircraft/b747/README.md.
+    const std::array<AircraftDefinition::CollisionSphere,17> b747Boxes{{
+      {{26.87,0,-1.09},1.71},{{18.87,0,-1.42},2.61},{{10.87,0,-1.03},2.74},{{2.87,0,-.74},2.74},
+      {{-5.13,0,-.74},2.73},{{-13.13,0,-.87},2.76},{{-19.13,0,-1.22},2.59},{{-23.13,0,-1.71},2.33},
+      {{2.69,-8,0},2.29},{{-5.07,-15,0},3.0},{{-10.25,-22,0},2.39},{{-13.6,-27,0},1.56},
+      {{2.69,8,0},2.29},{{-5.07,15,0},3.0},{{-10.25,22,0},2.39},{{-13.6,27,0},1.56},
+      {{-36.79,0,-14.1},2.12}}};
+    definitions.push_back(AircraftDefinition{AircraftType::B747,"b747","Boeing 747-206B | KLM PH-BUF, JT9D-7A",
+        "assets/aircraft/b747/b747_lod0.glb",b747Config(),
+        {{30.87,5.12,0},{26.4,0,-1.6},{-135,0,-30},{-85,0,-16},{-5,0,0},{-5,0,0},
+          {{-4.8,-16.46,1.95},{-4.8,16.46,1.95}},{{-14.06,-29.69,-.79},{-14.06,29.69,-.79}},
+          37,8,6,.62,.62,.020}, {1,1,1},std::nullopt,
+        {"assets/aircraft/b747/b747_lod1.glb","assets/aircraft/b747/b747_lod2.glb","assets/aircraft/b747/b747_lod3.glb"},b747Boxes});
     // A320/Su-57 renderer and physics consume the same geometry anchors.
     for(auto& d:definitions) {
       const PhysicalGeometry* g=d.type==AircraftType::A320?&a320Geometry():

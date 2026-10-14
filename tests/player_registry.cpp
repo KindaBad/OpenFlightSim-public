@@ -5,7 +5,7 @@
 int main() {
   using namespace ofs;
   try {
-    const auto expected = 4u + OFS_INCLUDE_SU57 + OFS_INCLUDE_JF17;
+    const auto expected = 5u + OFS_INCLUDE_SU57 + OFS_INCLUDE_JF17;
     if (aircraftDefinitions().size() != expected ||
         validAircraftType(AircraftType::Su57) != bool(OFS_INCLUDE_SU57) ||
         validAircraftType(AircraftType::JF17) != bool(OFS_INCLUDE_JF17))
@@ -14,6 +14,10 @@ int main() {
     const auto& b52 = aircraftDefinition(aircraftTypeFromName("b52"));
     if (b52.type != AircraftType::B52 || !b52.bomber || b52.gun || dogfightAircraftType(AircraftType::B52) == AircraftType::B52)
       throw std::runtime_error("B-52 registration is incomplete");
+    // The airliner carries no weapons, so no fighter stands in for it either.
+    const auto& b747 = aircraftDefinition(aircraftTypeFromName("b747"));
+    if (b747.type != AircraftType::B747 || b747.bomber || b747.gun || dogfightAircraftType(AircraftType::B747) == AircraftType::B747)
+      throw std::runtime_error("B-747 registration is incomplete");
     for (const auto type : {AircraftType::A320, AircraftType::Typhoon, AircraftType::SR71, AircraftType::B52}) {
       const auto& definition = aircraftDefinition(type);
       if (aircraftTypeFromName(definition.key) != type)

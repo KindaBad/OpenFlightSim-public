@@ -8,6 +8,7 @@
 #include "ofs_shaders.hpp"
 #include "platform.hpp"
 #include "texture_mips.hpp"
+#include "ui_scale.hpp"
 #include <tuple>
 
 #include <imgui.h>
@@ -322,18 +323,10 @@ bool Renderer::initialize(const Platform& platform) {
   const std::uint32_t white = 0xffffffff;
   whiteTexture_ = bgfx::createTexture2D(1,1,false,1,bgfx::TextureFormat::RGBA8,0,bgfx::copy(&white,4));
 
-  unsigned char* pixels = nullptr;
-  int fw = 0, fh = 0;
-  ImGui::GetIO().Fonts->GetTexDataAsRGBA32(&pixels, &fw, &fh);
-  font_ = bgfx::createTexture2D(static_cast<std::uint16_t>(fw), static_cast<std::uint16_t>(fh), false, 1,
-                                bgfx::TextureFormat::RGBA8, 0,
-                                bgfx::copy(pixels, static_cast<std::uint32_t>(fw * fh * 4)));
-  if (!bgfx::isValid(font_) || !bgfx::isValid(uiSampler_) || !bgfx::isValid(whiteTexture_))
+  refreshFonts();
+  if (!bgfx::isValid(uiSampler_) || !bgfx::isValid(whiteTexture_))
     throw std::runtime_error("GPU resource creation failed");
-  auxiliaryTextureBytes_=4+std::uint64_t(fw)*fh*4;
   log("TEXTURE", "builtin white source=1x1 format=RGBA8 mips=1 estimated_gpu_bytes=4");
-  log("TEXTURE", "builtin font source="+std::to_string(fw)+"x"+std::to_string(fh)+" format=RGBA8 mips=1 estimated_gpu_bytes="+std::to_string(std::uint64_t(fw)*fh*4));
-  ImGui::GetIO().Fonts->SetTexID(static_cast<ImTextureID>(font_.idx) + 1);
   ImGui::GetIO().BackendRendererName = "OpenFlightSim_bgfx";
   ImGui::GetIO().BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
 
@@ -1426,6 +1419,22 @@ bool Renderer::projectToScreen(const Vec3& world, float& outX, float& outY, floa
   outY = (1.0f - (ndcY * 0.5f + 0.5f)) * static_cast<float>(height_);
   outDepth = point.w;
   return true;
+}
+
+float Renderer::uiScale() const { return uiDeviceScale(width_, height_); }
+
+void Renderer::refreshFonts() {
+  if (bgfx::isValid(font_)) bgfx::destroy(font_);
+  unsigned char* pixels = nullptr;
+  int fw = 0, fh = 0;
+  ImGui::GetIO().Fonts->GetTexDataAsRGBA32(&pixels, &fw, &fh);
+  font_ = bgfx::createTexture2D(static_cast<std::uint16_t>(fw), static_cast<std::uint16_t>(fh), false, 1,
+                                bgfx::TextureFormat::RGBA8, 0,
+                                bgfx::copy(pixels, static_cast<std::uint32_t>(fw * fh * 4)));
+  if (!bgfx::isValid(font_)) throw std::runtime_error("GPU resource creation failed");
+  auxiliaryTextureBytes_=4+std::uint64_t(fw)*fh*4;
+  log("TEXTURE", "builtin font source="+std::to_string(fw)+"x"+std::to_string(fh)+" format=RGBA8 mips=1 estimated_gpu_bytes="+std::to_string(std::uint64_t(fw)*fh*4));
+  ImGui::GetIO().Fonts->SetTexID(static_cast<ImTextureID>(font_.idx) + 1);
 }
 
 void Renderer::render(const Camera& camera, const State& local, const Controls& controls,

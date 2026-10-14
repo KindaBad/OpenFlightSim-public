@@ -46,8 +46,9 @@ constexpr CameraSettings kPursuit{
     /*rigid*/ false, /*hideOwnAircraft*/ false};
 // Under mouse aim the view follows the pointer almost directly.
 constexpr double kPursuitAimSmoothing = 0.045;
-// Eye position behind and above the aircraft, in visual radii.
-constexpr double kPursuitBack = 2.5, kPursuitUp = 0.44;
+// Eye position behind and above the aircraft, in visual radii. The height is
+// scaled with the distance so the look-down angle stays about 10 degrees.
+constexpr double kPursuitBack = 1.5, kPursuitUp = 0.26;
 // Rate, per second, at which the horizon returns to level in level flight.
 constexpr double kPursuitLevelRate = 2.5;
 

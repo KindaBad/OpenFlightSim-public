@@ -86,8 +86,8 @@ source dependencies are pinned and fetched at configuration; the first build
 requires network access. Fedora needs X11 and OpenGL development packages;
 see [docs/BUILDING.md](docs/BUILDING.md) before the first client configure.
 
-Six aircraft fly: the A320, Eurofighter Typhoon, SR-71A, Su-57, JF-17 Thunder
-and B-52H Stratofortress. Their weights, thrust, speeds, guns, missile and bomb
+Seven aircraft fly: the A320, Eurofighter Typhoon, SR-71A, Su-57, JF-17 Thunder,
+B-52H Stratofortress and Boeing 747-206B. Their weights, thrust, speeds, guns, missile and bomb
 loads are set from published figures; see
 [the aircraft reference](docs/AIRCRAFT_REFERENCE.md). A hosted game can be a
 free-for-all or a [team battle](docs/TEAM_GAME.md) between two sides with
@@ -101,6 +101,7 @@ ctest --preset debug
 ./build/debug/client/ofs_client --aircraft su57 --airborne
 ./build/debug/client/ofs_client --aircraft jf17 --airborne
 ./build/debug/client/ofs_client --aircraft b52 --airborne --teams --loadout mk84
+./build/debug/client/ofs_client --aircraft b747 --airborne
 
 cmake --preset release
 cmake --build --preset release

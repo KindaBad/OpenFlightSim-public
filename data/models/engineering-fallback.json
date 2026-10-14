@@ -303,7 +303,7 @@
       "unit": "mixed; see notes",
       "provenance": "CALIBRATED_APPROXIMATION",
       "source": "core/src/flight_control_system.cpp",
-      "revision": "520c837701ef0d91f834a2525bc8d090a39bd96baf680b1644642d66174906e5",
+      "revision": "009dd4a2025bae89801f7d2a361ebc7e76e7b1c3e4b0f978e54f13f68295a844",
       "configuration": "OpenFlightSim A320 control law",
       "validity_envelope": "No independently validated envelope for this engineering reconstruction",
       "confidence": "Engineering estimate",

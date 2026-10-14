@@ -9,6 +9,7 @@
 #include "ofs/fixed_step.hpp"
 #include "ofs/simulator.hpp"
 #include "settings.hpp"
+#include "ui_scale.hpp"
 
 #include <SDL3/SDL.h>
 
@@ -25,6 +26,16 @@ class UiContext {
   ~UiContext();
   UiContext(const UiContext&) = delete;
   UiContext& operator=(const UiContext&) = delete;
+
+  // Sizes the interface for the window at `deviceScale` device pixels per design
+  // unit (see uiDeviceScale). Rebuilds the fonts and the style when that changes.
+  // Returns true when the font atlas was rebuilt, so the renderer must upload it again.
+  bool updateScale(SDL_Window* window, float deviceScale);
+
+ private:
+  bool smokeFont_{};
+  float deviceScale_{};
+  float density_{1};
 };
 
 // Simulation state the debug window can request, plus the settings it edits.

@@ -1041,14 +1041,13 @@ void CombatEffects::updateAircraft(const State& aircraft, double dt, AircraftTyp
     for (unsigned side=0;side<2;++side) {
       // A wingtip that has been shot away takes its light with it.
       if (wingRemaining(damage[side==0 ? DamagePart::LeftWing : DamagePart::RightWing])<1) continue;
-      Effect light;
-      light.kind=EffectKind::Light;
-      light.position=aircraft.pos_ned+aircraft.att.rotate(visual.wingtip[side]-cg);
-      light.size=.16f; light.lifetime=static_cast<float>(interval*1.2);
-      light.tint=side==0 ? 0xe02020ffu : 0xe040ff40u;
-      pool_.spawn(light);
       if (definition.type==AircraftType::A320 && emitter.sequence%28<2) {
-        light.size=.65f; light.tint=0xc0ffffffu; pool_.spawn(light);
+        Effect strobe;
+        strobe.kind=EffectKind::Light;
+        strobe.position=aircraft.pos_ned+aircraft.att.rotate(visual.wingtip[side]-cg);
+        strobe.size=.65f; strobe.lifetime=static_cast<float>(interval*1.2);
+        strobe.tint=0xc0ffffffu;
+        pool_.spawn(strobe);
       }
     }
     // Broad cold-layer envelope, not a humidity/Schmidt-Appleman model. The
@@ -1131,6 +1130,22 @@ void CombatEffects::updateAircraft(const State& aircraft, double dt, AircraftTyp
         pool_.spawn(heat);
       }
     }
+  }
+  // Navigation lights are one steady lamp per wingtip. Each frame places it
+  // where the wingtip is now and it lives no longer than the next frame's
+  // update, so a fast aircraft leaves no copies trailing behind it.
+  for (unsigned side=0;side<2;++side) {
+    // A wingtip that has been shot away takes its light with it.
+    if (wingRemaining(damage[side==0 ? DamagePart::LeftWing : DamagePart::RightWing])<1) continue;
+    Effect light;
+    light.kind=EffectKind::Light;
+    // Just outside the tip: a sprite sunk into the wing is faded where it meets the geometry.
+    const Vec3 outward{0, visual.wingtip[side].y < 0 ? -.15 : .15, 0};
+    light.position=aircraft.pos_ned+aircraft.att.rotate(visual.wingtip[side]+outward-cg);
+    light.size=.26f;  // drawn at half this radius when fresh: the old lamp's mid-life size
+    light.lifetime=.001f;
+    light.tint=side==0 ? 0xe02020ffu : 0xe040ff40u;
+    pool_.spawn(light);
   }
   emitter.previous=aircraft.pos_ned;
 }
