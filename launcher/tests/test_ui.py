@@ -201,6 +201,22 @@ class UI(unittest.TestCase):
         self.assertTrue(self.window.update_button.isVisible())
         self.assertEqual(self.window.update_button.text(), 'Update to 0.4.0')
 
+    def test_a_platform_without_a_published_build_is_not_an_error(self):
+        # The public feed publishes Windows builds only, so a Linux launcher
+        # must say so in the status line rather than raise a dialog on every start.
+        self.window.prefs.manifest_url = 'https://updates.example.org/manifest.json'
+        with patch('launcher.ui.fetch_manifest', return_value={'schema': 1, 'releases': []}), \
+                patch.object(self.window, 'error') as error:
+            self.window.check_updates()
+            deadline = time.monotonic() + 3
+            while self.window.job and time.monotonic() < deadline:
+                self.app.processEvents()
+                time.sleep(.01)
+            self.app.processEvents()
+        error.assert_not_called()
+        self.assertIsNone(self.window.release)
+        self.assertEqual(self.window.status.text(), 'No stable build is published for this platform yet')
+
     def test_presets_and_custom_values_persist(self):
         self.window.preset_combo.setCurrentText('Low')
         self.assertEqual(self.window.graphics.values['shadows'], '0')

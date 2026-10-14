@@ -17,7 +17,7 @@ from launcher.game import Installation, arguments, Session
 from launcher.hardware import Hardware, recommendation
 from launcher.installation import (Lease, activate, active_directory, extract_package,
     pointer, recover, repair_stage, rollback, verify)
-from launcher.manifest import Release, select_release, https_url, platform_id
+from launcher.manifest import NoReleaseError, Release, select_release, https_url, platform_id
 from launcher import shortcuts
 from launcher.storage import (LauncherError, read_json, write_json, safe_path,
     sha256, parse_json, relative_name)
@@ -108,8 +108,12 @@ class Engine(unittest.TestCase):
         newer = fixture(self.root / 'other', '0.4.0')
         release = select_release({'schema': 1, 'releases': [self.release.data, release_for(newer).data]}, 'stable')
         self.assertEqual(release.version, '0.4.0')
-        with self.assertRaises(LauncherError):
+        # A valid feed with no build for this channel is not a broken feed.
+        with self.assertRaises(NoReleaseError):
             select_release({'schema': 1, 'releases': [self.release.data]}, 'development')
+        other = 'windows-x86_64' if platform_id() == 'linux-x86_64' else 'linux-x86_64'
+        with self.assertRaises(NoReleaseError):
+            select_release({'schema': 1, 'releases': [self.release.data]}, 'stable', other)
 
     def test_manifest_rejects_mutations(self):
         changes = [('schema', 2), ('version', 'latest'), ('minimum_launcher_version', 'unknown'),

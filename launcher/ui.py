@@ -21,7 +21,7 @@ from .download import download, fetch_manifest, Cancelled
 from .game import Installation, Session, MODES, arguments
 from .hardware import probe, recommendation, display_modes
 from .installation import Lease, verify, repair_stage, recover, pointer
-from .manifest import select_release, https_url
+from .manifest import NoReleaseError, select_release, https_url
 from .platform_process import spawn
 from .storage import LauncherError, read_json, write_json, safe_path
 from .version import Version
@@ -1473,6 +1473,13 @@ class Window(QMainWindow):
             if channel != self.prefs.channel or url != self.prefs.manifest_url:
                 self.status.setText('Update settings changed. Check again.')
                 return
+            if release is None:
+                # The feed is reachable; it just has no build for this platform yet.
+                self.release = None
+                self.update_label.setText(f'No {channel} build is published for this platform yet')
+                self.status.setText(self.update_label.text())
+                self.refresh_summary()
+                return
             self.release = release
             installed = self.installation.build['version'] if self.installation else '0.0.0'
             available = Version(release.version) > Version(installed)
@@ -1489,7 +1496,12 @@ class Window(QMainWindow):
             self.refresh_summary()
             if available and compatible and self.prefs.auto_install and self.installation and self.installation.managed and not self.session.running():
                 QTimer.singleShot(50, self.install_update)
-        self.start_job('Checking publisher manifest', lambda c, p: select_release(fetch_manifest(url), channel), checked)
+        def fetch(c, p):
+            try:
+                return select_release(fetch_manifest(url), channel)
+            except NoReleaseError:
+                return None
+        self.start_job('Checking publisher manifest', fetch, checked)
 
     def managed_idle(self):
         if not self.installation or not self.installation.managed:

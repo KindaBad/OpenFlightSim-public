@@ -118,6 +118,10 @@ class Release:
         return cls(data)
 
 
+class NoReleaseError(LauncherError):
+    """The feed is valid but publishes nothing for this channel and platform."""
+
+
 def select_release(data, channel, target=None):
     if not isinstance(data, dict) or type(data.get('schema')) is not int or data.get('schema') != 1 or not isinstance(data.get('releases'), list) or len(data['releases']) > 100:
         raise LauncherError('Unsupported update manifest')
@@ -125,7 +129,7 @@ def select_release(data, channel, target=None):
     releases = [Release.parse(entry) for entry in data['releases']]
     matches = [r for r in releases if r.data['channel'] == channel and r.data['platform'] == target]
     if not matches:
-        raise LauncherError('No release is published for this channel/platform')
+        raise NoReleaseError('No release is published for this channel/platform')
     if len({r.version for r in matches}) != len(matches):
         raise LauncherError('Ambiguous release versions')
     return max(matches, key=lambda r: Version(r.version))

@@ -1,3 +1,10 @@
+OpenFlightSim 0.6.9 Launcher
+
+- A launcher on a platform with no published build yet (Linux, at present) no
+  longer opens an error dialog at every start. It says "No stable build is
+  published for this platform yet" in the status line; the update check still
+  runs and the game still plays.
+
 OpenFlightSim 0.6.8 Launcher
 
 - Missiles fly and hit better. They now steer for where the target is going
