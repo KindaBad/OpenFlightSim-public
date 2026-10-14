@@ -31,6 +31,19 @@ def free_port_block():
         return 20000 + probe.getsockname()[1] % 20000
 
 
+class VersionFormat(unittest.TestCase):
+    def test_three_or_four_numbers_in_any_size_are_accepted(self):
+        for version in ('0.4.82', '0.10.0', '1.2.3.4', '12.345.6789.0'):
+            with self.subTest(version=version):
+                self.assertTrue(public_host.VERSION.fullmatch(version))
+        self.assertEqual(sorted(['0.4.9', '0.4.82', '0.4.82.1'], key=public_host.version_key), ['0.4.9', '0.4.82', '0.4.82.1'])
+
+    def test_other_shapes_are_refused(self):
+        for version in ('1.2', '1.2.3.4.5', '1.2.3.', '1.2.3-rc.1', '../1.2.3', '1234567890.1.1'):
+            with self.subTest(version=version):
+                self.assertFalse(public_host.VERSION.fullmatch(version))
+
+
 class Hosted(unittest.TestCase):
     limits = dict(empty_seconds=300)
 

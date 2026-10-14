@@ -20,7 +20,7 @@ import sys
 
 REPOSITORY = 'https://github.com/KindaBad/OpenFlightSim-public.git'
 FIRST_VERSION = (0, 6, 3)
-VERSION = re.compile(r'project\(OpenFlightSim VERSION (\d{1,4}\.\d{1,4}\.\d{1,4}) ')
+VERSION = re.compile(r'project\(OpenFlightSim VERSION (\d{1,9}(?:\.\d{1,9}){2,3}) ')
 
 
 def run(*command, cwd=None, capture=False):
@@ -90,7 +90,7 @@ def main():
         print(f'Built ofs_server {version}', flush=True)
     if not options.source:
         (work / 'head').write_text(head)
-    versions = sorted((entry.name for entry in builds.iterdir() if re.fullmatch(r'\d+\.\d+\.\d+', entry.name)), key=version_key)
+    versions = sorted((entry.name for entry in builds.iterdir() if re.fullmatch(r'\d{1,9}(?:\.\d{1,9}){2,3}', entry.name)), key=version_key)
     for old in versions[:-options.keep]:
         shutil.rmtree(builds / old)
         print(f'Removed ofs_server {old}', flush=True)

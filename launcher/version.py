@@ -1,4 +1,4 @@
-"""Strict SemVer precedence; build metadata never changes precedence."""
+"""Dotted versions of three or four numbers, then SemVer prerelease precedence; build metadata never changes precedence."""
 from functools import total_ordering
 import re
 from .storage import LauncherError
@@ -9,12 +9,12 @@ class Version:
     def __init__(self, value):
         if not isinstance(value, str) or len(value) > 128:
             raise LauncherError('Version must be a string of at most 128 characters')
-        match = re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?', str(value))
+        match = re.fullmatch(r'((?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){2,3})(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?', str(value))
         if not match:
             raise LauncherError(f'Invalid semantic version: {value}')
-        self.core = tuple(int(n) for n in match.group(1, 2, 3))
-        self.pre = tuple(match[4].split('.')) if match[4] else ()
-        for identifier in (*self.pre, *(match[5].split('.') if match[5] else ())):
+        self.core = tuple(int(n) for n in match[1].split('.'))
+        self.pre = tuple(match[2].split('.')) if match[2] else ()
+        for identifier in (*self.pre, *(match[3].split('.') if match[3] else ())):
             if not identifier:
                 raise LauncherError('Empty version identifier')
         if any(i.isdigit() and len(i) > 1 and i[0] == '0' for i in self.pre):

@@ -73,8 +73,14 @@ class Versions(unittest.TestCase):
         self.assertEqual(Version('1.0.0+a'), Version('1.0.0+b'))
         self.assertLess(Version('0.9.0'), Version('0.10.0'))
 
+    def test_four_part_order(self):
+        versions = ['0.4.9', '0.4.82', '0.4.82.1', '0.4.82.10', '0.10.0', '1.0.0', '1.0.0.0-rc.1', '1.0.0.0']
+        self.assertEqual(sorted(versions, key=Version), versions)
+        self.assertLess(Version('0.4.9.1'), Version('0.4.82'))
+        self.assertEqual(Version('1.2.3.4+a'), Version('1.2.3.4+b'))
+
     def test_reject_invalid(self):
-        for version in ('v1.0.0', '1.0', '01.0.0', '1.0.0-01', '1.0.0-a..b', '1.0.0+'):
+        for version in ('v1.0.0', '1.0', '01.0.0', '1.0.0-01', '1.0.0-a..b', '1.0.0+', '1.2.3.4.5', '1.2.3.04', '1.2.3.'):
             with self.subTest(version=version), self.assertRaises(LauncherError):
                 Version(version)
 

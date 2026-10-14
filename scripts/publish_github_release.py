@@ -115,7 +115,7 @@ def publish(directory, repo, commit, notes):
                 for page in pages:
                     for release in page:
                         old_tag = release['tag_name']
-                        if release['draft'] or not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+(?:-development)?', old_tag):
+                        if release['draft'] or not re.fullmatch(r'v[0-9]+(?:\.[0-9]+){2,3}(?:-development)?', old_tag):
                             continue
                         if not any(a['name'] == 'manifest.json' for a in release['assets']):
                             continue

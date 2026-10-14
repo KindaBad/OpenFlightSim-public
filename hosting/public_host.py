@@ -43,7 +43,7 @@ REQUEST_SIZE = 1200
 LAN_QUERY = b'OFSLAN\x01Q'
 LAN_REPLY = b'OFSLAN\x01R'
 MAX_NAME = 48
-VERSION = re.compile(r'\d{1,4}\.\d{1,4}\.\d{1,4}')
+VERSION = re.compile(r'\d{1,9}(?:\.\d{1,9}){2,3}')
 GAME_ID = re.compile(r'[0-9a-f]{8}')
 
 
