@@ -4,17 +4,17 @@
 #include "ofs/theatres.hpp"
 #include "ofs/weapons.hpp"
 #include "ofs_version.hpp"
-#include "ofs_earth_detail.hpp"
 #ifdef OFS_NETWORK_ENABLED
 #include "ofs/net/protocol.hpp"
 #endif
 #include <fstream>
+#include <sstream>
 #include <iomanip>
 #include <iostream>
 #include <string_view>
 
 int main(int argc, char** argv) {
-  if (argc != 2) { std::cerr << "ofs_catalog OUTPUT.json\n"; return 2; }
+  if (argc != 2 && argc != 3) { std::cerr << "ofs_catalog OUTPUT.json [EARTH_DETAIL.json]\n"; return 2; }
   std::ofstream out(argv[1]);
   out << "{\"schema\":1,\"version\":" << std::quoted(OFS_VERSION)
       << ",\"modes\":[\"free\"";
@@ -52,7 +52,15 @@ int main(int argc, char** argv) {
         << std::quoted(OFS_EARTH_COVER_SHA256) << ",\"size\":" << OFS_EARTH_COVER_SIZE << "}]";
   }
   // And the detail regions, checked by the release workflow.
-  if (std::string_view(OFS_EARTH_DETAIL).size()) out << ",\"earth_detail\":" << OFS_EARTH_DETAIL;
+  // The checked list of detail regions, read from a file: a string literal that
+  // long does not compile with MSVC.
+  if (argc == 3 && argv[2][0]) {
+    std::ifstream detail(argv[2]);
+    if (!detail) { std::cerr << "cannot read " << argv[2] << "\n"; return 2; }
+    std::stringstream text;
+    text << detail.rdbuf();
+    out << ",\"earth_detail\":" << text.str();
+  }
   out << ",\"aircraft\":[";
   bool first = true;
   for (const auto& d : ofs::aircraftDefinitions()) {
