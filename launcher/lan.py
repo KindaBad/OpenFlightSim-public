@@ -7,6 +7,7 @@ connection, so nothing received here is trusted beyond being shown in a list.
 """
 from dataclasses import dataclass
 import ipaddress
+import re
 from pathlib import Path
 import socket
 import subprocess
@@ -26,6 +27,10 @@ MISSILE_RELOAD_VERSION = '0.5.6'
 TEAMS_VERSION = '0.6.0'
 # The first simulator version that takes --livery for the Typhoon's original paint.
 LIVERY_VERSION = '0.6.7'
+# The longest map name an answer carries, and the form of one: a game on the
+# round Earth names its theatre ('earth:alps'); a game in the valley sends none.
+MAX_MAP = 24
+EARTH_MAP = re.compile(r'earth:[a-z0-9]{1,16}')
 
 
 @dataclass(frozen=True)
@@ -40,6 +45,13 @@ class Lobby:
     version: str
     # The game's identity on the public server; empty for a game on the local network.
     game: str = ''
+    # Empty for the valley; 'earth:<theatre>' for the round Earth.
+    map: str = ''
+
+    @property
+    def theatre(self):
+        """The Earth theatre the game is played in, or None in the valley."""
+        return self.map.split(':', 1)[1] if self.map else None
 
 
 def _printable(text):
@@ -78,16 +90,27 @@ def parse_reply(data, address):
         fields.append(text)
         position += size
     name, version = fields
+    # A game on the round Earth names its map after the version.
+    world = ''
+    if position < len(data):
+        size = data[position]
+        position += 1
+        world = bytes(data[position:position + size]).decode('ascii', 'replace')
+        position += size
+        if not 0 < size <= MAX_MAP or not EARTH_MAP.fullmatch(world):
+            return None
     if position != len(data) or not port or not name or players > max_players:
         return None
-    return Lobby(name, address, port, protocol, players, max_players, bots, version)
+    return Lobby(name, address, port, protocol, players, max_players, bots, version, map=world)
 
 
 def encode_reply(lobby):
     """The wire form of an answer; the server's side, here for tests and tools."""
     name, version = lobby.name.encode('ascii')[:MAX_LOBBY_NAME], lobby.version.encode('ascii')[:MAX_VERSION]
+    world = lobby.map.encode('ascii')[:MAX_MAP]
     return (REPLY + lobby.protocol.to_bytes(2, 'big') + lobby.port.to_bytes(2, 'big')
-            + bytes((lobby.players, lobby.max_players, lobby.bots, len(name))) + name + bytes((len(version),)) + version)
+            + bytes((lobby.players, lobby.max_players, lobby.bots, len(name))) + name + bytes((len(version),)) + version
+            + (bytes((len(world),)) + world if world else b''))
 
 
 def local_addresses():
@@ -240,20 +263,27 @@ def firewall_advice(port, discovery=DISCOVERY_PORT, run=subprocess.run, platform
     return None
 
 
-def describe(lobby, protocol=None):
-    """One line for a list: how full the game is and whether this installation can join it."""
+def describe(lobby, protocol=None, theatres=None):
+    """One line for a list: how full the game is and whether this installation can join it.
+
+    `theatres` maps the Earth theatres this installation can fly to their names."""
     pilots = f'{lobby.players}/{lobby.max_players} pilots'
     if lobby.bots:
         pilots += f' + {lobby.bots} bots'
     line = f'{lobby.name}   ·   {pilots}   ·   {"Public" if lobby.game else lobby.address}'
+    if lobby.map:
+        line += f'   ·   Earth · {(theatres or {}).get(lobby.theatre, lobby.theatre)}'
     if lobby.version:
         line += f'   ·   v{lobby.version}'
     if protocol is not None and lobby.protocol != protocol:
         line += '   ·   different game version'
+    elif lobby.map and lobby.theatre not in (theatres or {}):
+        line += '   ·   needs the Earth map'
     elif lobby.players >= lobby.max_players:
         line += '   ·   full'
     return line
 
 
-def joinable(lobby, protocol=None):
-    return (protocol is None or lobby.protocol == protocol) and lobby.players < lobby.max_players
+def joinable(lobby, protocol=None, theatres=None):
+    return ((protocol is None or lobby.protocol == protocol) and lobby.players < lobby.max_players
+            and (not lobby.map or lobby.theatre in (theatres or {})))

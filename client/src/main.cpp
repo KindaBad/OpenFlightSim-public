@@ -17,6 +17,9 @@
 #include "ofs/fixed_step.hpp"
 #include "ofs/ground_service.hpp"
 #include "ofs/trim.hpp"
+#include "ofs/world.hpp"
+#include "ofs/earth_terrain.hpp"
+#include "ofs/theatres.hpp"
 #include "ofs_version.hpp"
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>
@@ -66,6 +69,14 @@ struct Options {
   double orbitYaw{}, orbitPitch{.25}, orbitDistance{};
   ofs::client::CameraMode camera{ofs::client::CameraMode::Pursuit};
   int width{0}, height{0};
+  // The round Earth instead of the valley: the terrain pack, the land cover,
+  // and where to start, on the runway nearest this place (degrees).
+  bool earth{};
+  std::string earthPack, earthCover;
+  double earthLatitude{48.1103}, earthLongitude{16.5697};
+  double earthHeight{600};  // metres above the ground for an airborne start
+  // Or a theatre (ofs/theatres.hpp), starting at one of its airports.
+  std::string theatre, earthAirport;
 };
 
 Options parse(int argc, char** argv) {
@@ -73,6 +84,20 @@ Options parse(int argc, char** argv) {
   for (int i = 1; i < argc; ++i) {
     const std::string_view arg = argv[i];
     if (arg == "--airborne") result.airborne = true;
+    else if (arg == "--earth") result.earth = true;
+    else if (arg == "--earth-pack" && i + 1 < argc) { result.earth = true; result.earthPack = argv[++i]; }
+    else if (arg == "--earth-cover" && i + 1 < argc) result.earthCover = argv[++i];
+    else if (arg == "--theatre" && i + 1 < argc) { result.earth = true; result.theatre = argv[++i]; }
+    else if (arg == "--earth-airport" && i + 1 < argc) result.earthAirport = argv[++i];
+    else if (arg == "--earth-height" && i + 1 < argc) result.earthHeight = std::clamp(std::stod(argv[++i]), 50., 30000.);
+    else if (arg == "--earth-at" && i + 1 < argc) {
+      result.earth = true;
+      const std::string place = argv[++i];
+      const auto comma = place.find(',');
+      if (comma == std::string::npos) throw std::runtime_error("--earth-at takes latitude,longitude in degrees");
+      result.earthLatitude = std::stod(place.substr(0, comma));
+      result.earthLongitude = std::stod(place.substr(comma + 1));
+    }
     else if (arg == "--aircraft" && i + 1 < argc) result.aircraft = ofs::aircraftTypeFromName(argv[++i]);
     else if (arg == "--visual-scenario" && i + 1 < argc) result.scenario = argv[++i];
     else if (arg == "--flight-demo" && i + 1 < argc) result.flightDemo = argv[++i];
@@ -226,16 +251,21 @@ double validationPitchInput(const ofs::Simulator& sim,double target) {
     const double authority=a.qbar*cfg.wing_area*cfg.mac*std::abs(cfg.cm_de*cfg.elev_min);
     if(cfg.aero_kind==AeroModelKind::AirlinerEngineering) {
       const double desiredRate=(command+sim.controls().elevator_trim-sim.equilibriumElevator())*cfg.response_time*authority/sim.massProperties().inertia.y+sim.state().omega_body.y;
-      double bank,pitch,heading;eulerFromQuat(sim.state().att,bank,pitch,heading);
+      double bank,pitch,heading;eulerFromQuat(world().toLocal(sim.state().pos_ned,sim.state().att),bank,pitch,heading);
       const double neutral=std::cos(pitch)/std::max(.5,std::cos(bank));
       const double desired=sim.normalLoad()+desiredRate/.18;
       const double upper=sim.state().flap>.2?2:cfg.g_positive,lower=sim.state().flap>.2?0:cfg.g_negative;
       return clamp((desired-neutral)/(desired>=neutral?upper-neutral:neutral-lower),-1,1);
     }
-    return clamp(((command+sim.controls().elevator_trim-sim.equilibriumElevator())*cfg.response_time*authority/sim.massProperties().inertia.y+sim.state().omega_body.y)/cfg.max_pitch_rate-sim.controls().elevator_trim+sim.state().trim_reference-(cfg.control_law==FlightControlLaw::Transport?.12:.08)*(sim.state().att.inverseRotate({0,0,1}).z-sim.normalLoad())/cfg.max_pitch_rate,-1,1);
+    return clamp(((command+sim.controls().elevator_trim-sim.equilibriumElevator())*cfg.response_time*authority/sim.massProperties().inertia.y+sim.state().omega_body.y)/cfg.max_pitch_rate-sim.controls().elevator_trim+sim.state().trim_reference-(cfg.control_law==FlightControlLaw::Transport?.12:.08)*(sim.state().att.inverseRotate(world().down(sim.state().pos_ned)).z-sim.normalLoad())/cfg.max_pitch_rate,-1,1);
   }
   return clamp(command,-1,1);
 }
+
+// On the round Earth the game starts on a real runway, pointing along it.
+bool roundEarth = false;
+ofs::Vec3 spawnPoint;
+double spawnHeading = 0, spawnHeight = 600;
 
 void reset(ofs::Simulator& sim, ofs::Controls& controls, ofs::State& previous,
            ofs::client::Camera& camera, ofs::FixedStepClock& clock, bool airborne) {
@@ -246,8 +276,20 @@ void reset(ofs::Simulator& sim, ofs::Controls& controls, ofs::State& previous,
     if (!trim.converged) throw std::runtime_error("Airborne reset trim failed");
     state = trim.state;
     controls = trim.controls;
+    if (roundEarth) {
+      const auto& world = ofs::world();
+      const ofs::Quat heading = ofs::quatFromEuler(0, 0, spawnHeading);
+      const double ground = world.terrain(spawnPoint).altitude;
+      state.pos_ned = world.atAltitude(spawnPoint, ground + spawnHeight);
+      state.att = world.fromLocal(state.pos_ned, heading * trim.state.att);
+      state.vel_ned = world.fromLocal(state.pos_ned, heading.rotate(trim.state.vel_ned));
+    }
+  } else if (roundEarth) {
+    const auto& world = ofs::world();
+    state.pos_ned = world.atAltitude(spawnPoint, world.terrain(spawnPoint).altitude + sim.config().gear_nose.z - .15);
+    state.att = world.fromLocal(state.pos_ned, ofs::quatFromEuler(0, 0, spawnHeading));
   } else {
-    state.pos_ned.z = -(sim.config().gear_nose.z - .15);
+    state.pos_ned = ofs::world().atAltitude(state.pos_ned, sim.config().gear_nose.z - .15);
   }
   sim.setState(state);
   sim.setControls(controls);
@@ -392,6 +434,67 @@ int main(int argc, char** argv) {
       return 0;
     }
     Options options = parse(argc, argv);
+    // The round Earth, before any simulation exists.
+    std::unique_ptr<EarthTerrain> earthTerrain;
+    std::unique_ptr<EarthWorld> earthWorld;
+    std::filesystem::path earthCover;
+    if (options.earth) {
+      // Games with others on the Earth are played in a theatre, free flight.
+      if (options.bots || options.teams)
+        throw std::runtime_error("The round Earth is free flight only for now: no bots or team games");
+      if ((!options.server.empty() || options.localGame) && options.theatre.empty())
+        throw std::runtime_error("A game on the round Earth is played in a theatre: give --theatre");
+      const std::filesystem::path root(OFS_SOURCE_ROOT);
+      const std::filesystem::path earthPack = options.earthPack.empty() ? root / "build/earth/earth.ofse"
+                                                                         : std::filesystem::path(options.earthPack);
+      earthTerrain = std::make_unique<EarthTerrain>(earthPack);
+      // GLO-90 detail beside the pack: a theatre's regions, or in free flight
+      // every region there. A server in the theatre loads the same.
+      {
+        std::string regions;
+        for (const auto& region : loadEarthDetail(*earthTerrain, earthPack, options.theatre.empty() ? nullptr : findTheatre(options.theatre)))
+          regions += " " + region;
+        log("EARTH", "Detail regions:" + (regions.empty() ? std::string(" none") : regions));
+      }
+      earthCover = options.earthCover.empty() ? root / "build/earth/earth-cover.ofsc" : std::filesystem::path(options.earthCover);
+      // A theatre's airport, or the runway nearest the place asked for; the
+      // game starts 300 m along it. A theatre's anchor is the game's origin;
+      // otherwise the start is.
+      const EarthRunway* runway = nullptr;
+      double anchorLatitude, anchorLongitude;
+      if (!options.theatre.empty()) {
+        const Theatre* theatre = findTheatre(options.theatre);
+        if (!theatre) throw std::runtime_error("No such theatre: " + options.theatre);
+        const TheatreAirport* airport =
+            options.earthAirport.empty() ? &theatre->airports.front() : findTheatreAirport(*theatre, options.earthAirport);
+        if (!airport) throw std::runtime_error("The theatre has no airport " + options.earthAirport);
+        runway = theatreRunway(*earthTerrain, *airport);
+        if (!runway) throw std::runtime_error("The Earth terrain pack has no runway at " + std::string(airport->ident));
+        anchorLatitude = theatre->latitude * kDeg2Rad;
+        anchorLongitude = theatre->longitude * kDeg2Rad;
+        log("EARTH", "Theatre " + std::string(theatre->name) + ", starting at " + std::string(airport->name));
+      } else {
+        const Vec3 place = ecefFromGeodetic({options.earthLatitude * kDeg2Rad, options.earthLongitude * kDeg2Rad, 0});
+        for (const auto& r : earthTerrain->runways())
+          if (!runway || (r.centre - place).norm() < (runway->centre - place).norm()) runway = &r;
+        if (!runway) throw std::runtime_error("The Earth terrain pack has no runways");
+        const Geodetic at = geodeticFromEcef(runwayStart(*runway).point);
+        anchorLatitude = at.latitude;
+        anchorLongitude = at.longitude;
+      }
+      const RunwayStart begin = runwayStart(*runway);
+      const Geodetic start = geodeticFromEcef(begin.point);
+      earthWorld = std::make_unique<EarthWorld>(anchorLatitude, anchorLongitude, earthTerrain.get());
+      useWorld(*earthWorld);
+      spawnPoint = earthWorld->fromEcef(begin.point);
+      const Vec3 along = earthWorld->toLocal(spawnPoint, earthWorld->directionFromEcef(begin.along));
+      roundEarth = true;
+      spawnHeading = std::atan2(along.y, along.x);
+      spawnHeight = options.earthHeight;
+      log("EARTH", "Starting at " + std::to_string(start.latitude / kDeg2Rad) + ", " + std::to_string(start.longitude / kDeg2Rad) +
+                       " on a " + std::to_string(int(runway->length)) + " m runway, heading " +
+                       std::to_string(int(std::lround(std::fmod(spawnHeading / kDeg2Rad + 360, 360)))));
+    }
     GraphicsSettings graphics;
     graphics.load(options.config);
 
@@ -414,6 +517,7 @@ int main(int argc, char** argv) {
     if (options.smoke) ImGui::GetStyle().FramePadding = {4,3};
 
     Renderer renderer(platform, graphics);
+    if (earthWorld) renderer.useEarth(*earthWorld, *earthTerrain, earthCover);
     Input input;
     auto definition = aircraftDefinition(options.aircraft);
     Simulator offlineSim(definition.flight);
@@ -428,11 +532,19 @@ int main(int argc, char** argv) {
       config.bind = "127.0.0.1"; config.port = 0; config.bots = options.bots;
       config.teams = options.teams; config.scoreLimit = options.scoreLimit;
       if (options.localGame) config.airborne = options.airborne;
+      if (earthWorld) ofs::net::useEarthTheatre(config, *findTheatre(options.theatre), *earthTerrain, *earthWorld);
       dogfight = std::make_unique<ofs::net::Server>(config);
     }
     if (!options.server.empty() || dogfight) {
       network = std::make_unique<ofs::net::Client>(options.name, options.aircraft, options.team, options.loadout);
       network->prediction().simulator() = Simulator(definition.flight);
+      // The map this client has loaded, so a game on another is not joined.
+      if (earthWorld) {
+        const Theatre& theatre = *findTheatre(options.theatre);
+        const TheatreAirport& airport = options.earthAirport.empty() ? theatre.airports.front()
+                                                                     : *findTheatreAirport(theatre, options.earthAirport);
+        network->setMap({ofs::net::MapKind::Earth, std::string(theatre.id), earthTerrain->contentHash(), std::string(airport.ident)});
+      }
     }
     const auto simulation = [&]() -> Simulator& {
       return network ? network->prediction().simulator() : offlineSim;
@@ -450,7 +562,8 @@ int main(int argc, char** argv) {
     UiSettings ui;
 #ifdef OFS_NETWORK_ENABLED
     ui.multiplayer = bool(network);
-    ui.botsAvailable = true;
+    // Bots fly in the valley only, for now.
+    ui.botsAvailable = !earthWorld;
     ui.dogfight = bool(dogfight);
 #endif
     ui.hud.show = graphics.showHud;
@@ -527,14 +640,14 @@ int main(int argc, char** argv) {
     if (!options.scenario.empty()) {
       ui.paused = true;
       State fixture;
-      fixture.pos_ned.z = -(simulation().config().gear_nose.z - .15);
+      fixture.pos_ned = world().atAltitude(fixture.pos_ned, simulation().config().gear_nose.z - .15);
       controls = {};
       controls.gear01 = 1;
       const bool onGround = options.scenario == "parked" || options.scenario == "bombs" || options.scenario == "surfaces" || options.scenario == "flaps" ||
           options.scenario == "mixed" || options.scenario == "apron" || options.scenario == "shelters" ||
           options.scenario == "threshold" || options.scenario == "service";
       if (!onGround) {
-        fixture.pos_ned.z = options.scenario == "contrail" ? -8500 : -1200;
+        fixture.pos_ned = world().atAltitude(fixture.pos_ned, options.scenario == "contrail" ? 8500 : 1200);
         fixture.vel_ned = {options.aircraft == AircraftType::Typhoon ? 200.0 : 140.0,0,0};
         controls.gear01 = 0;
       }
@@ -572,7 +685,7 @@ int main(int argc, char** argv) {
         const bool blackbird=options.aircraft==AircraftType::SR71;
         const double height=blackbird?25000:11000;
         const double mach=blackbird?950/isaAtAltitude(height).sound:options.aircraft==AircraftType::A320?.80:1.5;
-        fixture.pos_ned.z=-height;fixture.vel_ned={mach*isaAtAltitude(height).sound,0,0};
+        fixture.pos_ned=world().atAltitude(fixture.pos_ned,height);fixture.vel_ned={mach*isaAtAltitude(height).sound,0,0};
         fixture.inlet_spike[0]=fixture.inlet_spike[1]=inletSpikeTarget(mach);
         fixture.afterburner[0]=fixture.afterburner[1]=.65;
       }
@@ -585,7 +698,7 @@ int main(int argc, char** argv) {
       if(options.scenario=="vectoring" && options.aircraft==AircraftType::Su57){fixture.nozzle_angle[0]=-10*kDeg2Rad;fixture.nozzle_angle[1]=8*kDeg2Rad;fixture.afterburner[0]=fixture.afterburner[1]=1;}
       if(options.scenario=="high-aoa"){fixture.att=quatFromEuler(15*kDeg2Rad,35*kDeg2Rad,0);fixture.vel_ned={120,0,0};fixture.actuators_initialized=true;fixture.canard=-.4;fixture.elevator=-.15;fixture.afterburner[0]=fixture.afterburner[1]=1;}
       if(options.scenario=="condensation") {
-        fixture.pos_ned.z=-1500;fixture.vel_ned={180,0,0};
+        fixture.pos_ned=world().atAltitude(fixture.pos_ned,1500);fixture.vel_ned={180,0,0};
         fixture.att=quatFromEuler(25*kDeg2Rad,25*kDeg2Rad,0);
         controls.maneuver_mode=hasManeuverMode(simulation().config().control_law);
       }
@@ -601,7 +714,7 @@ int main(int argc, char** argv) {
         fixture.afterburner[0]=heavy?0:.8;fixture.afterburner[1]=0;fixture.n1[1]=0;
       }
       simulation().setState(fixture); simulation().setControls(controls); previous = fixture;
-      ui.parkingBrake = fixture.pos_ned.z > -10;
+      ui.parkingBrake = world().altitude(fixture.pos_ned) < 10;
     }
 #ifdef OFS_NETWORK_ENABLED
     // Asset uploads may exceed the server's five-second Hello deadline. Start
@@ -639,6 +752,11 @@ int main(int argc, char** argv) {
     bool sawCameraMove = false, sawCameraTurn = false, sawAirborneReset = false;
     bool sawCameraCycle = false;
     bool fullMap = options.map;  // N toggles; --map starts with it open
+    // On the round Earth the full map zooms (+ and -, or the wheel while it is
+    // open), and both maps are painted for the view about the aircraft.
+    int earthMapScale = 4;
+    double lastWheel = 0;
+    EarthMapView earthMiniView, earthFullView;
     std::uint64_t totalTicks = 0, rateTicks = 0;
     double rateElapsed = 0, measuredTicks = 0;
     auto last = std::chrono::steady_clock::now();
@@ -902,6 +1020,12 @@ int main(int argc, char** argv) {
             if (event.key.scancode == SDL_SCANCODE_V)
               cameraMode = cameraMode == CameraMode::FirstPerson ? CameraMode::Pursuit : CameraMode::FirstPerson;
             if (event.key.scancode == SDL_SCANCODE_N) fullMap = !fullMap;
+            if (fullMap && roundEarth) {
+              if (event.key.scancode == SDL_SCANCODE_EQUALS || event.key.scancode == SDL_SCANCODE_KP_PLUS)
+                earthMapScale = std::max(0, earthMapScale - 1);
+              if (event.key.scancode == SDL_SCANCODE_MINUS || event.key.scancode == SDL_SCANCODE_KP_MINUS)
+                earthMapScale = std::min(kEarthMapScaleCount - 1, earthMapScale + 1);
+            }
 #ifdef OFS_NETWORK_ENABLED
             // Chat opens on the slash, or on Enter as in most games.
             if ((event.key.scancode == SDL_SCANCODE_SLASH || event.key.scancode == SDL_SCANCODE_RETURN ||
@@ -1787,14 +1911,14 @@ int main(int argc, char** argv) {
           if (frame == 36 || frame == 156) {
             const bool large = frame == 36;
             Vec3 ground = aircraft.pos_ned + aircraft.att.rotate({large ? 420. : 260., large ? 55. : -45., 0});
-            ground.z = groundHeightNed(ground.x, ground.y);
+            ground = world().onTerrain(ground);
             combat.missileDetonations.push_back({ground, large ? weapons::WeaponType::Bomb2000 : weapons::WeaponType::Bomb500});
           }
         }
         // A nuclear burst on the ground some kilometres ahead, to look at.
         if (options.scenario == "nuclear" && frame == 36) {
           Vec3 ground = aircraft.pos_ned + aircraft.att.rotate({11000, 1500, 0});
-          ground.z = groundHeightNed(ground.x, ground.y);
+          ground = world().onTerrain(ground);
           combat.missileDetonations.push_back({ground, weapons::WeaponType::Nuclear});
           nuclearFlash = 3.2;
         }
@@ -1874,7 +1998,15 @@ int main(int argc, char** argv) {
       const double renderDt = !options.scenario.empty() || !options.flightDemo.empty() ? (options.frameStep > 0 ? options.frameStep : 1.0/60.0) : std::min(realElapsed, .1);
       const Vec3 aimView = mouseAim.viewDirection();
       camera.dynamicFov = graphics.dynamicFov;
-      if (options.scenario.empty() && options.flightDemo.empty() && !options.smoke) applyRealTime(graphics.sky);
+      if (options.scenario.empty() && options.flightDemo.empty() && !options.smoke) {
+        if (earthWorld) {
+          // The real sun over where the aircraft is.
+          const Geodetic here = earthWorld->geodetic(simulation().state().pos_ned);
+          applyRealTimeAt(graphics.sky, here.latitude / kDeg2Rad, here.longitude / kDeg2Rad);
+        } else {
+          applyRealTime(graphics.sky);
+        }
+      }
       camera.update(cameraMode, aircraft, renderDt, firstFrame, options.aircraft, mouseAim.active ? &aimView : nullptr);
       if(cameraMode==CameraMode::FirstPerson)camera.fov=graphics.cockpitFov;
       // A pilot who has left the aircraft is followed down instead of it.
@@ -1923,6 +2055,35 @@ int main(int argc, char** argv) {
       hud.mouseAimPoint = camera.eye + mouseAim.direction() * 4000;
       hud.nosePoint = camera.eye + aircraft.att.rotate({4000, 0, 0});
       hud.fullMap = fullMap;
+      hud.valleyMap = !roundEarth;
+      if (earthWorld) {
+        // The wheel zooms the full map while it is open, instead of the orbit camera.
+        const double wheel = input.orbitZoom();
+        if (fullMap && wheel != lastWheel)
+          earthMapScale = std::clamp(earthMapScale + (wheel > lastWheel ? 1 : -1), 0, kEarthMapScaleCount - 1);
+        lastWheel = wheel;
+        const Geodetic here = earthWorld->geodetic(aircraft.pos_ned);
+        // The minimap's picture covers more than it shows, and is painted
+        // again once the aircraft nears its edge or the scale changes.
+        const Vec3 velocity = earthWorld->toLocal(aircraft.pos_ned, aircraft.vel_ned);
+        const double span = minimapHalfSpan(std::hypot(velocity.x, velocity.y));
+        double east, north;
+        earthMiniView.offsets(here.latitude, here.longitude, east, north);
+        if (std::hypot(east, north) > .35 * (earthMiniView.halfSpan - span) || earthMiniView.halfSpan < 1.8 * span ||
+            earthMiniView.halfSpan > 3.2 * span)
+          earthMiniView = {here.latitude, here.longitude, 2.4 * span};
+        if (graphics.showMinimap) renderer.requestEarthMap(0, earthMiniView, 512);
+        if (fullMap) {
+          const double full = kEarthMapScales[earthMapScale];
+          earthFullView.offsets(here.latitude, here.longitude, east, north);
+          if (earthFullView.halfSpan != full || std::hypot(east, north) > .1 * full) earthFullView = {here.latitude, here.longitude, full};
+          renderer.requestEarthMap(1, earthFullView, 1024);
+        }
+        hud.earth = earthWorld.get();
+        hud.earthCover = renderer.earthCover();
+        if (!options.theatre.empty())
+          if (const Theatre* theatre = findTheatre(options.theatre)) hud.theatreAirports = theatre->airports;
+      }
       hud.alive = !aircraftCrashed(aircraft);
       hud.visionLoss = pilot.vision();
       hud.redOut = pilot.red;
@@ -1983,7 +2144,7 @@ int main(int argc, char** argv) {
             hud.bombSight = weapons::bombImpact(weapons::bombDefinition(radar.bombType), from,
                                                 aircraft.vel_ned + aircraft.att.rotate({0, 0, 4.}), simulation().weather(),
                                                 hud.bombPoint, hud.bombFall) &&
-                            groundHeightNed(aircraft.pos_ned.x, aircraft.pos_ned.y) - aircraft.pos_ned.z > 40;
+                            world().clearance(aircraft.pos_ned) > 40;
           }
         }
         const auto &teamStatus = network->teamStatus();
@@ -1998,7 +2159,7 @@ int main(int argc, char** argv) {
           hudStructures.clear();
           const auto all = structures();
           for (std::size_t i = 0; i < all.size() && i < teamStatus.health.size(); ++i)
-            hudStructures.push_back({{all[i].north, all[i].east, groundHeightNed(all[i].north, all[i].east)}, all[i].team,
+            hudStructures.push_back({world().onTerrain({all[i].north, all[i].east, 0}), all[i].team,
                                      all[i].kind, all[i].site, teamStatus.health[i]});
           hud.structures = hudStructures;
         }
@@ -2009,7 +2170,7 @@ int main(int argc, char** argv) {
           fireClock = .35;
           for (const auto &structure : hudStructures)
             if (structure.health <= 0 && (structure.position - camera.eye).norm() < 12000)
-              combat.fires.push_back(structure.position + Vec3{0, 0, -2});
+              combat.fires.push_back(structure.position + world().up(structure.position) * 2);
         }
         hud.seekerReady = radar.seekerReady;
         hud.seekerTarget = radar.seekerTarget;
@@ -2088,7 +2249,7 @@ int main(int argc, char** argv) {
         // An aircraft that goes into the ground is heard to hit it; one that
         // blows up in the air is not.
         const auto ending = [](const Vec3& position) {
-          return groundHeightNed(position.x, position.y) - position.z < 15 ? SoundKind::Crash : SoundKind::Explosion;
+          return world().clearance(position) < 15 ? SoundKind::Crash : SoundKind::Explosion;
         };
         for (const auto& destruction : combat.destructions)
           sound.at(ending(destruction.position), destruction.position, 1, destruction.airframe && !destruction.entity);

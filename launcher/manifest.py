@@ -122,11 +122,33 @@ class NoReleaseError(LauncherError):
     """The feed is valid but publishes nothing for this channel and platform."""
 
 
-def select_release(data, channel, target=None):
-    if not isinstance(data, dict) or type(data.get('schema')) is not int or data.get('schema') != 1 or not isinstance(data.get('releases'), list) or len(data['releases']) > 100:
+# Launchers before 0.6.9 read versions of exactly three numbers, and turn down
+# the whole index over one entry they cannot read. Versions of four numbers
+# (0.7.0.1) are therefore listed apart, under EXTENDED, which those launchers
+# never look at: they update to the next version of three numbers, whose
+# launcher reads both lists. Each list holds at most 100 releases.
+EXTENDED = 'extended_releases'
+
+
+def index_list(version):
+    """The list of the update index a version belongs in."""
+    return EXTENDED if len(Version(version).core) > 3 else 'releases'
+
+
+def index_entries(data):
+    """Every release descriptor of an update index, from both of its lists."""
+    if not isinstance(data, dict) or type(data.get('schema')) is not int or data.get('schema') != 1:
         raise LauncherError('Unsupported update manifest')
+    lists = (data.get('releases'), data.get(EXTENDED, []))
+    if not all(isinstance(entries, list) and len(entries) <= 100 for entries in lists):
+        raise LauncherError('Unsupported update manifest')
+    return [*lists[0], *lists[1]]
+
+
+def select_release(data, channel, target=None):
+    entries = index_entries(data)
     target = target or platform_id()
-    releases = [Release.parse(entry) for entry in data['releases']]
+    releases = [Release.parse(entry) for entry in entries]
     matches = [r for r in releases if r.data['channel'] == channel and r.data['platform'] == target]
     if not matches:
         raise NoReleaseError('No release is published for this channel/platform')

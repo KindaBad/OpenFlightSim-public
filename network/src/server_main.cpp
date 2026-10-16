@@ -1,6 +1,11 @@
+#include "ofs/earth.hpp"
+#include "ofs/earth_terrain.hpp"
 #include "ofs/net/cli.hpp"
 #include "ofs/net/server.hpp"
+#include "ofs/theatres.hpp"
 #include "ofs_version.hpp"
+#include <cmath>
+#include <memory>
 #include <chrono>
 #include <csignal>
 #include <cstdio>
@@ -14,6 +19,8 @@ int main(int argc, char **argv) {
   try {
     ServerConfig config;
     unsigned seconds = 0;
+    // The round Earth: a theatre and the terrain pack it is played on.
+    std::string map = "valley", theatreId, earthPack;
     for (int i = 1; i < argc; ++i) {
       std::string_view a = argv[i];
       if (a == "--bind")
@@ -35,6 +42,12 @@ int main(int argc, char **argv) {
         config.missileReload = number(argument(i, argc, argv), 0, 3600);
       else if (a == "--teams")
         config.teams = true;
+      else if (a == "--map")
+        map = argument(i, argc, argv);
+      else if (a == "--theatre")
+        theatreId = argument(i, argc, argv);
+      else if (a == "--earth-pack")
+        earthPack = argument(i, argc, argv);
       else if (a == "--score-limit")
         config.scoreLimit = number(argument(i, argc, argv), 50, 5000);
       else if (a == "--lan-name")
@@ -50,7 +63,30 @@ int main(int argc, char **argv) {
             "[--snapshot-hz 1..60] [--bots 0..8] [--ground] [--seconds N] "
             "[--lan-name NAME] [--discovery-port N] "
             "[--missile-reload SECONDS] "
-            "[--teams] [--score-limit 50..5000]");
+            "[--teams] [--score-limit 50..5000] "
+            "[--map valley|earth --theatre ID --earth-pack PATH]");
+    }
+    std::unique_ptr<ofs::EarthTerrain> terrain;
+    std::unique_ptr<ofs::EarthWorld> earth;
+    if (map == "earth") {
+      const ofs::Theatre *theatre = ofs::findTheatre(theatreId);
+      if (!theatre)
+        throw std::invalid_argument("--map earth needs --theatre austria, alps or gulf");
+      if (earthPack.empty())
+        throw std::invalid_argument("--map earth needs --earth-pack");
+      terrain = std::make_unique<ofs::EarthTerrain>(earthPack);
+      // The theatre's detail regions beside the pack; players load the same.
+      std::string regions;
+      for (const auto &region : ofs::loadEarthDetail(*terrain, earthPack, theatre)) regions += " " + region;
+      std::printf("[NET] Earth detail regions:%s\n", regions.empty() ? " none" : regions.c_str());
+      earth = std::make_unique<ofs::EarthWorld>(theatre->latitude * ofs::kDeg2Rad, theatre->longitude * ofs::kDeg2Rad,
+                                                terrain.get());
+      ofs::useWorld(*earth);
+      useEarthTheatre(config, *theatre, *terrain, *earth);
+      std::printf("[NET] Earth map, theatre %s, %zu airports, pack %016llx\n", std::string(theatre->name).c_str(),
+                  config.starts.size(), (unsigned long long)config.map.pack);
+    } else if (map != "valley") {
+      throw std::invalid_argument("--map valley or earth");
     }
     std::signal(SIGINT, stop);
     std::signal(SIGTERM, stop);

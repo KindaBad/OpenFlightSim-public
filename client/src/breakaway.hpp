@@ -9,6 +9,7 @@
 #include "animation.hpp"
 #include "damage_visuals.hpp"
 #include "ofs/terrain.hpp"
+#include "ofs/world.hpp"
 
 #include <cmath>
 #include <cstdint>
@@ -99,7 +100,8 @@ class Breakaways {
     }
   }
 
-  void update(double dt, const Vec3& wind = {}) {
+  // The wind is in the local north-east-down axes.
+  void update(double dt, const Vec3& localWind = {}) {
     if (!(dt > 0)) return;
     for (BreakawayPiece& piece : pieces_) {
       piece.age += dt;
@@ -108,9 +110,10 @@ class Breakaways {
       if (piece.grounded) continue;
       // A flat plate tumbling broadside sheds its speed within a few seconds;
       // a whole fuselage carries on much further.
+      const Vec3 wind = world().fromLocal(piece.position, localWind);
       const Vec3 relative = piece.velocity - wind;
       piece.velocity = wind + relative * std::exp(-(piece.wreck() ? .12 : .55) * dt);
-      piece.velocity.z += kG0 * dt;
+      piece.velocity += world().down(piece.position) * (kG0 * dt);
       piece.position += piece.velocity * dt;
       const double rate = piece.spin.norm();
       if (rate > 1e-9) {
@@ -119,8 +122,8 @@ class Breakaways {
         piece.attitude = (piece.attitude * Quat{std::cos(half), axis.x * std::sin(half), axis.y * std::sin(half),
                                                 axis.z * std::sin(half)}).normalized();
       }
-      if (piece.position.z >= groundHeightNed(piece.position.x, piece.position.y)) {
-        piece.position.z = groundHeightNed(piece.position.x, piece.position.y);
+      if (world().clearance(piece.position) <= 0) {
+        piece.position = world().onTerrain(piece.position);
         piece.velocity = {};
         piece.grounded = piece.struck = true;
         // A wreck does not lie about for long: it burns out where it fell.

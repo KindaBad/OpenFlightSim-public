@@ -331,6 +331,29 @@ class ReleasePipeline(unittest.TestCase):
         with self.assertRaises(LauncherError):
             merge([first, second])
 
+    def test_versions_of_four_numbers_are_listed_apart_for_older_launchers(self):
+        import re
+        from launcher.manifest import select_release
+        descriptor = release_for(self.metadata).data
+        paths = []
+        for version in ('0.6.9', '0.6.9.1', '0.6.9.2000', '0.7.0', '0.7.0.1'):
+            paths.append(self.root / f'{version}.json')
+            write_json(paths[-1], {'schema': 1, 'releases': [{**descriptor, 'version': version}]})
+        index = merge(paths)
+        self.assertEqual([r['version'] for r in index['releases']], ['0.6.9', '0.7.0'])
+        self.assertEqual([r['version'] for r in index['extended_releases']], ['0.6.9.1', '0.6.9.2000', '0.7.0.1'])
+        # A launcher before 0.6.9 reads only `releases`, with exactly three
+        # numbers to a version, and updates to 0.7.0; newer launchers see 0.7.0.1.
+        older = re.compile(r'(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){2}')
+        self.assertTrue(all(older.fullmatch(r['version']) for r in index['releases']))
+        self.assertEqual(max(index['releases'], key=lambda r: tuple(map(int, r['version'].split('.'))))['version'], '0.7.0')
+        platform, channel = descriptor['platform'], descriptor['channel']
+        self.assertEqual(select_release(index, channel, platform).version, '0.7.0.1')
+        self.assertEqual(select_release({'schema': 1, 'releases': index['releases']}, channel, platform).version, '0.7.0')
+        # A merged index merges again unchanged, as the next publication does.
+        write_json(self.root / 'index.json', index)
+        self.assertEqual(merge([self.root / 'index.json']), index)
+
     def test_frozen_child_environment_restores_library_path(self):
         import sys
         with patch.object(sys, 'frozen', True, create=True), patch.object(sys, '_MEIPASS', str(self.root), create=True), patch.dict(os.environ, {'LD_LIBRARY_PATH': str(self.root), 'LD_LIBRARY_PATH_ORIG': '/original/runtime', 'PATH': str(self.root / 'bin') + os.pathsep + '/usr/bin'}):

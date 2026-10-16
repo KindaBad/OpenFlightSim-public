@@ -32,9 +32,19 @@ add_library(ofs_core STATIC
   src/damage.cpp
   src/ground_service.cpp
   src/water.cpp
+  src/world.cpp
+  src/earth.cpp
+  src/earth_terrain.cpp
+  src/theatres.cpp
   src/trim.cpp
   src/c_api.cpp
 )
+# Zstandard's decoder, for the Earth terrain pack. Third-party C, built
+# without the project's warnings.
+add_library(ofs_zstd STATIC thirdparty/zstd/zstddeclib.c)
+target_include_directories(ofs_zstd PUBLIC thirdparty/zstd)
+set_target_properties(ofs_zstd PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_link_libraries(ofs_core PRIVATE ofs_zstd)
 target_include_directories(ofs_core PUBLIC include)
 target_compile_definitions(ofs_core PRIVATE OFS_INCLUDE_SU57=$<BOOL:${OFS_INCLUDE_SU57}>
   OFS_INCLUDE_JF17=$<BOOL:${OFS_INCLUDE_JF17}>)

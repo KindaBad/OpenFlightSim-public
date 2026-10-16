@@ -18,10 +18,10 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, Q
 from . import lan, public
 from .config import Preferences, Graphics, GRAPHICS, PRESETS, CUSTOM_PRESET
 from .download import download, fetch_manifest, Cancelled
-from .game import Installation, Session, MODES, arguments
+from .game import Installation, Session, MODES, arguments, download_earth, earth_data, earth_downloads, earth_missing
 from .hardware import probe, recommendation, display_modes
 from .installation import Lease, verify, repair_stage, recover, pointer
-from .manifest import NoReleaseError, select_release, https_url
+from .manifest import NoReleaseError, index_entries, select_release, https_url
 from .platform_process import spawn
 from .storage import LauncherError, read_json, write_json, safe_path
 from .version import Version
@@ -591,6 +591,22 @@ class Window(QMainWindow):
         self.bots.setValue(self.prefs.bots)
         self.bots.valueChanged.connect(lambda v: self.set_pref('bots', v))
         form.addRow('Dogfight opponents', self.bots)
+        # The valley, or the round Earth at one of the theatres this build lists.
+        self.map_combo = DropDown()
+        self.map_combo.setToolTip('Where to fly. The Earth map is the real world from a separate download, in free flight for now.')
+        self.map_combo.currentIndexChanged.connect(self.select_map)
+        form.addRow('Map', self.map_combo)
+        self.airport_combo = DropDown()
+        self.airport_combo.setToolTip('The airport an Earth flight starts at, on its longest runway.')
+        self.airport_combo.currentIndexChanged.connect(self.select_airport)
+        form.addRow('Start at', self.airport_combo)
+        # The Earth map's data is a download of its own, kept between versions.
+        earth_row = QHBoxLayout()
+        self.earth_label = label('', 'muted')
+        earth_row.addWidget(self.earth_label, 1)
+        self.earth_button = button('Download', self.download_earth)
+        earth_row.addWidget(self.earth_button)
+        form.addRow('Earth map data', earth_row)
         self.mode_detail = label('', 'muted')
         box.addWidget(self.mode_detail)
         box.addStretch()
@@ -938,14 +954,19 @@ class Window(QMainWindow):
 
     def host_note(self):
         """Under the host button: who will see the game, and how to reach it if they do not."""
+        where = ''
+        if self.prefs.map == 'earth':
+            where = (f'Your game is on the Earth map, in {self.theatre_names().get(self.prefs.theatre, self.prefs.theatre)}, '
+                     'free flight; pilots need the Earth map to join. Choose the map on the Flight mode page.\n\n')
+        self.lan_address.setText(where)
         if self.prefs.host_public:
-            self.lan_address.setText('Your game runs on the OpenFlightSim public server and appears in every player\'s list, wherever they are. '
+            self.lan_address.setText(where + 'Your game runs on the OpenFlightSim public server and appears in every player\'s list, wherever they are. '
                                      'It stays open for your friends and closes by itself a few minutes after the last pilot leaves.')
             return
         text = 'Your game appears on other computers on this network as soon as you take off.'
         if self.addresses:
             text += f' If someone has to join by address, yours is {self.addresses[0]}, port {self.prefs.port}.'
-        self.lan_address.setText(text + (f'\n\n{self.firewall}' if self.firewall else ''))
+        self.lan_address.setText(where + text + (f'\n\n{self.firewall}' if self.firewall else ''))
 
     def show_lobbies(self, lobbies, addresses=(), firewall=False, listing=None):
         if firewall is not False:
@@ -957,15 +978,15 @@ class Window(QMainWindow):
         self.lobby_list.blockSignals(True)
         self.lobby_list.clear()
         for lobby in self.lobbies:
-            item = QListWidgetItem(lan.describe(lobby, protocol))
+            item = QListWidgetItem(lan.describe(lobby, protocol, self.theatre_names()))
             item.setData(Qt.ItemDataRole.UserRole, lobby)
-            if not lan.joinable(lobby, protocol):
+            if not lan.joinable(lobby, protocol, self.theatre_names()):
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             self.lobby_list.addItem(item)
             if chosen and (lobby.address, lobby.port, lobby.game) == (chosen.address, chosen.port, chosen.game):
                 self.lobby_list.setCurrentItem(item)
         if self.lobby_list.currentRow() < 0:
-            first = next((i for i, lobby in enumerate(self.lobbies) if lan.joinable(lobby, protocol)), -1)
+            first = next((i for i, lobby in enumerate(self.lobbies) if lan.joinable(lobby, protocol, self.theatre_names())), -1)
             self.lobby_list.setCurrentRow(first)
         self.lobby_list.blockSignals(False)
         count = len(self.lobbies)
@@ -986,7 +1007,7 @@ class Window(QMainWindow):
     def lobby_selected(self):
         lobby = self.selected_lobby()
         busy = bool(self.job) or self.session.running()
-        self.join_button.setEnabled(bool(lobby) and lan.joinable(lobby, self.protocol()) and not busy)
+        self.join_button.setEnabled(bool(lobby) and lan.joinable(lobby, self.protocol(), self.theatre_names()) and not busy)
 
     def host_lan(self):
         if self.prefs.host_public:
@@ -995,7 +1016,7 @@ class Window(QMainWindow):
         self.fly(dataclasses.replace(self.prefs, mode='multiplayer', host=True), lan=True,
                  message='Hosting your game · friends on this network can join from their Multiplayer page')
 
-    def public_flight(self, title, work, message):
+    def public_flight(self, title, work, message, **where):
         """Ask the public server for a game off the UI thread, then fly in it.
 
         `work` returns the address and port to connect to. The flight is checked
@@ -1010,7 +1031,7 @@ class Window(QMainWindow):
         try:
             if Version(self.installation.catalog['version']) < Version(public.PUBLIC_VERSION):
                 raise LauncherError(f'Public games need OpenFlightSim {public.PUBLIC_VERSION} or newer. Update the game first.')
-            flight = dataclasses.replace(self.prefs, mode='multiplayer', host=False, server='192.0.2.1', port=27020)
+            flight = dataclasses.replace(self.prefs, mode='multiplayer', host=False, server='192.0.2.1', port=27020, **where)
             arguments(self.installation, flight, self.graphics)
         except LauncherError as exc:
             self.error(str(exc))
@@ -1030,14 +1051,16 @@ class Window(QMainWindow):
 
     def join_selected(self):
         lobby = self.selected_lobby()
-        if not lobby or not lan.joinable(lobby, self.protocol()):
+        if not lobby or not lan.joinable(lobby, self.protocol(), self.theatre_names()):
             self.error('Select a game you can join first.')
             return
+        # The game's map, whatever the pilot last flew alone.
+        where = dict(map='earth', theatre=lobby.theatre) if lobby.map else dict(map='valley')
         if lobby.game:
             cache = self.data / 'public-server.json'
-            self.public_flight(f'Joining {lobby.name}', lambda: public.join(cache, lobby.game), f'Joining {lobby.name}')
+            self.public_flight(f'Joining {lobby.name}', lambda: public.join(cache, lobby.game), f'Joining {lobby.name}', **where)
             return
-        self.fly(dataclasses.replace(self.prefs, mode='multiplayer', host=False, server=lobby.address, port=lobby.port),
+        self.fly(dataclasses.replace(self.prefs, mode='multiplayer', host=False, server=lobby.address, port=lobby.port, **where),
                  message=f'Joining {lobby.name}')
 
     def join_address(self):
@@ -1192,6 +1215,12 @@ class Window(QMainWindow):
             index = self.mode_combo.findData(self.prefs.mode)
             self.mode_combo.setCurrentIndex(max(index, 0))
             self.prefs.mode = self.mode_combo.currentData()
+            self.map_combo.clear()
+            self.map_combo.addItem('The valley', 'valley')
+            for theatre in self.theatres():
+                self.map_combo.addItem(f'Earth · {theatre["name"]}', 'earth:' + theatre['id'])
+            index = self.map_combo.findData('valley' if self.prefs.map == 'valley' else 'earth:' + self.prefs.theatre)
+            self.map_combo.setCurrentIndex(max(index, 0))
             self.updating = before
             self.save()
             missing = self.installation.missing_assets()
@@ -1211,6 +1240,7 @@ class Window(QMainWindow):
             self.installation_label.show_facts([('Folder', root), ('Problem', exc)])
         self.select_aircraft()
         self.select_mode()
+        self.select_map()
         self.sync_graphics()
         self.refresh_summary()
 
@@ -1259,6 +1289,90 @@ class Window(QMainWindow):
         self.mode_detail.setText({'free': 'Fly offline from the runway or start airborne. No network connection is required.', 'multiplayer': 'Configure server address, pilot name and local hosting in Multiplayer. Spawn state is managed by the server.', 'dogfight': 'Fight 1–8 AI opponents on the local authoritative server. Choose an armed aircraft; the simulator starts airborne.'}[mode])
         self.refresh_summary()
 
+    def theatre_names(self):
+        """The Earth theatres this installation can fly, by id, with their names."""
+        return {t['id']: t['name'] for t in self.theatres()}
+
+    def theatres(self):
+        """The Earth theatres the installed build lists, or none for an older one."""
+        theatres = self.installation.catalog.get('theatres') if self.installation else None
+        return [t for t in theatres if isinstance(t, dict) and isinstance(t.get('id'), str) and isinstance(t.get('name'), str)
+                and isinstance(t.get('airports'), list)] if isinstance(theatres, list) else []
+
+    def select_map(self):
+        choice = self.map_combo.currentData() or 'valley'
+        earth = choice.startswith('earth:')
+        before = self.updating
+        if not before:
+            self.prefs.map = 'earth' if earth else 'valley'
+            if earth:
+                self.prefs.theatre = choice.split(':', 1)[1]
+        self.updating = True
+        self.airport_combo.clear()
+        theatre = next((t for t in self.theatres() if earth and t['id'] == choice.split(':', 1)[1]), None)
+        for airport in theatre['airports'] if theatre else []:
+            if isinstance(airport, dict) and isinstance(airport.get('ident'), str):
+                self.airport_combo.addItem(f'{airport.get("name", airport["ident"])} ({airport["ident"]})', airport['ident'])
+        index = self.airport_combo.findData(self.prefs.earth_airport)
+        self.airport_combo.setCurrentIndex(max(index, 0))
+        self.updating = before
+        self.airport_combo.setEnabled(earth)
+        self.earth_status()
+        if not before:
+            self.save()
+        if hasattr(self, 'lan_address') and hasattr(self, 'addresses'):
+            self.host_note()
+        self.refresh_summary()
+
+    def earth_status(self):
+        """Whether the Earth map's data is here, with the chosen theatre's 90 m
+        detail, and whether what is missing can be fetched."""
+        if not hasattr(self, 'earth_label'):
+            return
+        busy = bool(self.job) or self.session.running()
+        try:
+            records = earth_downloads(self.installation) if self.installation else []
+        except LauncherError as exc:
+            records = []
+            log.warning('Earth map download unusable: %s', exc)
+        try:
+            pack, _ = earth_data(self.installation) if self.installation and self.theatres() else (None, None)
+            text = f'Installed · {pack.parent}' if pack else 'This version of the game has no Earth map'
+            ready = bool(pack)
+        except LauncherError as exc:
+            text, ready = str(exc), False
+        theatre = next((t for t in self.theatres() if t['id'] == self.prefs.theatre), None)
+        missing = []
+        if records and theatre:
+            try:
+                _, missing = earth_missing(self.installation, theatre['id'])
+            except LauncherError as exc:
+                log.warning('Earth detail unusable: %s', exc)
+        detail = [r for r, _ in missing if 'region' in r]
+        size = sum(r['size'] for r, _ in missing)
+        if ready and detail:
+            text += f' · 90 m detail for {theatre["name"]}: {size / 1024**2:,.0f} MiB to download'
+        elif ready and theatre and theatre.get('regions') and any(r.get('region') for r in self.installation.catalog.get('earth_detail') or []):
+            text += f' · 90 m detail for {theatre["name"]} installed'
+        elif not ready and missing:
+            text += f' · {size / 1024**2:,.0f} MiB to download'
+        self.earth_label.setText(text)
+        self.earth_button.setVisible(bool(missing))
+        self.earth_button.setEnabled(not busy)
+
+    def download_earth(self):
+        installation = self.installation
+        if not installation:
+            return
+        theatre = self.prefs.theatre if any(t['id'] == self.prefs.theatre for t in self.theatres()) else None
+        self.start_job('Downloading the Earth map',
+                       lambda cancel, progress: download_earth(installation, theatre, cancel=cancel, progress=progress),
+                       lambda folder: (self.status.setText(f'Earth map data installed in {folder}'), self.earth_status()))
+
+    def select_airport(self):
+        if self.airport_combo.currentData() is not None:
+            self.set_pref('earth_airport', self.airport_combo.currentData())
+
     def refresh_summary(self):
         if not hasattr(self, 'rollback_button'):
             return
@@ -1292,7 +1406,11 @@ class Window(QMainWindow):
             self.home_aircraft.select(self.prefs.aircraft)
             self.hangar_aircraft.select(self.prefs.aircraft)
             g = self.graphics.values
-            self.summary_label.setText(f'{MODES.get(self.prefs.mode, self.prefs.mode)}  ·  {self.prefs.camera.replace("-", " ").title()} camera')
+            where = 'The valley'
+            if self.prefs.map == 'earth':
+                theatre = next((t for t in self.theatres() if t['id'] == self.prefs.theatre), None)
+                where = f'Earth · {theatre["name"]}' if theatre else 'Earth'
+            self.summary_label.setText(f'{MODES.get(self.prefs.mode, self.prefs.mode)}  ·  {where}  ·  {self.prefs.camera.replace("-", " ").title()} camera')
         if not busy:
             self.operation_label.setText('Update available' if update else 'Ready for departure')
         elif not self.job:
@@ -1379,6 +1497,7 @@ class Window(QMainWindow):
         self.cancel_button.hide()
         self.show_operation('check')
         self.refresh_summary()
+        self.earth_status()
         if after and not self.pending_close:
             after()
         if self.pending_close:
@@ -1586,7 +1705,7 @@ class Window(QMainWindow):
             def repair(cancel, progress):
                 manifest = fetch_manifest(url)
                 # Repair older installed releases too, even if the latest is newer.
-                matches = [r for r in manifest.get('releases', []) if r.get('version') == installation.build['version'] and r.get('channel') == installation.build['channel']]
+                matches = [r for r in index_entries(manifest) if r.get('version') == installation.build['version'] and r.get('channel') == installation.build['channel']]
                 release = select_release({'schema': 1, 'releases': matches}, installation.build['channel'])
                 stage = safe_path(installation.root, '.staging/repair-' + release.package['sha256'][:16])
                 repair_stage(installation.directory, stage, release, cancel, progress)

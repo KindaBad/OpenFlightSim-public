@@ -1,4 +1,6 @@
 #include "camera.hpp"
+
+#include "ofs/world.hpp"
 #include <glm/gtc/quaternion.hpp>
 
 namespace ofs::client {
@@ -165,7 +167,7 @@ void Camera::update(CameraMode next, const State& aircraft, double dt, bool firs
     // therefore free to swing about in the frame while the view stays steady.
     const Vec3 forward = aimed ? *aimView : aircraft.att.rotate({1, 0, 0});
     const bool carry = smoothingPrimed && !firstFrame && !changed;
-    const Vec3 worldUp{0, 0, -1};
+    const Vec3 worldUp = world().up(aircraft.pos_ned);
     if (aimed || !carry) {
       pursuitUp = worldUp;
     } else {
@@ -194,7 +196,7 @@ void Camera::update(CameraMode next, const State& aircraft, double dt, bool firs
     }
     smoothedPosition = referencePosition + aircraft.att.rotate(visual.chaseTarget) +
         smoothedAtt.rotate({-kPursuitBack * visual.radius, 0, -kPursuitUp * visual.radius});
-    smoothedPosition.z = std::min(smoothedPosition.z, groundHeightNed(smoothedPosition.x, smoothedPosition.y) - .8);
+    smoothedPosition = world().aboveTerrain(smoothedPosition, .8);
     eye = smoothedPosition;
     target = eye + smoothedAtt.rotate({1000, 0, 0});
     fov = settings.fov + fovOffset;
@@ -219,19 +221,19 @@ void Camera::update(CameraMode next, const State& aircraft, double dt, bool firs
   Quat offsetAtt = aircraft.att;
   if (mode == CameraMode::Orbit) {
     double roll, pitch, yaw;
-    eulerFromQuat(aircraft.att, roll, pitch, yaw);
-    offsetAtt = quatFromEuler(0, 0, yaw);
+    eulerFromQuat(world().toLocal(aircraft.pos_ned, aircraft.att), roll, pitch, yaw);
+    offsetAtt = world().fromLocal(aircraft.pos_ned, quatFromEuler(0, 0, yaw));
   }
   Vec3 desired = referencePosition + offsetAtt.rotate(offsetBody);
-  if (!settings.rigid) desired.z = std::min(desired.z, groundHeightNed(desired.x, desired.y) - .8);
+  if (!settings.rigid) desired = world().aboveTerrain(desired, .8);
   const Vec3 lookTarget = referencePosition + aircraft.att.rotate(visual.chaseTarget) + aircraft.vel_ned * settings.velocityLookAhead;
   Quat desiredAtt = settings.rigid ? aircraft.att*quatFromEuler(0,visual.cockpitPitch,0)
-      : attitudeLookAt(lookTarget - desired, Vec3{0, 0, -1});
+      : attitudeLookAt(lookTarget - desired, world().up(desired));
   if (aimed) {
     // Behind and above the aircraft along the aim line, horizon level.
-    desiredAtt = attitudeLookAt(*aimView, Vec3{0, 0, -1});
+    desiredAtt = attitudeLookAt(*aimView, world().up(referencePosition));
     desired = referencePosition + desiredAtt.rotate({offsetBody.x, 0, offsetBody.z});
-    desired.z = std::min(desired.z, groundHeightNed(desired.x, desired.y) - .8);
+    desired = world().aboveTerrain(desired, .8);
   }
 
   if (firstFrame || changed || !smoothingPrimed) {
@@ -255,7 +257,7 @@ void Camera::update(CameraMode next, const State& aircraft, double dt, bool firs
   }
 
   if (!settings.rigid)
-    smoothedPosition.z = std::min(smoothedPosition.z, groundHeightNed(smoothedPosition.x, smoothedPosition.y) - .8);
+    smoothedPosition = world().aboveTerrain(smoothedPosition, .8);
   eye = smoothedPosition;
   // Look-ahead biases the look target along the velocity vector so a fast
   // aircraft sits slightly low in frame instead of drifting off-centre.
@@ -267,16 +269,16 @@ void Camera::update(CameraMode next, const State& aircraft, double dt, bool firs
 }
 
 void Camera::watch(const Vec3& subject, double heading, double distance, double lift, double dt) {
-  const Vec3 back{-std::cos(heading), -std::sin(heading), 0};
-  Vec3 desired = subject + back * distance + Vec3{0, 0, -distance * .18};
-  desired.z = std::min(desired.z, groundHeightNed(desired.x, desired.y) - 1.5);
+  const Vec3 back = world().fromLocal(subject, {-std::cos(heading), -std::sin(heading), 0});
+  Vec3 desired = subject + back * distance + world().up(subject) * (distance * .18);
+  desired = world().aboveTerrain(desired, 1.5);
   const bool carry = mode == CameraMode::Chase && smoothingPrimed && (smoothedPosition - desired).norm() < 400;
   // The pilot is thrown about in the first moments; the camera follows smoothly.
   smoothedPosition = carry ? smoothedPosition + (desired - smoothedPosition) * (1.0 - std::exp(-dt / .35)) : desired;
-  smoothedPosition.z = std::min(smoothedPosition.z, groundHeightNed(smoothedPosition.x, smoothedPosition.y) - 1.5);
+  smoothedPosition = world().aboveTerrain(smoothedPosition, 1.5);
   eye = smoothedPosition;
-  target = subject + Vec3{0, 0, -lift};
-  smoothedAtt = attitudeLookAt(target - eye, Vec3{0, 0, -1});
+  target = subject + world().up(subject) * lift;
+  smoothedAtt = attitudeLookAt(target - eye, world().up(eye));
   smoothingPrimed = true;
   mode = CameraMode::Chase;
   aimViewActive = false;
@@ -286,11 +288,11 @@ void Camera::watch(const Vec3& subject, double heading, double distance, double 
 
 void Camera::ride(const Vec3& subject, const Vec3& velocity) {
   const Vec3 along = velocity.norm() > 1 ? velocity.normalized() : Vec3{1, 0, 0};
-  eye = subject - along * 14 + Vec3{0, 0, -2.2};
-  eye.z = std::min(eye.z, groundHeightNed(eye.x, eye.y) - 1.5);
+  eye = subject - along * 14 + world().up(subject) * 2.2;
+  eye = world().aboveTerrain(eye, 1.5);
   target = subject + along * 60;
   smoothedPosition = eye;
-  smoothedAtt = attitudeLookAt(target - eye, Vec3{0, 0, -1});
+  smoothedAtt = attitudeLookAt(target - eye, world().up(eye));
   // The flight camera starts afresh when the view returns to the aircraft.
   smoothingPrimed = false;
   speedPrimed = false;

@@ -1,0 +1,3492 @@
+{
+  "schema": 1,
+  "release": "earth-data-v2",
+  "files": [
+    {
+      "name": "earth.ofse",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth.ofse",
+      "sha256": "163f09a28092b7f075fbbdf712a02fbf205aa40dda9669ae41d6896d0a24f8e9",
+      "size": 846338481
+    },
+    {
+      "name": "earth-cover.ofsc",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-cover.ofsc",
+      "sha256": "929531aa755cf3b6934660f8e5f266d02cab3528254fd8117dfc3c67893e96dd",
+      "size": 29734275
+    }
+  ],
+  "detail": [
+    {
+      "region": "N00E000",
+      "name": "earth-detail-N00E000.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00E000.ofsd",
+      "sha256": "11bf04a9817e4d92c157480b14b602d98b8557e64fc808907f3d97a23fe9b73e",
+      "size": 23331192
+    },
+    {
+      "region": "N00E010",
+      "name": "earth-detail-N00E010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00E010.ofsd",
+      "sha256": "0bfa0c2ee8b16a33585a9e020598dc25dfa51ebb6f2ec43598e8ef268a1d912e",
+      "size": 40921358
+    },
+    {
+      "region": "N00E020",
+      "name": "earth-detail-N00E020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00E020.ofsd",
+      "sha256": "a2dce2fc8c9b8dad65e6e31eeac5fa5939bcec3d384bd1e4a6b8ab835ae4f33a",
+      "size": 42193912
+    },
+    {
+      "region": "N00E030",
+      "name": "earth-detail-N00E030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00E030.ofsd",
+      "sha256": "2523a421e27fd926cb6f1a36e2a01b50067480368f87241c0845efa36b52993a",
+      "size": 41304069
+    },
+    {
+      "region": "N00E040",
+      "name": "earth-detail-N00E040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00E040.ofsd",
+      "sha256": "0558794ec5ccf37517c86317a1ea779f019b535d7b90bbe2fa426b57f458b8c8",
+      "size": 24394984
+    },
+    {
+      "region": "N00E050",
+      "name": "earth-detail-N00E050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00E050.ofsd",
+      "sha256": "2827afe0b1af6ef65c9ccd28a784221dac1dce4ad9ab46294bbb00b17d2dcc4f",
+      "size": 1434419
+    },
+    {
+      "region": "N00E070",
+      "name": "earth-detail-N00E070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00E070.ofsd",
+      "sha256": "575bd193793478248d6efbce0669306078859f4d2e04b2f2f24e0c87946ae9ca",
+      "size": 4838864
+    },
+    {
+      "region": "N00E080",
+      "name": "earth-detail-N00E080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00E080.ofsd",
+      "sha256": "afb6900a3783b7e98fe7dc38eaaf9da27c85a039cd97e259bfdab7c1dee83c09",
+      "size": 3404109
+    },
+    {
+      "region": "N00E090",
+      "name": "earth-detail-N00E090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00E090.ofsd",
+      "sha256": "5604f41189c069f9e7e33c243e9c1940d73c53e159492aa7ef9137be87170edc",
+      "size": 13596274
+    },
+    {
+      "region": "N00E100",
+      "name": "earth-detail-N00E100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00E100.ofsd",
+      "sha256": "81c68397885cf296e8277b5348614d192544dc8cbb0eff441e097d4f390e744d",
+      "size": 13663386
+    },
+    {
+      "region": "N00E110",
+      "name": "earth-detail-N00E110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00E110.ofsd",
+      "sha256": "406ef06fe5a6ae535d2a68f602fcf5df900196907b7df4da8152eaab6814773d",
+      "size": 31748888
+    },
+    {
+      "region": "N00E120",
+      "name": "earth-detail-N00E120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00E120.ofsd",
+      "sha256": "695c7d0d1bfa460241ec7e0de15a455bb0310fa408022d173c7410306830d29d",
+      "size": 20723147
+    },
+    {
+      "region": "N00E130",
+      "name": "earth-detail-N00E130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00E130.ofsd",
+      "sha256": "7b6e8c6437a54685cd4ac64ea682d5801b0251f4a81553f8a2fd4ceef3b24feb",
+      "size": 3343795
+    },
+    {
+      "region": "N00E140",
+      "name": "earth-detail-N00E140.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00E140.ofsd",
+      "sha256": "2e8514a22d29748242ba59368ea1a29880f6608d52083704a4edcd49550f0230",
+      "size": 4252268
+    },
+    {
+      "region": "N00E150",
+      "name": "earth-detail-N00E150.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00E150.ofsd",
+      "sha256": "b35039f1cdcc1e2e68ec5f91c1d6b5ebc7ce4d1d81f654795b3a32c0366e2760",
+      "size": 3153962
+    },
+    {
+      "region": "N00E160",
+      "name": "earth-detail-N00E160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00E160.ofsd",
+      "sha256": "6cb4b9c7c87a96d6c1ca79bb505d26e35daa3b5b64e966932947197c8acb4931",
+      "size": 3279407
+    },
+    {
+      "region": "N00E170",
+      "name": "earth-detail-N00E170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00E170.ofsd",
+      "sha256": "0b6fc97293b6746835d9cdc2c3c3607065ad86b820fbf489164a035d76691e5f",
+      "size": 2533977
+    },
+    {
+      "region": "N00W010",
+      "name": "earth-detail-N00W010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00W010.ofsd",
+      "sha256": "708572f2ab5cf0d6a03ed60d13784a6a9dfab5f114ce1b8906acf1300571a5c1",
+      "size": 23887007
+    },
+    {
+      "region": "N00W020",
+      "name": "earth-detail-N00W020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00W020.ofsd",
+      "sha256": "900fb65243b7770fbb047860b14ad857206b832c40e1a67c5afce6aa455c6c04",
+      "size": 5726882
+    },
+    {
+      "region": "N00W030",
+      "name": "earth-detail-N00W030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00W030.ofsd",
+      "sha256": "a12ed51ba68a0ff13b1e31a60541f5e0510d898304218451c354c063d75c9d3d",
+      "size": 310817
+    },
+    {
+      "region": "N00W050",
+      "name": "earth-detail-N00W050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00W050.ofsd",
+      "sha256": "d009eeee2dc4fe9f53002b2f1e75d8a8af0c56f0f4e8973f5db3a1bf751c3872",
+      "size": 551548
+    },
+    {
+      "region": "N00W060",
+      "name": "earth-detail-N00W060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00W060.ofsd",
+      "sha256": "ff95872fa21d95c4927c4855c07dfe97e20f0369e732f467fce5b0f4f5f108ed",
+      "size": 36599185
+    },
+    {
+      "region": "N00W070",
+      "name": "earth-detail-N00W070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00W070.ofsd",
+      "sha256": "0425ec1054176d293791bf86df1a317aad346d2f75f22e00fdf9fa8680314f4e",
+      "size": 49338679
+    },
+    {
+      "region": "N00W080",
+      "name": "earth-detail-N00W080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00W080.ofsd",
+      "sha256": "3fb64aa51abca4b1943fdbdb6e9afbf26da32cce33541a0d7d5d45d6f02e88c2",
+      "size": 42775215
+    },
+    {
+      "region": "N00W090",
+      "name": "earth-detail-N00W090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00W090.ofsd",
+      "sha256": "26b37e0ddfd5475d271fd56425d871aaf79d17d140798b1687e4e2464f25c84b",
+      "size": 7059620
+    },
+    {
+      "region": "N00W100",
+      "name": "earth-detail-N00W100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00W100.ofsd",
+      "sha256": "15a67aa69c2e535ef8c7cdeb67e6783f22fb93768e9730567c88c525277d17a3",
+      "size": 837858
+    },
+    {
+      "region": "N00W160",
+      "name": "earth-detail-N00W160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00W160.ofsd",
+      "sha256": "83c5db4b6b1d220a7e1c24971bd2e5b446f9dadb58a2708cddb6dcac6769fa1a",
+      "size": 805180
+    },
+    {
+      "region": "N00W170",
+      "name": "earth-detail-N00W170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00W170.ofsd",
+      "sha256": "c05eecc8a349400c2da324f4ae211705f894a67df0981aa6fc3dfdc33c28a123",
+      "size": 709692
+    },
+    {
+      "region": "N00W180",
+      "name": "earth-detail-N00W180.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N00W180.ofsd",
+      "sha256": "825ceb2f5601140e77f12a592e5ed2a81b71da19b9817adc4ee7308ffe65aa87",
+      "size": 190970
+    },
+    {
+      "region": "N10E000",
+      "name": "earth-detail-N10E000.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10E000.ofsd",
+      "sha256": "8f10199c048c33920588ebbb2d11804855d2d68df969a4b3349b17402198bd14",
+      "size": 25304553
+    },
+    {
+      "region": "N10E010",
+      "name": "earth-detail-N10E010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10E010.ofsd",
+      "sha256": "7c4852b5207fb5116844a40d845cdadb15277497c193bb909b8dd67559fdd8b3",
+      "size": 24026095
+    },
+    {
+      "region": "N10E020",
+      "name": "earth-detail-N10E020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10E020.ofsd",
+      "sha256": "3b20d68efada5fe3f62497a70e4b5648f9cd340a102b85b2148d77f21faed4dc",
+      "size": 28288351
+    },
+    {
+      "region": "N10E030",
+      "name": "earth-detail-N10E030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10E030.ofsd",
+      "sha256": "d18cba89a27a5a27c28a51c086af350b31158e71c1f421240c0553cb1a106d5f",
+      "size": 37093257
+    },
+    {
+      "region": "N10E040",
+      "name": "earth-detail-N10E040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10E040.ofsd",
+      "sha256": "4c975e7b2be49d65aa3835c2403fa223d6b1791f6046edf30b004991d943ec9f",
+      "size": 39544938
+    },
+    {
+      "region": "N10E050",
+      "name": "earth-detail-N10E050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10E050.ofsd",
+      "sha256": "999adace73ca5e528029be7aedb0678b8440d287b0c5226b2517dce128c6304b",
+      "size": 16490785
+    },
+    {
+      "region": "N10E060",
+      "name": "earth-detail-N10E060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10E060.ofsd",
+      "sha256": "44c8f18710c36a49b5f48c89cb19139c4262548bc209149264b29251f14fadeb",
+      "size": 138934
+    },
+    {
+      "region": "N10E070",
+      "name": "earth-detail-N10E070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10E070.ofsd",
+      "sha256": "f560fe1314598fd8bd4ddb2b535e7340e41054f1c6bf005f2cff8b7160b6d0ef",
+      "size": 24029292
+    },
+    {
+      "region": "N10E080",
+      "name": "earth-detail-N10E080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10E080.ofsd",
+      "sha256": "308c5ab3bd1c99b72d9f82fdf8e26aee54b112682041ec34cb4cdd176e627b25",
+      "size": 8599686
+    },
+    {
+      "region": "N10E090",
+      "name": "earth-detail-N10E090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10E090.ofsd",
+      "sha256": "7672a0ea241d13ef4f6c9d98a60517a3408b6587ec2794bd537508aec3045bbb",
+      "size": 21958215
+    },
+    {
+      "region": "N10E100",
+      "name": "earth-detail-N10E100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10E100.ofsd",
+      "sha256": "40f6a8aa94cedae6655dc044a8357d8364e2fb97105ad4a59cebe967a587573f",
+      "size": 35161520
+    },
+    {
+      "region": "N10E110",
+      "name": "earth-detail-N10E110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10E110.ofsd",
+      "sha256": "07a992880a8dde198695c7ce0ee415e40cebb35acf1721764085f7b4c8050947",
+      "size": 7101942
+    },
+    {
+      "region": "N10E120",
+      "name": "earth-detail-N10E120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10E120.ofsd",
+      "sha256": "9ad81916e3bb1766f9db443822972fa119e69974b45d66ba225b26614f6b4a0f",
+      "size": 16741929
+    },
+    {
+      "region": "N10E130",
+      "name": "earth-detail-N10E130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10E130.ofsd",
+      "sha256": "4232361a96099f82b3899cdff03bd731a746f4ea6e44ede2ec7eb9435c5873cb",
+      "size": 238883
+    },
+    {
+      "region": "N10E140",
+      "name": "earth-detail-N10E140.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10E140.ofsd",
+      "sha256": "3ea37491e9543e0b1f5d469527ef37147c35fa32e2eb0d3e237aa06d4cae9818",
+      "size": 2448540
+    },
+    {
+      "region": "N10E150",
+      "name": "earth-detail-N10E150.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10E150.ofsd",
+      "sha256": "928be40572adab21ce13270a7aa5081582d1d601cb214dd0e49bc53a3387e936",
+      "size": 127534
+    },
+    {
+      "region": "N10E160",
+      "name": "earth-detail-N10E160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10E160.ofsd",
+      "sha256": "62d14f7e9bda469f5c0e26183b46c1cf4c2a7e30669ad66c88d6221e055b878f",
+      "size": 2453267
+    },
+    {
+      "region": "N10E170",
+      "name": "earth-detail-N10E170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10E170.ofsd",
+      "sha256": "b7e572d69f0fcdd426955693bc55a9bbb1a26df784ae826f98399ca1b0e48df6",
+      "size": 592566
+    },
+    {
+      "region": "N10W010",
+      "name": "earth-detail-N10W010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10W010.ofsd",
+      "sha256": "39615e12e9eeb49b19a5b79e8f2bde9a52dcf0befe31cbf009545f05bf4df226",
+      "size": 26251260
+    },
+    {
+      "region": "N10W020",
+      "name": "earth-detail-N10W020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10W020.ofsd",
+      "sha256": "483679930c46c62a3388e667a49446a2df1b4e47531f2f73388f2805ad26e964",
+      "size": 20245545
+    },
+    {
+      "region": "N10W030",
+      "name": "earth-detail-N10W030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10W030.ofsd",
+      "sha256": "2d76eee85352aaa018f76c35129d78ee2d732c9f9872530aa02cf59441c5b55f",
+      "size": 2067406
+    },
+    {
+      "region": "N10W040",
+      "name": "earth-detail-N10W040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10W040.ofsd",
+      "sha256": "c6e1048de235d2c54d46f9cb9998e6d0b2ca07bc3c238850cb108a6af15c7b8d",
+      "size": 196721
+    },
+    {
+      "region": "N10W060",
+      "name": "earth-detail-N10W060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10W060.ofsd",
+      "sha256": "2f7350fdc11658252f954f199d17afe0466754c907eeaf82e19892d18abb41ea",
+      "size": 190196
+    },
+    {
+      "region": "N10W070",
+      "name": "earth-detail-N10W070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10W070.ofsd",
+      "sha256": "7d3880e6ac777d90dfed32ffd368ea256bd01a2ebf656477eed7c8459d6b1704",
+      "size": 14689306
+    },
+    {
+      "region": "N10W080",
+      "name": "earth-detail-N10W080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10W080.ofsd",
+      "sha256": "9d14014a90fb979d2cd297242478becbf1be52372cea31497eea68d49587ad14",
+      "size": 12227850
+    },
+    {
+      "region": "N10W090",
+      "name": "earth-detail-N10W090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10W090.ofsd",
+      "sha256": "66156d40fe93cfd537ccc88008b6e5046ade8ff64bd1ae6620f7bfccc237ad3f",
+      "size": 22536210
+    },
+    {
+      "region": "N10W100",
+      "name": "earth-detail-N10W100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10W100.ofsd",
+      "sha256": "5444dddc25d5452ea64df3cc1124463d6987087ba71cc3c6bc8e976e3fd57487",
+      "size": 23296092
+    },
+    {
+      "region": "N10W110",
+      "name": "earth-detail-N10W110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10W110.ofsd",
+      "sha256": "2b604af1f40ffd2d3fc53a3bfecdbf99f0c3a0ecbf6682120876724c6de27311",
+      "size": 7498393
+    },
+    {
+      "region": "N10W120",
+      "name": "earth-detail-N10W120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10W120.ofsd",
+      "sha256": "863249d02e684988469f8d3d36c89f168cc4a2fb84b7da91eaea129d7287de06",
+      "size": 537809
+    },
+    {
+      "region": "N10W160",
+      "name": "earth-detail-N10W160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10W160.ofsd",
+      "sha256": "b0af3c85c509a26adefb43055827356920877f8860d929f059aa5fb27347c220",
+      "size": 815808
+    },
+    {
+      "region": "N10W170",
+      "name": "earth-detail-N10W170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10W170.ofsd",
+      "sha256": "9f20780619c92999345ba328a8830a89dd8f2f3ad35d326a09e985e1009badca",
+      "size": 190039
+    },
+    {
+      "region": "N10W180",
+      "name": "earth-detail-N10W180.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N10W180.ofsd",
+      "sha256": "41897b0aac01ddd5707edda2c57184161173a0ddf2f0e70454bed586fb074b7c",
+      "size": 142525
+    },
+    {
+      "region": "N20E000",
+      "name": "earth-detail-N20E000.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20E000.ofsd",
+      "sha256": "c1067a73eceda137f62b83a97f3316319396a1f32e00f971ea367a5310eb8b99",
+      "size": 32429091
+    },
+    {
+      "region": "N20E010",
+      "name": "earth-detail-N20E010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20E010.ofsd",
+      "sha256": "7ea7c02d2fd24609e869a14264c49473b2d636f1198d90840c960bc5bd1e7dd5",
+      "size": 31142135
+    },
+    {
+      "region": "N20E020",
+      "name": "earth-detail-N20E020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20E020.ofsd",
+      "sha256": "010592e017f3dd96caf4ff0d6d0cae93781895d904a7bdc71e8b5530a0478488",
+      "size": 29562792
+    },
+    {
+      "region": "N20E030",
+      "name": "earth-detail-N20E030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20E030.ofsd",
+      "sha256": "ee057c4f61b85bc47e61d85cbbb747d97964c86a473df9ee3527318eb211021e",
+      "size": 42971853
+    },
+    {
+      "region": "N20E040",
+      "name": "earth-detail-N20E040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20E040.ofsd",
+      "sha256": "7fa20de254243554fe1daaa4a7b8d16f4f56884c5e0d75b0eae7f37b82dfe381",
+      "size": 30466904
+    },
+    {
+      "region": "N20E050",
+      "name": "earth-detail-N20E050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20E050.ofsd",
+      "sha256": "4137524f1509cc111e66a1045d51cdd6153efec0f8411588f534240cb9960959",
+      "size": 37096275
+    },
+    {
+      "region": "N20E060",
+      "name": "earth-detail-N20E060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20E060.ofsd",
+      "sha256": "64e39cca3355e93697689d86d77d87a66bc1465a5ba91a897d6589df96a3e256",
+      "size": 25402297
+    },
+    {
+      "region": "N20E070",
+      "name": "earth-detail-N20E070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20E070.ofsd",
+      "sha256": "3431f8c2e094032fd385f145211d44f5c14da0f8cb0440735e0ed523ee14dae7",
+      "size": 28524950
+    },
+    {
+      "region": "N20E080",
+      "name": "earth-detail-N20E080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20E080.ofsd",
+      "sha256": "34536eb2dbc0d2173138cd9f411913ea227329ef905ac43ab9e966deef144e90",
+      "size": 41790393
+    },
+    {
+      "region": "N20E090",
+      "name": "earth-detail-N20E090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20E090.ofsd",
+      "sha256": "c19755dd3401b37e5bfdae506777fefe8baf771b0cb4a0d966f59538d3ee305d",
+      "size": 59527491
+    },
+    {
+      "region": "N20E100",
+      "name": "earth-detail-N20E100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20E100.ofsd",
+      "sha256": "5124706674c2198f1c3feb649463609d295744aea2fd51fdde8fa3936227f60d",
+      "size": 63295275
+    },
+    {
+      "region": "N20E110",
+      "name": "earth-detail-N20E110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20E110.ofsd",
+      "sha256": "a506111951fa6b6f09125f54ad0fbace5a3f6f9ad750805769b32b5b9dfd71fd",
+      "size": 51531220
+    },
+    {
+      "region": "N20E120",
+      "name": "earth-detail-N20E120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20E120.ofsd",
+      "sha256": "f9f9574abdfbce208cb3d31969bf75adf3b673ee1314c997a3a1b421637b79cc",
+      "size": 12537061
+    },
+    {
+      "region": "N20E130",
+      "name": "earth-detail-N20E130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20E130.ofsd",
+      "sha256": "8404ff9c71d9827f90eb51647d12db515c4229aa592dcf7d4cb5c51b760fe84f",
+      "size": 1529682
+    },
+    {
+      "region": "N20E140",
+      "name": "earth-detail-N20E140.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20E140.ofsd",
+      "sha256": "3612630490e88fb8cb1e91cdeb25a1bb96bee41a4d760d71cf0acaecc40340c0",
+      "size": 1802214
+    },
+    {
+      "region": "N20E150",
+      "name": "earth-detail-N20E150.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20E150.ofsd",
+      "sha256": "c3ab0cbf75b7875790dd115833e88590ef5fba4273e349f8d60b713aeb8d305b",
+      "size": 169208
+    },
+    {
+      "region": "N20E160",
+      "name": "earth-detail-N20E160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20E160.ofsd",
+      "sha256": "581e5706a5f963ac353c6e61fe475236040aa576328bbcd27c2e58a8c9eaa7e6",
+      "size": 458071
+    },
+    {
+      "region": "N20E170",
+      "name": "earth-detail-N20E170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20E170.ofsd",
+      "sha256": "ae75edb3735a57dc321c13fb47538653dca656bbf9329e9c67dc3c26e51accc9",
+      "size": 135870
+    },
+    {
+      "region": "N20W010",
+      "name": "earth-detail-N20W010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20W010.ofsd",
+      "sha256": "3a53ac74ee96f888e9b7de8623121010325588386fafb9b06944511cd44a73a1",
+      "size": 28174731
+    },
+    {
+      "region": "N20W020",
+      "name": "earth-detail-N20W020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20W020.ofsd",
+      "sha256": "c9164cbac1372fad1df915b6fa5325e362fb51686d331edaafc897a11676811c",
+      "size": 14318013
+    },
+    {
+      "region": "N20W070",
+      "name": "earth-detail-N20W070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20W070.ofsd",
+      "sha256": "7ae6d8294cabe3609b7e92dbc7ad0a8d1653de7e20affbf07a22de1213d0aecd",
+      "size": 401006
+    },
+    {
+      "region": "N20W080",
+      "name": "earth-detail-N20W080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20W080.ofsd",
+      "sha256": "40670b7c7624d7a2b99034599d1f424921755dcbb556d250c5c5818a0ec32eee",
+      "size": 9877282
+    },
+    {
+      "region": "N20W090",
+      "name": "earth-detail-N20W090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20W090.ofsd",
+      "sha256": "847b77383d5370762fd2dab5cec1366e903d641918ef047240a9b1ea1bdce3e5",
+      "size": 9188356
+    },
+    {
+      "region": "N20W100",
+      "name": "earth-detail-N20W100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20W100.ofsd",
+      "sha256": "d20c559a063d506781c44f772fdd2e44c8f3c16cc1a1c4ba02295bdd5c3978b9",
+      "size": 13219708
+    },
+    {
+      "region": "N20W110",
+      "name": "earth-detail-N20W110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20W110.ofsd",
+      "sha256": "3494c01b6b9fb78899313efb8b70bd4cd2912ce368a2c2ff9b3a80c5a3f309c6",
+      "size": 39403740
+    },
+    {
+      "region": "N20W120",
+      "name": "earth-detail-N20W120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20W120.ofsd",
+      "sha256": "9d6dff1c23677b1edf23ba5d18ab2fff75c9e2ab49a38d97560c4209bd7f28d4",
+      "size": 11674006
+    },
+    {
+      "region": "N20W160",
+      "name": "earth-detail-N20W160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20W160.ofsd",
+      "sha256": "64599528bae7a2f3ff03c419aba3ca9625b0b46f30fda220a9a65454b447231e",
+      "size": 2659125
+    },
+    {
+      "region": "N20W170",
+      "name": "earth-detail-N20W170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20W170.ofsd",
+      "sha256": "130d4fb7092afac36a71d59fc24bf09ed57f308bdc4a2a1b5a31ee082a7ee659",
+      "size": 2414699
+    },
+    {
+      "region": "N20W180",
+      "name": "earth-detail-N20W180.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N20W180.ofsd",
+      "sha256": "1effcd18f64680d38ccf9ef8d01e8e6dd09ac9062fbb1fef7cb3a320922d9e1b",
+      "size": 2243419
+    },
+    {
+      "region": "N30E000",
+      "name": "earth-detail-N30E000.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30E000.ofsd",
+      "sha256": "40806dea1dea0ee966a7ef42cd7be63242551cae2b1262d432e34baa48c641f2",
+      "size": 29769489
+    },
+    {
+      "region": "N30E010",
+      "name": "earth-detail-N30E010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30E010.ofsd",
+      "sha256": "099acd23eee2ade79663ec1bf0f8747b76e9ee4a94e5da562d839c9f330cc936",
+      "size": 13342236
+    },
+    {
+      "region": "N30E020",
+      "name": "earth-detail-N30E020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30E020.ofsd",
+      "sha256": "200fe5b1e9b89237580347d0d317ec0da62792f6c9fd30fd0ac5ba4ca82b6673",
+      "size": 24010127
+    },
+    {
+      "region": "N30E030",
+      "name": "earth-detail-N30E030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30E030.ofsd",
+      "sha256": "5aade7001fb26dfd9c037df493c9fbb364b65025db29a52861cc5dd6917a2633",
+      "size": 33681576
+    },
+    {
+      "region": "N30E040",
+      "name": "earth-detail-N30E040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30E040.ofsd",
+      "sha256": "b7ffa66eaede39fe84dfba008d52437eb2e8231b82ecc3663044ab6b1bebb0b9",
+      "size": 39659492
+    },
+    {
+      "region": "N30E050",
+      "name": "earth-detail-N30E050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30E050.ofsd",
+      "sha256": "56a0fb6f94aaa20b809332c1d1f26e7bbdbffd679269efef5f6f159a1f3c244b",
+      "size": 38687106
+    },
+    {
+      "region": "N30E060",
+      "name": "earth-detail-N30E060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30E060.ofsd",
+      "sha256": "7a9555df7d1c0745d93db1a9a9f8efe92ec139fefa1242dabc97d12a7a2ee6d0",
+      "size": 49978620
+    },
+    {
+      "region": "N30E070",
+      "name": "earth-detail-N30E070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30E070.ofsd",
+      "sha256": "39b28739a9d2f4ad03ff5710a4f2dc22e9920da512168ee1890d077215ad8283",
+      "size": 52172416
+    },
+    {
+      "region": "N30E080",
+      "name": "earth-detail-N30E080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30E080.ofsd",
+      "sha256": "65dcdb37d8ed2cfea782982f0221baf007751ae7ec22e24f7802be02c9fb82cd",
+      "size": 46363522
+    },
+    {
+      "region": "N30E090",
+      "name": "earth-detail-N30E090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30E090.ofsd",
+      "sha256": "2b0a3219d1947f59066cedfe53c1fbf0b0cf88f0b8fe2c3d89557988c6ab8f14",
+      "size": 53465272
+    },
+    {
+      "region": "N30E100",
+      "name": "earth-detail-N30E100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30E100.ofsd",
+      "sha256": "964132830ef11302c627b5ffea9cf9ecd1193206637d88cd512f0ab786b153f6",
+      "size": 54605707
+    },
+    {
+      "region": "N30E110",
+      "name": "earth-detail-N30E110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30E110.ofsd",
+      "sha256": "f764ce3f518bedb431d362cad522f313cd59f5ab70de195e61d6927d9b833254",
+      "size": 46447596
+    },
+    {
+      "region": "N30E120",
+      "name": "earth-detail-N30E120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30E120.ofsd",
+      "sha256": "6be961be0f851bf87b10e3998044ec15dfe08171c5882d107b8c058c6c65ac9f",
+      "size": 20900997
+    },
+    {
+      "region": "N30E130",
+      "name": "earth-detail-N30E130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30E130.ofsd",
+      "sha256": "3f7b8da1ff36488949162dbdfa34ae5f9b692ec3359a2dad57231d134906cbc4",
+      "size": 21937963
+    },
+    {
+      "region": "N30E140",
+      "name": "earth-detail-N30E140.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30E140.ofsd",
+      "sha256": "ca2299aa9cb7285db02e8043edb077ffed05e611c52db8b1a4bcf985de7dafcf",
+      "size": 5008978
+    },
+    {
+      "region": "N30E170",
+      "name": "earth-detail-N30E170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30E170.ofsd",
+      "sha256": "7eca6b29512a799f48641a8dad9eeab2eefbb07c1aea34f05ce848fc48572779",
+      "size": 565797
+    },
+    {
+      "region": "N30W010",
+      "name": "earth-detail-N30W010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30W010.ofsd",
+      "sha256": "b2d4a7f7299576a5e327d3d755876fc93a7adc195748f14d3e2cdebd1a5788de",
+      "size": 37151325
+    },
+    {
+      "region": "N30W020",
+      "name": "earth-detail-N30W020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30W020.ofsd",
+      "sha256": "be70559faf15fd0fdfb772b464c3e8b24f756129cdeb6b4b425ed04338312329",
+      "size": 1342333
+    },
+    {
+      "region": "N30W030",
+      "name": "earth-detail-N30W030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30W030.ofsd",
+      "sha256": "ff1938348c2ee773237b785e25d457c257a2d5ac1fe9285c9969aedbeda5a6e4",
+      "size": 1921895
+    },
+    {
+      "region": "N30W040",
+      "name": "earth-detail-N30W040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30W040.ofsd",
+      "sha256": "ceae147163ee179f702410fc7aceec385720302666535ee3dc6e2eaf540fc510",
+      "size": 190046
+    },
+    {
+      "region": "N30W070",
+      "name": "earth-detail-N30W070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30W070.ofsd",
+      "sha256": "1b82b8ec0df836e9ad6eec6063af077d932615ef1dec58485e1bc8e74096563b",
+      "size": 605821
+    },
+    {
+      "region": "N30W080",
+      "name": "earth-detail-N30W080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30W080.ofsd",
+      "sha256": "7588ef06f42af623283e357c6b00cdcd30ea9c81c5a2fa0338d14020e2b9d8a1",
+      "size": 11406437
+    },
+    {
+      "region": "N30W090",
+      "name": "earth-detail-N30W090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30W090.ofsd",
+      "sha256": "ff35e44f0073a7d3f8c294e7545ee3cbcb693ec3b371d59112a7426884a24a3f",
+      "size": 47173244
+    },
+    {
+      "region": "N30W100",
+      "name": "earth-detail-N30W100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30W100.ofsd",
+      "sha256": "395c669c0c4675bfa88b088edacacaaa17b0514060a9242a6d9d34c2850c6a15",
+      "size": 39418617
+    },
+    {
+      "region": "N30W110",
+      "name": "earth-detail-N30W110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30W110.ofsd",
+      "sha256": "d7e8bb464ae69b79187b69f9b59ffd85e7895be70a96667879108e28873bbcae",
+      "size": 35702357
+    },
+    {
+      "region": "N30W120",
+      "name": "earth-detail-N30W120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30W120.ofsd",
+      "sha256": "70259918f78ab35a44c39911abd363aa1d496afd070a46e9080d343b6f0a066d",
+      "size": 44186211
+    },
+    {
+      "region": "N30W130",
+      "name": "earth-detail-N30W130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N30W130.ofsd",
+      "sha256": "5871f1968d6e065a3ef4b677a1981bd3700dfab9838a6fea182e5474c7487a96",
+      "size": 8021468
+    },
+    {
+      "region": "N40E000",
+      "name": "earth-detail-N40E000.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40E000.ofsd",
+      "sha256": "b428cefb8fb2924201e43932e6965032dc2c3fd78a53fd9827a308fffde70b24",
+      "size": 37949124
+    },
+    {
+      "region": "N40E010",
+      "name": "earth-detail-N40E010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40E010.ofsd",
+      "sha256": "65ece56f695119d62fd8534a022da06e8b25ccf4cfb2340b3e5d3f674943319b",
+      "size": 37858744
+    },
+    {
+      "region": "N40E020",
+      "name": "earth-detail-N40E020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40E020.ofsd",
+      "sha256": "f6b9209e936dd52bdd4af93f0b704fdd071f04362b62f172356b12d8ce19ef6a",
+      "size": 40854358
+    },
+    {
+      "region": "N40E030",
+      "name": "earth-detail-N40E030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40E030.ofsd",
+      "sha256": "a5aae7658b2af1c51d5883117690ee29ca40a98b6d13f47f2fa34ebb27a20147",
+      "size": 23275507
+    },
+    {
+      "region": "N40E040",
+      "name": "earth-detail-N40E040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40E040.ofsd",
+      "sha256": "7262571fbd5848177515d8bc965914d67b60b862978bcf2d858af7b246e63a57",
+      "size": 28453330
+    },
+    {
+      "region": "N40E050",
+      "name": "earth-detail-N40E050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40E050.ofsd",
+      "sha256": "dfb62dc6456160ae02712a65a0eb63be32117cf2bfc99625224a17b8a335a987",
+      "size": 16869310
+    },
+    {
+      "region": "N40E060",
+      "name": "earth-detail-N40E060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40E060.ofsd",
+      "sha256": "569176883ea51be662ad4dd0faaf7be5fa553ace861f3ead3815b2605e53f988",
+      "size": 25155387
+    },
+    {
+      "region": "N40E070",
+      "name": "earth-detail-N40E070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40E070.ofsd",
+      "sha256": "6c6bf50adec4c8b5886609781d583e7a8e4b9982240f1865dd9194244d0999c1",
+      "size": 34640047
+    },
+    {
+      "region": "N40E080",
+      "name": "earth-detail-N40E080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40E080.ofsd",
+      "sha256": "a7ec3d158caf6a3f4accfbf533afafb991c373d553006d82b69d7d07d0188ebd",
+      "size": 39189461
+    },
+    {
+      "region": "N40E090",
+      "name": "earth-detail-N40E090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40E090.ofsd",
+      "sha256": "c02e0dcfb5f61883841027e033ea675cb2c5dbdb1108bfd7a3c5fb8cd1264151",
+      "size": 35693137
+    },
+    {
+      "region": "N40E100",
+      "name": "earth-detail-N40E100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40E100.ofsd",
+      "sha256": "2c7786b562aa2a4091f0a88141e4d160c883bdcdd49827a7da4b404753a4475c",
+      "size": 33751677
+    },
+    {
+      "region": "N40E110",
+      "name": "earth-detail-N40E110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40E110.ofsd",
+      "sha256": "3be66cb964d874b126a7e96291cdca2a360c29f7e14e34a8252fd2b9e3272eef",
+      "size": 35034235
+    },
+    {
+      "region": "N40E120",
+      "name": "earth-detail-N40E120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40E120.ofsd",
+      "sha256": "5a352d313ff7cf85f7f2909ee0cb6e1e681ba52d3e5efbbd60bfbcd0e3bc8855",
+      "size": 39369243
+    },
+    {
+      "region": "N40E130",
+      "name": "earth-detail-N40E130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40E130.ofsd",
+      "sha256": "95cf560c10bdd8e69c2fbf0623b34474d5529bf73f24faea97f8dff00c9c491f",
+      "size": 26644244
+    },
+    {
+      "region": "N40E140",
+      "name": "earth-detail-N40E140.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40E140.ofsd",
+      "sha256": "f4db2bf9d750f0fa53dff3dbc4dac35650f6581e8e9a6ec1e13f2e9ae07634ef",
+      "size": 16224291
+    },
+    {
+      "region": "N40E150",
+      "name": "earth-detail-N40E150.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40E150.ofsd",
+      "sha256": "2a00f458f6dbc7bdd370daf756e7df4d2085182b53790a66cdb1a511cc7e54cf",
+      "size": 2542301
+    },
+    {
+      "region": "N40W010",
+      "name": "earth-detail-N40W010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40W010.ofsd",
+      "sha256": "1f1b24433acc347c2a603d7123feaf61010cc35c3381e5cabb549c6eecb79b83",
+      "size": 20786699
+    },
+    {
+      "region": "N40W040",
+      "name": "earth-detail-N40W040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40W040.ofsd",
+      "sha256": "a2d430dcf7a3c4c0cf9974d5c5f01e33ca11233842e671dac94a827aea98ff51",
+      "size": 142283
+    },
+    {
+      "region": "N40W060",
+      "name": "earth-detail-N40W060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40W060.ofsd",
+      "sha256": "fb7fa8c2427c2d2add34a98b34f801ab98a3d236e52c60e16236ed95e8435f2f",
+      "size": 7574963
+    },
+    {
+      "region": "N40W070",
+      "name": "earth-detail-N40W070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40W070.ofsd",
+      "sha256": "a5f09dfbb352ebf708d93c20086c5a9f6355faac3a7041ce473a513a08ccaf17",
+      "size": 18213535
+    },
+    {
+      "region": "N40W080",
+      "name": "earth-detail-N40W080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40W080.ofsd",
+      "sha256": "c800eb70885234f999dde4503e077b7465daaf1718f6fcfaac1bd66bcf6441e3",
+      "size": 40166914
+    },
+    {
+      "region": "N40W090",
+      "name": "earth-detail-N40W090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40W090.ofsd",
+      "sha256": "be4ab5c4b839aee119f9ec52469f732586ca7a4fe6fc73e763513880239c5558",
+      "size": 31504993
+    },
+    {
+      "region": "N40W100",
+      "name": "earth-detail-N40W100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40W100.ofsd",
+      "sha256": "11dc99ee8eb4e089c94518ec4c68cadba336adb3090fe58670d23443386ed02a",
+      "size": 32023677
+    },
+    {
+      "region": "N40W110",
+      "name": "earth-detail-N40W110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40W110.ofsd",
+      "sha256": "6b7d54a052aaea79d1698dce1efe315ba928cb3fe1cd84b88b141354b79f0e2f",
+      "size": 37554762
+    },
+    {
+      "region": "N40W120",
+      "name": "earth-detail-N40W120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40W120.ofsd",
+      "sha256": "d22c487863eff415947e50e001b853c12c42b0c492a266751289bfa2eb8074be",
+      "size": 46738893
+    },
+    {
+      "region": "N40W130",
+      "name": "earth-detail-N40W130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N40W130.ofsd",
+      "sha256": "65b1a4a996e5b22f2418e8e85bab622200d67095a4c115a6fab9bcd17be301d0",
+      "size": 25485375
+    },
+    {
+      "region": "N50E000",
+      "name": "earth-detail-N50E000.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50E000.ofsd",
+      "sha256": "0304e480c2ac27d34c26a6f7c28b9bf98db43f906513de0760dc4560888df015",
+      "size": 12897960
+    },
+    {
+      "region": "N50E010",
+      "name": "earth-detail-N50E010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50E010.ofsd",
+      "sha256": "d42e6f3c8119dfeebff03fe1b552f83b95610df9efe7cf1b3ae337ffa3e6224c",
+      "size": 22761107
+    },
+    {
+      "region": "N50E020",
+      "name": "earth-detail-N50E020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50E020.ofsd",
+      "sha256": "1ed2a3b6fc724409e07166aab793d0d252e2834014260338a7568d0612307da2",
+      "size": 24886907
+    },
+    {
+      "region": "N50E030",
+      "name": "earth-detail-N50E030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50E030.ofsd",
+      "sha256": "4ec9e611f7d8512abf08b7139b7a334b178cac51dcdc3794cb27ffbcf9436126",
+      "size": 26292887
+    },
+    {
+      "region": "N50E040",
+      "name": "earth-detail-N50E040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50E040.ofsd",
+      "sha256": "30a99bb3188d9580d302f36e3c6dd96c63ff6b5d3322fc8441a338552af76e22",
+      "size": 23902736
+    },
+    {
+      "region": "N50E050",
+      "name": "earth-detail-N50E050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50E050.ofsd",
+      "sha256": "5bb0f1be80e37c5f400636f088822a38cd14c11a83c75776565c456fc685d566",
+      "size": 25257370
+    },
+    {
+      "region": "N50E060",
+      "name": "earth-detail-N50E060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50E060.ofsd",
+      "sha256": "8af6ab6fc5246b8e00751411fa612f8664f9e220beedf3c61d45a57eda7eeb47",
+      "size": 19137731
+    },
+    {
+      "region": "N50E070",
+      "name": "earth-detail-N50E070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50E070.ofsd",
+      "sha256": "8f2403b56e84a2af7fdd73f2e201f459acf2d7621484e14c8cc348e898aaf059",
+      "size": 18034187
+    },
+    {
+      "region": "N50E080",
+      "name": "earth-detail-N50E080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50E080.ofsd",
+      "sha256": "3e90c9e3a174c6dee15feaaf49d72b426343183e49833e714e9f6fc2b098e6e3",
+      "size": 29777365
+    },
+    {
+      "region": "N50E090",
+      "name": "earth-detail-N50E090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50E090.ofsd",
+      "sha256": "38e74826149788fccd5f5687d5421506149346e744056806c5abcc34213ac659",
+      "size": 33567770
+    },
+    {
+      "region": "N50E100",
+      "name": "earth-detail-N50E100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50E100.ofsd",
+      "sha256": "46948f101aa1ad124666af23622a7afe07202c791f6e8bc9babe749291ad19e3",
+      "size": 30858411
+    },
+    {
+      "region": "N50E110",
+      "name": "earth-detail-N50E110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50E110.ofsd",
+      "sha256": "a7923b33c067e97d0c326a2091782e9392525475690b4765bfc0fd4b999df0b6",
+      "size": 33299715
+    },
+    {
+      "region": "N50E120",
+      "name": "earth-detail-N50E120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50E120.ofsd",
+      "sha256": "3ccb455b87f650f4b23a5f4a4dc9fb1b78f62c4c114b47f465284d0122620b2c",
+      "size": 29594863
+    },
+    {
+      "region": "N50E130",
+      "name": "earth-detail-N50E130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50E130.ofsd",
+      "sha256": "4049d92f1a4efac4b996194ffe5637a2f9319b9048b529f438787717d239f3e5",
+      "size": 31718854
+    },
+    {
+      "region": "N50E140",
+      "name": "earth-detail-N50E140.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50E140.ofsd",
+      "sha256": "87d8aa0f0c01983c0772403cbe8ebd08aa6e5fe23a1c6a797a57d84fd0c6d147",
+      "size": 7773621
+    },
+    {
+      "region": "N50E150",
+      "name": "earth-detail-N50E150.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50E150.ofsd",
+      "sha256": "e7f4666f2f8d90004d51f80867cc2751dedb8ece781f32f789ee976308bc1017",
+      "size": 11433804
+    },
+    {
+      "region": "N50E160",
+      "name": "earth-detail-N50E160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50E160.ofsd",
+      "sha256": "8d69e2ad1850a58c7e07106a66a35d6509ec829d706c250fff6a0cd4f7ae5833",
+      "size": 7686527
+    },
+    {
+      "region": "N50E170",
+      "name": "earth-detail-N50E170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50E170.ofsd",
+      "sha256": "a7da44344f48b0daa30f647031916330b2fad77ee058a903e7accaf121ec2a86",
+      "size": 1813595
+    },
+    {
+      "region": "N50W010",
+      "name": "earth-detail-N50W010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50W010.ofsd",
+      "sha256": "39dfbd901310b3521451749fc9e3d9c9e33e139d73082bd73ac5c53ed151abf6",
+      "size": 16322261
+    },
+    {
+      "region": "N50W020",
+      "name": "earth-detail-N50W020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50W020.ofsd",
+      "sha256": "2fbcced15354bfa52d9d8435114c0fd21bbc393219469eda41425c3c70dcc8e2",
+      "size": 435760
+    },
+    {
+      "region": "N50W050",
+      "name": "earth-detail-N50W050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50W050.ofsd",
+      "sha256": "cab85f73090dbdc6c2c57235d6ff46f2d36553741eb17b1bdd2a2a84b717ade0",
+      "size": 286826
+    },
+    {
+      "region": "N50W060",
+      "name": "earth-detail-N50W060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50W060.ofsd",
+      "sha256": "2c1a5a514bd334a4ef2d9a102bd031d3267dbfb52dac8154f0157a98b845c232",
+      "size": 7162500
+    },
+    {
+      "region": "N50W070",
+      "name": "earth-detail-N50W070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50W070.ofsd",
+      "sha256": "ad98ebbb72c510a8ad31369abd226f0f02cb55bc27b84a80476286dcc2d26db8",
+      "size": 27442284
+    },
+    {
+      "region": "N50W080",
+      "name": "earth-detail-N50W080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50W080.ofsd",
+      "sha256": "41af3d7b114233ebe249cd640a4f047e0b5135236d3efd8c0925d5b36b3b6145",
+      "size": 23291329
+    },
+    {
+      "region": "N50W090",
+      "name": "earth-detail-N50W090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50W090.ofsd",
+      "sha256": "79a6fc9c8ba38893d2d4f7748f09617c73e2adfb19449c003a9509b993ad2d79",
+      "size": 10263683
+    },
+    {
+      "region": "N50W100",
+      "name": "earth-detail-N50W100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50W100.ofsd",
+      "sha256": "ea8c311c92f0df06fe8ee277a01d6614157ada4d4fcf39781b5bc837951a3753",
+      "size": 19168327
+    },
+    {
+      "region": "N50W110",
+      "name": "earth-detail-N50W110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50W110.ofsd",
+      "sha256": "d19e90df64d29b93d8b366a0998c4bb988267c0a4fb757d1b6cf12f05e303c98",
+      "size": 22925925
+    },
+    {
+      "region": "N50W120",
+      "name": "earth-detail-N50W120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50W120.ofsd",
+      "sha256": "0404615796722ba35f91ae5bdb79bce54d13a3828cfd14a03da77f6dc40e351c",
+      "size": 29199925
+    },
+    {
+      "region": "N50W130",
+      "name": "earth-detail-N50W130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50W130.ofsd",
+      "sha256": "bc2737f6fe21cee8fcc70234fb91ea2e849f0cdecb6b948eb9e62bd649644226",
+      "size": 35797872
+    },
+    {
+      "region": "N50W140",
+      "name": "earth-detail-N50W140.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50W140.ofsd",
+      "sha256": "f07b27b7b0d89b5dae62104a8b6e687aa94336e9c46d768672e8d0150e81c742",
+      "size": 15014075
+    },
+    {
+      "region": "N50W150",
+      "name": "earth-detail-N50W150.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50W150.ofsd",
+      "sha256": "2f7da1fc0c7778a7c2d3afecf342f24cbc8de1273d650e355c0abcfbba2600de",
+      "size": 1155633
+    },
+    {
+      "region": "N50W160",
+      "name": "earth-detail-N50W160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50W160.ofsd",
+      "sha256": "c862759d7b755752a7875d0a3cc596c48f90d53f4dbe69f10a4ef356d0576c09",
+      "size": 7051570
+    },
+    {
+      "region": "N50W170",
+      "name": "earth-detail-N50W170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50W170.ofsd",
+      "sha256": "79f4da7e8535b165f0da6dcb57dee3645642cb106c3c2eef1470e7151aa73943",
+      "size": 4760914
+    },
+    {
+      "region": "N50W180",
+      "name": "earth-detail-N50W180.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N50W180.ofsd",
+      "sha256": "e6667dbb543320fca9987c934fdedb7958e1cb88903b515629f4304cb60c14b6",
+      "size": 2801488
+    },
+    {
+      "region": "N60E000",
+      "name": "earth-detail-N60E000.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60E000.ofsd",
+      "sha256": "b9c961a6300900ad5644a4d780237c7bcf87ad07ef49a71a11d5855a6b323b59",
+      "size": 5952762
+    },
+    {
+      "region": "N60E010",
+      "name": "earth-detail-N60E010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60E010.ofsd",
+      "sha256": "d6a326163b331c3bf3976bc66b8b47b2cadfaeaf9fa57643de31e49a8ae65c46",
+      "size": 18607337
+    },
+    {
+      "region": "N60E020",
+      "name": "earth-detail-N60E020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60E020.ofsd",
+      "sha256": "5354f6bbb05f5e4984e44b115f0c8d185aa397ac10cf74f025a5d513d4f5be50",
+      "size": 17432609
+    },
+    {
+      "region": "N60E030",
+      "name": "earth-detail-N60E030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60E030.ofsd",
+      "sha256": "a4b73348dcac9162bb1c64f35e57133b76290f5b1e4456080559ac81b9438b7e",
+      "size": 14896733
+    },
+    {
+      "region": "N60E040",
+      "name": "earth-detail-N60E040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60E040.ofsd",
+      "sha256": "e8d69c15a6916c906391248dab2d9ee7553f3fe19a871a9a3fdf4f4e8fc54f41",
+      "size": 13770962
+    },
+    {
+      "region": "N60E050",
+      "name": "earth-detail-N60E050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60E050.ofsd",
+      "sha256": "3ec70a54eb092c33ecc31a8ca9a05f59e70beaafbea12b617b931c0539ec720f",
+      "size": 15048437
+    },
+    {
+      "region": "N60E060",
+      "name": "earth-detail-N60E060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60E060.ofsd",
+      "sha256": "0f16fff728f42465f410be20e9a15386dfa4dba41f80716b1f9999d3db98330b",
+      "size": 14778176
+    },
+    {
+      "region": "N60E070",
+      "name": "earth-detail-N60E070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60E070.ofsd",
+      "sha256": "12d041861f94baa7412a93c7616bb3699d68531822b1fdeb244706a0ec769c33",
+      "size": 12266545
+    },
+    {
+      "region": "N60E080",
+      "name": "earth-detail-N60E080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60E080.ofsd",
+      "sha256": "1d99fc81e23b3fa321ddedfc5c9fe94c5d60dd366c17507c351a419f8cdb809a",
+      "size": 15981813
+    },
+    {
+      "region": "N60E090",
+      "name": "earth-detail-N60E090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60E090.ofsd",
+      "sha256": "6b3db7be7f273e5f5726d472268af633762258e4170797cdce464a140d95e78c",
+      "size": 19056891
+    },
+    {
+      "region": "N60E100",
+      "name": "earth-detail-N60E100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60E100.ofsd",
+      "sha256": "7c5771931bff6978ebbf2343d4083317b5561828f69edc9f6d487d69913f7f8b",
+      "size": 15320381
+    },
+    {
+      "region": "N60E110",
+      "name": "earth-detail-N60E110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60E110.ofsd",
+      "sha256": "73b1cf3c4c3756891362abd7b89f47a88c4fe1669b0b9916787adaef3148ee2e",
+      "size": 14898598
+    },
+    {
+      "region": "N60E120",
+      "name": "earth-detail-N60E120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60E120.ofsd",
+      "sha256": "e44903588bd0342ba16676b5afe76000c541ee836c8c35144f2fe64d13094512",
+      "size": 18524504
+    },
+    {
+      "region": "N60E130",
+      "name": "earth-detail-N60E130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60E130.ofsd",
+      "sha256": "7ac58b7e79c82ac68f8ad217c8c16e310b867b7ee09c756c748c8c0a276b8775",
+      "size": 22964234
+    },
+    {
+      "region": "N60E140",
+      "name": "earth-detail-N60E140.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60E140.ofsd",
+      "sha256": "2975c6be8ce4baeaa1cd849cb7f2b106ad74108fc685a2dcda0d23d1f867d3aa",
+      "size": 24202336
+    },
+    {
+      "region": "N60E150",
+      "name": "earth-detail-N60E150.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60E150.ofsd",
+      "sha256": "66d495535cbf877178ff9cc9fc599f120b9cf7a4c42420ee3bb7b08256d79437",
+      "size": 19009405
+    },
+    {
+      "region": "N60E160",
+      "name": "earth-detail-N60E160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60E160.ofsd",
+      "sha256": "263fc26b76d523f1ae4367a6f4bcd27565edb55c79485dd0d407fc2f6dd5ab25",
+      "size": 20110426
+    },
+    {
+      "region": "N60E170",
+      "name": "earth-detail-N60E170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60E170.ofsd",
+      "sha256": "4fb461699a16ea8a665652ac5b247bcb8319e5e2daca87f738b7362db2a5f53e",
+      "size": 16747726
+    },
+    {
+      "region": "N60W010",
+      "name": "earth-detail-N60W010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60W010.ofsd",
+      "sha256": "56baab19d8ed1bce58facf0169c914964ebc21da2e417f9522e69d76652d23ba",
+      "size": 995330
+    },
+    {
+      "region": "N60W020",
+      "name": "earth-detail-N60W020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60W020.ofsd",
+      "sha256": "77aa0f0750f77f48e83501cd53c88940b51efc7a032351bbe10ff30f5ab49e77",
+      "size": 3699660
+    },
+    {
+      "region": "N60W030",
+      "name": "earth-detail-N60W030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60W030.ofsd",
+      "sha256": "9c39a8c34cc54ee9214560ee20c0596cfd2448c135f28dfc4b6355a2de8dedf6",
+      "size": 4602442
+    },
+    {
+      "region": "N60W040",
+      "name": "earth-detail-N60W040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60W040.ofsd",
+      "sha256": "c0f8e153be13178248e3294700eb1e5c412af27974f862d24f9b20efdb246f57",
+      "size": 4695049
+    },
+    {
+      "region": "N60W050",
+      "name": "earth-detail-N60W050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60W050.ofsd",
+      "sha256": "01e7fe3572f8150fe3fcea5936c872a803af6f73dbb596be353f26e6c69b7219",
+      "size": 10896936
+    },
+    {
+      "region": "N60W060",
+      "name": "earth-detail-N60W060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60W060.ofsd",
+      "sha256": "26b7fc736b26665bddcc990f1f3188a8fd2b8979e34fb16841cd6ec69e4f6386",
+      "size": 6352858
+    },
+    {
+      "region": "N60W070",
+      "name": "earth-detail-N60W070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60W070.ofsd",
+      "sha256": "e055756ddab030b84fc4ad0d5150f934ccd008756aa348a5bb1807b3980aeb17",
+      "size": 10939721
+    },
+    {
+      "region": "N60W080",
+      "name": "earth-detail-N60W080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60W080.ofsd",
+      "sha256": "0592af206cf8d99cce0b5c4d86883f69e1b796cb467b509bae782e24341801d6",
+      "size": 10684514
+    },
+    {
+      "region": "N60W090",
+      "name": "earth-detail-N60W090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60W090.ofsd",
+      "sha256": "be0d88ca5d07444536ed2596b847d8585a45fc35860648072238bfdf3d3e2818",
+      "size": 7705823
+    },
+    {
+      "region": "N60W100",
+      "name": "earth-detail-N60W100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60W100.ofsd",
+      "sha256": "0b44753d4fc62eb21c35a0aa3f64046b7a4df35976e0ed36ff90226c60203b61",
+      "size": 12395097
+    },
+    {
+      "region": "N60W110",
+      "name": "earth-detail-N60W110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60W110.ofsd",
+      "sha256": "d158a7268e987a2f310b2f7503006411b9b6512403fc4c7a6b8383c3200fe56c",
+      "size": 14565221
+    },
+    {
+      "region": "N60W120",
+      "name": "earth-detail-N60W120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60W120.ofsd",
+      "sha256": "0bbb220c54edc869fa81067e1106bb84b00458d0edb4b6884ddfc365ec244b6e",
+      "size": 14509508
+    },
+    {
+      "region": "N60W130",
+      "name": "earth-detail-N60W130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60W130.ofsd",
+      "sha256": "5216a87948eb0022074fddec8ea8cfaf76e130f238d83c1893c603a601ac6bc8",
+      "size": 18440732
+    },
+    {
+      "region": "N60W140",
+      "name": "earth-detail-N60W140.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60W140.ofsd",
+      "sha256": "383126d21c225962e61b3f2a9fd75cb005a06dea9e963cbbcdab31eace86018e",
+      "size": 22726311
+    },
+    {
+      "region": "N60W150",
+      "name": "earth-detail-N60W150.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60W150.ofsd",
+      "sha256": "98fa564873083b5b2ea116392f44d2785c2a715cc629d2b885dc7aec080be181",
+      "size": 23385445
+    },
+    {
+      "region": "N60W160",
+      "name": "earth-detail-N60W160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60W160.ofsd",
+      "sha256": "a3ab9381dd37bb187f5f34c143daa7050619a649ec3ed0bfd647d56c9ca00367",
+      "size": 21119056
+    },
+    {
+      "region": "N60W170",
+      "name": "earth-detail-N60W170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60W170.ofsd",
+      "sha256": "896059e130195382cb577283453f1b50434a667bcec98d5178bd2e10ce43e90b",
+      "size": 9000473
+    },
+    {
+      "region": "N60W180",
+      "name": "earth-detail-N60W180.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N60W180.ofsd",
+      "sha256": "b1ab9294303db2baeb120a05feb58abf20483e6b9230294626ebc41bc32487bd",
+      "size": 5183037
+    },
+    {
+      "region": "N70E010",
+      "name": "earth-detail-N70E010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70E010.ofsd",
+      "sha256": "c4b364aff09360aff9f5a059f0c4b19152ab90af4eca88b17c86929221a91703",
+      "size": 2877854
+    },
+    {
+      "region": "N70E020",
+      "name": "earth-detail-N70E020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70E020.ofsd",
+      "sha256": "96c5a07771d60ba26a5e2016483b3066cce93427b39d38086ed8a0d096f730c4",
+      "size": 3400467
+    },
+    {
+      "region": "N70E030",
+      "name": "earth-detail-N70E030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70E030.ofsd",
+      "sha256": "f8317d778a5ae20e512ae1a20157d8d0a4e2cacbdc716fb02752bee6ab087126",
+      "size": 130082
+    },
+    {
+      "region": "N70E040",
+      "name": "earth-detail-N70E040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70E040.ofsd",
+      "sha256": "a79525dd3a8b2b36045242962392ceed050f3f520c9c96bf0adf5adedd9d41b9",
+      "size": 124537
+    },
+    {
+      "region": "N70E050",
+      "name": "earth-detail-N70E050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70E050.ofsd",
+      "sha256": "fa2a3155fe67a162f5145f004ed65867fad74485f92b3017f89b24ad5721b2a1",
+      "size": 3429016
+    },
+    {
+      "region": "N70E060",
+      "name": "earth-detail-N70E060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70E060.ofsd",
+      "sha256": "563e30d0f579cd1cea450451250c76efad7bbfed65015b71e6b442321504092f",
+      "size": 2128573
+    },
+    {
+      "region": "N70E070",
+      "name": "earth-detail-N70E070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70E070.ofsd",
+      "sha256": "ff08eef1b52a2b2feeba362ab4368d81279755148d5c97474bd340e1ddca440e",
+      "size": 2331868
+    },
+    {
+      "region": "N70E080",
+      "name": "earth-detail-N70E080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70E080.ofsd",
+      "sha256": "b3ef3823863f15fda7350ce026a16c50a4378c1c921d64928299622a47e982e4",
+      "size": 4667604
+    },
+    {
+      "region": "N70E090",
+      "name": "earth-detail-N70E090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70E090.ofsd",
+      "sha256": "5d6a0798aa140248a19d1aa115e41b2675b93538ebafe2d5397504d2d6be10ea",
+      "size": 6721680
+    },
+    {
+      "region": "N70E100",
+      "name": "earth-detail-N70E100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70E100.ofsd",
+      "sha256": "a0a534a5a2cba4e2c133891db57681389dbc67a842cc6ae779e7e4f86bcd096e",
+      "size": 7515975
+    },
+    {
+      "region": "N70E110",
+      "name": "earth-detail-N70E110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70E110.ofsd",
+      "sha256": "57ff7a66247845da49c72fbecfa8317605abb54124a4affb2103591c2e3b2d42",
+      "size": 4464328
+    },
+    {
+      "region": "N70E120",
+      "name": "earth-detail-N70E120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70E120.ofsd",
+      "sha256": "ccb94d758eaa728ed42746fec8da5c83c221d80464bb07424aa4f9615896c960",
+      "size": 3904412
+    },
+    {
+      "region": "N70E130",
+      "name": "earth-detail-N70E130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70E130.ofsd",
+      "sha256": "659bbaf6c5ba4735aa27aa019211d5e55fb30bdd2e031a9f6fb90cef784f1168",
+      "size": 2045652
+    },
+    {
+      "region": "N70E140",
+      "name": "earth-detail-N70E140.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70E140.ofsd",
+      "sha256": "a4dd83c67f61ac89a0b74fe6e6a9eac071c7ede7807b0ce0f336d1ad10441b96",
+      "size": 2863839
+    },
+    {
+      "region": "N70E150",
+      "name": "earth-detail-N70E150.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70E150.ofsd",
+      "sha256": "8b1cde811afd787c780cc003a24c5a88bdc7d33283b7f27d7f31fc53f8f9cc28",
+      "size": 1041347
+    },
+    {
+      "region": "N70E160",
+      "name": "earth-detail-N70E160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70E160.ofsd",
+      "sha256": "042a47afbc683d3928f116b0eb68898f8aef580c9223f8f3f233ac233f5fbeb3",
+      "size": 135003
+    },
+    {
+      "region": "N70E170",
+      "name": "earth-detail-N70E170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70E170.ofsd",
+      "sha256": "d6bffbbbf7640b1311304d55e8a6eda0434b0a9585bd9eaaed5d8784feeb60ea",
+      "size": 166981
+    },
+    {
+      "region": "N70W010",
+      "name": "earth-detail-N70W010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70W010.ofsd",
+      "sha256": "1491000a59cef5264b6d7f534ed78e39627183569bfe7aaa16775f4e66f1c519",
+      "size": 748688
+    },
+    {
+      "region": "N70W020",
+      "name": "earth-detail-N70W020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70W020.ofsd",
+      "sha256": "28fa3b6069f8e041ac3ec42ccbd2fd23330c0648a674c929437550cdc094beb2",
+      "size": 1749414
+    },
+    {
+      "region": "N70W030",
+      "name": "earth-detail-N70W030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70W030.ofsd",
+      "sha256": "001137f3e51b370e7dee6f543c04e675229796277aef66de1770bcb0a3850b03",
+      "size": 9421380
+    },
+    {
+      "region": "N70W040",
+      "name": "earth-detail-N70W040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70W040.ofsd",
+      "sha256": "e3436cef2ca822f1023370167f45a87f8db03e79b3cf65686bb83ca146bab139",
+      "size": 3648766
+    },
+    {
+      "region": "N70W050",
+      "name": "earth-detail-N70W050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70W050.ofsd",
+      "sha256": "3f85c10fe3979ffe4c68bd9e0dfcfa04517258e8abb85b0972a2cc6bb9e2e9e1",
+      "size": 3550528
+    },
+    {
+      "region": "N70W060",
+      "name": "earth-detail-N70W060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70W060.ofsd",
+      "sha256": "4e9d0d2ce4c3df1e056c4ad0795785a0d0cad98c6c4975c034e974b4b9d9760f",
+      "size": 6248669
+    },
+    {
+      "region": "N70W070",
+      "name": "earth-detail-N70W070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70W070.ofsd",
+      "sha256": "dae424d143209952a720b4873bf33ec96b01d356df2dd8d7ca4be87d1969f532",
+      "size": 3017831
+    },
+    {
+      "region": "N70W080",
+      "name": "earth-detail-N70W080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70W080.ofsd",
+      "sha256": "c4d337f0bc4b13e864dcdb61cfde38444cfa95d61a1f23cb016ab90302c7b3a7",
+      "size": 7237501
+    },
+    {
+      "region": "N70W090",
+      "name": "earth-detail-N70W090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70W090.ofsd",
+      "sha256": "e520f6825855dcfb0b6065396116d41daa1a9b152a9a3020131df9eb20d893c0",
+      "size": 9119908
+    },
+    {
+      "region": "N70W100",
+      "name": "earth-detail-N70W100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70W100.ofsd",
+      "sha256": "52e57c9a45bc3003c416ebee1a9c14e3aa0908ef8320d69275d17a94828113bb",
+      "size": 6581327
+    },
+    {
+      "region": "N70W110",
+      "name": "earth-detail-N70W110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70W110.ofsd",
+      "sha256": "57532f7f1d0b68fc0a542b3a6ba82d3949f80ec3632813b21f016ef5dfdc42bf",
+      "size": 5479707
+    },
+    {
+      "region": "N70W120",
+      "name": "earth-detail-N70W120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70W120.ofsd",
+      "sha256": "e4ef4d397d4737460c2c1405bace8e6a9e19d632c0abdff867ca95a00483a770",
+      "size": 6123125
+    },
+    {
+      "region": "N70W130",
+      "name": "earth-detail-N70W130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70W130.ofsd",
+      "sha256": "72e500711d86dd3807b2ca452eb6120d362ac7687c0abae9616b000b6659d1c2",
+      "size": 2926124
+    },
+    {
+      "region": "N70W150",
+      "name": "earth-detail-N70W150.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70W150.ofsd",
+      "sha256": "80908a9502c77150d0f4b5af6edb51bc4513a1c4dc8a462cdbfd5eaf341268f6",
+      "size": 398764
+    },
+    {
+      "region": "N70W160",
+      "name": "earth-detail-N70W160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70W160.ofsd",
+      "sha256": "a38c5387906741eecaa08d8459cdfd072a128de0d9a6bf549bf21af392b4ba4d",
+      "size": 832630
+    },
+    {
+      "region": "N70W170",
+      "name": "earth-detail-N70W170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70W170.ofsd",
+      "sha256": "f27396794482c2b53d6c83a6dc7b74f442801f78641e8762ecc88089501db541",
+      "size": 66197
+    },
+    {
+      "region": "N70W180",
+      "name": "earth-detail-N70W180.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N70W180.ofsd",
+      "sha256": "2879b5657f8f35bc7ffb8e2d16b0fa763f759ba35e40fd226d974e33b94a8135",
+      "size": 246877
+    },
+    {
+      "region": "N80E020",
+      "name": "earth-detail-N80E020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N80E020.ofsd",
+      "sha256": "95a3b2d2ca1bf1102540938de7fd605155e39fdd2957dccbb5036456e8a83644",
+      "size": 463223
+    },
+    {
+      "region": "N80E030",
+      "name": "earth-detail-N80E030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N80E030.ofsd",
+      "sha256": "53b30c728b1a2ca14d670904cfcd98682c2e4e0b769b770e4f2f23b41a6afffa",
+      "size": 307005
+    },
+    {
+      "region": "N80E040",
+      "name": "earth-detail-N80E040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N80E040.ofsd",
+      "sha256": "9108243c30bd9157cc3b5fdd3cf8065103773c07cf970efc7296b8ee2bfee88d",
+      "size": 362922
+    },
+    {
+      "region": "N80E050",
+      "name": "earth-detail-N80E050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N80E050.ofsd",
+      "sha256": "14b30b12e2ccdd17e5efe3c6a917439b85a2b90d0085c2eb565fce9b7bcf0650",
+      "size": 861275
+    },
+    {
+      "region": "N80E060",
+      "name": "earth-detail-N80E060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N80E060.ofsd",
+      "sha256": "197d3b0ed8c72334243d054a8414a23621a1e86253e5cfc5ddc632567a52ea5c",
+      "size": 562301
+    },
+    {
+      "region": "N80E080",
+      "name": "earth-detail-N80E080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N80E080.ofsd",
+      "sha256": "fb01a798a8bde2392cedc909f91e2ad11e755c6c4854ba8f8d67e1cfed8ebbc2",
+      "size": 169409
+    },
+    {
+      "region": "N80E090",
+      "name": "earth-detail-N80E090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N80E090.ofsd",
+      "sha256": "a4c78e8336d6359bb65591cabc829d2d92bc3396ee889a8031b5ac271033ea75",
+      "size": 637245
+    },
+    {
+      "region": "N80W010",
+      "name": "earth-detail-N80W010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N80W010.ofsd",
+      "sha256": "d02d53d3cb721f828ccc594b65445cdbbfd6de4c0f3f899fd62a51ad055c0bbe",
+      "size": 348356
+    },
+    {
+      "region": "N80W020",
+      "name": "earth-detail-N80W020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N80W020.ofsd",
+      "sha256": "14746a6df0a6ddc773de696ea0cd29e1292afe3fc225508970184da1eb412747",
+      "size": 512715
+    },
+    {
+      "region": "N80W030",
+      "name": "earth-detail-N80W030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N80W030.ofsd",
+      "sha256": "920cafbfced45070a1babda7c64f978534f9462e1f2ca10cb9eb26d0beda872a",
+      "size": 2394518
+    },
+    {
+      "region": "N80W040",
+      "name": "earth-detail-N80W040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N80W040.ofsd",
+      "sha256": "bb0381fc18d63e34d0970a05785acf21547ecc9a83c9930cc34586d296ac0804",
+      "size": 1815036
+    },
+    {
+      "region": "N80W050",
+      "name": "earth-detail-N80W050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N80W050.ofsd",
+      "sha256": "7817c60b3fa8afa1c389033ec685e54b0fe372b5d6bb91b5b2578434195dfc91",
+      "size": 1755128
+    },
+    {
+      "region": "N80W060",
+      "name": "earth-detail-N80W060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N80W060.ofsd",
+      "sha256": "2cd8382e837cc091617f89ea74159c3ba27b82e865225de9c48fef0e4ea0db15",
+      "size": 1356863
+    },
+    {
+      "region": "N80W070",
+      "name": "earth-detail-N80W070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N80W070.ofsd",
+      "sha256": "7eb5155c35585c781ddd872851c96e3879f8baf3e4dce6b2055922822683941e",
+      "size": 2255476
+    },
+    {
+      "region": "N80W080",
+      "name": "earth-detail-N80W080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N80W080.ofsd",
+      "sha256": "b127508e9241f86acd47e785611c5d4dbc521ad22266dd6f4aadaa965e039a1e",
+      "size": 1680561
+    },
+    {
+      "region": "N80W090",
+      "name": "earth-detail-N80W090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N80W090.ofsd",
+      "sha256": "d299a9af9744904c69d32b44e71f0342deda45a0da87ce2848f2ce278c125350",
+      "size": 2602966
+    },
+    {
+      "region": "N80W100",
+      "name": "earth-detail-N80W100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-N80W100.ofsd",
+      "sha256": "6d800e89bad86cb3c224e58876dec924beb1ffd7aa0c19612dc77f7fadf300d7",
+      "size": 1177536
+    },
+    {
+      "region": "S10E000",
+      "name": "earth-detail-S10E000.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10E000.ofsd",
+      "sha256": "bd51224bd6e3454c65a47ba58639ece8a1724a9aeb747cd33718d3fee90e6187",
+      "size": 3529883
+    },
+    {
+      "region": "S10E010",
+      "name": "earth-detail-S10E010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10E010.ofsd",
+      "sha256": "d35e9bff0fe58caef894b5e6ffdf3c066c52dc9a5435fd8b4873a436efe76c94",
+      "size": 40373611
+    },
+    {
+      "region": "S10E020",
+      "name": "earth-detail-S10E020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10E020.ofsd",
+      "sha256": "29fd82c06538b4658bb9d12afd657dd5ea9272a50434f97ef76102b63e6400ac",
+      "size": 50966725
+    },
+    {
+      "region": "S10E030",
+      "name": "earth-detail-S10E030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10E030.ofsd",
+      "sha256": "732313251d970455a42f6e998ea0fb87a9a0c131d2a91b7022155f0f6440d81a",
+      "size": 39449381
+    },
+    {
+      "region": "S10E040",
+      "name": "earth-detail-S10E040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10E040.ofsd",
+      "sha256": "f635a82116e05959a6d7b9f1237dce1c119e5a745e602c99bb6f334b3ec76cde",
+      "size": 1749914
+    },
+    {
+      "region": "S10E050",
+      "name": "earth-detail-S10E050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10E050.ofsd",
+      "sha256": "f1257ac8733928ed8990bfeb5e3bb53a1a037fb5bfda28786a0e98536b8c06e1",
+      "size": 3952135
+    },
+    {
+      "region": "S10E060",
+      "name": "earth-detail-S10E060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10E060.ofsd",
+      "sha256": "05b5d8eda79dbdb854cfd21875852367f19b0bdd75fc739228d8630e4de9d42e",
+      "size": 508781
+    },
+    {
+      "region": "S10E070",
+      "name": "earth-detail-S10E070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10E070.ofsd",
+      "sha256": "c0db587a52ed2ce57b60d1c81bcd7620e044760107b7d9b9d44a4ffac550e6d6",
+      "size": 1645050
+    },
+    {
+      "region": "S10E090",
+      "name": "earth-detail-S10E090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10E090.ofsd",
+      "sha256": "f851667cc81cad5da428a104f6cb3324911ad916e4d906b1b39f8b525167d444",
+      "size": 1854282
+    },
+    {
+      "region": "S10E100",
+      "name": "earth-detail-S10E100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10E100.ofsd",
+      "sha256": "5e37490a952ec5d00986b7c7e9d85237339c147110c5d29e13d698e33f80ebaf",
+      "size": 17182499
+    },
+    {
+      "region": "S10E110",
+      "name": "earth-detail-S10E110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10E110.ofsd",
+      "sha256": "6e6a728022d535307b734c59ff502c179d58517829d17c38deb48346f50f1d24",
+      "size": 26985491
+    },
+    {
+      "region": "S10E120",
+      "name": "earth-detail-S10E120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10E120.ofsd",
+      "sha256": "f991e354e42f71e003358fd9c521a31dcb64ccf2ff473c4fca1536879e05878e",
+      "size": 24904829
+    },
+    {
+      "region": "S10E130",
+      "name": "earth-detail-S10E130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10E130.ofsd",
+      "sha256": "905e36d2d03bdf7e10eb2f970fc208597722b99dbc0c1fdaad46de9bf67cf2dc",
+      "size": 25684935
+    },
+    {
+      "region": "S10E140",
+      "name": "earth-detail-S10E140.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10E140.ofsd",
+      "sha256": "74daf535f0c26c883f4b17c64052f2793909e25733d909e86046bfd4598a484b",
+      "size": 34473241
+    },
+    {
+      "region": "S10E150",
+      "name": "earth-detail-S10E150.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10E150.ofsd",
+      "sha256": "839c6bc1963411fd6ae3ccb9fb5676c495fc4d3a05957d77405e68a1fe406445",
+      "size": 12130729
+    },
+    {
+      "region": "S10E160",
+      "name": "earth-detail-S10E160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10E160.ofsd",
+      "sha256": "d2f9c9e1dc91bf9a3384fa8bbeebad53b15925931a05d8ea207eb7561b623afb",
+      "size": 1894554
+    },
+    {
+      "region": "S10E170",
+      "name": "earth-detail-S10E170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10E170.ofsd",
+      "sha256": "f1412969ae02193a33c2d0cc4614e142554d776e01dac248c5e20884a0d0b7fd",
+      "size": 3489598
+    },
+    {
+      "region": "S10W010",
+      "name": "earth-detail-S10W010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10W010.ofsd",
+      "sha256": "f05d62313418faee1fd9969aa0c3480117bc7d05c08464ea93ba2a24ccf52087",
+      "size": 91086
+    },
+    {
+      "region": "S10W020",
+      "name": "earth-detail-S10W020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10W020.ofsd",
+      "sha256": "6799f1a2387051daacd551e0edeef6c40bc72e18f00c18639c3df762de89a1b6",
+      "size": 188604
+    },
+    {
+      "region": "S10W040",
+      "name": "earth-detail-S10W040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10W040.ofsd",
+      "sha256": "0d64d8027e81543600b3ae6da5d409fff69f2f9d4c88b20a2f1303c1078f098e",
+      "size": 17950572
+    },
+    {
+      "region": "S10W050",
+      "name": "earth-detail-S10W050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10W050.ofsd",
+      "sha256": "7c7178e2ccb993e141b5b52e53be7b864cce807f80f5aa05ff8e5a3de79e0138",
+      "size": 41613885
+    },
+    {
+      "region": "S10W060",
+      "name": "earth-detail-S10W060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10W060.ofsd",
+      "sha256": "7b9594592b609f7c4fe2009d748745925dff3e83a238474923b93b9500de97ff",
+      "size": 58342848
+    },
+    {
+      "region": "S10W070",
+      "name": "earth-detail-S10W070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10W070.ofsd",
+      "sha256": "b54c6678afe10e7a6f69ff2506d49fc5355891ad291db43208f4081a7dee2d4a",
+      "size": 46387688
+    },
+    {
+      "region": "S10W080",
+      "name": "earth-detail-S10W080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10W080.ofsd",
+      "sha256": "ca228fe2c7056cd0fc9cdbfbabc4544eef07a32983289fc583dd15ac84b58bfd",
+      "size": 49958589
+    },
+    {
+      "region": "S10W090",
+      "name": "earth-detail-S10W090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10W090.ofsd",
+      "sha256": "1863cd1713dd0bccf125e46705c5eaa3aa25b9d91deb58611ac1c3a43ccf8c1d",
+      "size": 5254187
+    },
+    {
+      "region": "S10W100",
+      "name": "earth-detail-S10W100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10W100.ofsd",
+      "sha256": "edb582718d35f5c801153d4fc2084f68648820c308ee146d5f73590a5d14bf99",
+      "size": 848642
+    },
+    {
+      "region": "S10W140",
+      "name": "earth-detail-S10W140.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10W140.ofsd",
+      "sha256": "a50fb31c61df130e7fed8440d7b57951680396c8c051a3b8b6366c3aeb02c0c0",
+      "size": 459556
+    },
+    {
+      "region": "S10W150",
+      "name": "earth-detail-S10W150.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10W150.ofsd",
+      "sha256": "52954f3b5393ebf5b9c27860faff969f181a70d9d6dc6892d5228224740ba6f0",
+      "size": 932347
+    },
+    {
+      "region": "S10W160",
+      "name": "earth-detail-S10W160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10W160.ofsd",
+      "sha256": "e10fe0f093ea0c6b446a03471d72813961aae5f96b8f6a6538a4475d5971e47e",
+      "size": 806513
+    },
+    {
+      "region": "S10W170",
+      "name": "earth-detail-S10W170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10W170.ofsd",
+      "sha256": "48c2a61ee7133153003729eecc711c9088618e478c1cf3329dc1da4cc1ad4147",
+      "size": 168057
+    },
+    {
+      "region": "S10W180",
+      "name": "earth-detail-S10W180.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S10W180.ofsd",
+      "sha256": "48331e58405c637bb780cf1160b364dac246c950ce220aaa5eedab298ffdf294",
+      "size": 2014179
+    },
+    {
+      "region": "S20E010",
+      "name": "earth-detail-S20E010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20E010.ofsd",
+      "sha256": "8a0390bbd1e6c91312d8d50937c26ed71785a4cebd8b2dac2254c8e8b58760de",
+      "size": 25865736
+    },
+    {
+      "region": "S20E020",
+      "name": "earth-detail-S20E020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20E020.ofsd",
+      "sha256": "0daf68a5de3b08cfb2f9f202503cf711c874d69d5ee371957b4ea2cf2160867e",
+      "size": 31522801
+    },
+    {
+      "region": "S20E030",
+      "name": "earth-detail-S20E030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20E030.ofsd",
+      "sha256": "334a072dc5b473273961e16d7f028e89793e159f9eb07c7cba9efa8046ab1772",
+      "size": 41439977
+    },
+    {
+      "region": "S20E040",
+      "name": "earth-detail-S20E040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20E040.ofsd",
+      "sha256": "f6cb749e02223ab1abcea28dde4250557f54c2096b42c3e3ecdfb58f7733fe66",
+      "size": 25324194
+    },
+    {
+      "region": "S20E050",
+      "name": "earth-detail-S20E050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20E050.ofsd",
+      "sha256": "8695b76b00de936f583d13b864913ce9df5c8d5465f84db3e89c03b22f6d6122",
+      "size": 3636681
+    },
+    {
+      "region": "S20E060",
+      "name": "earth-detail-S20E060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20E060.ofsd",
+      "sha256": "070f12082bebba3914ef5fd3eb08c085710c843199ab989afebb4f35f05ae8df",
+      "size": 2433540
+    },
+    {
+      "region": "S20E090",
+      "name": "earth-detail-S20E090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20E090.ofsd",
+      "sha256": "f206ce85e538f19489b68596abd73b492cd9bfb36cd83af8d17d964b371022c8",
+      "size": 316978
+    },
+    {
+      "region": "S20E100",
+      "name": "earth-detail-S20E100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20E100.ofsd",
+      "sha256": "00a3f744e977aae1008b0e22d7dea14403cfa7f5fb4ea538f622358257b998de",
+      "size": 235104
+    },
+    {
+      "region": "S20E110",
+      "name": "earth-detail-S20E110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20E110.ofsd",
+      "sha256": "eeea904de12aad6aa8c395b5f831c6058998172a99e1c6de65e5a2c2b369c327",
+      "size": 704762
+    },
+    {
+      "region": "S20E120",
+      "name": "earth-detail-S20E120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20E120.ofsd",
+      "sha256": "16cc063b33a4bee978a06365f9516710082c948b01e399994e6dd8fccc46c283",
+      "size": 19503915
+    },
+    {
+      "region": "S20E130",
+      "name": "earth-detail-S20E130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20E130.ofsd",
+      "sha256": "6577b7221429faea2543663fdd2ff9c03de3391068ebbe6c3641681e3b18cc87",
+      "size": 19876860
+    },
+    {
+      "region": "S20E140",
+      "name": "earth-detail-S20E140.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20E140.ofsd",
+      "sha256": "640061a74b62344c2b83cfc2a5c63815b34a82e9949ad44abc546c32a176d91a",
+      "size": 18995005
+    },
+    {
+      "region": "S20E150",
+      "name": "earth-detail-S20E150.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20E150.ofsd",
+      "sha256": "1a47f24105e757b6cb6e1cd58f0d0d7ce8196724e74d8260d609106a35958ef3",
+      "size": 4744257
+    },
+    {
+      "region": "S20E160",
+      "name": "earth-detail-S20E160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20E160.ofsd",
+      "sha256": "9381dbe17e6af00d8da0d84b6394fe8eef115bc1ac989112b9655e54e1aaad52",
+      "size": 7662958
+    },
+    {
+      "region": "S20E170",
+      "name": "earth-detail-S20E170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20E170.ofsd",
+      "sha256": "4f3b4fb0123f37de48ddcf1e68fb421e3fe71c1b9c86a01d38bdd55e5bc24db8",
+      "size": 5741090
+    },
+    {
+      "region": "S20W010",
+      "name": "earth-detail-S20W010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20W010.ofsd",
+      "sha256": "066d012a52e73a2563dc350974c5a997371c2077e3e5adbc5c4b2831c1402efe",
+      "size": 750965
+    },
+    {
+      "region": "S20W040",
+      "name": "earth-detail-S20W040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20W040.ofsd",
+      "sha256": "c49b56994d1319980d9be6352a719f38b27ca409d05ea1936a1e2d417b59ff17",
+      "size": 12183948
+    },
+    {
+      "region": "S20W050",
+      "name": "earth-detail-S20W050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20W050.ofsd",
+      "sha256": "287932b397d2961dfedc808d524005a8d4dc03422e8b3e05f1ffc35ff42e46da",
+      "size": 50217637
+    },
+    {
+      "region": "S20W060",
+      "name": "earth-detail-S20W060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20W060.ofsd",
+      "sha256": "1fda7089fb4a86553092b69dc3958c8ff42e76da5ec4db4f1f49b47f7ac4619f",
+      "size": 41430922
+    },
+    {
+      "region": "S20W070",
+      "name": "earth-detail-S20W070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20W070.ofsd",
+      "sha256": "736fe65472906defbc188562153b8a1564c52256909c3adf11d60154a1c90f8d",
+      "size": 47287726
+    },
+    {
+      "region": "S20W080",
+      "name": "earth-detail-S20W080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20W080.ofsd",
+      "sha256": "a65d8d4e8c07a31e79785f04843fd7a55ecf47dd299accfa2f67fa4a2fa20bf6",
+      "size": 29304105
+    },
+    {
+      "region": "S20W140",
+      "name": "earth-detail-S20W140.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20W140.ofsd",
+      "sha256": "5fce0f1c5a8f11c61838ebffc28a606327636ebbe41f5a261f35a11476ad9e73",
+      "size": 1618472
+    },
+    {
+      "region": "S20W150",
+      "name": "earth-detail-S20W150.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20W150.ofsd",
+      "sha256": "ee1c779186b5b7ffe95a54b8fc56f6fbc5eb67c128d65f67d3576eec389172fc",
+      "size": 8371598
+    },
+    {
+      "region": "S20W160",
+      "name": "earth-detail-S20W160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20W160.ofsd",
+      "sha256": "a037daa5ad44c889bf20e86d398b6539bc993f44841bf9efc0d3127e03667258",
+      "size": 2067059
+    },
+    {
+      "region": "S20W170",
+      "name": "earth-detail-S20W170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20W170.ofsd",
+      "sha256": "1a27f281374de93ed243ee3316f63d344ab97b4fd2684856c5c3886921f0ef92",
+      "size": 2062749
+    },
+    {
+      "region": "S20W180",
+      "name": "earth-detail-S20W180.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S20W180.ofsd",
+      "sha256": "68bb0b1253afa5cfdcb8245410e13d44bb6478c2bab6926f8aa672c4b4102573",
+      "size": 8871742
+    },
+    {
+      "region": "S30E010",
+      "name": "earth-detail-S30E010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30E010.ofsd",
+      "sha256": "903a44bac2355a41e14b76f2654d5a4f9c460c0a395d02916bfc573b415ba53a",
+      "size": 17694569
+    },
+    {
+      "region": "S30E020",
+      "name": "earth-detail-S30E020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30E020.ofsd",
+      "sha256": "93013587761fc7babd7ee7b250ea965fb9d5145faea279a56ffe181a2100fbf9",
+      "size": 27808181
+    },
+    {
+      "region": "S30E030",
+      "name": "earth-detail-S30E030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30E030.ofsd",
+      "sha256": "7d851437b57140d888f7eb46b657b3bc4d2b0d125b170c50973c63686e760404",
+      "size": 15900846
+    },
+    {
+      "region": "S30E040",
+      "name": "earth-detail-S30E040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30E040.ofsd",
+      "sha256": "1b3ed580c0a4b12e29d32fe49577dda9f873bfb299e95ef66b8de67a268d5050",
+      "size": 15348645
+    },
+    {
+      "region": "S30E050",
+      "name": "earth-detail-S30E050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30E050.ofsd",
+      "sha256": "4a436edb0723c5520bca377f1995b0767b8c50a1f543d770198b08e33a091928",
+      "size": 1041278
+    },
+    {
+      "region": "S30E110",
+      "name": "earth-detail-S30E110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30E110.ofsd",
+      "sha256": "1597e7035426d1533e31f503a46200e28394e8aad27510dad9332c9778976a90",
+      "size": 17411250
+    },
+    {
+      "region": "S30E120",
+      "name": "earth-detail-S30E120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30E120.ofsd",
+      "sha256": "e1d0c4eb797bb1864e13efc7a4269b39058ded4c1bb51a5eefb37795b6d884da",
+      "size": 30258109
+    },
+    {
+      "region": "S30E130",
+      "name": "earth-detail-S30E130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30E130.ofsd",
+      "sha256": "6e66404b108eaa024b0a90d783d396734b708f5a8b00f43484e67e8cd2bab9a8",
+      "size": 28556283
+    },
+    {
+      "region": "S30E140",
+      "name": "earth-detail-S30E140.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30E140.ofsd",
+      "sha256": "eb2fefcc88fe6ed9cbd662b41fe4778ad19c5eca7da9dfc128dad5d56eeb66f7",
+      "size": 28485307
+    },
+    {
+      "region": "S30E150",
+      "name": "earth-detail-S30E150.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30E150.ofsd",
+      "sha256": "cfa3417b1dce7de2b2d83905499462a9de0abfc88bee92d9fe0b6083610cf78e",
+      "size": 12985137
+    },
+    {
+      "region": "S30E160",
+      "name": "earth-detail-S30E160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30E160.ofsd",
+      "sha256": "4a515238f9b5ae9be21241bb0e4fb91f065127990ae1b9710fa44ce7c5808020",
+      "size": 5484906
+    },
+    {
+      "region": "S30E170",
+      "name": "earth-detail-S30E170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30E170.ofsd",
+      "sha256": "5dc38196230bc187a88a33e9faca83ff4ea7feabc7e38ab56d19d76304a05501",
+      "size": 818489
+    },
+    {
+      "region": "S30W030",
+      "name": "earth-detail-S30W030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30W030.ofsd",
+      "sha256": "021d2ef255d35d426a7a9eb3f9fb0f117e6edb98948fa46ebeb3b1c33c6a37ac",
+      "size": 235334
+    },
+    {
+      "region": "S30W040",
+      "name": "earth-detail-S30W040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30W040.ofsd",
+      "sha256": "aefe1a02ae1cd8eda799401e1fb3f5ffde39cec354f9392250a0fb4b6776ff19",
+      "size": 1274705
+    },
+    {
+      "region": "S30W050",
+      "name": "earth-detail-S30W050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30W050.ofsd",
+      "sha256": "76317cf712169bc5911a44bbd61703b1d84b8030d7d367c243b3887a539d3b3f",
+      "size": 26025107
+    },
+    {
+      "region": "S30W060",
+      "name": "earth-detail-S30W060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30W060.ofsd",
+      "sha256": "7028724f320c4a06557b1097e1632622e78510a05b22516cf5704a12565b3689",
+      "size": 42798173
+    },
+    {
+      "region": "S30W070",
+      "name": "earth-detail-S30W070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30W070.ofsd",
+      "sha256": "7b75f732ea4021d71f12dc41cf1bc4cfaa2346c1a4b16f4a8fc52ca01e8be3da",
+      "size": 41274826
+    },
+    {
+      "region": "S30W080",
+      "name": "earth-detail-S30W080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30W080.ofsd",
+      "sha256": "9cf88dc9b993a88bc4ad63ca6af826b92468198b7d9c67edc8fe435419776f39",
+      "size": 3931176
+    },
+    {
+      "region": "S30W090",
+      "name": "earth-detail-S30W090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30W090.ofsd",
+      "sha256": "24ffd95ed15586196260cc6078a4cbf4634f4e413cf11e35d87c80d66280e3a7",
+      "size": 1094366
+    },
+    {
+      "region": "S30W100",
+      "name": "earth-detail-S30W100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30W100.ofsd",
+      "sha256": "ddc71dac672253c24019d4bf073939e360a027528378db4e5e1c406872e67b5b",
+      "size": 533213
+    },
+    {
+      "region": "S30W110",
+      "name": "earth-detail-S30W110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30W110.ofsd",
+      "sha256": "489cdb9c4149bff6551ed22109bc050059039932293b8bf098bab367ec016725",
+      "size": 816710
+    },
+    {
+      "region": "S30W130",
+      "name": "earth-detail-S30W130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30W130.ofsd",
+      "sha256": "c2f7a216ac70c8beb764157f668127fea7f59c3680f1d86276694eb2cb6dd5f0",
+      "size": 645731
+    },
+    {
+      "region": "S30W140",
+      "name": "earth-detail-S30W140.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30W140.ofsd",
+      "sha256": "396521c9267bf6a2cb08fe1b1f8fadbb0466aa3fc91dce709f3bb9871081d7bb",
+      "size": 2391044
+    },
+    {
+      "region": "S30W150",
+      "name": "earth-detail-S30W150.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30W150.ofsd",
+      "sha256": "a7f95a33603b4d16e3b0ee2d9395a9277d006bf7656ac5ae119f8ffde146aa6e",
+      "size": 2599234
+    },
+    {
+      "region": "S30W160",
+      "name": "earth-detail-S30W160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30W160.ofsd",
+      "sha256": "f65872b62f73c6652fc8bad601df3ec9558c7f2de6cf8ea24ad30bde785d703b",
+      "size": 1535720
+    },
+    {
+      "region": "S30W180",
+      "name": "earth-detail-S30W180.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S30W180.ofsd",
+      "sha256": "a2a4c1026ed06e8a55da6061167aeb9fdea75b765da0e672284adb9e7196bac8",
+      "size": 2195566
+    },
+    {
+      "region": "S40E000",
+      "name": "earth-detail-S40E000.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S40E000.ofsd",
+      "sha256": "1acbe7b3335a99e7f018a74a2b5d4373382c4e219b8a0b0f4a6397fe9efab7cd",
+      "size": 290411
+    },
+    {
+      "region": "S40E010",
+      "name": "earth-detail-S40E010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S40E010.ofsd",
+      "sha256": "85a9af11e4cf740c54eb687ccc090a93ea8dd02b56bed6df34bfb07a85009ff9",
+      "size": 3804199
+    },
+    {
+      "region": "S40E020",
+      "name": "earth-detail-S40E020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S40E020.ofsd",
+      "sha256": "f2a01889a8b918cd4156eed55a94359a3d9dbf5b6ec5175c84beb32c8db556e6",
+      "size": 18210802
+    },
+    {
+      "region": "S40E030",
+      "name": "earth-detail-S40E030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S40E030.ofsd",
+      "sha256": "41a64941742ff3c4d4050ee075f1d1b4267c0129f66410cc8249c6f5d5cdb699",
+      "size": 883279
+    },
+    {
+      "region": "S40E040",
+      "name": "earth-detail-S40E040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S40E040.ofsd",
+      "sha256": "0cdab65df30464577b0bd14bc995e0c233e80fd2375471631cf82520427ec952",
+      "size": 276072
+    },
+    {
+      "region": "S40E070",
+      "name": "earth-detail-S40E070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S40E070.ofsd",
+      "sha256": "705820e56d4fdb465f271a53ff4ba1f29e7e25f9ebc616f1ed32e559280a7c81",
+      "size": 444985
+    },
+    {
+      "region": "S40E080",
+      "name": "earth-detail-S40E080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S40E080.ofsd",
+      "sha256": "718e1fe1fc4ab894f6e214d579fc77fb5d1ee32eea7d51e9bd447ae7d5323f47",
+      "size": 122328
+    },
+    {
+      "region": "S40E110",
+      "name": "earth-detail-S40E110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S40E110.ofsd",
+      "sha256": "4ab2969884eb203fcf7f7c0e539dad7d60abc8125095c12f4241ab2b1141e433",
+      "size": 7982263
+    },
+    {
+      "region": "S40E120",
+      "name": "earth-detail-S40E120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S40E120.ofsd",
+      "sha256": "47bb3ea3e2d8977b265204bddc082ed8191b0f85c320fe638c07abf0ed1233de",
+      "size": 7394898
+    },
+    {
+      "region": "S40E130",
+      "name": "earth-detail-S40E130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S40E130.ofsd",
+      "sha256": "9bdfc86a4bb8054d6b27de1e0f271b0f57fecf257f3cd08fbdca25e6a4ee6991",
+      "size": 12182870
+    },
+    {
+      "region": "S40E140",
+      "name": "earth-detail-S40E140.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S40E140.ofsd",
+      "sha256": "67c9ec5b86bcf1956810a157ba1084319733d7a7204ff6146d0df3d5db63fdac",
+      "size": 29207597
+    },
+    {
+      "region": "S40E150",
+      "name": "earth-detail-S40E150.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S40E150.ofsd",
+      "sha256": "358debee5878824ef2b94ac4937a91a594dc40c9d4baabb325ee42c85022cc92",
+      "size": 8379114
+    },
+    {
+      "region": "S40E170",
+      "name": "earth-detail-S40E170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S40E170.ofsd",
+      "sha256": "8d6a65090668506c1cf05833169ccab54e2aad3e2a714bc0a6e416fbae28df4d",
+      "size": 8620521
+    },
+    {
+      "region": "S40W010",
+      "name": "earth-detail-S40W010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S40W010.ofsd",
+      "sha256": "23a59175bc8970ad00162874aabd7d65db3d6c712fd4cce4793ac786dc9e0a05",
+      "size": 457954
+    },
+    {
+      "region": "S40W020",
+      "name": "earth-detail-S40W020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S40W020.ofsd",
+      "sha256": "b7e9c032ef32ae17988d7045ab15b416ff9d27253254d10108c4ad289684237a",
+      "size": 381371
+    },
+    {
+      "region": "S40W060",
+      "name": "earth-detail-S40W060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S40W060.ofsd",
+      "sha256": "0153f19b49f89bdca544b60a6e002aba3c38ceb4890b832741b8c77990578a77",
+      "size": 15304597
+    },
+    {
+      "region": "S40W070",
+      "name": "earth-detail-S40W070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S40W070.ofsd",
+      "sha256": "2f4feec84fb32861d1b22efdf07ce9b0ddf48bb7066753996a5bc2b8764f3bc6",
+      "size": 27487301
+    },
+    {
+      "region": "S40W080",
+      "name": "earth-detail-S40W080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S40W080.ofsd",
+      "sha256": "d6c0e3458cfd4e53c6bef639b07845c543b52502e1534e598f164da81143168c",
+      "size": 13495361
+    },
+    {
+      "region": "S40W090",
+      "name": "earth-detail-S40W090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S40W090.ofsd",
+      "sha256": "b7627c211f93d5990e2e31e8fa3434cbe3c31c35c24ea976a75951bde683ceae",
+      "size": 345465
+    },
+    {
+      "region": "S40W120",
+      "name": "earth-detail-S40W120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S40W120.ofsd",
+      "sha256": "19e4fde1b9a17aca1473367b040ba02626818db2e33d6a033c697b7e8b0fbdde",
+      "size": 135545
+    },
+    {
+      "region": "S40W130",
+      "name": "earth-detail-S40W130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S40W130.ofsd",
+      "sha256": "d93fefd56ab16b3c37e18d65c6810c6e0a5dde6ba00b9eb3d8558a9476a574ec",
+      "size": 180161
+    },
+    {
+      "region": "S40W180",
+      "name": "earth-detail-S40W180.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S40W180.ofsd",
+      "sha256": "92d69a1bb49dd2006b416aac516c0f31f62aa46747d39ec62027adb16c60770f",
+      "size": 214152
+    },
+    {
+      "region": "S50E000",
+      "name": "earth-detail-S50E000.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S50E000.ofsd",
+      "sha256": "261d9bcb9383eaa08e5632c244d4039a5ce3091f0901363b54e3781a65a0bf0b",
+      "size": 960417
+    },
+    {
+      "region": "S50E030",
+      "name": "earth-detail-S50E030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S50E030.ofsd",
+      "sha256": "3edd69bec11b60ce8b0bcad384d76979e89e11de7c728e58be2782b3b213de73",
+      "size": 634336
+    },
+    {
+      "region": "S50E040",
+      "name": "earth-detail-S50E040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S50E040.ofsd",
+      "sha256": "a20646f2de611108a1dafde2d9f0e14ad5f8bfd84f3e0de1b5a85ee6ce7b4b91",
+      "size": 893002
+    },
+    {
+      "region": "S50E050",
+      "name": "earth-detail-S50E050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S50E050.ofsd",
+      "sha256": "48cb48e6a230d5f93d26ed991e761f1e48f0364f5779441a635c7e98e958b0a3",
+      "size": 855362
+    },
+    {
+      "region": "S50E060",
+      "name": "earth-detail-S50E060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S50E060.ofsd",
+      "sha256": "f7b21a2a5e0e3c2d7cb68eb656892c9cd93ab0e9dac37793852cec1f3f56d87a",
+      "size": 898241
+    },
+    {
+      "region": "S50E070",
+      "name": "earth-detail-S50E070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S50E070.ofsd",
+      "sha256": "68dafd155c99019ba7fa9b28ce2bb03801a1b86cce5e92d5d258b9b1ed5c5a9a",
+      "size": 131084
+    },
+    {
+      "region": "S50E140",
+      "name": "earth-detail-S50E140.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S50E140.ofsd",
+      "sha256": "10a7fe31f63a639947f11b62bbe38d1595587ac363aa7051953a7628f54e272c",
+      "size": 6448315
+    },
+    {
+      "region": "S50E160",
+      "name": "earth-detail-S50E160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S50E160.ofsd",
+      "sha256": "2d1e69f4a60e7b6de2ca2c02ba8734e9f0c58723b8008571511bfb820d1f3e43",
+      "size": 6402614
+    },
+    {
+      "region": "S50E170",
+      "name": "earth-detail-S50E170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S50E170.ofsd",
+      "sha256": "50e903002e23d0fe43858ea6ce61c9de2684b9d4b1773b902eeed4cd09617ba1",
+      "size": 8596190
+    },
+    {
+      "region": "S50W010",
+      "name": "earth-detail-S50W010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S50W010.ofsd",
+      "sha256": "4857c4489a3404ab385b48721e0b4ee099bb657b074a5abc893d91e5251e7307",
+      "size": 565762
+    },
+    {
+      "region": "S50W070",
+      "name": "earth-detail-S50W070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S50W070.ofsd",
+      "sha256": "18984ef60fbcd554dd5f77f0d4b8bb9cd0debb031182e867ba5cb128bd85cb58",
+      "size": 15888730
+    },
+    {
+      "region": "S50W080",
+      "name": "earth-detail-S50W080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S50W080.ofsd",
+      "sha256": "8953149811cddc830d3ca785021741cbd9deeb47af3b4a65840730532ae0a2e7",
+      "size": 24478587
+    },
+    {
+      "region": "S50W090",
+      "name": "earth-detail-S50W090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S50W090.ofsd",
+      "sha256": "37e17d0d8872136439354f8dffb188e807a48d50fdf6387ad34460c9eb30c5f7",
+      "size": 168486
+    },
+    {
+      "region": "S50W100",
+      "name": "earth-detail-S50W100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S50W100.ofsd",
+      "sha256": "592bb9721dff2d094768330c6e49fcb18bfaa627f963a469b763ebb793231c83",
+      "size": 415432
+    },
+    {
+      "region": "S50W130",
+      "name": "earth-detail-S50W130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S50W130.ofsd",
+      "sha256": "d354c4b78ac3d800d774d70f24d616e9b0e8d2890eb55e392cd84e0feda97926",
+      "size": 143007
+    },
+    {
+      "region": "S50W180",
+      "name": "earth-detail-S50W180.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S50W180.ofsd",
+      "sha256": "21a8817cba4c74814640aa55798f3808a52c3990b07c68ce25f01adfe5fdaa94",
+      "size": 549656
+    },
+    {
+      "region": "S60E000",
+      "name": "earth-detail-S60E000.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S60E000.ofsd",
+      "sha256": "f81eb78e66405dae478672ac9dae20566cb9a7930af99bbb028d4884747cf2b1",
+      "size": 153741
+    },
+    {
+      "region": "S60E040",
+      "name": "earth-detail-S60E040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S60E040.ofsd",
+      "sha256": "b74aabce3f37d1fc97a8816257e8b5c43adc805289e69c359cc8b498d64c0bb6",
+      "size": 738298
+    },
+    {
+      "region": "S60E050",
+      "name": "earth-detail-S60E050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S60E050.ofsd",
+      "sha256": "e1f0d223b9fa9111dcb781b395a3abb1399812519d575d02228ae0348358861a",
+      "size": 147918
+    },
+    {
+      "region": "S60E060",
+      "name": "earth-detail-S60E060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S60E060.ofsd",
+      "sha256": "c9aeda6bdcdca0b4d57bcf22c09518b7acb81599bd97965bd83907ff852b580b",
+      "size": 118558
+    },
+    {
+      "region": "S60E070",
+      "name": "earth-detail-S60E070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S60E070.ofsd",
+      "sha256": "044831663736638316704f20795131ce1437a34a597cf1913a9a37a5b0908d40",
+      "size": 333590
+    },
+    {
+      "region": "S60E090",
+      "name": "earth-detail-S60E090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S60E090.ofsd",
+      "sha256": "9d13bc6afa392eb957d914887124292df847218f42a34f0b2f3345aa933358d4",
+      "size": 136323
+    },
+    {
+      "region": "S60E150",
+      "name": "earth-detail-S60E150.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S60E150.ofsd",
+      "sha256": "0e224b3f9371b43ce4ed1d3beb647043aa3c3603c264fce6ce6cfd736776bc01",
+      "size": 605865
+    },
+    {
+      "region": "S60E160",
+      "name": "earth-detail-S60E160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S60E160.ofsd",
+      "sha256": "47a61ca37aa06b3c33fbb72e8271a42c81b48f12531498b7d9e771c619b78b69",
+      "size": 882600
+    },
+    {
+      "region": "S60E170",
+      "name": "earth-detail-S60E170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S60E170.ofsd",
+      "sha256": "8cabe783813382694ed34393b76f8540ceac2e6832677b7d7f988125727db3bc",
+      "size": 140501
+    },
+    {
+      "region": "S60W030",
+      "name": "earth-detail-S60W030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S60W030.ofsd",
+      "sha256": "c6e709643a836ba0acc511a08ad12811c3616ded0f4d2bd95f079acf95a1790b",
+      "size": 1545892
+    },
+    {
+      "region": "S60W040",
+      "name": "earth-detail-S60W040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S60W040.ofsd",
+      "sha256": "eeb40b6031a20d99c3677fe9b185cf806e329a4bb3bc79346d30a4bd31dc29aa",
+      "size": 1228858
+    },
+    {
+      "region": "S60W050",
+      "name": "earth-detail-S60W050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S60W050.ofsd",
+      "sha256": "3ca5022e8aa4850ab879c041174d2224efa14c6ab0e76ddc7f100c0c8cfbfa5e",
+      "size": 476708
+    },
+    {
+      "region": "S60W060",
+      "name": "earth-detail-S60W060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S60W060.ofsd",
+      "sha256": "72bcd4e18177b0abaad503ea18db593a4198a74a3a893f60fe83d762b5e5d912",
+      "size": 786560
+    },
+    {
+      "region": "S60W070",
+      "name": "earth-detail-S60W070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S60W070.ofsd",
+      "sha256": "f107f7c7d05cb9cb08704a7c439ca1c3e247e95dc4c47e37aa096d688f32d108",
+      "size": 5140260
+    },
+    {
+      "region": "S60W080",
+      "name": "earth-detail-S60W080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S60W080.ofsd",
+      "sha256": "9732ae3ffb4622377110545a0df300c44ca405a11c60aa8c44513bbc1ac94326",
+      "size": 8513091
+    },
+    {
+      "region": "S70E000",
+      "name": "earth-detail-S70E000.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S70E000.ofsd",
+      "sha256": "a3addd77cb1262b208249adcd17d8aedf209469adccf85b448286ff4d596c989",
+      "size": 596959
+    },
+    {
+      "region": "S70E010",
+      "name": "earth-detail-S70E010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S70E010.ofsd",
+      "sha256": "f229681b04fee1224c281ca482e2742ed2a3c77cd20ccc0fff7f4172ae36674f",
+      "size": 823605
+    },
+    {
+      "region": "S70E020",
+      "name": "earth-detail-S70E020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S70E020.ofsd",
+      "sha256": "10f39f30fcb9ebabbd6045408e7329342da1b396837db099fadb2d927a95955e",
+      "size": 611097
+    },
+    {
+      "region": "S70E030",
+      "name": "earth-detail-S70E030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S70E030.ofsd",
+      "sha256": "bc057989e730e78dbb945aace49c449b4b3f51464ca42b3886b63dcd4e252ce5",
+      "size": 1043087
+    },
+    {
+      "region": "S70E040",
+      "name": "earth-detail-S70E040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S70E040.ofsd",
+      "sha256": "5a0d2e0a7479c1e29d575540dc71ac7fdb87e160bd3f9a15c467797d2ee1af62",
+      "size": 2423686
+    },
+    {
+      "region": "S70E050",
+      "name": "earth-detail-S70E050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S70E050.ofsd",
+      "sha256": "08fe9a86803822f3a86014641991eed7661656e801cd593d37f69803611b2aff",
+      "size": 3868604
+    },
+    {
+      "region": "S70E060",
+      "name": "earth-detail-S70E060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S70E060.ofsd",
+      "sha256": "482b87d5341d2e165b8d0531c44070dc21c7d617bd2bba167657cfb50635d218",
+      "size": 2179405
+    },
+    {
+      "region": "S70E070",
+      "name": "earth-detail-S70E070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S70E070.ofsd",
+      "sha256": "5291b27d308ca8bf62a29e395b6a766098dbb897a28ba68e9f36d16cc73f6c95",
+      "size": 1500797
+    },
+    {
+      "region": "S70E080",
+      "name": "earth-detail-S70E080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S70E080.ofsd",
+      "sha256": "bebcb59c132f71f53f6b31c5b209310b759ef930c7458c8a613856e3708ce117",
+      "size": 3197718
+    },
+    {
+      "region": "S70E090",
+      "name": "earth-detail-S70E090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S70E090.ofsd",
+      "sha256": "f1bdb78b9236d037f46ce8e824b6674cb4d2bfe986412186fdf0568991f6e43e",
+      "size": 3808772
+    },
+    {
+      "region": "S70E100",
+      "name": "earth-detail-S70E100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S70E100.ofsd",
+      "sha256": "cf8b74cfc8ae59ec9cf7dd084bd939660b2e029f1d700ad1e590571aec69ae5e",
+      "size": 3437656
+    },
+    {
+      "region": "S70E110",
+      "name": "earth-detail-S70E110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S70E110.ofsd",
+      "sha256": "b0a3bbe012c87f91eca2931e3b08cb59ba34cef0b320d2c142acf7db38f8217a",
+      "size": 3289807
+    },
+    {
+      "region": "S70E120",
+      "name": "earth-detail-S70E120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S70E120.ofsd",
+      "sha256": "e99c84519ac63bbc610f2ac18a6d8e81b17320ab269da3f2b4ab1c53675f7b3d",
+      "size": 3014027
+    },
+    {
+      "region": "S70E130",
+      "name": "earth-detail-S70E130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S70E130.ofsd",
+      "sha256": "ffe978680b57c45c6a4d9beaf05d22da9ddfc4aa041130f5251cdf51f5ac77c2",
+      "size": 2987343
+    },
+    {
+      "region": "S70E140",
+      "name": "earth-detail-S70E140.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S70E140.ofsd",
+      "sha256": "00b70be8dabc7ed61691194d90ab88c3b2b244ec86174ac57aa56f82953a6fe0",
+      "size": 2658373
+    },
+    {
+      "region": "S70E150",
+      "name": "earth-detail-S70E150.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S70E150.ofsd",
+      "sha256": "928a522c33f66789612b9c1579b30e1bfbaf538a7681d6d1036d937b8ff8f479",
+      "size": 1173347
+    },
+    {
+      "region": "S70E160",
+      "name": "earth-detail-S70E160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S70E160.ofsd",
+      "sha256": "5f8feacc09bf50d4614f9dd1ebaef22c4d1e4ae5df6b8f05a2afd47bc4a22d9c",
+      "size": 1010308
+    },
+    {
+      "region": "S70W010",
+      "name": "earth-detail-S70W010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S70W010.ofsd",
+      "sha256": "64411c1cb59606aae9bb9b10243e433a4ecdf5a270c5502a75259edef279c0b1",
+      "size": 347872
+    },
+    {
+      "region": "S70W050",
+      "name": "earth-detail-S70W050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S70W050.ofsd",
+      "sha256": "914330e9d5158eee66d718c59837358d6339c0ce3987fdf31ad174c100166491",
+      "size": 664896
+    },
+    {
+      "region": "S70W060",
+      "name": "earth-detail-S70W060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S70W060.ofsd",
+      "sha256": "b93d7152a1012eac17ff42830a9ac22aead7c82201c938c91b3ea333bb4eae60",
+      "size": 3390176
+    },
+    {
+      "region": "S70W070",
+      "name": "earth-detail-S70W070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S70W070.ofsd",
+      "sha256": "542d7d26914bf30490de14f3ed2e55c2379ee8881d5ad074c39bcec6d70b69d5",
+      "size": 7318402
+    },
+    {
+      "region": "S70W080",
+      "name": "earth-detail-S70W080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S70W080.ofsd",
+      "sha256": "23adcec4061fc713e3134c194705a05836f330ccb9bade765f97d4964615589d",
+      "size": 1144351
+    },
+    {
+      "region": "S70W100",
+      "name": "earth-detail-S70W100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S70W100.ofsd",
+      "sha256": "88fd5e2a558c8b91d2a42528089857913d1fac6e39da6943df100c71802d4e80",
+      "size": 211831
+    },
+    {
+      "region": "S70W180",
+      "name": "earth-detail-S70W180.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S70W180.ofsd",
+      "sha256": "8fefae8f23e7219b7bdbbcc762b6ca2ebbc29f8f9023d2fd099569cc53d41d18",
+      "size": 163147
+    },
+    {
+      "region": "S80E000",
+      "name": "earth-detail-S80E000.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80E000.ofsd",
+      "sha256": "dfb66a808ec88d7648f0d175c9f8bc27bf242a5628fa30fa3e9e36e7344583bc",
+      "size": 4263777
+    },
+    {
+      "region": "S80E010",
+      "name": "earth-detail-S80E010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80E010.ofsd",
+      "sha256": "62e6ca07e79c8dcc59df20f44e0e4122de5ff367dc5d6c03d0a3ffc1a353f48b",
+      "size": 4627066
+    },
+    {
+      "region": "S80E020",
+      "name": "earth-detail-S80E020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80E020.ofsd",
+      "sha256": "b15961a73966fdc078c5ad05b75ec0b15b27e0fbecf6b5d50bfaaa7f183d9a16",
+      "size": 4527314
+    },
+    {
+      "region": "S80E030",
+      "name": "earth-detail-S80E030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80E030.ofsd",
+      "sha256": "32b77223fd38c07e26548c7ecd2f444bcbd10b2e1f2c44dd8b735f32f5e40763",
+      "size": 4545030
+    },
+    {
+      "region": "S80E040",
+      "name": "earth-detail-S80E040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80E040.ofsd",
+      "sha256": "840e7a5c38852ac8336e9fd562b827a7490749b7a1973959bda03549ae2ff703",
+      "size": 4288696
+    },
+    {
+      "region": "S80E050",
+      "name": "earth-detail-S80E050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80E050.ofsd",
+      "sha256": "bfb93284dc92c40302150a9a3821088e63a60de44ef5a00e9a75e32aadbb6a7c",
+      "size": 4310545
+    },
+    {
+      "region": "S80E060",
+      "name": "earth-detail-S80E060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80E060.ofsd",
+      "sha256": "c5ad302a829420a6a63bc0e02465e196a90fc0bf4cb24059ad44cf556165c1c0",
+      "size": 4936835
+    },
+    {
+      "region": "S80E070",
+      "name": "earth-detail-S80E070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80E070.ofsd",
+      "sha256": "ad110b22307a26a2f75efb2c14d57a434ac5179ef229169b8974ad3eb3477c84",
+      "size": 4615977
+    },
+    {
+      "region": "S80E080",
+      "name": "earth-detail-S80E080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80E080.ofsd",
+      "sha256": "699698b9e18e2d775317e7437c66f269d47aae9c78fe0c7297b01e4b54773625",
+      "size": 3720875
+    },
+    {
+      "region": "S80E090",
+      "name": "earth-detail-S80E090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80E090.ofsd",
+      "sha256": "faba30f46f5839a825c16517ff50254b23e48d915ecb53c717165bf8a6b433ed",
+      "size": 4102546
+    },
+    {
+      "region": "S80E100",
+      "name": "earth-detail-S80E100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80E100.ofsd",
+      "sha256": "c3323f19477aa2adff22f5defa2c0e8253c4f02ef7b8a0f920b43c15676daf5f",
+      "size": 4521006
+    },
+    {
+      "region": "S80E110",
+      "name": "earth-detail-S80E110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80E110.ofsd",
+      "sha256": "001d16adb803e300d346175d4bdaa5eaa564f2c51a98d0ae6bd9627575110e32",
+      "size": 4220928
+    },
+    {
+      "region": "S80E120",
+      "name": "earth-detail-S80E120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80E120.ofsd",
+      "sha256": "1dcbf3650e8e70a3459edd8a56b212d95c762d3559a50ec0577c7d4d8fab0531",
+      "size": 4040822
+    },
+    {
+      "region": "S80E130",
+      "name": "earth-detail-S80E130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80E130.ofsd",
+      "sha256": "c7bb17ef44e64be7258ea370ef1babac24ca48c4da82c33eee448f0005b07be0",
+      "size": 3795027
+    },
+    {
+      "region": "S80E140",
+      "name": "earth-detail-S80E140.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80E140.ofsd",
+      "sha256": "ef7153d2228e3fde54ba38546104f410d01444a3dde0fefe4d0f18c08a8b1b4c",
+      "size": 3902031
+    },
+    {
+      "region": "S80E150",
+      "name": "earth-detail-S80E150.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80E150.ofsd",
+      "sha256": "0c1f566947c23cd54f70dc6f3694a27ccd641cb15ca6676446f69ed654c5a901",
+      "size": 4582821
+    },
+    {
+      "region": "S80E160",
+      "name": "earth-detail-S80E160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80E160.ofsd",
+      "sha256": "288d6643820d0f1c22ff7c91a564d258cb7d0cc0ef0bff53a6217d2e7ec7488e",
+      "size": 7518560
+    },
+    {
+      "region": "S80E170",
+      "name": "earth-detail-S80E170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80E170.ofsd",
+      "sha256": "8282077c2a315b9a738d39ae4db90040c389200a3fedb23dd886d45094c744e0",
+      "size": 997234
+    },
+    {
+      "region": "S80W010",
+      "name": "earth-detail-S80W010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80W010.ofsd",
+      "sha256": "136b08e14a90c762e99fd65b86ea1ceb3334203bd972c0cd3061aabc094b9ad5",
+      "size": 4419652
+    },
+    {
+      "region": "S80W020",
+      "name": "earth-detail-S80W020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80W020.ofsd",
+      "sha256": "f099b07623fa8abeea53b39cdfb1064b1a70825a2e5a79c9db8ca7473d8ecc48",
+      "size": 3989919
+    },
+    {
+      "region": "S80W030",
+      "name": "earth-detail-S80W030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80W030.ofsd",
+      "sha256": "7c3bcd07c1ea765b73d059c0c19c9dfef3c3f3a9981184f2f66642f2f17a3443",
+      "size": 2844208
+    },
+    {
+      "region": "S80W040",
+      "name": "earth-detail-S80W040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80W040.ofsd",
+      "sha256": "cec61efc4bca63feb0c0b6943d6eded505387af72fecc12885c89609052a5793",
+      "size": 1063550
+    },
+    {
+      "region": "S80W050",
+      "name": "earth-detail-S80W050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80W050.ofsd",
+      "sha256": "ee94b50c3baccf2a99c4b3badd0335e7ad22ca59b306d3fa75b705d0c48307d2",
+      "size": 841091
+    },
+    {
+      "region": "S80W060",
+      "name": "earth-detail-S80W060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80W060.ofsd",
+      "sha256": "fb157a532398ca17b5580db9cdcfce3454d096db630aa5cce995a1f6f842ee0c",
+      "size": 1312202
+    },
+    {
+      "region": "S80W070",
+      "name": "earth-detail-S80W070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80W070.ofsd",
+      "sha256": "9c4b2afe931f1bfff6aa3cacd876e660d57b8f98e41a3917719a989b1b6963f4",
+      "size": 5521746
+    },
+    {
+      "region": "S80W080",
+      "name": "earth-detail-S80W080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80W080.ofsd",
+      "sha256": "62d27ec0f26818212380a5362dd0071efa61f97f6fc952267624738b64edfbe7",
+      "size": 4583373
+    },
+    {
+      "region": "S80W090",
+      "name": "earth-detail-S80W090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80W090.ofsd",
+      "sha256": "1327d54adaff68808d49955a44f400b03e8a92b8544fa6d2ba19cd33ef631d45",
+      "size": 3524749
+    },
+    {
+      "region": "S80W100",
+      "name": "earth-detail-S80W100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80W100.ofsd",
+      "sha256": "d03abf69515f6250baff2fd98f997f6ba524d72c01a0196ef76f7a6726e1e641",
+      "size": 3522886
+    },
+    {
+      "region": "S80W110",
+      "name": "earth-detail-S80W110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80W110.ofsd",
+      "sha256": "d801089f2321f08200ac754c39aea1bf8d79fc7f14acf8b2799a4c3690afbc2c",
+      "size": 3848279
+    },
+    {
+      "region": "S80W120",
+      "name": "earth-detail-S80W120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80W120.ofsd",
+      "sha256": "96f51559fc06f612540c8e6503e5ff2388dd5620e047867a56350f6b17ef05c5",
+      "size": 3054685
+    },
+    {
+      "region": "S80W130",
+      "name": "earth-detail-S80W130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80W130.ofsd",
+      "sha256": "9e6e6783f9cc448918053366397253a451a57ed79fc4ebbcb5c7876a761b77a0",
+      "size": 3035308
+    },
+    {
+      "region": "S80W140",
+      "name": "earth-detail-S80W140.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80W140.ofsd",
+      "sha256": "2787e835183bcb4034e1edc91f17892a57daa160c8b4e0c9d67b7b0d4a12f708",
+      "size": 2244002
+    },
+    {
+      "region": "S80W150",
+      "name": "earth-detail-S80W150.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80W150.ofsd",
+      "sha256": "2e42f98bb377986af4d72e62f5f8569f5cfcb42165e6d45fc1db973de5d59b90",
+      "size": 2136467
+    },
+    {
+      "region": "S80W160",
+      "name": "earth-detail-S80W160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80W160.ofsd",
+      "sha256": "e1dfb0a917e865ff7b9c35d63d99021f32f5ca7ef0255b17eeb8080c355a2b83",
+      "size": 1224086
+    },
+    {
+      "region": "S80W170",
+      "name": "earth-detail-S80W170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80W170.ofsd",
+      "sha256": "c236c0da4b03452901a28664689607b911ca0ee64ffde4ecf230cbb9c633664a",
+      "size": 807965
+    },
+    {
+      "region": "S80W180",
+      "name": "earth-detail-S80W180.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S80W180.ofsd",
+      "sha256": "00492b52db603d5633178255f9f5f56ada6fdbf1d5297d646d843b10eff68079",
+      "size": 604245
+    },
+    {
+      "region": "S90E000",
+      "name": "earth-detail-S90E000.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90E000.ofsd",
+      "sha256": "171fea15597e188861a2d5a5c0300f1384a9740d8785adf4e063e3f1411a0656",
+      "size": 1481965
+    },
+    {
+      "region": "S90E010",
+      "name": "earth-detail-S90E010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90E010.ofsd",
+      "sha256": "84a94bbf04a6be8959979a18fd7f43d6057950559c13c6a53971e77ae9539744",
+      "size": 1283738
+    },
+    {
+      "region": "S90E020",
+      "name": "earth-detail-S90E020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90E020.ofsd",
+      "sha256": "d658e8ea42018735ad496b833eb79b297209f2c01fea4a8f727e4b5adf10f26d",
+      "size": 1425466
+    },
+    {
+      "region": "S90E030",
+      "name": "earth-detail-S90E030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90E030.ofsd",
+      "sha256": "34fcb8a5cc4d80a54d1db6e7e9d197347e0bd291241956769d79d30b6f05340f",
+      "size": 1478598
+    },
+    {
+      "region": "S90E040",
+      "name": "earth-detail-S90E040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90E040.ofsd",
+      "sha256": "674739e7bc65cec2d690f86d05cdcf08ab264a42b838b1e748e7747dadc66ed5",
+      "size": 1710752
+    },
+    {
+      "region": "S90E050",
+      "name": "earth-detail-S90E050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90E050.ofsd",
+      "sha256": "2b77b80c580ad06483f7cdae9f1c92161836a76b2cac9a98f55aef8eeaaa9d79",
+      "size": 1265279
+    },
+    {
+      "region": "S90E060",
+      "name": "earth-detail-S90E060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90E060.ofsd",
+      "sha256": "e416ad6e75d435e0d04c32828c1a947b79ac19b2250951b285378a6dbf27f093",
+      "size": 1277385
+    },
+    {
+      "region": "S90E070",
+      "name": "earth-detail-S90E070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90E070.ofsd",
+      "sha256": "59e09f91ca1c213855c853305a5608eda29eae0b450ce4b6575e6b313d64d3b0",
+      "size": 1288426
+    },
+    {
+      "region": "S90E080",
+      "name": "earth-detail-S90E080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90E080.ofsd",
+      "sha256": "5e6404221b4aaafcf38f5bf3e3843c5cc03056b7850b154fc073d740a33c9870",
+      "size": 1512021
+    },
+    {
+      "region": "S90E090",
+      "name": "earth-detail-S90E090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90E090.ofsd",
+      "sha256": "c3ab3dbdf3fed2aede9b076a8a0192251b8fbf0e760436e1a57374e2c7445bfc",
+      "size": 1563287
+    },
+    {
+      "region": "S90E100",
+      "name": "earth-detail-S90E100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90E100.ofsd",
+      "sha256": "a8115c2a3bae9067f6bb6ac28928573e6bb478cf0b2aba3994ce49b62fb14c7c",
+      "size": 1408869
+    },
+    {
+      "region": "S90E110",
+      "name": "earth-detail-S90E110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90E110.ofsd",
+      "sha256": "b805fd76338f2c46a990c6ab506227958ccd87e352edb4d2857d38f53bdcb359",
+      "size": 1443606
+    },
+    {
+      "region": "S90E120",
+      "name": "earth-detail-S90E120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90E120.ofsd",
+      "sha256": "34e04a5733c1803d7216b1581f09919513f1d35932674776162ce9cc626df0ea",
+      "size": 1391893
+    },
+    {
+      "region": "S90E130",
+      "name": "earth-detail-S90E130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90E130.ofsd",
+      "sha256": "a5b38243a70203a5232ac9f7fc1efcf8b3bd8ca8a6ab61b94d82237845a6e9a6",
+      "size": 1806800
+    },
+    {
+      "region": "S90E140",
+      "name": "earth-detail-S90E140.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90E140.ofsd",
+      "sha256": "d2038a78937163fe210233ca9b0a137de3587d3e882e426dcca6ffb9abf05274",
+      "size": 1434665
+    },
+    {
+      "region": "S90E150",
+      "name": "earth-detail-S90E150.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90E150.ofsd",
+      "sha256": "a9dc04aad65ced4ed8f40a4a9624412e7ba96aa5654b15ea567a3f79cb05678e",
+      "size": 2200986
+    },
+    {
+      "region": "S90E160",
+      "name": "earth-detail-S90E160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90E160.ofsd",
+      "sha256": "146782b23af39e02be56fdfc9d271019821cce345d525f9301f3b86c63e2ca3d",
+      "size": 2121805
+    },
+    {
+      "region": "S90E170",
+      "name": "earth-detail-S90E170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90E170.ofsd",
+      "sha256": "412682762ca1874be8bdd4885fb647aa9802b19bc69be7d3ef99c6e418077ffc",
+      "size": 1630342
+    },
+    {
+      "region": "S90W010",
+      "name": "earth-detail-S90W010.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90W010.ofsd",
+      "sha256": "c655a7d7bcdda8d323456ff008e7e48f480c689bb69ceea30f29431b5b9ccea1",
+      "size": 1561622
+    },
+    {
+      "region": "S90W020",
+      "name": "earth-detail-S90W020.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90W020.ofsd",
+      "sha256": "aea735f1004f340526017e768e1e31944dd046e7a54b7b11fac05e823d66ac9b",
+      "size": 1454242
+    },
+    {
+      "region": "S90W030",
+      "name": "earth-detail-S90W030.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90W030.ofsd",
+      "sha256": "0a60e9fe69e5af8192fa20f204ff137cd5b29e615af78bbd4aab5c9b36173151",
+      "size": 1606413
+    },
+    {
+      "region": "S90W040",
+      "name": "earth-detail-S90W040.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90W040.ofsd",
+      "sha256": "896d562529d86d3f77b3ab5b7aecb79773542c4bc19de5f4c79df35efa7ca1f6",
+      "size": 1553509
+    },
+    {
+      "region": "S90W050",
+      "name": "earth-detail-S90W050.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90W050.ofsd",
+      "sha256": "ea8721b7cb7498e150838743a4f5ce4f05fb06e288defdb71267e2b535d0e33e",
+      "size": 1828266
+    },
+    {
+      "region": "S90W060",
+      "name": "earth-detail-S90W060.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90W060.ofsd",
+      "sha256": "554e2ab70bff19275d1bb148973e07d15957029470cfcbe834376edf5ccf95c9",
+      "size": 1508630
+    },
+    {
+      "region": "S90W070",
+      "name": "earth-detail-S90W070.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90W070.ofsd",
+      "sha256": "746feaeba144d0897dd2d45a8a65ead6f769b49f388d41194a8d8d4211b76ee6",
+      "size": 1421375
+    },
+    {
+      "region": "S90W080",
+      "name": "earth-detail-S90W080.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90W080.ofsd",
+      "sha256": "7194fc68e30fc568bac1be51555edc6c23c08c73cc7e3d4822c898c8ebb96cfe",
+      "size": 1404040
+    },
+    {
+      "region": "S90W090",
+      "name": "earth-detail-S90W090.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90W090.ofsd",
+      "sha256": "5c0124d2c5426463c9b80c3f25ad7e057aeae7b4420ad81332a03106a5627e78",
+      "size": 1857484
+    },
+    {
+      "region": "S90W100",
+      "name": "earth-detail-S90W100.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90W100.ofsd",
+      "sha256": "a826e78a46b94b6dda7e7de4d0cb17eac3a2a45e97b7cb12f287e66930f6b62b",
+      "size": 1773452
+    },
+    {
+      "region": "S90W110",
+      "name": "earth-detail-S90W110.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90W110.ofsd",
+      "sha256": "cb0ff3b9ef8fa1473a79e934031770a50c15651b875724d18d7156e842f5d07a",
+      "size": 1486354
+    },
+    {
+      "region": "S90W120",
+      "name": "earth-detail-S90W120.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90W120.ofsd",
+      "sha256": "475fa51dcaba2e7fa9cb709f0809a6a8e0c1d53f598fdaff4f7196b4d5638b5b",
+      "size": 1475427
+    },
+    {
+      "region": "S90W130",
+      "name": "earth-detail-S90W130.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90W130.ofsd",
+      "sha256": "1508dc2d34532df7260f80c8b3c69ddaa05fd35ea12b4242e011567c198f6d6b",
+      "size": 1489455
+    },
+    {
+      "region": "S90W140",
+      "name": "earth-detail-S90W140.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90W140.ofsd",
+      "sha256": "5a03fa3b5bce791e32770491377ae2c9c441b5c7fd656446f1641d12eee964c7",
+      "size": 1999560
+    },
+    {
+      "region": "S90W150",
+      "name": "earth-detail-S90W150.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90W150.ofsd",
+      "sha256": "b11e04d35e838eb639047399f768a1bb048c7ead739b457aa6794c59c59d1e74",
+      "size": 1548322
+    },
+    {
+      "region": "S90W160",
+      "name": "earth-detail-S90W160.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90W160.ofsd",
+      "sha256": "7e55eee4beb875ceb1dce6754a98ea97a006bdd968a47d861d9584e09af4533c",
+      "size": 1445668
+    },
+    {
+      "region": "S90W170",
+      "name": "earth-detail-S90W170.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90W170.ofsd",
+      "sha256": "db01eb19a3eef00473fc1d0c83681b8f6b69986c5a7e97e8a59f9b0dce6c2ced",
+      "size": 1552563
+    },
+    {
+      "region": "S90W180",
+      "name": "earth-detail-S90W180.ofsd",
+      "url": "https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/earth-detail-S90W180.ofsd",
+      "sha256": "ade0ed1c887c6f0dcf1dcbc19b0ae6a8d2f2052c8c51024acf82de7d53ece362",
+      "size": 1792783
+    }
+  ]
+}

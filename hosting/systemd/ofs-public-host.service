@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 User=ofs-public
-ExecStart=/usr/bin/python3 /opt/ofs-public/public_host.py --builds /var/lib/ofs-public/builds --state /var/lib/ofs-public/host
+ExecStart=/usr/bin/python3 /opt/ofs-public/public_host.py --builds /var/lib/ofs-public/builds --state /var/lib/ofs-public/host --earth-pack /var/lib/ofs-public/earth/earth.ofse
 Restart=always
 RestartSec=3
 # Games are real-time; builds and backups on the same computer give way to them.
@@ -24,7 +24,7 @@ LockPersonality=yes
 MemoryMax=2G
 TasksMax=64
 ReadWritePaths=/var/lib/ofs-public/host
-ReadOnlyPaths=/var/lib/ofs-public/builds
+ReadOnlyPaths=/var/lib/ofs-public/builds /var/lib/ofs-public/earth
 
 [Install]
 WantedBy=multi-user.target

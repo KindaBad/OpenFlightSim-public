@@ -7,6 +7,7 @@
 #include "airfield.hpp"
 #include "coordinates.hpp"
 #include "log.hpp"
+#include "mesher.hpp"
 #include "ofs/terrain.hpp"
 #include "procedural.hpp"
 #include "scenery.hpp"
@@ -29,19 +30,6 @@ constexpr double kTerrainDrawRadius = 262000.;
 struct TerrainVertex {
   float x, y, z, nx, ny, nz;
 };
-
-// Emits a triangle list, orienting both triangles toward the supplied normal.
-void addQuad(std::vector<SurfaceVertex>& out, const glm::vec3& a, const glm::vec3& b,
-             const glm::vec3& c, const glm::vec3& d, const glm::vec3& normal) {
-  const glm::vec2 uv[4] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
-  const glm::vec3* corners[4] = {&a, &b, &c, &d};
-  const bool reverse = glm::dot(glm::cross(b - a, c - a), normal) < 0;
-  const int forward[] = {0, 1, 2, 0, 2, 3};
-  const int backward[] = {0, 2, 1, 0, 3, 2};
-  for (const int i : (reverse ? backward : forward))
-    out.push_back({corners[i]->x, corners[i]->y, corners[i]->z, normal.x, normal.y, normal.z,
-                   uv[i].x, uv[i].y});
-}
 
 // How each kind of airfield structure is drawn. Paint and cladding are plain
 // colours weathered in the surface shader; lamps are small emissive boxes.
@@ -337,48 +325,8 @@ void Renderer::buildEnvironment(Synthesis& data) {
   std::vector<SurfaceVertex> walls, roofs;
   {
     const auto ground = [](float x, float z) { return float(-groundHeightNed(-z, x)); };
-    // A building `width` by `depth` on the ground at (x, z), turned by `yaw`,
-    // with walls `height` high and a roof rising `pitch` above them: a ridge
-    // along its depth, or with `spire` a point.
     const auto building = [&](float x, float z, float width, float depth, float height, float pitch, float yaw, bool spire) {
-      const glm::vec2 along{std::sin(yaw), std::cos(yaw)}, across{std::cos(yaw), -std::sin(yaw)};
-      const auto corner = [&](float u, float v) { return glm::vec2{x, z} + across * (u * width * .5f) + along * (v * depth * .5f); };
-      const glm::vec2 c[4] = {corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)};
-      // Walls go down to the lowest corner, so nothing stands on air on a slope.
-      float low = 1e9f, high = -1e9f;
-      for (const auto& p : c) { low = std::min(low, ground(p.x, p.y)); high = std::max(high, ground(p.x, p.y)); }
-      const float base = low - .4f, eaves = high + height, ridge = eaves + pitch;
-      const auto at = [](const glm::vec2& p, float y) { return glm::vec3{p.x, y, p.y}; };
-      for (int i = 0; i < 4; ++i) {
-        const glm::vec2 p = c[i], q = c[(i + 1) % 4], out = glm::normalize(glm::vec2{q.y - p.y, p.x - q.x});
-        const glm::vec2 mid = (p + q) * .5f, centre{x, z};
-        const glm::vec2 normal = glm::dot(out, mid - centre) < 0 ? -out : out;
-        addQuad(walls, at(p, base), at(q, base), at(q, eaves), at(p, eaves), {normal.x, 0, normal.y});
-      }
-      if (spire) {
-        const glm::vec3 top{x, ridge, z};
-        for (int i = 0; i < 4; ++i) {
-          const glm::vec3 p = at(c[i], eaves), q = at(c[(i + 1) % 4], eaves);
-          glm::vec3 normal = glm::normalize(glm::cross(q - p, top - p));
-          if (normal.y < 0) normal = -normal;
-          addQuad(roofs, p, q, top, top, normal);
-        }
-        return;
-      }
-      // Eaves overhang the walls a little.
-      const auto eave = [&](float u, float v) { return at(corner(u * 1.12f, v * 1.06f), eaves - .15f); };
-      const glm::vec3 front = at(corner(0, -1.06f), ridge), back = at(corner(0, 1.06f), ridge);
-      for (const float side : {-1.f, 1.f}) {
-        const glm::vec3 p = eave(side, -1), q = eave(side, 1);
-        glm::vec3 normal = glm::normalize(glm::cross(q - p, front - p));
-        if (normal.y < 0) normal = -normal;
-        addQuad(roofs, p, q, back, front, normal);
-      }
-      for (const float end : {-1.f, 1.f}) {
-        const glm::vec3 top = end < 0 ? front : back;
-        const glm::vec2 normal = along * end;
-        addQuad(walls, at(corner(-1, end), eaves), at(corner(1, end), eaves), top, top, {normal.x, 0, normal.y});
-      }
+      geometry::house(walls, roofs, ground, x, z, width, depth, height, pitch, yaw, spire);
     };
     const auto buildable = [&](float x, float z) {
       const double north = -z, east = x;

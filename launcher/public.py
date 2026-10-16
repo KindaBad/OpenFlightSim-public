@@ -21,7 +21,7 @@ import secrets
 import socket
 import time
 
-from .lan import Lobby, MAX_LOBBY_NAME, MAX_VERSION, lobby_name
+from .lan import EARTH_MAP, Lobby, MAX_LOBBY_NAME, MAX_VERSION, lobby_name
 from .storage import LauncherError, read_json, write_json
 
 log = logging.getLogger('ofs.public')
@@ -154,7 +154,12 @@ def lobbies(reply, address, port):
         players, limit, bots, protocol = numbers
         if not 0 <= players <= limit <= 64 or not 0 <= bots <= 8 or not 0 < protocol < 65536:
             continue
-        found.append(Lobby(game['name'], address, port, protocol, players, limit, bots, game['version'], game['id']))
+        # A game on the round Earth names its theatre; one in the valley says nothing or 'valley'.
+        world = game.get('map', 'valley')
+        if world != 'valley' and not (isinstance(world, str) and EARTH_MAP.fullmatch(world)):
+            continue
+        found.append(Lobby(game['name'], address, port, protocol, players, limit, bots, game['version'], game['id'],
+                           '' if world == 'valley' else world))
     return found[:32]
 
 
@@ -162,7 +167,9 @@ def browse(cache, **options):
     """The public games running now. Never raises: an unreachable server is an empty list."""
     try:
         address, port = locate(cache, **options)
-        reply = ask(address, port, {'op': 'list'}, attempts=1)
+        # Asking with the maps this launcher knows lists Earth games too; a
+        # launcher that does not ask is offered valley games only.
+        reply = ask(address, port, {'op': 'list', 'maps': ['valley', 'earth']}, attempts=1)
         if not reply or not reply['ok']:
             return Listing()
         versions = tuple(v for v in reply.get('versions', []) if _text(v, MAX_VERSION)) if isinstance(reply.get('versions'), list) else ()
@@ -216,6 +223,8 @@ def host(cache, preferences, version, **options):
                'name': lobby_name(preferences.lobby, lobby_name(preferences.name + "'s game")),
                'bots': preferences.lan_bots, 'missile_reload': preferences.lan_missile_reload,
                'teams': bool(preferences.lan_teams), 'score_limit': preferences.lan_score_limit}
+    if preferences.map == 'earth':
+        request.update(map='earth', theatre=preferences.theatre)
     reply = ask(address, port, request)
     if not reply:
         raise LauncherError(UNREACHABLE)

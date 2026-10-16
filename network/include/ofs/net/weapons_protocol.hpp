@@ -4,8 +4,17 @@
 #include <set>
 namespace ofs::net {
 constexpr std::size_t missileWireBytes = 64, maxMissileRecords = 16;
-static_assert(24 + 1 + maxMissileRecords * missileWireBytes <=
+// Radar and missile messages carry their positions relative to a reference
+// point near the viewer, a whole number of kilometres in each axis, so they
+// keep their resolution anywhere on the round Earth.
+constexpr std::size_t weaponReferenceBytes = 12;
+// Missiles reach this far from the reference in each axis (1/8 m in 32 bits),
+// radar tracks this far (1/2 m).
+constexpr double missileReach = 260000, trackReach = 1000000;
+static_assert(24 + weaponReferenceBytes + 1 + maxMissileRecords * missileWireBytes <=
               applicationPayload);
+// The reference for a viewer at `position`.
+Vec3 weaponReference(const Vec3 &position);
 struct WeaponMessage {
   Type type{Type::WeaponAction};
   Tick tick{};
@@ -15,6 +24,7 @@ struct WeaponMessage {
   RadarNetState radar;
   std::vector<MissileNetState> missiles;
   std::vector<MissileEvent> removals;
+  Vec3 reference;  // RadarState, MissileSpawn, MissileState and MissileRemove
 };
 std::vector<std::uint8_t> encodeWeapon(const WeaponMessage &);
 bool decodeWeapon(std::span<const std::uint8_t>, WeaponMessage &);

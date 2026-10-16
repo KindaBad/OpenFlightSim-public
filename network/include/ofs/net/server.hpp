@@ -4,6 +4,7 @@
 #include "ofs/net/transport.hpp"
 #include "ofs/net/weapons_protocol.hpp"
 #include "ofs/net/world.hpp"
+#include "ofs/theatres.hpp"
 #include <map>
 #include <memory>
 #include <optional>
@@ -26,7 +27,16 @@ struct ServerConfig {
   // reachable by address only.
   std::string lobbyName, version;
   std::uint16_t discoveryPort{ofs::net::discoveryPort};
+  // The map. On the round Earth the world (ofs::world()) is set up before the
+  // server, and `starts` are the theatre's airports, `startIdents` their
+  // idents, in the same order.
+  GameMap map;
+  std::vector<Start> starts;
+  std::vector<std::string> startIdents;
 };
+// Sets up `config` for a game on the round Earth in `theatre`: its map and
+// its airports' runways. The world must already be `earth`.
+void useEarthTheatre(ServerConfig &config, const Theatre &theatre, const EarthTerrain &terrain, const EarthWorld &earth);
 struct ServerStats {
   std::uint64_t received{}, sent{}, bytesIn{}, bytesOut{}, invalid{},
       disconnects{}, sendFailures{}, snapshotCount{}, publicationCount{},

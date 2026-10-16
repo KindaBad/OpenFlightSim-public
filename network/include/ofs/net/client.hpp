@@ -106,6 +106,11 @@ public:
   // The state of the team game; `teams` is false in a free-for-all.
   const TeamStatus &teamStatus() const { return teamStatus_; }
   ~Client();
+  // The map this client has loaded, and on the Earth the airport to start
+  // at; sent in Hello, so a server on another map turns it away. Set before
+  // connecting.
+  void setMap(GameMap map) { map_ = std::move(map); }
+  const GameMap &map() const { return map_; }
   void connect(const std::string &address, std::uint16_t port);
   void disconnect();
   void poll(double elapsed);
@@ -151,6 +156,7 @@ public:
   bool sendTestPacket(std::span<const std::uint8_t> bytes);
 
 private:
+  GameMap map_;
   ReplicationReceiver replication_;
   WeaponReplicationReceiver weapons_;
   std::uint64_t weaponSequence_{};

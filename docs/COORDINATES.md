@@ -23,7 +23,32 @@ positive rudder pedal yaws right. Surface elevator deflection has the opposite
 sign from pull. Existing negative rudder effectiveness is retained; the surface
 mapping reverses positive pedal to produce the documented right-yaw moment.
 
-Altitude MSL is `-pos_ned.z`. Ground height returns down-positive NED Z. AGL is
+## The shape of the world
+
+Code does not read "up", altitude or the ground from the z axis directly. It
+asks `ofs::world()`, a `WorldShape` ([world.hpp](../core/include/ofs/world.hpp)):
+
+- `altitude(p)` and `atAltitude(p, a)` for height above sea level;
+- `down(p)`, `up(p)` and `upward(p, v)` for the vertical, gravity and climb rate;
+- `toLocal` / `fromLocal` to read or build vectors and attitudes in the local
+  north-east-down axes (headings, Euler angles, wind);
+- `terrain(p)`, `clearance(p)`, `onTerrain(p)` and `aboveTerrain(p, m)` for the
+  ground, and `waterAltitude(p)` for lakes.
+
+The valley is `FlatWorld`. Its game frame is the NED frame below, and each of
+those functions returns exactly the expression the code used before
+(`-p.z`, `{0, 0, 1}`, the vector unchanged, `groundHeightNed`...). Moving code
+onto it changes no result. The Earth map adds a round `WorldShape`; see
+[WHOLE_EARTH_PLAN.md](WHOLE_EARTH_PLAN.md). Weather wind stays in local NED
+axes and is turned into the game frame where it is used. The valley's own
+terrain mesh, lakes, airfield and map still use north/east directly, because
+they draw only the valley.
+
+The renderer maps game-frame vectors to its east/up/south render axes through
+`RenderBasis` (`client/src/coordinates.hpp`): the identity in the valley, and
+the local north-east-down axes at the render origin on the round Earth.
+
+Altitude MSL is `-pos_ned.z` in the valley. Ground height returns down-positive NED Z. AGL is
 `ground_z - aircraft_z`. Current runway plane is ground_z = 0. Gear contact
 compression is positive down; spring/damper normal magnitude adds the
 compression velocity term, providing upward force on sinking contact points.

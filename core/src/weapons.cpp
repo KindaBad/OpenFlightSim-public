@@ -1,5 +1,6 @@
 #include "ofs/weapons.hpp"
 #include "ofs/terrain.hpp"
+#include "ofs/world.hpp"
 #include <algorithm>
 #include <array>
 #include <stdexcept>
@@ -194,9 +195,9 @@ BombLoad bombLoad(AircraftType type, unsigned loadout) {
   }
 }
 void advanceBomb(const BombDefinition &d, Vec3 &position, Vec3 &velocity, const Weather &weather, double dt) {
-  const auto air = isaAtAltitude(std::max(0., -position.z), weather.temp_offset_c);
-  const Vec3 relative = velocity - weather.wind_ned;
-  const Vec3 acceleration = Vec3{0, 0, kG0} - relative * (.5 * air.rho * relative.norm() * d.dragArea / d.mass);
+  const auto air = isaAtAltitude(std::max(0., world().altitude(position)), weather.temp_offset_c);
+  const Vec3 relative = velocity - world().fromLocal(position, weather.wind_ned);
+  const Vec3 acceleration = world().down(position) * kG0 - relative * (.5 * air.rho * relative.norm() * d.dragArea / d.mass);
   position += velocity * dt + acceleration * (.5 * dt * dt);
   velocity += acceleration * dt;
 }
@@ -205,9 +206,9 @@ bool bombImpact(const BombDefinition &d, Vec3 position, Vec3 velocity, const Wea
   for (seconds = 0; seconds < d.lifetime; seconds += step) {
     const Vec3 before = position;
     advanceBomb(d, position, velocity, weather, step);
-    const double ground = groundHeightNed(position.x, position.y);
-    if (position.z >= ground) {
-      const double above = groundHeightNed(before.x, before.y) - before.z, below = position.z - ground;
+    const double clearance = world().clearance(position);
+    if (clearance <= 0) {
+      const double above = world().clearance(before), below = -clearance;
       impact = before + (position - before) * (above / std::max(1e-6, above + below));
       return true;
     }
@@ -335,18 +336,18 @@ Vec3 proportionalNavigation(Vec3 r, Vec3 rv, Vec3 velocity, double n,
 }
 bool lineOfSight(Vec3 a, Vec3 b) {
   // Earth-curvature horizon plus deterministic terrain screening at <=500 m.
-  if (a.z >= groundHeightNed(a.x, a.y) || b.z >= groundHeightNed(b.x, b.y))
+  if (world().clearance(a) <= 0 || world().clearance(b) <= 0)
     return false;
   const double distance = (b - a).norm();
-  const double horizon = std::sqrt(2 * 6371000 * std::max(0., -a.z)) +
-                         std::sqrt(2 * 6371000 * std::max(0., -b.z));
+  const double horizon = std::sqrt(2 * 6371000 * std::max(0., world().altitude(a))) +
+                         std::sqrt(2 * 6371000 * std::max(0., world().altitude(b)));
   if (distance > horizon)
     return false;
   const unsigned steps =
       std::min(256u, std::max(1u, unsigned(distance / 500) + 1));
   for (unsigned i = 1; i < steps; ++i) {
     const auto p = a + (b - a) * (double(i) / steps);
-    if (p.z >= groundHeightNed(p.x, p.y))
+    if (world().clearance(p) <= 0)
       return false;
   }
   return true;
@@ -483,8 +484,9 @@ void advanceDecoy(Decoy &decoy, const Weather &weather, double dt) {
     return;
   const auto &d = decoyDefinition(decoy.type);
   // The air soon stops it; after that it drifts with the wind and sinks.
-  const Vec3 slip = (decoy.velocity - weather.wind_ned) * std::exp(-d.drag * dt);
-  const Vec3 next = weather.wind_ned + slip + Vec3{0, 0, d.gravity * kG0 * dt};
+  const Vec3 wind = world().fromLocal(decoy.position, weather.wind_ned);
+  const Vec3 slip = (decoy.velocity - wind) * std::exp(-d.drag * dt);
+  const Vec3 next = wind + slip + world().down(decoy.position) * (d.gravity * kG0 * dt);
   decoy.position += (decoy.velocity + next) * (.5 * dt);
   decoy.velocity = next;
   decoy.age += dt;
@@ -546,12 +548,12 @@ const Decoy *seekerDecoy(const MissileDefinition &d, const MissileState &s,
     return d.type == WeaponType::Infrared ||
            std::abs((a - b).dot(line)) <= d.seeker.dopplerGate;
   };
-  const Vec3 currentSpeed = following ? weather.wind_ned : current.velocity;
+  const Vec3 currentSpeed = following ? world().fromLocal(current.position, weather.wind_ned) : current.velocity;
   const Decoy *best = nullptr;
   double strongest = threshold;
   for (const auto &decoy : decoys) {
     if (decoy.type != wanted || &decoy == following ||
-        !competes(weather.wind_ned, currentSpeed))
+        !competes(world().fromLocal(decoy.position, weather.wind_ned), currentSpeed))
       continue;
     const auto sensor = decoySensor(decoy);
     const double signal = strength(sensor);
@@ -649,8 +651,8 @@ void advanceMissile(const MissileDefinition &d, MissileState &s,
     } else if (s.targetInterval > .3)
       s.targetAcceleration -= s.targetAcceleration * std::min(1., h / .25);
     s.targetMeasured = measurement.valid;
-    const auto air = isaAtAltitude(-s.position.z, weather.temp_offset_c);
-    const auto airVelocity = s.velocity - weather.wind_ned;
+    const auto air = isaAtAltitude(world().altitude(s.position), weather.temp_offset_c);
+    const auto airVelocity = s.velocity - world().fromLocal(s.position, weather.wind_ned);
     const double speed = airVelocity.norm(), q = .5 * air.rho * speed * speed,
                  mach = speed / air.sound;
     const auto body = s.attitude.inverseRotate(airVelocity);
@@ -673,7 +675,7 @@ void advanceMissile(const MissileDefinition &d, MissileState &s,
       const double range = r.norm();
       if (d.loft > 0 && s.seeker.phase == SeekerPhase::Midcourse &&
           range > d.loftRange)
-        r.z -= d.loft * (range - d.loftRange);
+        r -= world().down(s.position) * (d.loft * (range - d.loftRange));
       command =
           proportionalNavigation(r, rv, s.velocity, d.navigation, d.maxG * kG0);
       // The part of the target's turn that is across the line of sight.
@@ -693,7 +695,7 @@ void advanceMissile(const MissileDefinition &d, MissileState &s,
       // Hard while the motor can pay for it, gently once it is coasting.
       command += limited((lead.normalized() - direction) * speed * .6,
                          (thrust > 0 ? d.maxG * .5 : 8) * kG0);
-      command.z -= kG0;
+      command -= world().down(s.position) * kG0;
       command = limited(command, d.maxG * kG0);
     }
     const auto cb = s.attitude.inverseRotate(command);
@@ -746,7 +748,7 @@ void advanceMissile(const MissileDefinition &d, MissileState &s,
     lateral = limited(lateral, d.maxG * kG0 * s.mass);
     const Vec3 forceWorld = s.attitude.rotate(Vec3{thrust, 0, 0} + lateral) -
                             airVelocity.normalized() * (q * d.aero.area * cd);
-    s.velocity += (forceWorld / s.mass + Vec3{0, 0, kG0}) * h;
+    s.velocity += (forceWorld / s.mass + world().down(s.position) * kG0) * h;
     const Vec3 delta = s.velocity * h;
     s.position += delta;
     s.distance += delta.norm();
@@ -787,7 +789,7 @@ void advanceMissile(const MissileDefinition &d, MissileState &s,
     s.telemetry = {
         speed,
         mach,
-        -s.position.z,
+        world().altitude(s.position),
         .5 * s.mass * speed * speed,
         s.propellant,
         s.age,
@@ -806,7 +808,7 @@ Envelope estimateEnvelope(const MissileDefinition &d, const State &s,
                closure = range > 1
                              ? -(target.velocity - s.vel_ned).dot(r / range)
                              : 0;
-  const auto air = isaAtAltitude(-s.pos_ned.z);
+  const auto air = isaAtAltitude(world().altitude(s.pos_ned));
   const double impulse = d.motor.boostThrust * d.motor.boostTime +
                          d.motor.sustainThrust * d.motor.sustainTime;
   const double avgMass = d.launchMass - d.motor.propellant * .5;

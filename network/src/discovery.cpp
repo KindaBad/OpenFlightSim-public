@@ -114,6 +114,8 @@ std::vector<std::uint8_t> encodeLobby(const LobbyInfo &lobby) {
   bytes.push_back(lobby.bots);
   text(lobby.name, maxLobbyName);
   text(lobby.version, 24);
+  if (!lobby.map.empty())
+    text(lobby.map, maxLobbyMap);
   return bytes;
 }
 bool decodeLobby(std::span<const std::uint8_t> bytes, LobbyInfo &output) {
@@ -144,6 +146,7 @@ bool decodeLobby(std::span<const std::uint8_t> bytes, LobbyInfo &output) {
     return printable(value);
   };
   if (!text(lobby.name, maxLobbyName) || !text(lobby.version, 24) ||
+      (position != bytes.size() && (!text(lobby.map, maxLobbyMap) || lobby.map.empty())) ||
       position != bytes.size() || !lobby.port || lobby.name.empty() ||
       lobby.players > lobby.maxPlayers)
     return false;

@@ -30,7 +30,7 @@ class LocalGun {
     if (!definition().gun) return;
     const auto& gun=*definition().gun;
     std::erase_if(rounds_,[&](Round& round) {
-      const Vec3 delta=ballisticDisplacement(round.velocity,dt);
+      const Vec3 delta=ballisticDisplacement(round.position,round.velocity,dt);
       const double distance=delta.norm();
       const double valid=std::clamp(std::min((gun.lifetime-round.age)/dt,
           distance>0 ? (gun.range-round.distance)/distance : 1.),0.,1.);
@@ -40,7 +40,7 @@ class LocalGun {
         events_.push_back({false,round.position+(end-round.position)*hit,{},0,round.id});
         return true;
       }
-      round.position+=delta; round.velocity.z+=kG0*dt;
+      round.velocity+=world().down(round.position)*(kG0*dt); round.position+=delta;
       round.age+=dt; round.distance+=distance;
       return round.age>=gun.lifetime || round.distance>=gun.range;
     });

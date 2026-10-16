@@ -21,7 +21,7 @@ double densityLapse(double sigma, double exponent) {
 } // namespace
 Simulator::ThrustResult Simulator::evalThrust() const { return evalThrust(state_,weather_); }
 Simulator::ThrustResult Simulator::evalThrust(const State& state_, const Weather& weather_) const {
-  const AirData air = isaAtAltitude(-state_.pos_ned.z, weather_.temp_offset_c);
+  const AirData air = isaAtAltitude(world().altitude(state_.pos_ned), weather_.temp_offset_c);
   const double sigma = air.rho / 1.225;
   const double V =
       state_.att
@@ -54,7 +54,7 @@ Simulator::ThrustResult Simulator::evalThrust(const State& state_, const Weather
       if(cfg_.jet_kind==JetModelKind::EngineDeck) {
         if(!cfg_.propulsion_model)throw std::logic_error("Missing engine deck");
         // n1 is normalized deck power for this model, not compressor RPM.
-        const auto deck=cfg_.propulsion_model->evaluate(-state_.pos_ned.z,mach,n1,
+        const auto deck=cfg_.propulsion_model->evaluate(world().altitude(state_.pos_ned),mach,n1,
           state_.engine_health[e]>0 && state_.fuel_mass!=0);
         t=deck.thrust;
         result.fuel_flow[e]=deck.fuel_flow*state_.engine_health[e]*cfg_.fuel_flow_scale;

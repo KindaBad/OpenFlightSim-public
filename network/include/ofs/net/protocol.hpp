@@ -11,7 +11,8 @@ namespace ofs::net {
 using Tick = std::uint64_t;
 using EntityId = std::uint64_t;
 constexpr std::uint16_t protocolVersion =
-    24; // v23 plus the Boeing 747 as aircraft type 8
+    25; // v24 plus the map in Hello and Welcome, and missile and radar
+        // positions relative to a reference point
 constexpr std::size_t maxPlayers = 64, maxPacket = 65536, maxBatch = 8;
 constexpr std::size_t applicationPayload = 1100;
 // Legacy full-world Snapshot is an offline measurement format only.
@@ -110,6 +111,22 @@ struct TeamStatus {
   bool operator==(const TeamStatus &) const = default;
 };
 constexpr std::size_t maxStructures = 64;
+// The map a game is played on (docs/WHOLE_EARTH_PLAN.md). In Hello, the one
+// the client has loaded and the airport it would start at; in Welcome, the
+// server's. A client is let in only with the server's map, theatre and pack.
+enum class MapKind : std::uint8_t { Valley = 0, Earth = 1 };
+struct GameMap {
+  MapKind kind{MapKind::Valley};
+  std::string theatre;   // Earth: the theatre's id
+  std::uint64_t pack{};  // Earth: the terrain pack's content hash
+  std::string airport;   // Hello only: an airport of the theatre, or empty
+  bool sameGame(const GameMap &other) const {
+    return kind == other.kind && theatre == other.theatre && pack == other.pack;
+  }
+};
+constexpr std::size_t maxTheatreId = 16, maxAirportIdent = 8;
+// Why a client with `client`'s map may not join a game on `server`'s, or empty.
+std::string mapMismatch(const GameMap &server, const GameMap &client);
 // Explicit wire projection: no renderer handles, configuration or debug forces.
 struct Aircraft {
   EntityId id{};
@@ -142,6 +159,7 @@ struct Message {
   std::uint64_t baseline{};
   bool recovery{};
   Weather weather; // shared authoritative atmosphere in Welcome/Snapshot
+  GameMap map;     // Hello and Welcome
 };
 std::vector<std::uint8_t> encode(const Message &);
 bool decode(std::span<const std::uint8_t>, Message &, std::string &reason);

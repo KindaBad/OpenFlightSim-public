@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include "ofs/world.hpp"
 
 namespace ofs::client {
 namespace {
@@ -1111,7 +1112,7 @@ void SoundDirector::update(const SoundFrame& f) {
   // ---- The air, and the pilot's own airframe in it ----
   const double tas = std::isfinite(f.instruments.tas) ? std::max(0., f.instruments.tas) : 0;
   scene.airspeed = float(f.attached && flying ? tas : velocity_.norm());
-  scene.density = float(isaAtAltitude(std::clamp(-eye_.z, 0., 30000.)).rho / 1.225);
+  scene.density = float(isaAtAltitude(std::clamp(world().altitude(eye_), 0., 30000.)).rho / 1.225);
   scrape_ = std::max(0., scrape_ - dt * 4);
   if (flying) {
     const bool airborne = !f.onWheels;
@@ -1148,7 +1149,7 @@ void SoundDirector::update(const SoundFrame& f) {
 
     // Wheels meeting the runway after a flight.
     if (primed_ && f.onWheels && !onWheels_ && airborne_ > .5) {
-      const double sink = std::max(0., f.own->vel_ned.z);
+      const double sink = std::max(0., -world().upward(f.own->pos_ned, f.own->vel_ned));
       at(SoundKind::Touchdown, f.own->pos_ned, float(std::clamp(.35 + sink / 4, .35, 1.3)), true);
     }
     airborne_ = f.onWheels ? 0 : airborne_ + dt;

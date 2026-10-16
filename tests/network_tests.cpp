@@ -207,7 +207,7 @@ void protocol() {
   std::puts("protocol: all types, endian golden, truncations, NaN/Inf/ranges, "
             "50000 malformed packets pass");
 }
-void world() {
+void worldSuite() {
   World w;
   auto a = w.join(), b = w.join();
   check(a && b && a != b, "stable IDs");
@@ -831,7 +831,7 @@ int main(int argc, char **argv) {
     if (suite == "protocol")
       protocol();
     else if (suite == "world")
-      world();
+      worldSuite();
     else if (suite == "interpolation")
       interpolation();
     else if (suite == "presentation_clock")

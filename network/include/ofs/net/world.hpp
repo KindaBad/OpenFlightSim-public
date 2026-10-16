@@ -44,6 +44,14 @@ struct Player {
   std::uint8_t loadout{};
   // Kills already counted toward the side's score.
   std::uint32_t countedKills{};
+  // On the round Earth, which of the theatre's airports it starts at.
+  unsigned start{};
+};
+// Where a game on the round Earth starts its aircraft: a point on a runway's
+// centre line in the game frame, and the runway's local heading there.
+struct Start {
+  Vec3 point;
+  double heading{};
 };
 // A structure of a team game: how much of it stands, when it will have been
 // rebuilt, and the gun or launcher it may be.
@@ -60,7 +68,12 @@ class World {
 public:
   explicit World(bool airborne = true, std::optional<GunConfig> gun = std::nullopt);
   EntityId join(AircraftType type = AircraftType::A320, std::string name = {},
-                Team team = Team::None, unsigned loadout = 0);
+                Team team = Team::None, unsigned loadout = 0, int start = -1);
+  // A game on the round Earth starts its aircraft at these runways instead of
+  // the valley's airfield: at the one each pilot asks for, or in turn. Set
+  // before anyone joins.
+  void setStarts(std::vector<Start> starts) { starts_ = std::move(starts); }
+  const std::vector<Start> &starts() const { return starts_; }
   // A team game: Red against Blue, first to `scoreLimit` points. Set before
   // anyone joins.
   void setTeams(unsigned scoreLimit);
@@ -130,6 +143,8 @@ private:
   void startRound();
   Team smallerTeam() const;
   bool teams_{}, defences_{true};
+  std::vector<Start> starts_;
+  unsigned nextStart_{};
   unsigned scoreLimit_{};
   std::uint32_t score_[2]{};
   Team winner_{Team::None};

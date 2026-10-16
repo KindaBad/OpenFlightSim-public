@@ -271,7 +271,7 @@ void combat() {
   std::puts("damage combat: rounds into each wing, each engine and the "
             "fuselage damage that part PASS");
 }
-void world() {
+void worldSuite() {
   GunConfig gun;
   gun.dispersion = 0;
   gun.muzzle = {};
@@ -436,7 +436,7 @@ int main(int argc, char **argv) {
     else if (suite == "combat")
       combat();
     else if (suite == "world")
-      world();
+      worldSuite();
     else
       throw std::invalid_argument("suite");
     return 0;

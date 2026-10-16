@@ -8,6 +8,7 @@
 #include "camera.hpp"
 #include "chat.hpp"
 #include "damage_visuals.hpp"
+#include "ofs/theatres.hpp"
 #include "ofs/weapons.hpp"
 #include "renderer.hpp"
 #include "settings.hpp"
@@ -111,6 +112,13 @@ struct HudFrame {
   Vec3 mouseAimPoint{}, nosePoint{};
   // The full map is open, in place of the minimap.
   bool fullMap{};
+  // The maps show the valley; on the round Earth, `earth` is set and they
+  // show the land about the aircraft, with latitude and longitude, the
+  // airports of the cover file and the theatre's own.
+  bool valleyMap{true};
+  const EarthWorld* earth{};
+  const EarthCover* earthCover{};
+  std::span<const TheatreAirport> theatreAirports;
   // Battle damage to the pilot's own aircraft, and the cues that go with a
   // fight: seconds left to show own rounds striking, a kill, and being hit.
   DamageView damage;

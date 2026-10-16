@@ -1,6 +1,7 @@
 """Catalogue discovery, validated arguments and child process management."""
 from dataclasses import dataclass
 import ipaddress
+import re
 import logging
 import os
 from pathlib import Path
@@ -9,7 +10,7 @@ import time
 from .config import PURSUIT_CAMERA_VERSION, LIVERIES
 from .installation import active_directory
 from .lan import LAN_VERSION, LIVERY_VERSION, MISSILE_RELOAD_VERSION, TEAMS_VERSION, lobby_name
-from .config import LOADOUTS, TEAMS
+from .config import LOADOUTS, TEAMS, user_directory
 from .platform_process import spawn
 from .storage import LauncherError, read_json, safe_path, relative_name
 from .version import Version
@@ -99,6 +100,116 @@ def aircraft_files(aircraft):
     return files
 
 
+def earth_theatre(installation, theatre_id):
+    """The theatre of the round Earth this build lists under an id."""
+    theatres = installation.catalog.get('theatres')
+    if not isinstance(theatres, list) or not theatres:
+        raise LauncherError('This version of the game has no Earth map. Update it, or choose the valley.')
+    theatre = next((t for t in theatres if isinstance(t, dict) and t.get('id') == theatre_id), None)
+    if not theatre or not isinstance(theatre.get('airports'), list) or not theatre['airports']:
+        raise LauncherError('Choose a theatre of the Earth map from the list')
+    return theatre
+
+
+EARTH_FILES = ('earth.ofse', 'earth-cover.ofsc')
+
+
+def earth_downloads(installation):
+    """The Earth map's data files this build offers to download, checked, or none."""
+    from .manifest import MAX_PACKAGE, digest, https_url, integer
+    records = installation.catalog.get('earth_data')
+    if records is None:
+        return []
+    if not isinstance(records, list) or sorted(r.get('name') for r in records if isinstance(r, dict)) != sorted(EARTH_FILES):
+        raise LauncherError('Invalid Earth map download in the simulator catalogue')
+    for record in records:
+        https_url(record.get('url'))
+        digest(record.get('sha256'))
+        integer(record.get('size'), 1, MAX_PACKAGE, 'Earth map download size')
+    return records
+
+
+def earth_detail_downloads(installation):
+    """The GLO-90 detail regions this build offers to download, checked, or none."""
+    from .manifest import digest, https_url, integer
+    records = installation.catalog.get('earth_detail')
+    if records is None:
+        return []
+    if not isinstance(records, list) or len(records) > 1000:
+        raise LauncherError('Invalid Earth detail download in the simulator catalogue')
+    for record in records:
+        if not isinstance(record, dict) or not isinstance(record.get('region'), str) or \
+                not re.fullmatch(r'[NS][0-9]{2}[EW][0-9]{3}', record['region']) or record.get('name') != f"earth-detail-{record['region']}.ofsd":
+            raise LauncherError('Invalid Earth detail download in the simulator catalogue')
+        https_url(record.get('url'))
+        digest(record.get('sha256'))
+        integer(record.get('size'), 1, 2**31 - 1, 'Earth detail download size')
+    return records
+
+
+def theatre_regions(theatre):
+    """The detail regions a theatre's games use (none from builds before them)."""
+    regions = theatre.get('regions', [])
+    if not isinstance(regions, list) or not all(isinstance(r, str) and re.fullmatch(r'[NS][0-9]{2}[EW][0-9]{3}', r) for r in regions):
+        raise LauncherError('Invalid theatre regions in the simulator catalogue')
+    return regions
+
+
+def earth_missing(installation, theatre_id):
+    """What a flight in a theatre still needs: the folder the data goes in, and
+    the records of the files missing there (the terrain pack and land cover if
+    they are not installed or are out of date, and the theatre's detail regions
+    this build offers), each with the path it is downloaded to."""
+    records = earth_downloads(installation)
+    try:
+        pack, _ = earth_data(installation)
+        folder, base = pack.parent, []
+    except LauncherError:
+        folder = user_directory() / 'earth'
+        base = [(r, folder / r['name']) for r in records]
+    regions = set(theatre_regions(earth_theatre(installation, theatre_id))) if theatre_id else set()
+    detail = []
+    for record in earth_detail_downloads(installation):
+        target = folder / 'detail' / record['name']
+        if record['region'] in regions and not (target.is_file() and target.stat().st_size == record['size']):
+            detail.append((record, target))
+    return folder, base + detail
+
+
+def download_earth(installation, theatre_id=None, cancel=None, progress=None, fetch=None):
+    """Download what the Earth map still needs for a theatre into the user's
+    data folder (or beside a pack already there), each file checked against its
+    size and SHA-256, and return the folder."""
+    from .download import download
+    if not earth_downloads(installation):
+        raise LauncherError('This version of the game has no Earth map download.')
+    folder, needed = earth_missing(installation, theatre_id)
+    total = sum(r['size'] for r, _ in needed)
+    done = 0
+    for record, target in needed:
+        def report(received, size, speed, before=done):
+            if progress:
+                progress(before + received, total, speed)
+        (fetch or download)(record, target, cancel, report)
+        done += record['size']
+    return folder
+
+
+def earth_data(installation):
+    """The Earth terrain pack and land cover: a source checkout's own build, or
+    the copy downloaded beside the game or into the user's data."""
+    for folder in (installation.root / 'build' / 'earth', installation.directory / 'earth', user_directory() / 'earth'):
+        pack, cover = folder / 'earth.ofse', folder / 'earth-cover.ofsc'
+        if pack.is_file() and cover.is_file():
+            # A download kept from an older version is fetched again.
+            records = {r['name']: r for r in earth_downloads(installation)}
+            if folder == user_directory() / 'earth' and records and any(
+                    (folder / name).stat().st_size != record['size'] for name, record in records.items()):
+                raise LauncherError('The Earth map data has been updated. Download it again on the Flight mode page.')
+            return pack, cover
+    raise LauncherError('The Earth map data is not installed. Download it on the Flight mode page, or choose the valley.')
+
+
 def arguments(installation, preferences, graphics):
     selected = next((a for a in installation.aircraft if a['id'] == preferences.aircraft), None)
     if not selected:
@@ -136,6 +247,16 @@ def arguments(installation, preferences, graphics):
             args += ['--team', preferences.team]
         if selected.get('bomber'):
             args += ['--loadout', preferences.loadout]
+    if preferences.map == 'earth':
+        if preferences.mode == 'dogfight':
+            raise LauncherError('Bots fly in the valley only for now. Choose free flight or multiplayer, or the valley.')
+        theatre = earth_theatre(installation, preferences.theatre)
+        airports = [a.get('ident') for a in theatre['airports'] if isinstance(a, dict)]
+        airport = preferences.earth_airport if preferences.earth_airport in airports else airports[0]
+        if not isinstance(airport, str) or not airport.isascii() or not airport.isalnum():
+            raise LauncherError('Invalid airport in the simulator catalogue')
+        pack, cover = earth_data(installation)
+        args += ['--theatre', theatre['id'], '--earth-airport', airport, '--earth-pack', str(pack), '--earth-cover', str(cover)]
     if preferences.livery not in LIVERIES:
         raise LauncherError('Choose a livery from the list')
     if preferences.livery == 'luftwaffe' and selected.get('liveries') and Version(installation.catalog['version']) >= Version(LIVERY_VERSION):
@@ -146,6 +267,13 @@ def arguments(installation, preferences, graphics):
 def server_arguments(installation, preferences, lan=False):
     """Command line of the server behind a hosted game: this computer only, or the local network."""
     command = [str(installation.server_executable()), '--bind', '0.0.0.0' if lan else '127.0.0.1', '--port', str(preferences.port)]
+    if preferences.map == 'earth':
+        # A game on the round Earth: a theatre, free flight, on this computer's terrain pack.
+        if preferences.lan_bots or preferences.lan_teams:
+            raise LauncherError('A game on the Earth map is free flight for now: no bots or team game.')
+        theatre = earth_theatre(installation, preferences.theatre)
+        pack, _ = earth_data(installation)
+        command += ['--map', 'earth', '--theatre', theatre['id'], '--earth-pack', str(pack)]
     if lan:
         if Version(installation.catalog['version']) < Version(LAN_VERSION):
             raise LauncherError(f'Hosting on the local network needs OpenFlightSim {LAN_VERSION} or newer. Update the game first.')

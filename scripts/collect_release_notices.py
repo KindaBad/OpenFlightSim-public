@@ -37,6 +37,7 @@ def main():
                     shutil.copy2(source, output / (package + '-' + source.name))
     shutil.copy2(ROOT / 'assets/Karla-LICENSE.txt', output)
     shutil.copy2(ROOT / 'client/thirdparty/stb_image.h', output / 'stb_image-notice-and-source.h')
+    shutil.copy2(ROOT / 'core/thirdparty/zstd/LICENSE', output / 'zstd-LICENSE.txt')
     shutil.copy2(ROOT / 'docs/LAUNCHER_DEPENDENCIES.md', output)
     shutil.copytree(ROOT / 'licenses/qt', output / 'qt', dirs_exist_ok=True)
     shutil.copytree(ROOT / 'licenses/python', output / 'python', dirs_exist_ok=True)

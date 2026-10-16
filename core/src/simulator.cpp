@@ -421,8 +421,7 @@ void Simulator::substep(double dt) {
     const double closing = std::max(0., -velocity.dot(normal));
     const double slip = (velocity-normal*velocity.dot(normal)).norm();
     if (closing > ground_impact_.closingSpeed || (body && !ground_impact_.bodyContact)) {
-      ground_impact_.position = position;
-      ground_impact_.position.z = groundHeightAt(position.x, position.y);
+      ground_impact_.position = world().atAltitude(position, groundAt(position).altitude);
       ground_impact_.normal = normal; ground_impact_.velocity = velocity;
       ground_impact_.closingSpeed = closing;
     }
@@ -461,15 +460,17 @@ void Simulator::substep(double dt) {
                       cfg_.gear_main_r - mass.cg};
   if (cfg_.contacts_enabled && controls_.gear01 > 0.5) {
     Vec3 rw[3]{}, forward[3]{}, side[3]{}, force_w[3]{};
-    const double gs = std::hypot(state_.vel_ned.x, state_.vel_ned.y);
+    const Vec3 localVelocity = world().toLocal(state_.pos_ned, state_.vel_ned);
+    const double gs = std::hypot(localVelocity.x, localVelocity.y);
     const double steer_max =
         lerp(70 * kDeg2Rad, 6 * kDeg2Rad, clamp(gs / 60, 0, 1));
     for (int i = 0; i < 3; ++i) {
       rw[i] = state_.att.rotate(gp[i]);
       const Vec3 gw = state_.pos_ned + rw[i];
-      const auto terrain = groundSurface(gw.x, gw.y);
-      const Vec3 normal = terrain.normalNed;
-      const double compression = (gw.z - terrain.heightNed) * -normal.z;
+      const Ground terrain = groundAt(gw);
+      const Vec3 normal = terrain.normal;
+      const double compression =
+          (terrain.altitude - world().altitude(gw)) * world().upward(gw, normal);
       if (compression <= 0)
         continue;
       const Vec3 wvel =
@@ -498,7 +499,7 @@ void Simulator::substep(double dt) {
     const Vec3 external = aero.force_body + f_thr + f_gear;
     Vec3 velocity =
         state_.vel_ned +
-        (state_.att.rotate(external) / mass.mass + Vec3{0, 0, kG0}) * dt;
+        (state_.att.rotate(external) / mass.mass + world().down(state_.pos_ned) * kG0) * dt;
     const Vec3 iw = inertiaMomentum(mass, state_.omega_body);
     const Vec3 torque =
         aero.moment_body + m_thr + m_gear - state_.omega_body.cross(iw);
@@ -558,7 +559,7 @@ void Simulator::substep(double dt) {
   }
 
   // --- Gravity ---
-  const Vec3 f_grav_w{0, 0, mass.mass * kG0};
+  const Vec3 f_grav_w = world().down(state_.pos_ned) * (mass.mass * kG0);
   const Vec3 f_grav_b = state_.att.inverseRotate(f_grav_w);
 
   // --- Distributed fuselage/nacelle contacts ---
@@ -579,9 +580,9 @@ void Simulator::substep(double dt) {
     const auto& point=bodyContacts[contact];
     const Vec3 arm=point-mass.cg;
     const Vec3 position=state_.pos_ned+state_.att.rotate(arm);
-    const auto terrain = groundSurface(position.x, position.y);
-    const Vec3 surfaceNormal = terrain.normalNed;
-    const double penetration=(position.z-terrain.heightNed)*-surfaceNormal.z;
+    const Ground terrain = groundAt(position);
+    const Vec3 surfaceNormal = terrain.normal;
+    const double penetration=(terrain.altitude-world().altitude(position))*world().upward(position,surfaceNormal);
     if(penetration<=0)continue;
     const Vec3 velocity=state_.vel_ned+state_.att.rotate(state_.omega_body.cross(arm));
     const double normal=std::max(0.,stiffness*penetration-damping*velocity.dot(surfaceNormal));
@@ -611,16 +612,16 @@ void Simulator::substep(double dt) {
   Vec3 f_water_b{}, m_water_b{};
   bool inWater=false;
   if(ground_model_==GroundModel::Terrain && cfg_.contacts_enabled &&
-     state_.pos_ned.z+60>groundHeightAt(state_.pos_ned.x,state_.pos_ned.y)) {
-    const double level=waterSurfaceElevation(state_.pos_ned.x,state_.pos_ned.y);
+     world().altitude(state_.pos_ned)-60<groundAt(state_.pos_ned).altitude) {
+    const double level=world().waterAltitude(state_.pos_ned);
     if(level>kNoWater+1) {
-      const double surface=-level,share=mass.mass/bodyContacts.size();
+      const double share=mass.mass/bodyContacts.size();
       // Wetted drag area of the whole airframe, shared between the points.
       const double dragArea=.10*cfg_.wing_area/bodyContacts.size();
       for(const auto& contact:bodyContacts) {
         const Vec3 arm=contact-mass.cg;
         const Vec3 point=state_.pos_ned+state_.att.rotate(arm);
-        const double depth=point.z-surface;
+        const double depth=level-world().altitude(point);
         if(depth<=0) continue;
         inWater=true;
         const double wet=std::min(1.,depth/1.2);
@@ -628,20 +629,24 @@ void Simulator::substep(double dt) {
         const double speed=velocity.norm();
         // Quadratic drag, taken implicitly so one step can stop but never reverse.
         const double k=.5*1000.*dragArea*wet/share;
-        const Vec3 force=velocity*(-share*k*speed/(1+k*speed*dt))+Vec3{0,0,-.88*share*kG0*wet};
+        const Vec3 force=velocity*(-share*k*speed/(1+k*speed*dt))+world().down(point)*(-.88*share*kG0*wet);
         const Vec3 body=state_.att.inverseRotate(force);
         f_water_b+=body;m_water_b+=arm.cross(body);
         // What the water does to the airframe: the rate of sinking into it,
         // and a share of the speed along it.
-        const double arrival=std::max(0.,velocity.z)+.08*speed;
+        const Vec3 localVelocity=world().toLocal(point,velocity);
+        const double arrival=std::max(0.,localVelocity.z)+.08*speed;
         const bool first=!ground_impact_.bodyContact || arrival>ground_impact_.closingSpeed;
-        recordImpact({point.x,point.y,surface},{0,0,-1},{velocity.x,velocity.y,arrival},force.norm(),true);
-        if(first) {ground_impact_.position.z=surface;ground_impact_.water=true;}
+        recordImpact(world().atAltitude(point,level),world().up(point),
+                     world().fromLocal(point,{localVelocity.x,localVelocity.y,arrival}),force.norm(),true);
+        if(first) {ground_impact_.position=world().atAltitude(ground_impact_.position,level);ground_impact_.water=true;}
       }
       // Engines drown, and an airframe that has gone under is lost.
-      if(state_.pos_ned.z-surface>.5) for(auto& health:state_.engine_health) health=0;
-      if(state_.pos_ned.z-surface>2.5 && !aircraftCrashed(state_))
-        recordImpact({state_.pos_ned.x,state_.pos_ned.y,surface},{0,0,-1},{0,0,30},1,true);
+      const double under=level-world().altitude(state_.pos_ned);
+      if(under>.5) for(auto& health:state_.engine_health) health=0;
+      if(under>2.5 && !aircraftCrashed(state_))
+        recordImpact(world().atAltitude(state_.pos_ned,level),world().up(state_.pos_ned),
+                     world().fromLocal(state_.pos_ned,{0,0,30}),1,true);
     }
   }
 
@@ -656,11 +661,11 @@ void Simulator::substep(double dt) {
   bool nearContact=false;
   if(cfg_.contacts_enabled) for(const auto& p:bodyContacts) {
     const auto point=state_.pos_ned+state_.att.rotate(p-mass.cg);
-    nearContact |= point.z + state_.vel_ned.norm()*dt >= groundHeightAt(point.x,point.y);
+    nearContact |= world().altitude(point) - state_.vel_ned.norm()*dt <= groundAt(point).altitude;
   }
   if(cfg_.contacts_enabled && controls_.gear01>.5) for(const auto& p:gp) {
     const auto point=state_.pos_ned+state_.att.rotate(p);
-    nearContact |= point.z + state_.vel_ned.norm()*dt >= groundHeightAt(point.x,point.y);
+    nearContact |= world().altitude(point) - state_.vel_ned.norm()*dt <= groundAt(point).altitude;
   }
   nearContact |= inWater;
   if(integrator_==ContinuousIntegrator::RungeKutta4 && !nearContact && f_gear.norm2()==0 && f_belly_b.norm2()==0) {
@@ -701,22 +706,22 @@ void Simulator::substep(double dt) {
       const Vec3 arm=contact-mass.cg;
       const Vec3 worldArm=state_.att.rotate(arm);
       const Vec3 point=state_.pos_ned+worldArm;
-      const auto terrain=groundSurface(point.x,point.y);
-      const double penetration=(point.z-terrain.heightNed)*-terrain.normalNed.z;
+      const Ground terrain=groundAt(point);
+      const double penetration=(terrain.altitude-world().altitude(point))*world().upward(point,terrain.normal);
       if(penetration<.25)continue;
       resolved=true;
       const Vec3 velocity=state_.vel_ned+state_.att.rotate(state_.omega_body.cross(arm));
-      const double closing=-velocity.dot(terrain.normalNed);
+      const double closing=-velocity.dot(terrain.normal);
       if(closing>0) {
-        const Vec3 direction=state_.att.inverseRotate(terrain.normalNed);
+        const Vec3 direction=state_.att.inverseRotate(terrain.normal);
         const Vec3 moment=arm.cross(direction);
         const double inverseMass=1/mass.mass+moment.dot(inverseInertia(mass,moment));
         const double impulse=closing/inverseMass; // inelastic collision
-        recordImpact(point,terrain.normalNed,velocity,impulse/dt,true);
-        state_.vel_ned+=terrain.normalNed*(impulse/mass.mass);
+        recordImpact(point,terrain.normal,velocity,impulse/dt,true);
+        state_.vel_ned+=terrain.normal*(impulse/mass.mass);
         state_.omega_body+=inverseInertia(mass,moment)*impulse;
       }
-      state_.pos_ned+=terrain.normalNed*(penetration-.12);
+      state_.pos_ned+=terrain.normal*(penetration-.12);
     }
     if(!resolved)break;
   }
@@ -819,12 +824,11 @@ Instruments Simulator::instruments() const {
   ins.cas = (low + high) * .5 * isaAtAltitude(0).sound;
   ins.ias = ins.cas; // ideal instrument, no installation/calibration error
   ins.mach = (air.sound > 1.0) ? tas / air.sound : 0.0;
-  ins.alt_msl = -state_.pos_ned.z;
-  ins.agl =
-      -state_.pos_ned.z + groundHeightAt(state_.pos_ned.x, state_.pos_ned.y);
-  ins.vs = -state_.vel_ned.z;
+  ins.alt_msl = world().altitude(state_.pos_ned);
+  ins.agl = clearanceAt(state_.pos_ned);
+  ins.vs = world().upward(state_.pos_ned, state_.vel_ned);
   double roll, pitch, yaw;
-  eulerFromQuat(state_.att, roll, pitch, yaw);
+  eulerFromQuat(world().toLocal(state_.pos_ned, state_.att), roll, pitch, yaw);
   ins.roll_deg = roll * kRad2Deg;
   ins.pitch_deg = pitch * kRad2Deg;
   double hdg = yaw * kRad2Deg;

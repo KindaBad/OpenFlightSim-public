@@ -73,9 +73,10 @@ double sweptSphere(Vec3 start, Vec3 end, Vec3 center, double radius) {
   return t >= 0 && t <= 1 ? t : std::numeric_limits<double>::infinity();
 }
 void advanceProjectile(Projectile &p, double dt) {
-  const Vec3 delta = ballisticDisplacement(p.velocity, dt);
+  const Vec3 down = ofs::world().down(p.position);
+  const Vec3 delta = ballisticDisplacement(p.position, p.velocity, dt);
   p.position += delta;
-  p.velocity.z += kG0 * dt;
+  p.velocity += down * (kG0 * dt);
   p.age += dt;
   p.distance += delta.norm();
 }

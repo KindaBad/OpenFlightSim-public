@@ -7,7 +7,7 @@ apt-get install -y --no-install-recommends git cmake ninja-build g++ python3 lib
 id ofs-public >/dev/null 2>&1 || useradd --system --home-dir /var/lib/ofs-public --shell /usr/sbin/nologin ofs-public
 install -d -o root -g root -m 755 /opt/ofs-public
 install -o root -g root -m 755 public_host.py build_server.py publish_address.py /opt/ofs-public/
-install -d -o ofs-public -g ofs-public -m 755 /var/lib/ofs-public /var/lib/ofs-public/builds /var/lib/ofs-public/work /var/lib/ofs-public/host
+install -d -o ofs-public -g ofs-public -m 755 /var/lib/ofs-public /var/lib/ofs-public/builds /var/lib/ofs-public/work /var/lib/ofs-public/host /var/lib/ofs-public/earth
 install -d -o ofs-public -g ofs-public -m 700 /var/lib/ofs-public/address
 if [ ! -f /var/lib/ofs-public/address/deploy_key ]; then
   runuser -u ofs-public -- ssh-keygen -q -t ed25519 -N '' -C 'OpenFlightSim public server address' -f /var/lib/ofs-public/address/deploy_key

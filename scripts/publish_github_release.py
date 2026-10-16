@@ -17,7 +17,7 @@ from urllib.parse import unquote
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from launcher.download import fetch_manifest
-from launcher.manifest import Release
+from launcher.manifest import Release, index_entries
 from launcher.storage import LauncherError, read_json, sha256, write_json
 from scripts.merge_update_manifests import merge
 
@@ -58,12 +58,16 @@ def publication_files(directory, manifest, repo, tag):
     directory = Path(directory)
     if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repo):
         raise LauncherError('Invalid GitHub repository')
-    if not isinstance(manifest, dict) or manifest.get('schema') != 1 or not manifest.get('releases'):
+    try:
+        entries = index_entries(manifest)
+    except LauncherError:
+        entries = []
+    if not entries:
         raise LauncherError('Empty or invalid publication manifest')
     prefix = f'https://github.com/{repo}/releases/download/{tag}/'
     files = {}
     platforms = set()
-    for entry in manifest['releases']:
+    for entry in entries:
         Release.parse(entry)
         if tag != release_tag(entry) or entry['platform'] in platforms:
             raise LauncherError('Publication must contain one version/channel and one entry per platform')
@@ -94,7 +98,8 @@ def publication_files(directory, manifest, repo, tag):
 def publish(directory, repo, commit, notes):
     directory = Path(directory).resolve()
     current = read_json(directory / 'manifest.json')
-    tag = release_tag(current['releases'][0])
+    first = index_entries(current)[0]  # a version of four numbers is listed apart
+    tag = release_tag(first)
     files = publication_files(directory, current, repo, tag)
     repository = json.loads(gh('api', f'repos/{repo}'))
     if repository.get('private'):
@@ -132,8 +137,8 @@ def publish(directory, repo, commit, notes):
         else:
             if not existing:
                 args = ['release', 'create', tag, '--repo', repo, '--target', commit,
-                        '--draft', '--title', f'OpenFlightSim {current["releases"][0]["version"]}', '--notes-file', notes]
-                if current['releases'][0]['channel'] == 'development':
+                        '--draft', '--title', f'OpenFlightSim {first["version"]}', '--notes-file', notes]
+                if first['channel'] == 'development':
                     args.append('--prerelease')
                 gh(*args)
             paths = list(files.values())

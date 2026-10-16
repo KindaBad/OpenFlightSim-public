@@ -6,12 +6,36 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace ofs::client {
-// Proper right-handed rotation: NED -> east/up/south. Subtract doubles first.
-inline glm::vec3 localPosition(const Vec3& p, const Vec3& origin) {
-  const Vec3 d = p - origin;
+// The render frame is east/up/south at the render origin. In the valley the
+// game frame is north-east-down there, so this is a fixed rotation. On the
+// round Earth the vertical at the render origin differs from the game frame's
+// z, so game-frame vectors are first turned into the origin's local
+// north-east-down axes (the renderer sets these whenever the origin moves).
+struct RenderBasis {
+  bool identity{true};
+  Vec3 north{1, 0, 0}, east{0, 1, 0}, down{0, 0, 1};  // the origin's local axes, in the game frame
+};
+inline RenderBasis& renderBasis() {
+  static RenderBasis basis;
+  return basis;
+}
+// A vector already in the render origin's local north-east-down axes, such as
+// the weather's wind, to render space.
+inline glm::vec3 renderLocal(const Vec3& d) {
   return {static_cast<float>(d.y), static_cast<float>(-d.z), static_cast<float>(-d.x)};
 }
-inline glm::vec3 renderDirection(const Vec3& d) { return localPosition(d, {}); }
+inline Vec3 toRenderNed(const Vec3& d) {
+  const RenderBasis& b = renderBasis();
+  return b.identity ? d : Vec3{b.north.dot(d), b.east.dot(d), b.down.dot(d)};
+}
+// A vector in the render origin's local axes, back to the game frame.
+inline Vec3 fromRenderNed(const Vec3& d) {
+  const RenderBasis& b = renderBasis();
+  return b.identity ? d : b.north * d.x + b.east * d.y + b.down * d.z;
+}
+// Proper right-handed rotation: NED -> east/up/south. Subtract doubles first.
+inline glm::vec3 localPosition(const Vec3& p, const Vec3& origin) { return renderLocal(toRenderNed(p - origin)); }
+inline glm::vec3 renderDirection(const Vec3& d) { return renderLocal(toRenderNed(d)); }
 inline State interpolate(const State& previous, const State& current, double alpha) {
   State result = current;
   result.pos_ned = previous.pos_ned * (1-alpha) + current.pos_ned * alpha;

@@ -5,6 +5,7 @@
 #include "ofs/atmosphere.hpp"
 #include "ofs/inertia.hpp"
 #include "ofs/dynamics.hpp"
+#include "ofs/world.hpp"
 
 namespace ofs {
 
@@ -106,14 +107,16 @@ public:
   Controls controlTargets() const;
   struct ControlAllocation { Controls surfaces; double nozzle[2]{}; };
   ControlAllocation vectorFighterAllocation(double horizon_seconds = 1e9) const;
-  // The ground this simulation flies over, NED: the terrain, or a level plain.
-  double groundHeightAt(double north, double east) const { return groundSurface(north,east).heightNed; }
+  // The ground this simulation flies over: the world's terrain, or a level
+  // plain at sea level.
+  Ground groundAt(const Vec3& p) const {
+    return ground_model_==GroundModel::FlatRunway ? world().seaLevel(p) : world().terrain(p);
+  }
+  // Metres above that ground; negative below it.
+  double clearanceAt(const Vec3& p) const { return world().altitude(p) - groundAt(p).altitude; }
 
 private:
   void substep(double dt);
-  TerrainSample groundSurface(double north, double east) const {
-    return ground_model_==GroundModel::FlatRunway ? TerrainSample{} : sampleTerrain(north,east);
-  }
 
   Vec3 windAt(const Vec3&, double, const Weather&) const;
   ContinuousIntegrator integrator_{ContinuousIntegrator::SemiImplicitEuler};

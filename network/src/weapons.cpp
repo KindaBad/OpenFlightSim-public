@@ -1,5 +1,6 @@
 #include "ofs/net/weapons.hpp"
 #include "ofs/terrain.hpp"
+#include "ofs/world.hpp"
 #include <algorithm>
 #include <chrono>
 #include <limits>
@@ -161,21 +162,24 @@ void MissileCombat::step(
       s.age += tickSeconds;
       s.distance += (s.position - previous).norm();
       const double speed = s.velocity.norm();
-      if (speed > 1)
-        s.attitude = quatFromEuler(
-            0, std::asin(clamp(-s.velocity.z / speed, -1, 1)),
-            std::atan2(s.velocity.y, s.velocity.x));
-      const double ground = groundHeightNed(s.position.x, s.position.y);
+      const auto &globe = ofs::world();
+      if (speed > 1) {
+        const Vec3 velocity = globe.toLocal(s.position, s.velocity);
+        s.attitude = globe.fromLocal(s.position, quatFromEuler(
+            0, std::asin(clamp(-velocity.z / speed, -1, 1)),
+            std::atan2(velocity.y, velocity.x)));
+      }
+      const double ground = globe.terrain(s.position).altitude;
       const bool finite = std::isfinite(s.position.norm2()) &&
                           std::isfinite(s.velocity.norm2());
-      if (finite && s.position.z < ground && s.age < bomb.lifetime) {
+      if (finite && globe.altitude(s.position) > ground && s.age < bomb.lifetime) {
         if (&missile != &missiles_[write])
           missiles_[write] = missile;
         ++write;
         continue;
       }
       if (finite) {
-        s.position.z = std::min(s.position.z, ground);
+        s.position = globe.atAltitude(s.position, std::max(globe.altitude(s.position), ground));
         ++stats_.detonations;
         blasts_.push_back({missile.type, missile.owner, missile.team, s.position});
         // The blast reaches aircraft too, the one that dropped it among them;
@@ -379,7 +383,7 @@ void MissileCombat::step(
     }
     const bool expired =
         s.age >= d.lifetime ||
-        s.position.z >= groundHeightNed(s.position.x, s.position.y) ||
+        ofs::world().clearance(s.position) <= 0 ||
         !std::isfinite(s.position.norm2()) ||
         !std::isfinite(s.velocity.norm2());
     if (detonation || expired) {

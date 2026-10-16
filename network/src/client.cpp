@@ -332,6 +332,7 @@ void Client::poll(double elapsed) {
       hello.aircraftType = type_;
       hello.team = team_;
       hello.loadout = loadout_;
+      hello.map = map_;
       send(hello, true);
       continue;
     }
@@ -748,16 +749,17 @@ std::vector<VisualLine> Client::combatLines() const {
     const auto &e = v.event;
     const double t = std::clamp((serverTime_ - double(e.tick)) * tickSeconds,
                                 0.0, e.lifetime);
+    const Vec3 down = ofs::world().down(e.position);
     const auto position =
-        e.position + e.velocity * t + Vec3{0, 0, .5 * kG0 * t * t};
+        e.position + e.velocity * t + down * (.5 * kG0 * t * t);
     lines.push_back(
-        {position - (e.velocity + Vec3{0, 0, kG0 * t}).normalized() * 12,
+        {position - (e.velocity + down * (kG0 * t)).normalized() * 12,
          position, 0xff60eaff});
     if (t < .08) {
       lines.push_back(
           {e.position - Vec3{0, 2, 0}, e.position + Vec3{0, 2, 0}, 0xff60cfff});
       lines.push_back(
-          {e.position - Vec3{0, 0, 2}, e.position + Vec3{0, 0, 2}, 0xff60cfff});
+          {e.position - down * 2, e.position + down * 2, 0xff60cfff});
     }
   }
   for (const auto &v : visualEffects_) {

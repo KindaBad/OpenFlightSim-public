@@ -1,6 +1,6 @@
 #include "ofs/ground_service.hpp"
 
-#include "ofs/terrain.hpp"
+#include "ofs/world.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -11,7 +11,7 @@ bool standingOnGround(const AircraftConfig& config, const State& state) {
   // Speed first: it rules out everything that is flying without a look at the ground.
   if (aircraftCrashed(state) || !std::isfinite(state.pos_ned.norm2()) || !(state.vel_ned.norm2() <= serviceMaxSpeed * serviceMaxSpeed))
     return false;
-  const double height = groundHeightNed(state.pos_ned.x, state.pos_ned.y) - state.pos_ned.z;
+  const double height = world().clearance(state.pos_ned);
   return height < std::abs(config.gear_nose.z) + 3;
 }
 

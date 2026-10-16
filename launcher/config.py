@@ -53,6 +53,8 @@ TEAMS = ('auto', 'red', 'blue')
 LOADOUTS = ('mk82', 'mk84', 'nuke')
 # The Typhoon's paint: the Austrian 7L-WO display scheme, or the donor's original.
 LIVERIES = ('7lwo', 'luftwaffe')
+# The valley, or the round Earth at one of the theatres the build lists.
+MAPS = ('valley', 'earth')
 
 
 @dataclass
@@ -87,6 +89,11 @@ class Preferences:
     team: str = 'auto'
     loadout: str = 'mk82'
     livery: str = '7lwo'
+    # The map to fly: the valley, or the round Earth at a theatre, starting at
+    # one of its airports ('' for the theatre's first).
+    map: str = 'valley'
+    theatre: str = 'austria'
+    earth_airport: str = ''
     channel: str = 'stable'
     manifest_url: str = ''  # Publisher configures a public HTTPS host; no guessed endpoint.
     auto_check: bool = True
@@ -119,6 +126,9 @@ class Preferences:
             raise LauncherError('Invalid team game settings')
         if prefs.livery not in LIVERIES:
             raise LauncherError('Invalid livery')
+        if prefs.map not in MAPS or not (prefs.theatre.isascii() and prefs.theatre.isalnum()) or \
+                not (prefs.earth_airport == '' or (prefs.earth_airport.isascii() and prefs.earth_airport.isalnum())):
+            raise LauncherError('Invalid map')
         return prefs
 
     def save(self, path):

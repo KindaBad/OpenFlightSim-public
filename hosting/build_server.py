@@ -9,14 +9,22 @@ so a server is waiting when they have it. The newest few versions are kept,
 for players who have not updated yet.
 
 With --source, builds a source tree already on this computer instead.
+
+It also keeps the server's copy of the Earth map's data (the terrain pack that
+games on the Earth are played on) in step with the one data/earth/earth-data.json
+in the source describes, fetching it from its GitHub pre-release and checking
+its SHA-256 and size.
 """
 import argparse
+import hashlib
+import json
 import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
 import sys
+import urllib.request
 
 REPOSITORY = 'https://github.com/KindaBad/OpenFlightSim-public.git'
 FIRST_VERSION = (0, 6, 3)
@@ -31,6 +39,45 @@ def run(*command, cwd=None, capture=False):
 
 def version_key(text):
     return tuple(int(part) for part in text.split('.'))
+
+
+def sha256(path):
+    digest = hashlib.sha256()
+    with open(path, 'rb') as stream:
+        for block in iter(lambda: stream.read(1 << 20), b''):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def earth_data(source, folder):
+    """Fetch the Earth map's data the source describes into `folder`, if it is not there yet."""
+    descriptor = Path(source) / 'data' / 'earth' / 'earth-data.json'
+    if not descriptor.is_file():
+        return
+    data = json.loads(descriptor.read_text(encoding='utf-8'))
+    folder.mkdir(parents=True, exist_ok=True)
+    # The pack and land cover, then every GLO-90 detail region into detail/
+    # beside the pack, where the server looks for a theatre's.
+    records = [(r, folder) for r in data.get('files', [])] + [(r, folder / 'detail') for r in data.get('detail', [])]
+    for record, place in records:
+        name, url, digest, size = record['name'], record['url'], record['sha256'], record['size']
+        known = name in ('earth.ofse', 'earth-cover.ofsc') if place == folder else \
+            re.fullmatch(r'earth-detail-[NS][0-9]{2}[EW][0-9]{3}\.ofsd', name) and name == f"earth-detail-{record.get('region')}.ofsd"
+        if not known or not url.startswith('https://github.com/'):
+            raise SystemExit(f'Unexpected Earth data record {name}')
+        place.mkdir(parents=True, exist_ok=True)
+        target = place / name
+        if target.is_file() and target.stat().st_size == size and sha256(target) == digest:
+            continue
+        partial = place / (name + '.part')
+        with urllib.request.urlopen(url, timeout=60) as response, open(partial, 'wb') as stream:
+            shutil.copyfileobj(response, stream, 1 << 20)
+        if partial.stat().st_size != size or sha256(partial) != digest:
+            partial.unlink()
+            raise SystemExit(f'Earth data {name} did not match its SHA-256; discarded')
+        # Games already running keep the pack they opened.
+        os.replace(partial, target)
+        print(f'Fetched Earth data {name} ({size / 2**20:.0f} MiB)', flush=True)
 
 
 def main():
@@ -88,6 +135,7 @@ def main():
         os.replace(fresh, target / 'ofs_server')
         record.write_text(fingerprint)
         print(f'Built ofs_server {version}', flush=True)
+    earth_data(source, root / 'earth')
     if not options.source:
         (work / 'head').write_text(head)
     versions = sorted((entry.name for entry in builds.iterdir() if re.fullmatch(r'\d{1,9}(?:\.\d{1,9}){2,3}', entry.name)), key=version_key)

@@ -4,6 +4,7 @@
 #include "damage_visuals.hpp"
 #include "ofs/atmosphere.hpp"
 #include "ofs/ballistics.hpp"
+#include "ofs/world.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -24,6 +25,9 @@ float hashUnit(std::uint32_t seed) {
 
 // Fraction of the effect budget each quality level may use. Effects are
 // presentation only, so dropping them at low quality is always safe.
+// Effects are shaped in the local north-east-down axes where they happen.
+Vec3 local(const Vec3& at, const Vec3& v) { return world().fromLocal(at, v); }
+
 std::size_t budgetFor(EffectsQuality quality) {
   switch (quality) {
     case EffectsQuality::Off: return 0;
@@ -72,27 +76,28 @@ void EffectPool::update(double dt) {
     effect.age += static_cast<float>(dt);
     if (effect.age >= effect.lifetime) continue;  // self-cleaning, no leak
     if (effect.kind == EffectKind::Tracer) {
-      const auto end=effect.position+ballisticDisplacement(effect.velocity,dt);
+      const auto end=effect.position+ballisticDisplacement(effect.position,effect.velocity,dt);
       const auto contact=bulletTerrainFraction(effect.position,end);
       if (std::isfinite(contact)) {
         Effect flash; flash.kind=EffectKind::Impact;
-        flash.position=effect.position+(end-effect.position)*contact+Vec3{0,0,-.06};
+        flash.position=effect.position+(end-effect.position)*contact+world().up(effect.position)*.06;
         flash.size=1.2f; flash.lifetime=.18f; flash.tint=0xff80d8ffu;
         contacts.push_back(flash);
         flash.kind=EffectKind::Dust; flash.size=1.8f; flash.lifetime=1.1f;
-        flash.velocity={0,0,-1.8}; flash.tint=0x906b8cabu; contacts.push_back(flash);
+        flash.velocity=world().up(flash.position)*1.8; flash.tint=0x906b8cabu; contacts.push_back(flash);
         continue;
       }
     }
     effect.velocity = effect.velocity * std::exp(-effect.drag * dt);
-    effect.position += effect.velocity * dt + Vec3{0,0,.5*effect.gravity*dt*dt};
-    effect.velocity.z += effect.gravity * dt;
+    const Vec3 down = world().down(effect.position);
+    effect.position += effect.velocity * dt + down*(.5*effect.gravity*dt*dt);
+    effect.velocity += down*(effect.gravity * dt);
     if (effect.kind==EffectKind::Debris || effect.kind==EffectKind::Spark) {
-      const auto terrain=sampleTerrain(effect.position.x,effect.position.y);
-      if(effect.position.z>terrain.heightNed-.03) {
-        effect.position.z=terrain.heightNed-.03;
-        const double incoming=effect.velocity.dot(terrain.normalNed);
-        if(incoming<0)effect.velocity-=terrain.normalNed*(incoming*1.18);
+      const Ground terrain=world().terrain(effect.position);
+      if(world().altitude(effect.position)<terrain.altitude+.03) {
+        effect.position=world().atAltitude(effect.position,terrain.altitude+.03);
+        const double incoming=effect.velocity.dot(terrain.normal);
+        if(incoming<0)effect.velocity-=terrain.normal*(incoming*1.18);
         effect.velocity=effect.velocity*std::exp(-5*dt);
       }
     }
@@ -110,7 +115,7 @@ void EffectPool::update(double dt) {
           smoke.position = effect.axis + run * .5;
           smoke.axis = run / distance;
           smoke.stretch = float(distance);
-          smoke.velocity = {0, 0, -.6};
+          smoke.velocity = local(smoke.position, {0, 0, -.6});
           smoke.drag = .8f;
           smoke.size = effect.size * .42f;
           smoke.lifetime = 2.8f;
@@ -126,7 +131,7 @@ void EffectPool::update(double dt) {
         Effect puff;
         puff.kind = EffectKind::Smoke;
         puff.position = effect.position;
-        puff.velocity = effect.velocity * .08 + Vec3{0, 0, -1.2};
+        puff.velocity = effect.velocity * .08 + local(puff.position, {0, 0, -1.2});
         puff.size = effect.size * effect.smokeSize;
         puff.lifetime = effect.smokeLife;
         puff.drag = .6f;
@@ -213,7 +218,7 @@ void CombatEffects::onShot(const Vec3& position, const Vec3& velocity, double li
   Effect gas;
   gas.kind = EffectKind::Smoke;
   gas.position = position + along * .5;
-  gas.velocity = ride * .9 + along * 6. + Vec3{0, 0, -.6};
+  gas.velocity = ride * .9 + along * 6. + local(position, {0, 0, -.6});
   gas.drag = 1.4f;
   gas.lifetime = 0.55f + 0.3f * b;
   gas.size = 0.45f + 0.3f * a;
@@ -225,7 +230,7 @@ void CombatEffects::onShot(const Vec3& position, const Vec3& velocity, double li
   Effect brass;
   brass.kind = EffectKind::Debris;
   brass.position = position - along * 1.2;
-  brass.velocity = ride + Vec3{(a - .5) * 6, (b - .5) * 6, 5 + 4 * a};
+  brass.velocity = ride + local(position, {(a - .5) * 6, (b - .5) * 6, 5 + 4 * a});
   brass.billboard = false;
   brass.stretch = 0.16f;
   brass.size = 0.05f;
@@ -262,7 +267,7 @@ void CombatEffects::onHit(const Vec3& position, bool ownAircraft, std::uint64_t 
   Effect smoke;
   smoke.kind = EffectKind::Smoke;
   smoke.position = position;
-  smoke.velocity = targetVelocity * .7 + Vec3{0, 0, -1.2};
+  smoke.velocity = targetVelocity * .7 + local(position, {0, 0, -1.2});
   smoke.drag = 1.2f;
   smoke.lifetime = 0.9f;
   smoke.size = 1.0f;
@@ -276,7 +281,7 @@ void CombatEffects::onHit(const Vec3& position, bool ownAircraft, std::uint64_t 
     const float a=hashUnit(seed+i*7919), b=hashUnit(seed+i*3571+3);
     Effect debris=spark; debris.kind=EffectKind::Spark;
     debris.lifetime=.3f+b*.45f; debris.size=.045f+b*.06f;
-    debris.velocity=targetVelocity*.85+Vec3{std::cos(a*6.283)* (5+14*b), std::sin(a*6.283)*(5+14*b),-3-9*b};
+    debris.velocity=targetVelocity*.85+local(position,{std::cos(a*6.283)* (5+14*b), std::sin(a*6.283)*(5+14*b),-3-9*b});
     debris.billboard=false; debris.stretch=.5f+b*1.1f;
     debris.gravity=float(kG0); debris.drag=1.3f; debris.tint=0xff60baffu;
     pool_.spawn(debris);
@@ -287,7 +292,7 @@ void CombatEffects::onHit(const Vec3& position, bool ownAircraft, std::uint64_t 
     Effect chip;
     chip.kind=EffectKind::Debris;
     chip.position=position;
-    chip.velocity=targetVelocity*.6+Vec3{(a-.5)*16,(b-.5)*16,-2-8*a};
+    chip.velocity=targetVelocity*.6+local(position,{(a-.5)*16,(b-.5)*16,-2-8*a});
     chip.billboard=false; chip.stretch=.25f+.3f*b; chip.size=.07f+.08f*a;
     chip.gravity=float(kG0); chip.drag=.8f; chip.lifetime=.9f+b;
     chip.tint=0xff34383cu;
@@ -363,7 +368,7 @@ void CombatEffects::updateMissile(std::uint64_t id, Vec3 position, Vec3 velocity
     smoke.position = emitter.nozzle + run * .5;
     smoke.axis = run / distance;
     smoke.stretch = float(distance);
-    smoke.velocity = aft * 6 + Vec3{0, 0, -.4};
+    smoke.velocity = aft * 6 + local(smoke.position, {0, 0, -.4});
     smoke.drag = 1.5f;
     smoke.size = float(diameter * 3.4);
     smoke.lifetime = quality_ == EffectsQuality::High ? 6.5f : 3.5f;
@@ -424,6 +429,7 @@ static void fireball(EffectPool& pool, const Vec3& position, const Vec3& velocit
     const float a = hashUnit(seed + i * 4099 + 11), b = hashUnit(seed + i * 2203 + 29), c = hashUnit(seed + i * 911 + 47);
     Vec3 out = onSphere(a, b);
     if (upward) out.z = -std::abs(out.z) * .9 - .1;
+    out = local(position, out);
     Effect lobe = core;
     lobe.position = position + out * double(size * (.35f + .35f * c));
     lobe.velocity = velocity + out * (spread * (.55 + .7 * c));
@@ -470,8 +476,8 @@ void CombatEffects::onDestroyed(const Vec3& position, const Vec3& velocity) {
     const float a = hashUnit(seed + i * 3571 + 19), b = hashUnit(seed + i * 7919 + 41);
     Effect flame;
     flame.kind = EffectKind::Fire;
-    flame.position = position + Vec3{(a - .5) * 8, (b - .5) * 8, -a * 3};
-    flame.velocity = velocity * .3 + Vec3{(a - .5) * 30, (b - .5) * 30, -4 - b * 14};
+    flame.position = position + local(position, {(a - .5) * 8, (b - .5) * 8, -a * 3});
+    flame.velocity = velocity * .3 + local(position, {(a - .5) * 30, (b - .5) * 30, -4 - b * 14});
     flame.size = 2.5f + a * 4;
     flame.lifetime = .7f + b * 1.3f;
     flame.seed = a;
@@ -484,8 +490,8 @@ void CombatEffects::onDestroyed(const Vec3& position, const Vec3& velocity) {
     const float phase = hashUnit(seed + i * 7919 + 13), other = hashUnit(seed + i * 613 + 5);
     Effect smoke;
     smoke.kind = EffectKind::Smoke;
-    smoke.position = position + velocity * (0.015 * i) + Vec3{(phase - .5) * 9, (other - .5) * 9, -phase * 6};
-    smoke.velocity = velocity * .12 + Vec3{(phase - 0.5) * 5.0, (other - 0.5) * 5.0, -2.5 - phase * 2.5};
+    smoke.position = position + velocity * (0.015 * i) + local(position, {(phase - .5) * 9, (other - .5) * 9, -phase * 6});
+    smoke.velocity = velocity * .12 + local(position, {(phase - 0.5) * 5.0, (other - 0.5) * 5.0, -2.5 - phase * 2.5});
     smoke.lifetime = 5.5f + phase * 4.f;
     smoke.size = 5.f + phase * 5.f;
     smoke.seed = other;
@@ -502,8 +508,8 @@ void CombatEffects::onDestroyed(const Vec3& position, const Vec3& velocity) {
     Effect debris;
     debris.kind = EffectKind::Debris;
     debris.position = position;
-    debris.velocity = Vec3{std::cos(theta) * speed * std::cos(elevation),
-                           std::sin(theta) * speed * std::cos(elevation), -std::sin(elevation) * speed - 6};
+    debris.velocity = local(position, {std::cos(theta) * speed * std::cos(elevation),
+                           std::sin(theta) * speed * std::cos(elevation), -std::sin(elevation) * speed - 6});
     debris.velocity = debris.velocity + velocity * 0.7;
     debris.lifetime = 2.6f + b * 2.2f;
     debris.size = 0.4f + a * 0.8f;
@@ -524,7 +530,7 @@ void CombatEffects::onNuclear(const Vec3& position) {
   const auto once = [&](EffectKind kind, double up, float size, float lifetime, std::uint32_t tint) {
     Effect effect;
     effect.kind = kind;
-    effect.position = position + Vec3{0, 0, -up};
+    effect.position = position + local(position, {0, 0, -up});
     effect.size = size;
     effect.lifetime = lifetime;
     effect.tint = tint;
@@ -552,10 +558,10 @@ void CombatEffects::onDetonation(const Vec3& position, float scale) {
   // a moment, leaving a knot of dark smoke. A bomb is the same, larger and slower.
   const float slow = std::sqrt(scale);
   const auto seed = static_cast<std::uint32_t>(std::abs(position.x * 13 + position.y * 7 + position.z * 3));
-  const auto terrain = sampleTerrain(position.x, position.y);
+  const Ground terrain = world().terrain(position);
   // On or close above the ground it is the ground that makes the picture.
-  const bool grounded = terrain.heightNed - position.z < 5. + 3. * scale;
-  const Vec3 centre = grounded ? Vec3{position.x, position.y, terrain.heightNed - .8 * scale} : position;
+  const bool grounded = world().altitude(position) - terrain.altitude < 5. + 3. * scale;
+  const Vec3 centre = grounded ? world().atAltitude(position, terrain.altitude + .8 * scale) : position;
 
   Effect flash;
   flash.kind = EffectKind::Flash;
@@ -571,11 +577,11 @@ void CombatEffects::onDetonation(const Vec3& position, float scale) {
   glow.size = 11.f * scale;
   glow.tint = 0xa070c0ffu;
   pool_.spawn(glow);
-  fireball(pool_, centre + Vec3{0, 0, grounded ? -2.2 * scale : 0.}, {0, 0, grounded ? -5. * slow : 0.}, 5.2f * scale,
+  fireball(pool_, centre + local(centre, {0, 0, grounded ? -2.2 * scale : 0.}), local(centre, {0, 0, grounded ? -5. * slow : 0.}), 5.2f * scale,
            (grounded ? .95f : .62f) * slow, share(budget, grounded ? 6 : 4), seed, (grounded ? 9. : 12.) * slow, grounded);
   Effect ring;
   ring.kind = grounded ? EffectKind::GroundRing : EffectKind::Shockwave;
-  ring.position = grounded ? Vec3{position.x, position.y, terrain.heightNed - .5 - .25 * scale} : position;
+  ring.position = grounded ? world().atAltitude(position, terrain.altitude + .5 + .25 * scale) : position;
   ring.lifetime = (grounded ? 0.55f : 0.32f) * slow;
   ring.size = (grounded ? 42.0f : 30.0f) * scale;
   ring.seed = hashUnit(seed + 77);
@@ -591,15 +597,15 @@ void CombatEffects::onDetonation(const Vec3& position, float scale) {
     if (grounded) {
       // A column that stands over the crater and leans away as it climbs.
       const double up = double(i) / count;
-      smoke.position = centre + Vec3{(a - .5) * 4, (b - .5) * 4, -(1.5 + 4 * up)} * double(scale);
-      smoke.velocity = Vec3{(a - .5) * 2.5, (b - .5) * 2.5, -(3 + 3.5 * up + c)} * double(slow);
+      smoke.position = centre + local(centre, Vec3{(a - .5) * 4, (b - .5) * 4, -(1.5 + 4 * up)} * double(scale));
+      smoke.velocity = local(centre, Vec3{(a - .5) * 2.5, (b - .5) * 2.5, -(3 + 3.5 * up + c)} * double(slow));
       smoke.drag = .34f;
       smoke.lifetime = (4.5f + 3.5f * c) * slow * 1.6f;
       smoke.size = (5.2f + 2.6f * a) * scale;
       smoke.tint = blendTint(0xd82a3038u, 0xc8465460u, c);
     } else {
-      smoke.position = position + Vec3{(a - .5) * 4, (b - .5) * 4, (c - .5) * 4} * double(scale);
-      smoke.velocity = Vec3{(a - .5) * 16, (b - .5) * 16, (c - .5) * 16 - 1} * double(slow);
+      smoke.position = position + local(position, Vec3{(a - .5) * 4, (b - .5) * 4, (c - .5) * 4} * double(scale));
+      smoke.velocity = local(position, Vec3{(a - .5) * 16, (b - .5) * 16, (c - .5) * 16 - 1} * double(slow));
       smoke.drag = 2.2f / slow;
       smoke.lifetime = (2.6f + 2 * c) * scale;
       smoke.size = (2.6f + 2.4f * a) * scale;
@@ -612,6 +618,7 @@ void CombatEffects::onDetonation(const Vec3& position, float scale) {
     const float a = hashUnit(seed + i * 7919), b = hashUnit(seed + i * 3571 + 3);
     Vec3 out = onSphere(a, b);
     if (grounded) out.z = -std::abs(out.z);
+    out = local(centre, out);
     const double speed = (90 + 110 * hashUnit(seed + i * 131 + 5)) * (grounded ? slow * .7 : 1.);
     Effect fragment;
     fragment.kind = EffectKind::Spark;
@@ -631,6 +638,7 @@ void CombatEffects::onDetonation(const Vec3& position, float scale) {
     const float a = hashUnit(seed + i * 1543 + 61), b = hashUnit(seed + i * 2819 + 67);
     Vec3 out = onSphere(a, b);
     if (grounded) out.z = -std::abs(out.z) - .35;
+    out = local(centre, out);
     Effect piece;
     piece.kind = EffectKind::Debris;
     piece.position = centre;
@@ -656,7 +664,7 @@ void CombatEffects::onDetonation(const Vec3& position, float scale) {
     Effect clod;
     clod.kind = EffectKind::Debris;
     clod.position = centre;
-    clod.velocity = Vec3{std::cos(theta) * std::cos(elevation), std::sin(theta) * std::cos(elevation), -std::sin(elevation)} * speed;
+    clod.velocity = local(centre, Vec3{std::cos(theta) * std::cos(elevation), std::sin(theta) * std::cos(elevation), -std::sin(elevation)} * speed);
     clod.billboard = false;
     clod.stretch = .55f * scale;
     clod.size = .11f * scale;
@@ -674,11 +682,11 @@ void CombatEffects::onDetonation(const Vec3& position, float scale) {
   for (unsigned i = 0, count = share(budget, 16); i < count; ++i) {
     const float c = hashUnit(seed + i * 433 + 101);
     const double theta = (i + c) * 6.2831853 / count;
-    const Vec3 out{std::cos(theta), std::sin(theta), 0};
+    const Vec3 out = local(centre, {std::cos(theta), std::sin(theta), 0});
     Effect dust;
     dust.kind = EffectKind::Dust;
-    dust.position = centre + out * (2.5 * scale) + Vec3{0, 0, -.5 * scale};
-    dust.velocity = out * ((17 + 9 * c) * slow) + Vec3{0, 0, -1.2};
+    dust.position = centre + out * (2.5 * scale) + local(centre, {0, 0, -.5 * scale});
+    dust.velocity = out * ((17 + 9 * c) * slow) + local(centre, {0, 0, -1.2});
     dust.drag = 1.5f / slow;
     dust.size = (3.6f + 1.6f * c) * scale;
     dust.lifetime = (2.6f + 2.2f * c) * slow;
@@ -739,7 +747,7 @@ void CombatEffects::onDecoy(weapons::DecoyType type, const Vec3& position, const
     Effect strip;
     strip.kind = EffectKind::Spark;
     strip.position = position;
-    strip.velocity = velocity + Vec3{r * std::cos(theta), r * std::sin(theta), z} * (6 + 16 * c);
+    strip.velocity = velocity + local(position, Vec3{r * std::cos(theta), r * std::sin(theta), z} * (6 + 16 * c));
     strip.billboard = false;
     strip.stretch = .5f + .5f * c;
     strip.size = .07f;
@@ -779,7 +787,7 @@ void CombatEffects::onPartLost(const Vec3& position, const Vec3& velocity) {
     Effect fragment;
     fragment.kind = i % 2 ? EffectKind::Spark : EffectKind::Debris;
     fragment.position = position;
-    fragment.velocity = velocity * .8 + Vec3{(a - .5) * 22, (b - .5) * 22, -3 - 10 * a};
+    fragment.velocity = velocity * .8 + local(position, {(a - .5) * 22, (b - .5) * 22, -3 - 10 * a});
     fragment.billboard = false;
     fragment.stretch = i % 2 ? .9f : .5f + .6f * b;
     fragment.size = i % 2 ? .06f : .12f + .14f * a;
@@ -796,7 +804,7 @@ void CombatEffects::onPieceSmoke(const Vec3& position, const Vec3& velocity, boo
   Effect puff;
   puff.kind = EffectKind::Smoke;
   puff.position = position;
-  puff.velocity = {0, 0, -.8};
+  puff.velocity = local(position, {0, 0, -.8});
   puff.lifetime = burning ? 4.5f : 2.2f;
   puff.size = burning ? 3.2f : 1.3f;
   puff.seed = hashUnit(++shots_);
@@ -850,8 +858,9 @@ void CombatEffects::onGroundImpact(const Simulator::GroundImpact& impact) {
     const double throwUp=std::clamp(2+impact.closingSpeed*.55,2.,28.);
     for(unsigned i=0;i<drops;++i) {
       const float a=hashUnit(wet+i*733),b=hashUnit(wet+i*911+5),c=hashUnit(wet+i*389+11);
-      Effect e;e.position=impact.position+Vec3{(a-.5)*6,(c-.5)*6,-.2};
-      e.velocity=Vec3{impact.velocity.x,impact.velocity.y,0}*(.10+.25*c)+impact.normal*(throwUp*(.35+.65*b))+Vec3{(a-.5)*throwUp,(c-.5)*throwUp,0};
+      const Vec3 along=world().toLocal(impact.position,impact.velocity);
+      Effect e;e.position=impact.position+local(impact.position,{(a-.5)*6,(c-.5)*6,-.2});
+      e.velocity=local(impact.position,Vec3{along.x,along.y,0}*(.10+.25*c))+impact.normal*(throwUp*(.35+.65*b))+local(impact.position,{(a-.5)*throwUp,(c-.5)*throwUp,0});
       e.kind=EffectKind::Dust;e.gravity=float(kG0);e.drag=.9f;
       e.lifetime=.9f+b*1.8f;e.size=1.2f+a*2.6f+float(throwUp)*.06f;e.tint=0xa8f4f2eeu;pool_.spawn(e);
     }
@@ -864,13 +873,13 @@ void CombatEffects::onGroundImpact(const Simulator::GroundImpact& impact) {
   for(unsigned i=0;i<count;++i) {
     const float a=hashUnit(seed+i*733),b=hashUnit(seed+i*911+5);
     Effect e;e.position=impact.position+impact.normal*.12;
-    e.velocity=impact.velocity*.06+impact.normal*(1+4*b)+Vec3{(a-.5)*7,(b-.5)*7,0};
+    e.velocity=impact.velocity*.06+impact.normal*(1+4*b)+local(impact.position,{(a-.5)*7,(b-.5)*7,0});
     e.kind=asphalt?EffectKind::Smoke:EffectKind::Dust;
     e.lifetime=1.5f+b*2;e.size=.8f+a*1.8f;e.drag=.8f;
     e.tint=asphalt?0x786a6a6au:0x906a8ba5u;pool_.spawn(e);
     if(impact.bodyContact && (asphalt || impact.damage>.02)) {
       e.kind=EffectKind::Spark;e.billboard=false;e.stretch=.6f;e.size=.08f;
-      e.velocity=impact.velocity*.2+impact.normal*(3+6*b)+Vec3{(a-.5)*14,(b-.5)*14,0};
+      e.velocity=impact.velocity*.2+impact.normal*(3+6*b)+local(impact.position,{(a-.5)*14,(b-.5)*14,0});
       e.gravity=float(kG0);e.drag=.4f;e.lifetime=.4f+b*.8f;e.tint=0xff55c0ffu;pool_.spawn(e);
     }
   }
@@ -896,8 +905,9 @@ void CombatEffects::updateAircraft(const State& aircraft, double dt, AircraftTyp
   const auto& definition = aircraftDefinition(type);
   const auto& visual = definition.visual;
   const auto cg=loadedCg(definition.flight,aircraft);
-  const double altitude = -aircraft.pos_ned.z;
-  const Vec3 airflow = aircraft.vel_ned-weather.wind_ned;
+  const double altitude = world().altitude(aircraft.pos_ned);
+  const Vec3 wind = world().fromLocal(aircraft.pos_ned, weather.wind_ned);
+  const Vec3 airflow = aircraft.vel_ned-wind;
   const double speed = airflow.norm();
   const Vec3 bodyFlow = aircraft.att.inverseRotate(airflow);
   const double alpha = std::abs(std::atan2(bodyFlow.z,bodyFlow.x));
@@ -917,8 +927,7 @@ void CombatEffects::updateAircraft(const State& aircraft, double dt, AircraftTyp
   };
   const double localHumidity = humidity*saturation(air.temp)*pressureRatio/saturation(localTemp);
   const double vaporStrength = demand*clamp((localHumidity-1.)/.4,0.,1.);
-  const auto terrain = sampleTerrain(aircraft.pos_ned.x,aircraft.pos_ned.y);
-  const bool airborne = terrain.heightNed-aircraft.pos_ned.z > 10.;
+  const bool airborne = world().clearance(aircraft.pos_ned) > 10.;
   if(id==0)scrapeClock_+=std::min(dt,.1);
   emitter.groundTime+=std::min(dt,.1);
   if(emitter.groundTime>.10) {
@@ -926,10 +935,10 @@ void CombatEffects::updateAircraft(const State& aircraft, double dt, AircraftTyp
     if(aircraftCrashed(aircraft)) {
       const float variation=hashUnit(++emitter.sequence);
       Effect smoke;smoke.kind=EffectKind::Smoke;smoke.position=aircraft.pos_ned;
-      smoke.velocity={1.2,.4,-3};smoke.drag=.12f;smoke.size=2.5f+variation*2;
+      smoke.velocity=local(aircraft.pos_ned,{1.2,.4,-3});smoke.drag=.12f;smoke.size=2.5f+variation*2;
       smoke.lifetime=5.f;smoke.tint=0xb0353a40u;pool_.spawn(smoke);
       if(aircraft.fuel_mass>0) {
-        Effect fire=smoke;fire.kind=EffectKind::Fire;fire.velocity={0,0,-2};
+        Effect fire=smoke;fire.kind=EffectKind::Fire;fire.velocity=local(aircraft.pos_ned,{0,0,-2});
         fire.size=1.2f+variation;fire.lifetime=.65f;fire.tint=0xe02585ffu;
         pool_.spawn(fire);
       }
@@ -939,7 +948,7 @@ void CombatEffects::updateAircraft(const State& aircraft, double dt, AircraftTyp
   const DamageView damage = damageView(aircraft, health);
   if (!aircraftCrashed(aircraft)) {
     const bool underway = (aircraft.pos_ned - emitter.previous).norm2() > .0004;
-    const Vec3 drift = weather.wind_ned + Vec3{0, 0, -.5};
+    const Vec3 drift = local(aircraft.pos_ned, weather.wind_ned + Vec3{0, 0, -.5});
     emitter.smokeClock += std::min(dt, .1);
     const bool lay = emitter.smokeClock >= (quality_ == EffectsQuality::High ? 1. / 40 : 1. / 20);
     if (lay) emitter.smokeClock = 0;
@@ -1061,7 +1070,7 @@ void CombatEffects::updateAircraft(const State& aircraft, double dt, AircraftTyp
         const double fraction=1.0-std::clamp(emitter.time/std::min(dt,.1),0.0,1.0);
         trail.position = emitter.previous+(aircraft.pos_ned-emitter.previous)*fraction +
                          aircraft.att.rotate(nozzleExit(engine));
-        trail.velocity = weather.wind_ned + Vec3{0, 0, -0.05};
+        trail.velocity = local(aircraft.pos_ned, weather.wind_ned + Vec3{0, 0, -0.05});
         trail.lifetime = 8.0f;
         trail.size = 1.1f + .25f*variation;
         trail.tint = 0x38f0eeeau;
@@ -1075,7 +1084,7 @@ void CombatEffects::updateAircraft(const State& aircraft, double dt, AircraftTyp
         Effect puff;
         puff.kind=EffectKind::Vapor;
         puff.position=position+aircraft.att.rotate(tip-cg);
-        puff.velocity=weather.wind_ned;
+        puff.velocity=wind;
         puff.lifetime=static_cast<float>(clamp(8./speed,.025,.10));
         puff.size=static_cast<float>(.08+.10*vaporStrength);
         puff.stretch=static_cast<float>(.9+.6*vaporStrength);
@@ -1084,7 +1093,7 @@ void CombatEffects::updateAircraft(const State& aircraft, double dt, AircraftTyp
         // Historical emissions already have an age at the end of this frame.
         // Giving every sample age zero stacks bright bands on slow frames.
         puff.age=static_cast<float>(emitter.time);
-        puff.position+=weather.wind_ned*puff.age;
+        puff.position+=wind*puff.age;
         if(puff.age<puff.lifetime) pool_.spawn(puff);
         if (type == AircraftType::Su57) {
           // A single translucent layer follows the wing plane. Keeping the
@@ -1100,7 +1109,7 @@ void CombatEffects::updateAircraft(const State& aircraft, double dt, AircraftTyp
             const double span=(patch+.35)/patches;
             const double ripple=hashUnit(emitter.sequence+patch*37)-.5;
             const Vec3 wing=root+sweep*span+Vec3{ripple*.12,0,load<0?.30:-.30};
-            puff.position=position+aircraft.att.rotate(wing-cg)+weather.wind_ned*puff.age;
+            puff.position=position+aircraft.att.rotate(wing-cg)+wind*puff.age;
             puff.lifetime=static_cast<float>(clamp((3.0-1.2*span)/speed,.010,.04));
             puff.stretch=static_cast<float>(sweep.norm()/patches*1.35);
             puff.size=static_cast<float>((.22+.16*vaporStrength)*(1.-.3*span));

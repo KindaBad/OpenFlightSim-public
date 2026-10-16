@@ -10,6 +10,7 @@
 
 #include "ofs/aircraft_definition.hpp"
 #include "ofs/terrain.hpp"
+#include "ofs/world.hpp"
 #include "scenery.hpp"
 
 #include <algorithm>
@@ -46,14 +47,18 @@ class Ejections {
   // The same for an aircraft that is not being drawn: only where it was and
   // how it was moving are known.
   void eject(std::uint64_t entity, bool own, const Vec3& position, const Vec3& velocity) {
-    const Vec3 level{velocity.x, velocity.y, 0};
-    add(entity, own, position, velocity, {0, 0, -1}, level.norm() > 1 ? level.normalized() : Vec3{1, 0, 0});
+    const Vec3 along = world().toLocal(position, velocity);
+    const Vec3 level{along.x, along.y, 0};
+    add(entity, own, position, velocity, world().up(position),
+        world().fromLocal(position, level.norm() > 1 ? level.normalized() : Vec3{1, 0, 0}));
   }
 
-  void update(double dt, const Vec3& wind = {}) {
+  // The wind is in the local north-east-down axes.
+  void update(double dt, const Vec3& localWind = {}) {
     if (!(dt > 0)) return;
     dt = std::min(dt, .1);
     for (EjectedPilot& pilot : pilots_) {
+      const Vec3 wind = world().fromLocal(pilot.position, localWind);
       pilot.age += dt;
       pilot.opened = pilot.touched = false;
       if (pilot.landed > 0) {
@@ -73,7 +78,7 @@ class Ejections {
       const double speed = relative.norm();
       relative = relative / (1 + drag * speed * dt);
       pilot.velocity = wind + relative;
-      pilot.velocity.z += kG0 * dt;
+      pilot.velocity += world().down(pilot.position) * (kG0 * dt);
       pilot.position += pilot.velocity * dt;
       // The canopy trails behind the motion through the air, so the pilot
       // swings under it until the descent is steady.
@@ -82,11 +87,11 @@ class Ejections {
         const Vec3 trailing = -through.normalized();
         pilot.up = (pilot.up + (trailing - pilot.up) * std::min(1., dt * (1.5 + 4 * pilot.canopy))).normalized();
       }
-      const double ground = groundHeightNed(pilot.position.x, pilot.position.y);
-      if (pilot.position.z >= ground - 1.3) {
-        pilot.position.z = ground - 1.3;
+      const double ground = world().terrain(pilot.position).altitude;
+      if (world().altitude(pilot.position) <= ground + 1.3) {
+        pilot.position = world().atAltitude(pilot.position, ground + 1.3);
         pilot.velocity = {};
-        pilot.up = {0, 0, -1};
+        pilot.up = world().up(pilot.position);
         pilot.landed = 1e-6;
         pilot.touched = true;
       }

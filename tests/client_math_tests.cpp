@@ -117,5 +117,25 @@ int main() {
     for (int i=0;i<300;++i) loop.update(CameraMode::Pursuit,climbing,1./60,false);
     if (loop.renderOrientation().rotate({0,0,-1}).z>-.999) return 30;
   }
-  std::cout << "PASS render coordinates, hemisphere interpolation, asset/CG mapping\n";
+  // On the round Earth the render axes follow the local vertical at the
+  // origin: a game-frame vector along the origin's local up maps to render +Y,
+  // and the valley's identity basis leaves every mapping as it was.
+  {
+    RenderBasis& basis = renderBasis();
+    const Vec3 tilt = Vec3{.1, 0, 1}.normalized();  // the origin's down, leaning north
+    basis.identity = false;
+    basis.down = tilt;
+    basis.east = {0, 1, 0};
+    basis.north = basis.east.cross(basis.down);
+    const glm::vec3 upward = renderDirection(-tilt);
+    if (std::abs(upward.y - 1) > 1e-6f || std::abs(upward.x) > 1e-6f || std::abs(upward.z) > 1e-6f) return 31;
+    const Vec3 local{3, -4, 5};
+    const Vec3 game = fromRenderNed(local);
+    if ((toRenderNed(game) - local).norm() > 1e-12) return 32;
+    if (glm::length(renderLocal(local) - renderDirection(game)) > 1e-5f) return 33;
+    basis = RenderBasis{};
+    const auto again = localPosition({1e9+.125,1e9+.25,-10},{1e9,1e9,0});
+    if (again.x != .25f || again.y != 10 || again.z != -.125f) return 34;
+  }
+  std::cout << "PASS render coordinates, hemisphere interpolation, asset/CG mapping, render basis\n";
 }

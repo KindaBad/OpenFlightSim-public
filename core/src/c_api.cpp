@@ -63,7 +63,7 @@ OfsState ofs_get_state(const OfsSim* sim) {
   s.vel_e = st.vel_ned.y;
   s.vel_d = st.vel_ned.z;
   double roll, pitch, yaw;
-  ofs::eulerFromQuat(st.att, roll, pitch, yaw);
+  ofs::eulerFromQuat(ofs::world().toLocal(st.pos_ned, st.att), roll, pitch, yaw);
   s.roll_deg = roll * ofs::kRad2Deg;
   s.pitch_deg = pitch * ofs::kRad2Deg;
   s.yaw_deg = yaw * ofs::kRad2Deg;

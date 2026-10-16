@@ -390,6 +390,10 @@ void Renderer::drawShadowAtlas(const std::vector<const Instance*>& casters) {
       ++stats_.drawCalls;
       stats_.triangles += count / 3;
     };
+    if (earth_) {
+      drawEarthObjects(view, &cascade);
+      continue;
+    }
     for (const auto* parts : {&airfieldParts_, &baseParts_})
       for (const auto& part : *parts)
         if (airfieldCastsShadow(part.material)) scenery(part.buffer, part.vertices, part.centre, part.radius);
@@ -499,7 +503,7 @@ void Renderer::drawRain(const State& local, const Weather& weather) {
   // Raindrops fall at about nine metres per second and drift with the wind.
   // What the eye sees is their motion relative to the camera.
   const Vec3 cameraVelocity = lastCamera_.mode == CameraMode::Free ? Vec3{} : local.vel_ned;
-  const glm::vec3 relative = renderDirection(Vec3{weather.wind_ned.x, weather.wind_ned.y, 9.} - cameraVelocity);
+  const glm::vec3 relative = renderDirection(fromRenderNed(Vec3{weather.wind_ned.x, weather.wind_ned.y, 9.}) - cameraVelocity);
   const float speed = glm::length(relative);
   const glm::vec3 axis = speed > 1e-3f ? relative / speed : glm::vec3(0, -1, 0);
   const glm::vec3 side = glm::normalize(glm::cross(axis, std::abs(axis.y) > .9f ? glm::vec3(1, 0, 0) : glm::vec3(0, 1, 0)));

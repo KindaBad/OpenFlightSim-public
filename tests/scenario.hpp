@@ -2,6 +2,7 @@
 #include "ofs/fixed_step.hpp"
 #include "ofs/trim.hpp"
 #include "ofs/airliner.hpp"
+#include "ofs/world.hpp"
 #include <algorithm>
 #include <cmath>
 #include <bit>
@@ -93,13 +94,13 @@ inline double pitchInput(const ofs::Simulator& sim, double target_rad) {
     const double authority=a.qbar*cfg.wing_area*cfg.mac*std::abs(cfg.cm_de*cfg.elev_min);
     if(cfg.aero_kind==ofs::AeroModelKind::AirlinerEngineering) {
       const double desiredRate=(command+sim.controls().elevator_trim-sim.equilibriumElevator())*cfg.response_time*authority/sim.massProperties().inertia.y+sim.state().omega_body.y;
-      double bank,pitch,heading;ofs::eulerFromQuat(sim.state().att,bank,pitch,heading);
+      double bank,pitch,heading;ofs::eulerFromQuat(ofs::world().toLocal(sim.state().pos_ned,sim.state().att),bank,pitch,heading);
       const double neutral=std::cos(pitch)/std::max(.5,std::cos(bank));
       const double desired=sim.normalLoad()+desiredRate/.18;
       const double upper=sim.state().flap>.2?2:cfg.g_positive,lower=sim.state().flap>.2?0:cfg.g_negative;
       return ofs::clamp((desired-neutral)/(desired>=neutral?upper-neutral:neutral-lower),-1,1);
     }
-    return ofs::clamp(((command+sim.controls().elevator_trim-sim.equilibriumElevator())*cfg.response_time*authority/sim.massProperties().inertia.y+sim.state().omega_body.y)/cfg.max_pitch_rate-sim.controls().elevator_trim+sim.state().trim_reference-(cfg.control_law==ofs::FlightControlLaw::Transport?.12:.08)*(sim.state().att.inverseRotate({0,0,1}).z-sim.normalLoad())/cfg.max_pitch_rate,-1,1);
+    return ofs::clamp(((command+sim.controls().elevator_trim-sim.equilibriumElevator())*cfg.response_time*authority/sim.massProperties().inertia.y+sim.state().omega_body.y)/cfg.max_pitch_rate-sim.controls().elevator_trim+sim.state().trim_reference-(cfg.control_law==ofs::FlightControlLaw::Transport?.12:.08)*(sim.state().att.inverseRotate(ofs::world().down(sim.state().pos_ned)).z-sim.normalLoad())/cfg.max_pitch_rate,-1,1);
   }
   return ofs::clamp(command,-1,1);
 }

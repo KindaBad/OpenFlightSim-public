@@ -45,6 +45,11 @@ LAN_REPLY = b'OFSLAN\x01R'
 MAX_NAME = 48
 VERSION = re.compile(r'\d{1,9}(?:\.\d{1,9}){2,3}')
 GAME_ID = re.compile(r'[0-9a-f]{8}')
+# Games on the round Earth (docs/WHOLE_EARTH_PLAN.md): the theatres a server
+# plays, and the first game version whose server does. Launchers that do not
+# say they know the Earth map are offered valley games only.
+THEATRES = ('austria', 'alps', 'gulf')
+EARTH_VERSION = '0.7.0'
 
 
 @dataclass
@@ -76,6 +81,7 @@ class Game:
     created: float
     teams: bool
     occupied: float                 # when a pilot was last seen in it
+    map: str = 'valley'             # or 'earth:<theatre>'
     seen: bool = False              # has answered for itself at least once
     players: int = 0
     max_players: int = 0
@@ -126,8 +132,10 @@ def version_key(text):
 
 class Host:
     def __init__(self, builds, state, bind='0.0.0.0', port=27020, game_ports=27100, limits=None,
-                 clock=time.monotonic, wall=time.time):
+                 clock=time.monotonic, wall=time.time, earth_pack=None):
         self.builds, self.state = Path(builds), Path(state)
+        # The Earth terrain pack games on the Earth are played on, if there is one.
+        self.earth_pack = Path(earth_pack) if earth_pack else self.state / 'earth' / 'earth.ofse'
         self.limits = limits or Limits()
         self.clock, self.wall = clock, wall
         self.game_ports = game_ports
@@ -191,10 +199,18 @@ class Host:
         bucket.tokens -= 1
         return True
 
-    def listing(self):
-        return [dict(id=g.id, name=g.name, players=g.players, max=g.max_players, bots=g.bots,
-                     version=g.version, protocol=g.protocol, teams=g.teams)
-                for g in sorted(self.games.values(), key=lambda g: g.created) if g.seen]
+    def listing(self, earth=False):
+        """The games running, for a launcher that knows the Earth map or one that does not."""
+        games = []
+        for g in sorted(self.games.values(), key=lambda g: g.created):
+            if not g.seen or (g.map != 'valley' and not earth):
+                continue
+            game = dict(id=g.id, name=g.name, players=g.players, max=g.max_players, bots=g.bots,
+                        version=g.version, protocol=g.protocol, teams=g.teams)
+            if earth:
+                game['map'] = g.map
+            games.append(game)
+        return games
 
     def answer(self, data, address, now):
         if len(data) != REQUEST_SIZE or not self.allowed(address[0], now):
@@ -210,7 +226,9 @@ class Host:
         if repeat:
             return repeat[0]
         if operation == 'list':
-            reply = dict(ok=True, token=self.token(address[0]), games=self.listing(), versions=self.versions()[:4],
+            maps = request.get('maps')
+            earth = isinstance(maps, list) and 'earth' in maps
+            reply = dict(ok=True, token=self.token(address[0]), games=self.listing(earth), versions=self.versions()[:4],
                          capacity=self.limits.max_games)
         elif operation in ('create', 'join'):
             # The token was sent to the address it names, so a question that
@@ -251,6 +269,16 @@ class Host:
         if (type(bots) is not int or not 0 <= bots <= 8 or type(reload_time) is not int or not 0 <= reload_time <= 3600
                 or type(teams) is not bool or type(score) is not int or not 50 <= score <= 5000):
             return self.refuse('request', 'The game settings were not understood.')
+        world, theatre = request.get('map', 'valley'), request.get('theatre')
+        if world not in ('valley', 'earth') or (world == 'earth' and theatre not in THEATRES):
+            return self.refuse('request', 'The game settings were not understood.')
+        if world == 'earth':
+            if bots or teams:
+                return self.refuse('request', 'A game on the Earth map is free flight for now: no bots or team game.')
+            if version_key(version) < version_key(EARTH_VERSION):
+                return self.refuse('version', f'Games on the Earth map need OpenFlightSim {EARTH_VERSION} or newer.')
+            if not self.earth_pack.is_file():
+                return self.refuse('earth', 'The public server does not have the Earth map yet. Try again later, or play in the valley.')
         mine = [g for g in self.games.values() if g.creator == address]
         if len(mine) >= self.limits.games_per_address or now - self.last_create.get(address, -1e9) < self.limits.create_interval:
             return self.refuse('busy', 'You already have a public game running. Join it from the list, or wait a moment before starting another.')
@@ -270,6 +298,8 @@ class Host:
             command += ['--missile-reload', str(reload_time)]
         if teams:
             command += ['--teams', '--score-limit', str(score)]
+        if world == 'earth':
+            command += ['--map', 'earth', '--theatre', theatre, '--earth-pack', str(self.earth_pack)]
         path = self.state / 'logs' / f'{identity}.log'
         try:
             with open(path, 'wb') as stream:
@@ -277,7 +307,8 @@ class Host:
         except OSError as exc:
             log.error('could not start a game: %s', exc)
             return self.refuse('failed', 'The public server could not start a game. Try again later.')
-        self.games[identity] = Game(identity, name, version, port, discovery, process, path, address, now, teams, occupied=now)
+        self.games[identity] = Game(identity, name, version, port, discovery, process, path, address, now, teams, occupied=now,
+                                    map='valley' if world == 'valley' else 'earth:' + theatre)
         self.last_create[address] = now
         self.next_probe = 0
         log.info('game %s "%s" v%s started for %s on loopback port %s', identity, name, version, address, port)
@@ -494,9 +525,11 @@ def main():
     parser.add_argument('--port', type=int, default=27020, help='the forwarded UDP port')
     parser.add_argument('--game-ports', type=int, default=27100, help='first loopback port for games')
     parser.add_argument('--max-games', type=int, default=6)
+    parser.add_argument('--earth-pack', help='the Earth terrain pack for games on the Earth map (default: <state>/earth/earth.ofse)')
     options = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')
-    host = Host(options.builds, options.state, options.bind, options.port, options.game_ports, Limits(max_games=options.max_games))
+    host = Host(options.builds, options.state, options.bind, options.port, options.game_ports, Limits(max_games=options.max_games),
+                earth_pack=options.earth_pack)
     stop = []
     for number in (signal.SIGINT, signal.SIGTERM):
         signal.signal(number, lambda *_: stop.append(True))

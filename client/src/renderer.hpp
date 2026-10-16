@@ -25,6 +25,9 @@
 #include "ofs/bases.hpp"
 #include "camera.hpp"
 #include "damage_visuals.hpp"
+#include "earth_map.hpp"
+#include "earth_objects.hpp"
+#include "earth_scenery.hpp"
 #include "effects.hpp"
 #include "ejection.hpp"
 #include "ofs/weapons.hpp"
@@ -52,6 +55,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <unordered_set>
 
 namespace ofs::client {
 
@@ -173,8 +177,9 @@ struct FrameConstants {
   glm::vec4 cameraForward;  // xyz, w metres per stored range unit
   glm::vec4 quality;        // terrain detail, water, specular AA, relief shadow steps
   glm::vec4 wind;           // xyz render-space wind, w gust phase
+  glm::vec4 planet;         // x 1 on the round Earth, y altitude of the render origin
 };
-static_assert(sizeof(FrameConstants) == 24 * sizeof(glm::vec4));
+static_assert(sizeof(FrameConstants) == 25 * sizeof(glm::vec4));
 
 class Renderer {
  public:
@@ -280,6 +285,13 @@ class Renderer {
   // The navigation map picture as an ImGui texture id, or 0 before it exists.
   // ui() reads ids as a bgfx texture index plus one.
   std::uintptr_t mapTexture() const { return bgfx::isValid(mapTexture_) ? std::uintptr_t(mapTexture_.idx) + 1 : 0; }
+  // The round Earth's maps: 0 the minimap, 1 the full map. Asks for a picture
+  // of `view` at `size` pixels unless one is being painted; the newest picture
+  // painted, and the view it covers, are then shown.
+  void requestEarthMap(int which, const EarthMapView& view, int size);
+  std::uintptr_t earthMapTexture(int which, EarthMapView& shown) const;
+  // The land cover and its places, on the round Earth.
+  const EarthCover* earthCover() const { return earth_ ? earth_->cover.get() : nullptr; }
 
   // Projects a world point to device pixels. False when behind the camera or off screen.
   bool projectToScreen(const Vec3& world, float& outX, float& outY, float& outDepth) const;
@@ -316,6 +328,7 @@ class Renderer {
 
   struct Programs {
     bgfx::ProgramHandle pbr{BGFX_INVALID_HANDLE}, terrain{BGFX_INVALID_HANDLE}, tree{BGFX_INVALID_HANDLE};
+    bgfx::ProgramHandle earth{BGFX_INVALID_HANDLE}, earthBuilding{BGFX_INVALID_HANDLE};
     bgfx::ProgramHandle sky{BGFX_INVALID_HANDLE}, skyTable{BGFX_INVALID_HANDLE}, aerial{BGFX_INVALID_HANDLE};
     bgfx::ProgramHandle clouds{BGFX_INVALID_HANDLE}, cloudResolve{BGFX_INVALID_HANDLE}, cloudComposite{BGFX_INVALID_HANDLE};
     bgfx::ProgramHandle unlit{BGFX_INVALID_HANDLE}, effect{BGFX_INVALID_HANDLE}, flame{BGFX_INVALID_HANDLE}, rain{BGFX_INVALID_HANDLE};
@@ -429,6 +442,9 @@ class Renderer {
                  bool rocket);
   void drawMissilePlumes(const CombatVisuals& combat);
  public:
+  // Draws the round Earth from the terrain pack instead of the valley. Both
+  // must outlive the renderer.
+  void useEarth(const EarthWorld& world, const EarthTerrain& terrain, const std::filesystem::path& cover);
   // The team game's structures: empty when there is none to show, otherwise
   // one health per entry of ofs::structures().
   void setStructures(std::span<const std::uint8_t> health);
@@ -465,6 +481,69 @@ class Renderer {
   void createEnvironmentTextures(Synthesis& data);
   void drawEnvironment();
   void updateTreeChunks();
+  // The round Earth (renderer_earth.cpp).
+  struct EarthState {
+    const EarthWorld* world{};
+    const EarthTerrain* terrain{};
+    std::unique_ptr<EarthCover> cover;
+    std::unique_ptr<EarthChunkBuilder> builder;
+    struct Chunk {
+      bgfx::VertexBufferHandle buffer{BGFX_INVALID_HANDLE};
+      Vec3 centre;
+      double radius{};
+      float patternU{}, patternV{};
+      std::uint64_t used{};
+    };
+    std::unordered_map<std::uint64_t, Chunk> chunks;
+    bgfx::VertexLayout layout, buildingLayout;
+    bgfx::IndexBufferHandle indices{BGFX_INVALID_HANDLE};
+    std::uint32_t indexCount{};
+    std::uint64_t frame{};
+    std::vector<EarthNode> drawn;
+    bgfx::UniformHandle runways{BGFX_INVALID_HANDLE};
+    std::unordered_set<std::uint64_t> everBuilt;
+    std::unordered_set<std::uint64_t> split, nextSplit;  // nodes drawn as their children, this frame and the next
+    std::uint64_t rebuilt{};
+    bgfx::UniformHandle chunkPattern{BGFX_INVALID_HANDLE}, airports{BGFX_INVALID_HANDLE}, towns{BGFX_INVALID_HANDLE}, counts{BGFX_INVALID_HANDLE};
+    // Trees, towns and airport buildings (earth_objects.hpp), by tile.
+    std::unique_ptr<EarthObjects> objects;
+    std::unique_ptr<EarthObjectBuilder> objectBuilder;
+    struct ObjectTile {
+      Vec3 centre, east, up, south;
+      float radius{}, low{}, high{};
+      bgfx::VertexBufferHandle trees{BGFX_INVALID_HANDLE};
+      std::uint32_t broadleaf{}, conifer{};
+      bgfx::VertexBufferHandle buildings{BGFX_INVALID_HANDLE};
+      std::uint32_t vertices{}, casters{};
+      std::uint64_t used{};
+      glm::mat4 model{1};  // this frame's
+      glm::vec3 middle{};  // this frame's, in render space
+    };
+    std::unordered_map<std::uint64_t, ObjectTile> objectTiles;
+    int objectDensity{-1};
+    std::vector<std::uint64_t> wanted;  // tiles within reach at the last search
+    Vec3 searchedAt;
+    std::uint64_t searchedFrame{};
+    std::vector<EarthPlace> places;  // nearest the camera, refreshed now and then
+    Vec3 placesAt;
+    bool placesAsked{true};
+    std::future<std::vector<EarthPlace>> placesJob;
+    // The minimap's and the full map's pictures (earth_map.hpp): the one shown
+    // and the one being painted.
+    struct Map {
+      bgfx::TextureHandle texture{BGFX_INVALID_HANDLE};
+      int size{};
+      EarthMapView shown;
+      bool ready{};
+      std::future<EarthMapImage> job;
+    };
+    std::array<Map, 2> maps;
+  };
+  std::unique_ptr<EarthState> earth_;
+  void drawEarth();
+  void destroyEarth();
+  void updateEarthObjects();
+  void drawEarthObjects(bgfx::ViewId view, const Cascade* cascade);
   void drawTrees(bgfx::ViewId view, bgfx::ProgramHandle program, const Cascade* cascade);
   bool sphereVisible(const glm::vec3& center, float radius, float maxDistance) const;
 

@@ -52,7 +52,7 @@ file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/generated/ofs_font.hpp"
 
 add_executable(ofs_client
   src/main.cpp src/platform.cpp src/input.cpp src/renderer.cpp
-  src/renderer_atmosphere.cpp src/renderer_environment.cpp src/renderer_stores.cpp
+  src/renderer_atmosphere.cpp src/renderer_environment.cpp src/renderer_stores.cpp src/renderer_earth.cpp src/earth_scenery.cpp src/earth_objects.cpp src/earth_map.cpp
   src/debug_ui.cpp src/hud.cpp src/camera.cpp src/settings.cpp src/audio_device.cpp)
 add_dependencies(ofs_client ofs_shaders)
 # miniaudio finds the system's sound libraries when it runs, so nothing is linked
@@ -62,6 +62,8 @@ target_link_libraries(ofs_client PRIVATE ${CMAKE_DL_LIBS})
 target_include_directories(ofs_client PRIVATE src "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_include_directories(ofs_client PRIVATE "${CMAKE_BINARY_DIR}/generated")
 target_link_libraries(ofs_client PRIVATE ofs_visual_core SDL3::SDL3 bgfx ofs_imgui glm::glm)
+# The Earth land cover file is zstd-compressed, like the terrain pack.
+target_link_libraries(ofs_client PRIVATE ofs_zstd)
 target_compile_definitions(ofs_client PRIVATE OFS_BUILD_TYPE="$<CONFIG>" SDL_MAIN_HANDLED)
 target_compile_definitions(ofs_client PRIVATE OFS_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
 install(TARGETS ofs_client RUNTIME_DEPENDENCY_SET ofs_runtime RUNTIME DESTINATION .)

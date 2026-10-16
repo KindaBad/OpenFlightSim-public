@@ -72,6 +72,22 @@ class Wire(unittest.TestCase):
                     self.assertTrue(lobby.name and lobby.port and lobby.players <= lobby.max_players)
                     self.assertLessEqual(len(lobby.name), lan.MAX_LOBBY_NAME)
 
+    def test_an_earth_lobby_names_its_map_after_the_version(self):
+        alps = lan.Lobby('Friday night', '192.168.1.20', 27020, 15, 3, 16, 2, '0.5.0', map='earth:alps')
+        reply = lan.encode_reply(alps)
+        self.assertEqual(reply, GOLDEN + b'\x0aearth:alps')
+        self.assertEqual(lan.parse_reply(reply, '192.168.1.20'), alps)
+        self.assertEqual(alps.theatre, 'alps')
+        self.assertIsNone(FRIDAY.theatre)
+        for bad in (GOLDEN + b'\x00', GOLDEN + b'\x05earth', GOLDEN + b'\x0aEARTH:ALPS', GOLDEN + b'\x0aearth:alps!',
+                    reply + b'x', GOLDEN + b'\x0bearth:alps'):
+            self.assertIsNone(lan.parse_reply(bad, '10.0.0.1'), bad)
+        # Only an installation with the theatre can join it.
+        self.assertFalse(lan.joinable(alps, 15))
+        self.assertTrue(lan.joinable(alps, 15, {'alps': 'Western Alps'}))
+        self.assertIn('Earth · Western Alps', lan.describe(alps, 15, {'alps': 'Western Alps'}))
+        self.assertIn('needs the Earth map', lan.describe(alps, 15))
+
     def test_names_are_made_printable_and_bounded(self):
         self.assertEqual(lan.lobby_name("  Ace's game \t"), "Ace's game")
         self.assertEqual(len(lan.lobby_name('x' * 200)), lan.MAX_LOBBY_NAME)
@@ -278,6 +294,129 @@ class Hosting(unittest.TestCase):
         self.assertIn('assets/luft.glb', self.installation.missing_assets())
         with self.assertRaises(LauncherError):
             arguments(self.installation, Preferences(livery='pink', aircraft=typhoon['id']), graphics)
+
+    def test_earth_map_needs_a_build_with_theatres_and_its_data(self):
+        graphics = Graphics(self.root / 'user/graphics.cfg')
+        prefs = Preferences(map='earth', theatre='alps', earth_airport='LSZH', aircraft=self.installation.aircraft[0]['id'])
+        self.assertNotIn('--theatre', arguments(self.installation, Preferences(aircraft=prefs.aircraft), graphics))
+        # A build without theatres has no Earth map.
+        with self.assertRaises(LauncherError):
+            arguments(self.installation, prefs, graphics)
+        self.installation.catalog['theatres'] = [
+            {'id': 'austria', 'name': 'Austria', 'airports': [{'ident': 'LOWW', 'name': 'Vienna'}]},
+            {'id': 'alps', 'name': 'Western Alps', 'airports': [{'ident': 'LSGG', 'name': 'Geneva'}, {'ident': 'LSZH', 'name': 'Zurich'}]}]
+        # Nor can it fly without the terrain pack and the land cover.
+        with patch('launcher.game.user_directory', return_value=self.root / 'nowhere'):
+            with self.assertRaises(LauncherError):
+                arguments(self.installation, prefs, graphics)
+            data = self.installation.directory / 'earth'
+            data.mkdir(parents=True, exist_ok=True)
+            (data / 'earth.ofse').write_bytes(b'pack')
+            (data / 'earth-cover.ofsc').write_bytes(b'cover')
+            command = arguments(self.installation, prefs, graphics)
+            self.assertEqual(command[command.index('--theatre') + 1], 'alps')
+            self.assertEqual(command[command.index('--earth-airport') + 1], 'LSZH')
+            self.assertEqual(Path(command[command.index('--earth-pack') + 1]), data / 'earth.ofse')
+            # An airport the theatre does not have starts at its first.
+            command = arguments(self.installation, Preferences(map='earth', theatre='alps', earth_airport='LOWW', aircraft=prefs.aircraft), graphics)
+            self.assertEqual(command[command.index('--earth-airport') + 1], 'LSGG')
+            for bad in (Preferences(map='earth', theatre='moon', aircraft=prefs.aircraft),
+                        Preferences(map='earth', theatre='alps', mode='dogfight', aircraft='typhoon')):
+                with self.assertRaises(LauncherError):
+                    arguments(self.installation, bad, graphics)
+
+    def test_an_earth_game_is_hosted_on_this_computers_pack(self):
+        self.installation.catalog['theatres'] = [{'id': 'gulf', 'name': 'Persian Gulf', 'airports': [{'ident': 'OMDB', 'name': 'Dubai'}]}]
+        prefs = Preferences(map='earth', theatre='gulf')
+        with patch('launcher.game.user_directory', return_value=self.root / 'nowhere'):
+            with self.assertRaises(LauncherError):
+                server_arguments(self.installation, prefs, lan=True)
+            data = self.installation.directory / 'earth'
+            data.mkdir(parents=True, exist_ok=True)
+            (data / 'earth.ofse').write_bytes(b'pack')
+            (data / 'earth-cover.ofsc').write_bytes(b'cover')
+            command = server_arguments(self.installation, prefs, lan=True)
+            self.assertEqual(command[5:11], ['--map', 'earth', '--theatre', 'gulf', '--earth-pack', str(data / 'earth.ofse')])
+            for bad in (Preferences(map='earth', theatre='gulf', lan_bots=2), Preferences(map='earth', theatre='gulf', lan_teams=True)):
+                with self.assertRaises(LauncherError):
+                    server_arguments(self.installation, bad, lan=True)
+            # Multiplayer on the Earth is passed the theatre as a flight is.
+            graphics = Graphics(self.root / 'user/graphics.cfg')
+            flight = Preferences(map='earth', theatre='gulf', mode='multiplayer', aircraft=self.installation.aircraft[0]['id'])
+            command = arguments(self.installation, flight, graphics)
+            self.assertEqual(command[command.index('--theatre') + 1], 'gulf')
+            self.assertIn('--server', command)
+
+    def test_earth_data_is_downloaded_checked_into_the_users_folder(self):
+        import hashlib
+        from launcher.game import download_earth, earth_data, earth_downloads
+        self.assertEqual(earth_downloads(self.installation), [])
+        with self.assertRaises(LauncherError):
+            download_earth(self.installation)
+        files = {'earth.ofse': b'pack' * 100, 'earth-cover.ofsc': b'cover' * 10}
+        self.installation.catalog['theatres'] = [{'id': 'alps', 'name': 'Western Alps', 'airports': [{'ident': 'LSGG', 'name': 'Geneva'}]}]
+        self.installation.catalog['earth_data'] = [
+            {'name': name, 'url': f'https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/{name}',
+             'sha256': hashlib.sha256(data).hexdigest(), 'size': len(data)} for name, data in files.items()]
+        fetched, seen = [], []
+
+        def fetch(record, destination, cancel, report):
+            fetched.append(record['url'])
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(files[destination.name])
+            report(record['size'], record['size'], 1)
+        with patch('launcher.game.user_directory', return_value=self.root / 'user'):
+            folder = download_earth(self.installation, progress=lambda done, total, speed: seen.append((done, total)), fetch=fetch)
+            self.assertEqual(folder, self.root / 'user' / 'earth')
+            self.assertEqual(len(fetched), 2)
+            self.assertEqual(seen[-1], (sum(map(len, files.values())), sum(map(len, files.values()))))
+            self.assertEqual(earth_data(self.installation)[0], folder / 'earth.ofse')
+            # Data of another size than this version's is fetched again.
+            (folder / 'earth.ofse').write_bytes(b'old')
+            with self.assertRaisesRegex(LauncherError, 'Download it again'):
+                earth_data(self.installation)
+        for bad in ([], [{'name': 'earth.ofse'}], [{**r, 'url': 'http://example.org/x'} for r in self.installation.catalog['earth_data']],
+                    [{**r, 'size': 0} for r in self.installation.catalog['earth_data']]):
+            self.installation.catalog['earth_data'] = bad
+            with self.assertRaises(LauncherError):
+                earth_downloads(self.installation)
+
+    def test_a_theatres_detail_regions_are_downloaded_beside_the_pack(self):
+        import hashlib
+        from launcher.game import download_earth, earth_detail_downloads, earth_missing
+        files = {'earth.ofse': b'pack' * 100, 'earth-cover.ofsc': b'cover' * 10,
+                 'earth-detail-N40E000.ofsd': b'west' * 30, 'earth-detail-N40E010.ofsd': b'east' * 40,
+                 'earth-detail-N20E050.ofsd': b'gulf' * 50}
+        url = 'https://github.com/KindaBad/OpenFlightSim-public/releases/download/earth-data-v2/'
+        record = lambda name: {'name': name, 'url': url + name, 'sha256': hashlib.sha256(files[name]).hexdigest(), 'size': len(files[name])}
+        self.installation.catalog['theatres'] = [
+            {'id': 'alps', 'name': 'Western Alps', 'airports': [{'ident': 'LSGG', 'name': 'Geneva'}], 'regions': ['N40E000', 'N40E010']},
+            {'id': 'gulf', 'name': 'Persian Gulf', 'airports': [{'ident': 'OMDB', 'name': 'Dubai'}], 'regions': ['N20E050']}]
+        self.installation.catalog['earth_data'] = [record('earth.ofse'), record('earth-cover.ofsc')]
+        self.installation.catalog['earth_detail'] = [dict(region=n[13:20], **record(n)) for n in files if n.endswith('.ofsd')]
+        fetched = []
+
+        def fetch(record, destination, cancel, report):
+            fetched.append(destination.relative_to(self.root / 'user' / 'earth').as_posix())
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(files[destination.name])
+        with patch('launcher.game.user_directory', return_value=self.root / 'user'):
+            download_earth(self.installation, 'alps', fetch=fetch)
+            self.assertEqual(sorted(fetched), ['detail/earth-detail-N40E000.ofsd', 'detail/earth-detail-N40E010.ofsd',
+                                               'earth-cover.ofsc', 'earth.ofse'])
+            self.assertEqual(earth_missing(self.installation, 'alps')[1], [])
+            # Another theatre needs only its own regions.
+            fetched.clear()
+            download_earth(self.installation, 'gulf', fetch=fetch)
+            self.assertEqual(fetched, ['detail/earth-detail-N20E050.ofsd'])
+            # A region of another size than this version's is fetched again.
+            (self.root / 'user/earth/detail/earth-detail-N40E010.ofsd').write_bytes(b'old')
+            self.assertEqual([r['region'] for r, _ in earth_missing(self.installation, 'alps')[1]], ['N40E010'])
+        for bad in ([{'region': 'N40E000'}], [dict(record('earth-detail-N40E000.ofsd'), region='N4E000')],
+                    [dict(record('earth-detail-N40E000.ofsd'), region='N40E010')]):
+            self.installation.catalog['earth_detail'] = bad
+            with self.assertRaises(LauncherError):
+                earth_detail_downloads(self.installation)
 
     def test_side_and_bomb_load_are_passed_to_a_game_that_knows_them(self):
         graphics = Graphics(self.root / 'user/graphics.cfg')

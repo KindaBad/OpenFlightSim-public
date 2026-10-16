@@ -4,6 +4,7 @@
 #include <cmath>
 #include <functional>
 #include <stdexcept>
+#include "ofs/world.hpp"
 
 namespace ofs::client {
 namespace {
@@ -57,7 +58,7 @@ void AircraftPose::update(const State& state, const Controls& c, const AircraftD
   flapAngle=highlift.flap_degrees;slatAngle=highlift.slat_degrees*kDeg2Rad;
   spoiler = state.actuators_initialized ? state.spoiler : approach(spoiler, c.spoiler01, h / .6);
   const auto compression=[&](const Vec3& contact){
-    return clamp((state.pos_ned+state.att.rotate(contact-cg)).z,0,f.oleo_stroke)*gear;
+    return clamp(-world().altitude(state.pos_ned+state.att.rotate(contact-cg)),0,f.oleo_stroke)*gear;
   };
   compressionNose=compression(f.gear_nose);
   compressionMain[0]=compression(f.gear_main_l);
@@ -65,7 +66,7 @@ void AircraftPose::update(const State& state, const Controls& c, const AircraftD
   const double speed = state.vel_ned.norm();
   const double steerMax = lerp(70*kDeg2Rad, 6*kDeg2Rad, clamp(speed/60,0,1));
   steering = approach(steering, -c.steering*steerMax*gear, h*2);
-  if (-state.pos_ned.z < f.gear_nose.z + .5 && gear > .95) {
+  if (world().altitude(state.pos_ned) < f.gear_nose.z + .5 && gear > .95) {
     const double forward = state.att.inverseRotate(state.vel_ned).x;
     wheel = std::remainder(wheel + forward*h/v.wheelRadius, 2*kPi);
     noseWheel = std::remainder(noseWheel + forward*h/v.noseWheelRadius, 2*kPi);

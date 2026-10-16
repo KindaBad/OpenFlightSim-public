@@ -117,11 +117,11 @@ void sunDirection(const SkySettings& sky, float out[3]) {
   out[2] = static_cast<float>(-std::cos(azimuth) * std::cos(elevation));
 }
 
-void sunPosition(double hour, int dayOfYear, double latitudeDeg, float& elevationDeg, float& azimuthDeg) {
+namespace {
+// The sun's elevation and compass bearing seen from a latitude, given its
+// declination and hour angle (radians).
+void sunFromHourAngle(double latitude, double declination, double hourAngle, float& elevationDeg, float& azimuthDeg) {
   constexpr double kDeg2Rad = kPi / 180.0;
-  const double declination = -23.44 * kDeg2Rad * std::cos(2 * kPi * (dayOfYear + 10) / 365.0);
-  const double latitude = latitudeDeg * kDeg2Rad;
-  const double hourAngle = (hour - 12.0) * 15.0 * kDeg2Rad;
   const double sinElevation = std::sin(latitude) * std::sin(declination) +
                               std::cos(latitude) * std::cos(declination) * std::cos(hourAngle);
   const double elevation = std::asin(clampSetting(sinElevation, -1.0, 1.0));
@@ -131,6 +131,33 @@ void sunPosition(double hour, int dayOfYear, double latitudeDeg, float& elevatio
                                         std::tan(declination) * std::cos(latitude));
   elevationDeg = static_cast<float>(elevation / kDeg2Rad);
   azimuthDeg = static_cast<float>(std::fmod(azimuth / kDeg2Rad + 180.0 + 360.0, 360.0));
+}
+}  // namespace
+
+void sunPosition(double hour, int dayOfYear, double latitudeDeg, float& elevationDeg, float& azimuthDeg) {
+  constexpr double kDeg2Rad = kPi / 180.0;
+  const double declination = -23.44 * kDeg2Rad * std::cos(2 * kPi * (dayOfYear + 10) / 365.0);
+  sunFromHourAngle(latitudeDeg * kDeg2Rad, declination, (hour - 12.0) * 15.0 * kDeg2Rad, elevationDeg, azimuthDeg);
+}
+
+void sunPositionUtc(std::time_t time, double latitudeDeg, double longitudeDeg, float& elevationDeg, float& azimuthDeg) {
+  constexpr double kDeg2Rad = kPi / 180.0;
+  std::tm utc{};
+#ifdef _WIN32
+  gmtime_s(&utc, &time);
+#else
+  gmtime_r(&time, &utc);
+#endif
+  const double hour = utc.tm_hour + utc.tm_min / 60.0 + utc.tm_sec / 3600.0;
+  // NOAA's approximations, good to a few arc minutes: the fractional year,
+  // the equation of time (minutes) and the declination.
+  const double year = 2 * kPi / 365.0 * (utc.tm_yday + (hour - 12) / 24);
+  const double equation = 229.18 * (.000075 + .001868 * std::cos(year) - .032077 * std::sin(year) -
+                                    .014615 * std::cos(2 * year) - .040849 * std::sin(2 * year));
+  const double declination = .006918 - .399912 * std::cos(year) + .070257 * std::sin(year) - .006758 * std::cos(2 * year) +
+                             .000907 * std::sin(2 * year) - .002697 * std::cos(3 * year) + .00148 * std::sin(3 * year);
+  const double solarMinutes = hour * 60 + equation + 4 * longitudeDeg;
+  sunFromHourAngle(latitudeDeg * kDeg2Rad, declination, (solarMinutes / 4 - 180) * kDeg2Rad, elevationDeg, azimuthDeg);
 }
 
 void applyRealTime(SkySettings& sky) {
@@ -147,6 +174,12 @@ void applyRealTime(SkySettings& sky) {
   const double hour = local.tm_hour + local.tm_min / 60.0 + local.tm_sec / 3600.0;
   sunPosition(hour, local.tm_yday + 1, kLatitudeDeg, sky.sunElevationDeg, sky.sunAzimuthDeg);
   // The renderer has no night; the sun stops a little under the horizon, at dusk.
+  sky.sunElevationDeg = clampSetting(sky.sunElevationDeg, -10.0f, 89.0f);
+}
+
+void applyRealTimeAt(SkySettings& sky, double latitudeDeg, double longitudeDeg) {
+  if (!sky.realTime) return;
+  sunPositionUtc(std::time(nullptr), latitudeDeg, longitudeDeg, sky.sunElevationDeg, sky.sunAzimuthDeg);
   sky.sunElevationDeg = clampSetting(sky.sunElevationDeg, -10.0f, 89.0f);
 }
 

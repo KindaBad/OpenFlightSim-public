@@ -8,7 +8,7 @@
 #ifndef OFS_FRAME_GLSL
 #define OFS_FRAME_GLSL
 
-uniform vec4 u_frame[24];
+uniform vec4 u_frame[25];
 
 #define u_cameraPos      u_frame[0]   // xyz eye, w time in seconds
 #define u_worldOrigin    u_frame[1]   // xyz origin offset (absolute = position + this), w exposure
@@ -34,6 +34,7 @@ uniform vec4 u_frame[24];
 #define u_cameraForward  u_frame[21]  // xyz view direction, w scene range scale (metres per stored unit)
 #define u_quality        u_frame[22]  // x terrain detail level, y water quality, z specular antialiasing, w terrain shadow steps
 #define u_wind           u_frame[23]  // xyz wind in render space (m/s), w gust phase
+#define u_planet         u_frame[24]  // x 1 on the round Earth, y altitude of the render origin
 
 // Screen position in [0,1]^2 of the fragment being shaded, in the orientation
 // render-target textures use on this backend.

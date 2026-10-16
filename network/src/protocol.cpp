@@ -1,4 +1,5 @@
 #include "ofs/net/protocol.hpp"
+#include <algorithm>
 #include <array>
 #include <bit>
 #include <cmath>
@@ -141,6 +142,29 @@ void vec(Writer &w, const Vec3 &v) {
 Vec3 vec(Reader &r) {
   double x = r.real(), y = r.real(), z = r.real();
   return {x, y, z};
+}
+// A theatre id or airport ident: letters and digits only, or empty.
+bool identifier(const std::string &text) {
+  return std::all_of(text.begin(), text.end(), [](char c) {
+    return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+  });
+}
+void gameMap(Writer &w, const GameMap &map) {
+  w.integer(static_cast<unsigned>(map.kind), 1);
+  w.string(map.theatre, maxTheatreId);
+  w.integer(map.pack, 8);
+}
+GameMap gameMap(Reader &r) {
+  GameMap map;
+  const auto kind = r.integer(1);
+  map.kind = static_cast<MapKind>(kind);
+  map.theatre = r.string(maxTheatreId);
+  map.pack = r.integer(8);
+  // The valley has no theatre or pack, and the Earth always has both.
+  if (kind > 1 || !identifier(map.theatre) ||
+      (map.kind == MapKind::Valley ? !map.theatre.empty() || map.pack : map.theatre.empty() || !map.pack))
+    r.ok = false;
+  return map;
 }
 void weather(Writer &w, const Weather &value) {
   vec(w, value.wind_ned);
@@ -381,6 +405,18 @@ bool decodeAircraft(std::span<const std::uint8_t> bytes, Aircraft &out) {
   out = std::move(a);
   return true;
 }
+std::string mapMismatch(const GameMap &server, const GameMap &client) {
+  // A reason travels in a Reject, at most 64 characters.
+  if (server.kind == MapKind::Valley && client.kind == MapKind::Valley)
+    return {};
+  if (server.kind == MapKind::Valley)
+    return "This game is in the valley. Choose the valley to join it.";
+  if (client.kind == MapKind::Valley || client.theatre != server.theatre)
+    return "This game is on the Earth map, in " + server.theatre + ". Choose it to join.";
+  if (client.pack != server.pack)
+    return "Your Earth map data is not this game's. Download it again.";
+  return {};
+}
 std::vector<std::uint8_t> encode(const Message &m) {
   Writer w;
   w.integer(0x4f46534e, 4);
@@ -398,6 +434,8 @@ std::vector<std::uint8_t> encode(const Message &m) {
     w.integer(static_cast<unsigned>(m.aircraftType), 1);
     w.integer(static_cast<unsigned>(m.team), 1);
     w.integer(m.loadout, 1);
+    gameMap(w, m.map);
+    w.string(m.map.airport, maxAirportIdent);
     break;
   case Type::Reject:
     w.string(m.text);
@@ -408,6 +446,7 @@ std::vector<std::uint8_t> encode(const Message &m) {
     aircraft(w, m.aircraft);
     weather(w, m.weather);
     w.integer(static_cast<unsigned>(m.team), 1);
+    gameMap(w, m.map);
     break;
   case Type::TeamState:
     if (m.teams.health.size() > maxStructures)
@@ -534,7 +573,10 @@ bool decode(std::span<const std::uint8_t> bytes, Message &output,
     m.aircraftType = static_cast<AircraftType>(r.integer(1));
     m.team = static_cast<Team>(r.integer(1));
     m.loadout = static_cast<std::uint8_t>(r.integer(1));
-    if (m.text.empty() || !validAircraftType(m.aircraftType) || m.team > Team::Blue || m.loadout > 7)
+    m.map = gameMap(r);
+    m.map.airport = r.string(maxAirportIdent);
+    if (m.text.empty() || !validAircraftType(m.aircraftType) || m.team > Team::Blue || m.loadout > 7 ||
+        !identifier(m.map.airport))
       r.ok = false;
     break;
   case Type::Reject:
@@ -551,6 +593,7 @@ bool decode(std::span<const std::uint8_t> bytes, Message &output,
     m.aircraft = aircraft(r);
     m.weather = weather(r);
     m.team = static_cast<Team>(r.integer(1));
+    m.map = gameMap(r);
     if (m.team > Team::Blue)
       r.ok = false;
     break;

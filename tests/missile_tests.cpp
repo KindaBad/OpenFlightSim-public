@@ -566,7 +566,8 @@ void radarProtocol() {
   m.radar.chaff = 255;
   auto bytes = encodeWeapon(m);
   WeaponMessage decoded;
-  check(bytes.size() == 820 && decodeWeapon(bytes, decoded),
+  // With the 12-byte reference point the positions are relative to.
+  check(bytes.size() == 820 + weaponReferenceBytes && decodeWeapon(bytes, decoded),
         "maximum radar packet");
   check(decoded.radar.flares == 13 && decoded.radar.chaff == 255,
         "countermeasure stock round trip");
@@ -718,7 +719,7 @@ void protocol() {
                           SeekerPhase::Tracking,
                           1.23});
   auto bytes = encodeWeapon(m);
-  check(bytes.size() == 1049 && decodeWeapon(bytes, out), "max packet budget");
+  check(bytes.size() == 1049 + weaponReferenceBytes && decodeWeapon(bytes, out), "max packet budget");
   check((out.missiles[0].position - m.missiles[0].position).norm() <= .11 &&
             (out.missiles[0].velocity - m.missiles[0].velocity).norm() <= .22,
         "quantization precision");

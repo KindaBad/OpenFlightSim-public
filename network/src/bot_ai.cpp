@@ -27,7 +27,7 @@ BotDecision flyBot(const Simulator &sim, const State *target, const GunConfig &g
     if (a < -1 && discriminant >= 0)
       lead = (-b - std::sqrt(discriminant)) / (2 * a);
     lead = std::clamp(lead, 0., 2.);
-    aim = relative + velocity * lead - Vec3{0, 0, .5 * kG0 * lead * lead};
+    aim = relative + velocity * lead - ofs::world().down(s.pos_ned) * (.5 * kG0 * lead * lead);
     const auto body = s.att.inverseRotate(aim);
     out.firing = !evading && range > 100 && range < std::min(1200., gun.range) &&
         body.x > 0 && std::hypot(body.y, body.z) < std::max(2., body.x * .009) &&
@@ -37,11 +37,13 @@ BotDecision flyBot(const Simulator &sim, const State *target, const GunConfig &g
       aim = s.att.rotate({700, turnSide * 900, -120});
       out.firing = false;
     }
+    aim = ofs::world().toLocal(s.pos_ned, aim);
   } else {
     // Gentle patrol with altitude hold until a live human becomes available.
-    aim = s.att.rotate({1500, turnSide * 250, 0});
-    aim.z = (-1000 - s.pos_ned.z) * .8;
+    aim = ofs::world().toLocal(s.pos_ned, s.att.rotate({1500, turnSide * 250, 0}));
+    aim.z = (-1000 + ofs::world().altitude(s.pos_ned)) * .8;
   }
+  // From here on the aim is in the local north-east-down axes.
   const double headingError = std::remainder(std::atan2(aim.y, aim.x) -
       flight.hdg_deg * kDeg2Rad, 2 * kPi);
   double desiredBank = std::clamp(std::atan(speed * .55 * headingError / kG0),
@@ -55,7 +57,7 @@ BotDecision flyBot(const Simulator &sim, const State *target, const GunConfig &g
   double clearance = flight.agl;
   for (const double seconds : {2., 4., 7.}) {
     const Vec3 ahead = s.pos_ned + s.vel_ned * seconds;
-    clearance = std::min(clearance, sim.groundHeightAt(ahead.x, ahead.y) - ahead.z);
+    clearance = std::min(clearance, sim.clearanceAt(ahead));
   }
   if (clearance < 300 || (flight.agl < 600 && flight.vs < -25)) {
     desiredBank = 0;
@@ -68,7 +70,7 @@ BotDecision flyBot(const Simulator &sim, const State *target, const GunConfig &g
       kG0 * std::tan(std::clamp(bank, -1.2, 1.2)) * std::sin(bank) / speed;
   c.aileron_stick = std::clamp(rollRate / sim.config().max_roll_rate, -.85, .85);
   const double loadFeedback = sim.config().control_law == FlightControlLaw::Canard
-      ? .08 * (s.att.inverseRotate({0,0,1}).z - flight.g_load) : 0.;
+      ? .08 * (s.att.inverseRotate(ofs::world().down(s.pos_ned)).z - flight.g_load) : 0.;
   c.elevator_stick = std::clamp((pitchRate-loadFeedback) / sim.config().max_pitch_rate -
       c.elevator_trim + s.trim_reference, -.5, .8);
   c.rudder_pedal = 0;

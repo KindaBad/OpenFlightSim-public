@@ -9,12 +9,13 @@
 namespace ofs {
 using namespace detail;
 AirData Simulator::airData() const {
-  const double alt_msl = -state_.pos_ned.z;
+  const double alt_msl = world().altitude(state_.pos_ned);
   return isaAtAltitude(alt_msl, weather_.temp_offset_c);
 }
 
 Vec3 Simulator::windAt(const Vec3 &pos_ned, double t) const { return windAt(pos_ned,t,weather_); }
 Vec3 Simulator::windAt(const Vec3 &pos_ned, double t, const Weather& weather_) const {
+  // The weather's wind is in the local north-east-down axes.
   Vec3 w = weather_.wind_ned;
   const double tb = weather_.turbulence01;
   if (tb > 1e-6) {
@@ -31,7 +32,7 @@ Vec3 Simulator::windAt(const Vec3 &pos_ned, double t, const Weather& weather_) c
     w.z += uv * (0.60 * std::sin(gustPhase(0.43, pos_ned, t) + 4.4) +
                  0.40 * std::sin(gustPhase(1.17, pos_ned, t) + 1.2));
   }
-  return w;
+  return world().fromLocal(pos_ned, w);
 }
 
 

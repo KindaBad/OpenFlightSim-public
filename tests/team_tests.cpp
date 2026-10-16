@@ -264,7 +264,8 @@ void protocol() {
   check(!decode(bytes, out, reason), "structure health over 100 is refused");
   Message hello; hello.type = Type::Hello; hello.text = "pilot"; hello.aircraftType = AircraftType::B52; hello.team = Team::Blue; hello.loadout = 2;
   check(decode(encode(hello), out, reason) && out.team == Team::Blue && out.loadout == 2 && out.aircraftType == AircraftType::B52, "hello carries side and load");
-  bytes = encode(hello); bytes[bytes.size() - 2] = 3;
+  // The side is followed by the load and the map (11 bytes for the valley).
+  bytes = encode(hello); bytes[bytes.size() - 13] = 3;
   check(!decode(bytes, out, reason), "an unknown side is refused");
   WeaponMessage w; w.type = Type::RadarState; w.tick = 1; w.sequence = 1;
   w.radar.bombType = weapons::WeaponType::Nuclear; w.radar.bombs = 1; w.radar.loadout = 2; w.radar.weapon = weapons::WeaponType::Nuclear;

@@ -21,7 +21,12 @@ struct LobbyInfo {
   std::string address; // filled in by the browser from the reply's source
   std::uint16_t port{}, protocol{};
   std::uint8_t players{}, maxPlayers{}, bots{};
+  // Empty for the valley; "earth:<theatre>" for the round Earth. Sent only for
+  // the Earth, after the version, so launchers that predate it, which refuse
+  // an answer with anything after the version, are offered valley games only.
+  std::string map;
 };
+constexpr std::size_t maxLobbyMap = 24;
 // The eight-byte question a browser broadcasts.
 std::vector<std::uint8_t> discoveryQuery();
 bool isDiscoveryQuery(std::span<const std::uint8_t>);

@@ -4,6 +4,7 @@
 // settings frontend.
 
 #include <cstdint>
+#include <ctime>
 #include <string>
 
 namespace ofs::client {
@@ -136,5 +137,10 @@ void sunDirection(const SkySettings&, float outDirection[3]);
 void sunPosition(double hour, int dayOfYear, double latitudeDeg, float& elevationDeg, float& azimuthDeg);
 // Sets the sun from this computer's clock when the sky follows real time.
 void applyRealTime(SkySettings&);
+// Where the sun stands at a time, seen from a place: the true sun, from the
+// UTC time, latitude and longitude.
+void sunPositionUtc(std::time_t time, double latitudeDeg, double longitudeDeg, float& elevationDeg, float& azimuthDeg);
+// On the round Earth: the sun as it stands now over a place.
+void applyRealTimeAt(SkySettings&, double latitudeDeg, double longitudeDeg);
 
 }  // namespace ofs::client

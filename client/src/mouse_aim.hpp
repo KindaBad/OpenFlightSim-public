@@ -18,6 +18,7 @@
 
 #include "ofs/airliner.hpp"
 #include "ofs/simulator.hpp"
+#include "ofs/world.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -25,7 +26,8 @@
 namespace ofs::client {
 
 struct MouseAim {
-  // Aim direction in world NED, as heading and elevation.
+  // Aim direction as heading and elevation in the local north-east-down axes
+  // where the aircraft is.
   double yaw{}, pitch{};
   // Free-look offset from the aim direction; moves the view, not the aircraft.
   double lookYaw{}, lookPitch{};
@@ -38,14 +40,17 @@ struct MouseAim {
   // The aircraft's clock running back by more than this is a reset.
   static constexpr double kResetSeconds = .25;
 
-  Vec3 direction() const { return quatFromEuler(0, pitch, yaw).rotate({1, 0, 0}); }
+  // In the game frame.
+  Vec3 direction() const { return world().fromLocal(lastPosition_, localDirection()); }
   double viewYaw() const { return yaw + lookYaw; }
   double viewPitch() const { return clamp(pitch + lookPitch, -kPitchLimit, kPitchLimit); }
-  Vec3 viewDirection() const { return quatFromEuler(0, viewPitch(), viewYaw()).rotate({1, 0, 0}); }
+  Vec3 viewDirection() const {
+    return world().fromLocal(lastPosition_, quatFromEuler(0, viewPitch(), viewYaw()).rotate({1, 0, 0}));
+  }
 
   // Points the aim along the nose, so engaging mouse aim never jerks the aircraft.
   void recenter(const State& aircraft) {
-    const Vec3 nose = aircraft.att.rotate({1, 0, 0});
+    const Vec3 nose = world().toLocal(aircraft.pos_ned, aircraft.att.rotate({1, 0, 0}));
     yaw = std::atan2(nose.y, nose.x);
     pitch = clamp(std::asin(clamp(-nose.z, -1, 1)), -kPitchLimit, kPitchLimit);
     lookYaw = lookPitch = 0;
@@ -66,11 +71,11 @@ struct MouseAim {
   // Keeps the aim within `cone` radians of the nose. The flight deck view is
   // fixed to the airframe, so this is what keeps the aim circle on screen.
   void confine(const State& aircraft, double cone) {
-    const Vec3 nose = aircraft.att.rotate({1, 0, 0});
-    const Vec3 aim = direction();
+    const Vec3 nose = world().toLocal(aircraft.pos_ned, aircraft.att.rotate({1, 0, 0}));
+    const Vec3 aim = localDirection();
     if (aim.dot(nose) >= std::cos(cone)) return;
     Vec3 across = aim - nose * aim.dot(nose);
-    if (across.norm2() < 1e-12) across = aircraft.att.rotate({0, 0, -1});
+    if (across.norm2() < 1e-12) across = world().toLocal(aircraft.pos_ned, aircraft.att.rotate({0, 0, -1}));
     const Vec3 held = nose * std::cos(cone) + across.normalized() * std::sin(cone);
     yaw = std::atan2(held.y, held.x);
     pitch = clamp(std::asin(clamp(-held.z, -1, 1)), -kPitchLimit, kPitchLimit);
@@ -90,6 +95,7 @@ struct MouseAim {
   }
 
  private:
+  Vec3 localDirection() const { return quatFromEuler(0, pitch, yaw).rotate({1, 0, 0}); }
   double lastTime_{};
   Vec3 lastPosition_{};
 };
@@ -99,7 +105,7 @@ struct MouseAimCommand {
   double elevator{}, aileron{}, rudder{};
 };
 
-// Flies the nose toward `aimDirection` (world NED) through the normal controls.
+// Flies the nose toward `aimDirection` (game frame) through the normal controls.
 inline MouseAimCommand mouseAimCommand(const Simulator& sim, const Vec3& aimDirection) {
   const State& s = sim.state();
   const AircraftConfig& cfg = sim.config();
@@ -133,7 +139,7 @@ inline MouseAimCommand mouseAimCommand(const Simulator& sim, const Vec3& aimDire
   // the wings level, a large one banks steeply, a sinking nose shallows the
   // bank, and an aim well below the nose rolls inverted and pulls.
   const Vec3 nose = s.att.rotate({1, 0, 0});
-  const Vec3 worldUp{0, 0, -1};
+  const Vec3 worldUp = world().up(s.pos_ned);
   const Vec3 upAcross = worldUp - nose * worldUp.dot(nose);
   // Error at which the turn asks for as much lift as level flight: a 45 degree bank.
   constexpr double kBankAngle = .25;
@@ -149,10 +155,11 @@ inline MouseAimCommand mouseAimCommand(const Simulator& sim, const Vec3& aimDire
   Vec3 lift;
   const Vec3 level = nose.cross(worldUp);
   if (level.norm() > .15) {
-    const double noseElevation = std::asin(clamp(-nose.z, -1, 1));
-    const double aimElevation = std::asin(clamp(-aim.z, -1, 1));
+    const Vec3 noseLocal = world().toLocal(s.pos_ned, nose), aimLocal = world().toLocal(s.pos_ned, aim);
+    const double noseElevation = std::asin(clamp(-noseLocal.z, -1, 1));
+    const double aimElevation = std::asin(clamp(-aimLocal.z, -1, 1));
     // Heading means less the nearer either direction is to vertical.
-    const double headingError = std::remainder(std::atan2(aim.y, aim.x) - std::atan2(nose.y, nose.x), 2 * kPi) *
+    const double headingError = std::remainder(std::atan2(aimLocal.y, aimLocal.x) - std::atan2(noseLocal.y, noseLocal.x), 2 * kPi) *
                                 std::min(std::cos(noseElevation), std::cos(aimElevation));
     lift = level.normalized() * clamp(headingError / kBankAngle, -steepest, steepest) +
            upAcross * (1 + clamp((aimElevation - noseElevation) / kBankAngle, -3, 3));
@@ -176,7 +183,7 @@ inline MouseAimCommand mouseAimCommand(const Simulator& sim, const Vec3& aimDire
   // Keep the pull inside the load factors the wing and the pilot accept. The
   // control laws do not map stick to rate alike, so this closes on measured g,
   // led by the g the present pitch rate is about to produce.
-  const double gravity = s.att.rotate({0, 0, 1}).z;  // share of 1 g the wing carries untouched
+  const double gravity = world().toLocal(s.pos_ned, s.att.rotate({0, 0, 1})).z;  // share of 1 g the wing carries untouched
   const double load = std::max(flight.g_load, gravity + s.omega_body.y * flight.tas / kG0);
   double high = clamp(1 - (load - (loadFactor + .5)), 0, 1);
   const double low = clamp(-.5 + 2 * (-.75 - flight.g_load), -.5, 0);

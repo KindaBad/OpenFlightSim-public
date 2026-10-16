@@ -1,14 +1,17 @@
 // Export the actual compiled registry. Neither the launcher nor release tooling
 // maintains a second list of supported aircraft or claims unavailable modes.
 #include "ofs/aircraft_definition.hpp"
+#include "ofs/theatres.hpp"
 #include "ofs/weapons.hpp"
 #include "ofs_version.hpp"
+#include "ofs_earth_detail.hpp"
 #ifdef OFS_NETWORK_ENABLED
 #include "ofs/net/protocol.hpp"
 #endif
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <string_view>
 
 int main(int argc, char** argv) {
   if (argc != 2) { std::cerr << "ofs_catalog OUTPUT.json\n"; return 2; }
@@ -23,6 +26,33 @@ int main(int argc, char** argv) {
   // Lets the launcher tell which games on the local network this build can join.
   out << ",\"protocol\":" << ofs::net::protocolVersion;
 #endif
+  // The round Earth's theatres and the airports to start at in each. The
+  // terrain pack itself is a separate download.
+  out << ",\"theatres\":[";
+  for (std::size_t t = 0; t < ofs::theatres().size(); ++t) {
+    const auto& theatre = ofs::theatres()[t];
+    out << (t ? "," : "") << "{\"id\":" << std::quoted(std::string(theatre.id)) << ",\"name\":" << std::quoted(std::string(theatre.name))
+        << ",\"airports\":[";
+    for (std::size_t a = 0; a < theatre.airports.size(); ++a)
+      out << (a ? "," : "") << "{\"ident\":" << std::quoted(std::string(theatre.airports[a].ident))
+          << ",\"name\":" << std::quoted(std::string(theatre.airports[a].name)) << "}";
+    // The GLO-90 detail regions its games use.
+    out << "],\"regions\":[";
+    const auto regions = ofs::theatreRegions(theatre);
+    for (std::size_t r = 0; r < regions.size(); ++r) out << (r ? "," : "") << std::quoted(regions[r]);
+    out << "]}";
+  }
+  out << "]";
+  // The Earth map's data as downloads, when this build was told where they are.
+  if (std::string_view(OFS_EARTH_PACK_URL).size() && std::string_view(OFS_EARTH_COVER_URL).size()) {
+    out << ",\"earth_data\":[";
+    out << "{\"name\":\"earth.ofse\",\"url\":" << std::quoted(OFS_EARTH_PACK_URL) << ",\"sha256\":" << std::quoted(OFS_EARTH_PACK_SHA256)
+        << ",\"size\":" << OFS_EARTH_PACK_SIZE << "},";
+    out << "{\"name\":\"earth-cover.ofsc\",\"url\":" << std::quoted(OFS_EARTH_COVER_URL) << ",\"sha256\":"
+        << std::quoted(OFS_EARTH_COVER_SHA256) << ",\"size\":" << OFS_EARTH_COVER_SIZE << "}]";
+  }
+  // And the detail regions, checked by the release workflow.
+  if (std::string_view(OFS_EARTH_DETAIL).size()) out << ",\"earth_detail\":" << OFS_EARTH_DETAIL;
   out << ",\"aircraft\":[";
   bool first = true;
   for (const auto& d : ofs::aircraftDefinitions()) {

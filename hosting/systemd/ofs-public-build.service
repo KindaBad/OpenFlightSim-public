@@ -14,5 +14,5 @@ NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
-ReadWritePaths=/var/lib/ofs-public/builds /var/lib/ofs-public/work
+ReadWritePaths=/var/lib/ofs-public/builds /var/lib/ofs-public/work /var/lib/ofs-public/earth
 TimeoutStartSec=45min

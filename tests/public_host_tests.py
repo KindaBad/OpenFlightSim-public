@@ -174,6 +174,39 @@ class Games(Hosted):
         self.assertEqual(self.host.flows, {})
 
 
+class EarthGames(Hosted):
+    """Games on the Earth map are offered to launchers that know it, and only those."""
+
+    def test_an_earth_game_needs_the_pack_and_is_free_flight(self):
+        earth = Preferences(name='Ada', map='earth', theatre='alps')
+        with self.assertRaisesRegex(LauncherError, 'does not have the Earth map yet'):
+            public.host(self.cache, earth, VERSION)
+        session = public.ask('127.0.0.1', self.host.port, {'op': 'list'})
+        create = {'op': 'create', 'token': session['token'], 'version': VERSION, 'name': 'x', 'map': 'earth', 'theatre': 'alps'}
+        for wrong in ({'theatre': 'moon'}, {'theatre': None}, {'map': 'mars'}, {'bots': 2}, {'teams': True}):
+            self.assertEqual(public.ask('127.0.0.1', self.host.port, {**create, **wrong})['ok'], False)
+        self.assertEqual(self.host.games, {})
+
+    def test_older_launchers_see_only_valley_games(self):
+        pack = ROOT / 'build' / 'earth' / 'earth.ofse'
+        if not pack.is_file():
+            self.skipTest('no Earth terrain pack')
+        (self.host.state / 'earth').mkdir(parents=True, exist_ok=True)
+        (self.host.state / 'earth' / 'earth.ofse').symlink_to(pack)
+        _, _, valley = public.host(self.cache, Preferences(name='Valley'), VERSION)
+        _, _, alps = public.host(self.cache, Preferences(name='Alps', map='earth', theatre='alps'), VERSION)
+        command = self.host.games[alps].process.args
+        self.assertEqual(command[-6:], ['--map', 'earth', '--theatre', 'alps', '--earth-pack', str(self.host.state / 'earth' / 'earth.ofse')])
+        # The Earth game loads its pack before it answers.
+        lobby = self.wait(lambda: self.game(alps), seconds=30)
+        self.assertEqual((lobby.map, lobby.theatre), ('earth:alps', 'alps'))
+        self.assertEqual(self.wait(lambda: self.game(valley)).map, '')
+        # A launcher that does not say it knows the Earth map is not offered it.
+        old = public.ask('127.0.0.1', self.host.port, {'op': 'list'})
+        self.assertEqual([g['id'] for g in old['games']], [valley])
+        self.assertNotIn('map', old['games'][0])
+
+
 class Emptied(Hosted):
     limits = dict(empty_seconds=1.5, flow_seconds=1)
 

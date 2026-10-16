@@ -12,9 +12,9 @@ TrimResult solveTrim(const AircraftConfig& config, const TrimRequest& request) {
   Simulator sim(config);
   std::array<double,3> x{.12, .1, .5}; // alpha, pilot elevator, throttle
   auto evaluate = [&](const std::array<double,3>& v) {
-    State s; s.pos_ned.z = -request.altitude;
-    s.vel_ned = {request.tas * std::cos(request.gamma), 0, -request.tas * std::sin(request.gamma)};
-    s.att = quatFromEuler(0, v[0] + request.gamma, 0);
+    State s; s.pos_ned = world().atAltitude(s.pos_ned, request.altitude);
+    s.vel_ned = world().fromLocal(s.pos_ned, {request.tas * std::cos(request.gamma), 0, -request.tas * std::sin(request.gamma)});
+    s.att = world().fromLocal(s.pos_ned, quatFromEuler(0, v[0] + request.gamma, 0));
     s.n1[0] = s.n1[1] = v[2];
     const auto& physical=sim.config();
     if(physical.variable_inlets)
@@ -28,10 +28,11 @@ TrimResult solveTrim(const AircraftConfig& config, const TrimRequest& request) {
     const auto a = sim.evalAero(); const auto t = sim.evalThrust();
     out.state = sim.state(); out.controls = sim.controls();
     const double weight=sim.massProperties().mass*kG0;
-    out.residual_force_world = s.att.rotate(a.force_body + t.force_body) + Vec3{0,0,weight};
+    out.residual_force_world = s.att.rotate(a.force_body + t.force_body) + world().down(s.pos_ned)*weight;
     out.residual_moment_body = a.moment_body + t.moment_body;
-    return std::array<double,3>{out.residual_force_world.x/weight,
-      out.residual_force_world.z/weight, out.residual_moment_body.y/(weight*config.mac)};
+    const Vec3 residual = world().toLocal(s.pos_ned, out.residual_force_world);
+    return std::array<double,3>{residual.x/weight,
+      residual.z/weight, out.residual_moment_body.y/(weight*config.mac)};
   };
   auto norm = [](auto v) { return std::sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]); };
   for (int iteration=0; iteration<40; ++iteration) {
@@ -40,7 +41,7 @@ TrimResult solveTrim(const AircraftConfig& config, const TrimRequest& request) {
     if (norm(r) < 1e-10) {
       out.converged=true;
       if(out.controls.gear01>.5) for(const auto& point:{config.gear_nose,config.gear_main_l,config.gear_main_r})
-        if((out.state.pos_ned+out.state.att.rotate(point-sim.massProperties().cg)).z>=0) out.converged=false;
+        if(world().altitude(out.state.pos_ned+out.state.att.rotate(point-sim.massProperties().cg))<=0) out.converged=false;
       return out;
     }
     double matrix[3][4]{};

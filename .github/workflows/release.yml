@@ -31,7 +31,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import json, os, pathlib, re, subprocess, tempfile
-          from launcher.manifest import Release
+          from launcher.manifest import Release, index_entries
           from launcher.storage import read_json
           version = re.search(r'project\(OpenFlightSim VERSION ([0-9.]+)', pathlib.Path('CMakeLists.txt').read_text())[1]
           tag = 'v' + version + ('-development' if os.environ['OFS_CHANNEL'] == 'development' else '')
@@ -46,7 +46,7 @@ jobs:
               with tempfile.TemporaryDirectory() as temporary:
                   subprocess.run(['gh', 'release', 'download', 'launcher-updates', '--repo', os.environ['GITHUB_REPOSITORY'], '--pattern', 'manifest.json', '--dir', temporary], check=True)
                   index = read_json(pathlib.Path(temporary) / 'manifest.json')
-                  entries = [Release.parse(entry) for entry in index['releases']]
+                  entries = [Release.parse(entry) for entry in index_entries(index)]
                   if not any(entry.version == version and entry.data['channel'] == os.environ['OFS_CHANNEL'] for entry in entries):
                       raise SystemExit('Published version is absent from the launcher index; restore the index before reporting delivery')
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
@@ -141,13 +141,47 @@ jobs:
         with:
           path: build/release
           key: windows-native-build-${{ steps.vcpkg-environment.outputs.version }}-${{ hashFiles('cmake/Dependencies.cmake', 'network/CMakeLists.txt') }}-v1
+      # The Earth map's data is a download of its own (scripts/publish_earth_data.py);
+      # the launcher is told where it is and what it must hash to.
+      - name: Earth map download
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, pathlib, re
+          descriptor = pathlib.Path('data/earth/earth-data.json')
+          flags = []
+          if descriptor.is_file():
+              data = json.loads(descriptor.read_text())
+              files = {f['name']: f for f in data['files']}
+              for key, name in (('PACK', 'earth.ofse'), ('COVER', 'earth-cover.ofsc')):
+                  record = files[name]
+                  if not record['url'].startswith('https://github.com/') or not re.fullmatch('[0-9a-f]{64}', record['sha256']) or type(record['size']) is not int:
+                      raise SystemExit(f'Invalid Earth data record {name}')
+                  flags += [f'-DOFS_EARTH_{key}_URL={record["url"]}', f'-DOFS_EARTH_{key}_SHA256={record["sha256"]}', f'-DOFS_EARTH_{key}_SIZE={record["size"]}']
+              # The GLO-90 detail regions, re-written as a checked list for the catalogue.
+              detail = []
+              for record in data.get('detail', []):
+                  region = record['region']
+                  if (not re.fullmatch('[NS][0-9]{2}[EW][0-9]{3}', region) or record['name'] != f'earth-detail-{region}.ofsd'
+                          or not record['url'].startswith('https://github.com/') or not re.fullmatch('[0-9a-f]{64}', record['sha256'])
+                          or type(record['size']) is not int or not 0 < record['size'] < 2**31):
+                      raise SystemExit(f'Invalid Earth detail record {region}')
+                  detail.append({k: record[k] for k in ('region', 'name', 'url', 'sha256', 'size')})
+              if detail:
+                  listing = pathlib.Path('build/earth-detail.json').resolve()
+                  listing.parent.mkdir(parents=True, exist_ok=True)
+                  listing.write_text(json.dumps(detail, separators=(',', ':')))
+                  flags.append(f'-DOFS_EARTH_DETAIL_JSON={listing.as_posix()}')
+          with open(os.environ['GITHUB_ENV'], 'a') as env:
+              env.write('OFS_EARTH_FLAGS=' + ' '.join(flags) + '\n')
+          PY
       - name: Configure Linux
         if: runner.os == 'Linux'
-        run: cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DOFS_RELEASE_CHANNEL=${{ env.OFS_CHANNEL }}
+        run: cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DOFS_RELEASE_CHANNEL=${{ env.OFS_CHANNEL }} ${{ env.OFS_EARTH_FLAGS }}
       - name: Configure Windows
         if: runner.os == 'Windows'
         shell: pwsh
-        run: cmake -S . -B build/release -G "Visual Studio 17 2022" -A x64 "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" "-DOFS_RELEASE_CHANNEL=$env:OFS_CHANNEL" -DOFS_INCLUDE_SU57=ON -DOFS_REQUIRE_PRODUCTION_ASSETS=OFF -DOFS_ASSET_KEY_FILE=
+        run: cmake -S . -B build/release -G "Visual Studio 17 2022" -A x64 "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" "-DOFS_RELEASE_CHANNEL=$env:OFS_CHANNEL" -DOFS_INCLUDE_SU57=ON -DOFS_REQUIRE_PRODUCTION_ASSETS=OFF -DOFS_ASSET_KEY_FILE= $(-split $env:OFS_EARTH_FLAGS)
       - name: Build simulator, server and compiled catalogue
         run: cmake --build build/release --config Release --parallel 3
       - name: Check source provenance first
@@ -187,9 +221,10 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           import shutil
-          source = Path('licenses/assets')
-          if source.is_dir():
-              shutil.copytree(source, Path('build/stage/licenses/assets'), dirs_exist_ok=True)
+          for kind in ('assets', 'data'):
+              source = Path('licenses') / kind
+              if source.is_dir():
+                  shutil.copytree(source, Path('build/stage/licenses') / kind, dirs_exist_ok=True)
           PY
       - name: Freeze native launcher and updater
         run: python scripts/package_launcher.py --build build/release --output build/bundles --base-url "${{ env.OFS_UPDATE_BASE_URL }}"

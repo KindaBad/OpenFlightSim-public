@@ -1,5 +1,6 @@
 #include "ofs/net/weapons_protocol.hpp"
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <stdexcept>
 namespace ofs::net {
@@ -63,12 +64,12 @@ struct Reader {
     return {id, std::uint32_t(generation)};
   }
 };
-void missile(Writer &w, const MissileNetState &m) {
+void missile(Writer &w, const MissileNetState &m, const Vec3 &reference) {
   w.u(m.id, 8);
   w.ref(m.owner);
   w.ref(m.target);
   w.u(unsigned(m.type), 1);
-  w.vec(m.position, 8, 4);
+  w.vec(m.position - reference, 8, 4);
   w.vec(m.velocity, 4, 2);
   for (double v : {m.attitude.w, m.attitude.x, m.attitude.y, m.attitude.z})
     w.q(v, 32767, 2);
@@ -77,13 +78,13 @@ void missile(Writer &w, const MissileNetState &m) {
   w.u(std::uint16_t(clamp(m.age * 100, 0, 7500)), 2);
   w.u(unsigned(m.model), 1);
 }
-MissileNetState missile(Reader &r) {
+MissileNetState missile(Reader &r, const Vec3 &reference) {
   MissileNetState m;
   m.id = r.u(8);
   m.owner = r.ref();
   m.target = r.ref();
   m.type = WeaponType(r.u(1));
-  m.position = r.vec(8, 4);
+  m.position = reference + r.vec(8, 4);
   m.velocity = r.vec(4, 2);
   const double w = r.q(32767, 2), x = r.q(32767, 2), y = r.q(32767, 2),
                z = r.q(32767, 2);
@@ -106,7 +107,14 @@ MissileNetState missile(Reader &r) {
     r.ok = false;
   return m;
 }
+bool referenced(Type type) {
+  return type == Type::RadarState || type == Type::MissileSpawn || type == Type::MissileState || type == Type::MissileRemove;
+}
 } // namespace
+Vec3 weaponReference(const Vec3 &position) {
+  const auto km = [](double v) { return std::isfinite(v) ? std::floor(v / 1000) * 1000 : 0.; };
+  return {km(position.x), km(position.y), km(position.z)};
+}
 std::vector<std::uint8_t> encodeWeapon(const WeaponMessage &m) {
   Writer w;
   w.u(0x4f46534e, 4);
@@ -115,6 +123,13 @@ std::vector<std::uint8_t> encodeWeapon(const WeaponMessage &m) {
   w.u(0, 1);
   w.u(m.tick, 8);
   w.u(m.sequence, 8);
+  // The reference in whole kilometres.
+  if (referenced(m.type)) {
+    if (weaponReference(m.reference).x != m.reference.x || weaponReference(m.reference).y != m.reference.y ||
+        weaponReference(m.reference).z != m.reference.z)
+      throw std::invalid_argument("weapon reference");
+    w.vec(m.reference / 1000, 1, 4);
+  }
   switch (m.type) {
   case Type::WeaponAction:
     w.u(m.entity, 8);
@@ -146,7 +161,7 @@ std::vector<std::uint8_t> encodeWeapon(const WeaponMessage &m) {
     w.u(n.tracks.size(), 1);
     for (const auto &t : n.tracks) {
       w.ref(t.entity);
-      w.vec(t.position, 2, 4);
+      w.vec(t.position - m.reference, 2, 4);
       w.vec(t.velocity, 2, 2);
       w.u(std::uint8_t(clamp(t.quality * 255, 0, 255)), 1);
       w.u(std::uint8_t(clamp(
@@ -171,7 +186,7 @@ std::vector<std::uint8_t> encodeWeapon(const WeaponMessage &m) {
       throw std::length_error("missile batch");
     w.u(m.missiles.size(), 1);
     for (const auto &n : m.missiles)
-      missile(w, n);
+      missile(w, n, m.reference);
     break;
   case Type::MissileRemove:
     if (m.removals.empty() || m.removals.size() > maxMissileRecords)
@@ -180,7 +195,7 @@ std::vector<std::uint8_t> encodeWeapon(const WeaponMessage &m) {
     for (const auto &e : m.removals) {
       w.u(e.missile.id, 8);
       w.u(e.detonation, 1);
-      w.vec(e.missile.position, 8, 4);
+      w.vec(e.missile.position - m.reference, 8, 4);
     }
     break;
   default:
@@ -204,6 +219,8 @@ bool decodeWeapon(std::span<const std::uint8_t> bytes, WeaponMessage &out) {
   m.sequence = r.u(8);
   if (m.tick > maxTimelineTick || !m.sequence)
     return false;
+  if (referenced(m.type))
+    m.reference = r.vec(1, 4) * 1000;
   switch (m.type) {
   case Type::WeaponAction:
     m.entity = r.u(8);
@@ -250,7 +267,7 @@ bool decodeWeapon(std::span<const std::uint8_t> bytes, WeaponMessage &out) {
     for (unsigned i = 0; i < count; ++i) {
       weapons::Track t;
       t.entity = r.ref();
-      t.position = r.vec(2, 4);
+      t.position = m.reference + r.vec(2, 4);
       t.velocity = r.vec(2, 2);
       t.quality = double(r.u(1)) / 255;
       t.lastDetection = double(m.tick) * tickSeconds - double(r.u(1)) / 50;
@@ -292,7 +309,7 @@ bool decodeWeapon(std::span<const std::uint8_t> bytes, WeaponMessage &out) {
     if (!count || count > maxMissileRecords)
       return false;
     for (unsigned i = 0; i < count; ++i) {
-      auto n = missile(r);
+      auto n = missile(r, m.reference);
       if (std::any_of(m.missiles.begin(), m.missiles.end(),
                       [&](const auto &other) { return n.id == other.id; }))
         r.ok = false;
@@ -310,7 +327,7 @@ bool decodeWeapon(std::span<const std::uint8_t> bytes, WeaponMessage &out) {
       e.missile.id = r.u(8);
       const auto detonate = r.u(1);
       e.detonation = detonate;
-      e.missile.position = r.vec(8, 4);
+      e.missile.position = m.reference + r.vec(8, 4);
       if (!e.missile.id || detonate > 1 ||
           std::any_of(m.removals.begin(), m.removals.end(),
                       [&](const auto &other) {
@@ -333,20 +350,29 @@ std::vector<WeaponReplicationSender::Packet> WeaponReplicationSender::build(
     Tick tick, EntityId viewer, Vec3 position, const RadarNetState &radar,
     std::span<const Missile> missiles, std::span<const MissileEvent> events) {
   std::vector<Packet> result;
+  const Vec3 reference = weaponReference(position);
+  const auto within = [&](const Vec3 &p, double reach) {
+    const Vec3 d = p - reference;
+    return std::abs(d.x) < reach && std::abs(d.y) < reach && std::abs(d.z) < reach;
+  };
   auto send = [&](WeaponMessage &m, bool reliable) {
     m.tick = tick;
     m.sequence = ++sequence_;
+    m.reference = reference;
     result.push_back({encodeWeapon(m), reliable});
   };
   if (tick % 12 == 0 && (!radar.stations.empty() || radar.bombType != WeaponType::None)) {
     WeaponMessage m;
     m.type = Type::RadarState;
     m.radar = radar;
+    // Tracks are always within radar range; a stray one is left out rather
+    // than sent wrong.
+    std::erase_if(m.radar.tracks, [&](const auto &t) { return !within(t.position, trackReach); });
     send(m, false);
   }
   std::map<std::uint64_t, MissileNetState> current;
   for (const auto &m : missiles)
-    if (missileInterest(m, viewer, position))
+    if (missileInterest(m, viewer, position) && within(m.state.position, missileReach))
       current.emplace(m.id, projectMissile(m, viewer));
   WeaponMessage removed;
   removed.type = Type::MissileRemove;
@@ -356,6 +382,12 @@ std::vector<WeaponReplicationSender::Packet> WeaponReplicationSender::build(
                             [&](const auto &e) { return e.missile.id == id; });
       removed.removals.push_back(
           e == events.end() ? MissileEvent{n, tick, false} : *e);
+      // Where it went is only for the flash, and kept within reach.
+      auto &where = removed.removals.back().missile.position;
+      for (double *axis : {&where.x, &where.y, &where.z}) {
+        const double base = axis == &where.x ? reference.x : axis == &where.y ? reference.y : reference.z;
+        *axis = std::clamp(*axis, base - missileReach, base + missileReach);
+      }
       if (removed.removals.size() == maxMissileRecords) {
         send(removed, true);
         removed.removals.clear();

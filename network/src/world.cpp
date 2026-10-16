@@ -19,7 +19,7 @@ World::World(bool airborne, std::optional<GunConfig> gun)
     spawn.state = trim.state;
     spawn.controls = trim.controls;
   } else {
-    spawn.state.pos_ned.z = -(definition.flight.gear_nose.z - .15);
+    spawn.state.pos_ned = ofs::world().atAltitude(spawn.state.pos_ned, definition.flight.gear_nose.z - .15);
     spawn.controls.brake01 = 1;
   }
   }
@@ -159,7 +159,7 @@ void World::applyBlasts() {
       // A side's own bombs do its own ground no harm.
       if (site.health <= 0 || all[i].team == blast.team)
         continue;
-      const Vec3 at{all[i].north, all[i].east, groundHeightNed(all[i].north, all[i].east)};
+      const Vec3 at = ofs::world().onTerrain({all[i].north, all[i].east, 0});
       const double distance = (at - blast.position).norm();
       if (distance >= bomb.structureRadius)
         continue;
@@ -197,8 +197,8 @@ void World::defend(std::span<CombatTarget> targets) {
     // Guns shoot in bursts of a second in every three, each gun in its turn.
     if (flak ? (tick_ / 120 + i) % 3 != 0 : tick_ < site.ready)
       continue;
-    const double ground = groundHeightNed(all[i].north, all[i].east);
-    const Vec3 muzzle{all[i].north, all[i].east, ground - (flak ? 3. : 8.)};
+    const Vec3 place{all[i].north, all[i].east, 0};
+    const Vec3 muzzle = ofs::world().atAltitude(place, ofs::world().terrain(place).altitude + (flak ? 3. : 8.));
     const CombatTarget *nearest = nullptr;
     double range = flak ? kFlakRange : kSamRange;
     for (const auto &t : targets) {
@@ -207,7 +207,7 @@ void World::defend(std::span<CombatTarget> targets) {
       const auto &at = t.current.pos_ned;
       const double distance = (at - muzzle).norm();
       if (distance >= range ||
-          (!flak && groundHeightNed(at.x, at.y) - at.z < kSamFloor) ||
+          (!flak && ofs::world().clearance(at) < kSamFloor) ||
           !weapons::lineOfSight(muzzle, at))
         continue;
       range = distance;
@@ -228,20 +228,20 @@ void World::defend(std::span<CombatTarget> targets) {
         flight = (point - muzzle).norm() / gun.muzzleVelocity;
         point = target.pos_ned + target.vel_ned * flight;
       }
-      point.z -= .5 * kG0 * flight * flight;
+      point -= ofs::world().down(point) * (.5 * kG0 * flight * flight);
       const double phase = double(tick_) * .013 + double(i) * 1.7;
       const Vec3 wander{std::sin(phase), std::cos(phase * 1.31), std::sin(phase * .77)};
-      const Vec3 direction = ((point - muzzle).normalized() + wander * .012).normalized();
-      aim.att = quatFromEuler(0, std::asin(clamp(-direction.z, -1, 1)), std::atan2(direction.y, direction.x));
+      const Vec3 direction = ofs::world().toLocal(muzzle, ((point - muzzle).normalized() + wander * .012).normalized());
+      aim.att = ofs::world().fromLocal(muzzle, quatFromEuler(0, std::asin(clamp(-direction.z, -1, 1)), std::atan2(direction.y, direction.x)));
       site.gun.ammo = gun.ammo;
       combat_.fire(tick_, entity, aim, site.gun, gun, all[i].team);
     } else {
       // Launched steeply toward the target, with the seeker already looking.
-      Vec3 direction = (target.pos_ned - muzzle).normalized();
+      Vec3 direction = ofs::world().toLocal(muzzle, (target.pos_ned - muzzle).normalized());
       direction.z = std::min(direction.z, -.45);
       direction = direction.normalized();
-      aim.att = quatFromEuler(0, std::asin(clamp(-direction.z, -1, 1)), std::atan2(direction.y, direction.x));
-      aim.vel_ned = direction * 60;
+      aim.att = ofs::world().fromLocal(muzzle, quatFromEuler(0, std::asin(clamp(-direction.z, -1, 1)), std::atan2(direction.y, direction.x)));
+      aim.vel_ned = ofs::world().fromLocal(muzzle, direction) * 60;
       const double now = double(tick_) * tickSeconds;
       const weapons::Track track{{nearest->id, nearest->life->generation}, target.pos_ned, target.vel_ned, now, 1, now};
       if (missiles_.launch(tick_, {entity, 0}, aim, {}, WeaponType::ActiveRadar, track, all[i].team, true))
@@ -249,7 +249,7 @@ void World::defend(std::span<CombatTarget> targets) {
     }
   }
 }
-EntityId World::join(AircraftType type, std::string name, Team team, unsigned loadout) {
+EntityId World::join(AircraftType type, std::string name, Team team, unsigned loadout, int start) {
   if (!validAircraftType(type) || players_.size() >= maxPlayers)
     return 0;
   unsigned slot = 0;
@@ -272,6 +272,8 @@ EntityId World::join(AircraftType type, std::string name, Team team, unsigned lo
   p.sim = Simulator(aircraftDefinition(type).flight);
   p.spawnSlot = slot;
   p.life.ammo = aircraftDefinition(type).gun ? gunFor(type).ammo : 0;
+  if (!starts_.empty())
+    p.start = start >= 0 && unsigned(start) < starts_.size() ? unsigned(start) : nextStart_++ % unsigned(starts_.size());
   spawn(id, p);
   return id;
 }
@@ -306,16 +308,19 @@ void World::spawn(EntityId id, Player &p) {
         [](const auto &entry) { return !entry.second.bot && entry.second.life.alive(); });
     if (human != players_.end() && !teams_) {
       const auto &target = human->second.sim.state();
-      const double yaw = std::atan2(target.vel_ned.y, target.vel_ned.x);
+      const auto &globe = ofs::world();
+      const Vec3 targetVelocity = globe.toLocal(target.pos_ned, target.vel_ned);
+      const double yaw = std::atan2(targetVelocity.y, targetVelocity.x);
       const auto heading = quatFromEuler(0, 0, yaw);
       const bool pursuing = p.spawnSlot % 2 != 0;
-      s.pos_ned = target.pos_ned + heading.rotate(
+      const Vec3 trimmed = s.pos_ned;
+      s.pos_ned = target.pos_ned + globe.fromLocal(target.pos_ned, heading.rotate(
           {pursuing ? -650. - 250. * (p.spawnSlot / 2) : 1500. + 350. * (p.spawnSlot / 2),
-           pursuing ? -60. : 180., 0});
-      s.pos_ned.z = std::min(s.pos_ned.z, groundHeightNed(s.pos_ned.x, s.pos_ned.y) - 1000.);
+           pursuing ? -60. : 180., 0}));
+      s.pos_ned = globe.atAltitude(s.pos_ned, std::max(globe.altitude(s.pos_ned), globe.terrain(s.pos_ned).altitude + 1000.));
       const auto rotation = quatFromEuler(0, 0, yaw + (pursuing ? 0 : kPi));
-      s.att = rotation * s.att;
-      s.vel_ned = rotation.rotate(s.vel_ned);
+      s.att = globe.fromLocal(s.pos_ned, rotation * globe.toLocal(trimmed, s.att));
+      s.vel_ned = globe.fromLocal(s.pos_ned, rotation.rotate(globe.toLocal(trimmed, s.vel_ned)));
     }
     p.botTarget = 0;
     p.evadeUntil = 0;
@@ -332,15 +337,37 @@ void World::spawn(EntityId id, Player &p) {
     const double yaw = p.team == Team::Red ? kPi : 0;
     const auto heading = quatFromEuler(0, 0, yaw);
     const bool flying = airborne_ || p.bot;
-    const double height = flying ? s.pos_ned.z : -(p.sim.config().gear_nose.z - .15);
+    const auto &globe = ofs::world();
+    const double altitude = flying ? globe.altitude(s.pos_ned) : p.sim.config().gear_nose.z - .15;
     const double spacing = flying ? 250 : 95;
-    s.att = heading * s.att;
-    s.vel_ned = heading.rotate(s.vel_ned);
+    const Vec3 before = s.pos_ned;
+    const Vec3 base = globe.atAltitude({field.north, field.east, 0}, altitude);
     // In the air later arrivals are put behind; on the runway, ahead.
-    back = heading.rotate({flying ? -spacing : spacing, 0, 0});
-    s.pos_ned = Vec3{field.north, field.east, height} +
-                heading.rotate({flying ? 0. : -1230., 0, 0}) + back * double(p.spawnSlot % 12) +
-                heading.rotate({0, flying ? 120. * double(p.spawnSlot / 12) : 0., 0});
+    back = globe.fromLocal(base, heading.rotate({flying ? -spacing : spacing, 0, 0}));
+    s.pos_ned = base +
+                globe.fromLocal(base, heading.rotate({flying ? 0. : -1230., 0, 0})) + back * double(p.spawnSlot % 12) +
+                globe.fromLocal(base, heading.rotate({0, flying ? 120. * double(p.spawnSlot / 12) : 0., 0}));
+    s.att = globe.fromLocal(s.pos_ned, heading * globe.toLocal(before, s.att));
+    s.vel_ned = globe.fromLocal(s.pos_ned, heading.rotate(globe.toLocal(before, s.vel_ned)));
+  }
+  if (!starts_.empty() && !p.bot) {
+    // On the round Earth: at the pilot's airport, pointed down its runway, in
+    // the air over it or on the centre line, later arrivals spaced along it.
+    const Start &start = starts_.at(p.start % starts_.size());
+    const auto heading = quatFromEuler(0, 0, start.heading);
+    const bool flying = airborne_;
+    const auto &globe = ofs::world();
+    const double ground = globe.terrain(start.point).altitude;
+    const Vec3 before = s.pos_ned;
+    const double altitude = ground + (flying ? globe.altitude(before) : p.sim.config().gear_nose.z - .15);
+    const Vec3 base = globe.atAltitude(start.point, altitude);
+    const double spacing = flying ? 250 : 95;
+    back = globe.fromLocal(base, heading.rotate({flying ? -spacing : spacing, 0, 0}));
+    s.pos_ned = base + back * double(p.spawnSlot % 12) +
+                globe.fromLocal(base, heading.rotate({0, flying ? 120. * double(p.spawnSlot / 12) : 0., 0}));
+    s.pos_ned = globe.atAltitude(s.pos_ned, flying ? altitude : globe.terrain(s.pos_ned).altitude + p.sim.config().gear_nose.z - .15);
+    s.att = globe.fromLocal(s.pos_ned, heading * globe.toLocal(before, s.att));
+    s.vel_ned = globe.fromLocal(s.pos_ned, heading.rotate(globe.toLocal(before, s.vel_ned)));
   }
   // Existing slots supply the baseline; move back if a currently alive aircraft
   // occupies it. At most 64 exclusions, spaced candidates terminate in 65
@@ -371,7 +398,7 @@ void World::spawn(EntityId id, Player &p) {
   p.botDecoyReady = tick_;
   p.weapons.inventory.applyPayload(p.sim.config(), s);
   s.time = double(tick_) * tickSeconds;
-  if(airborne_ || p.bot) s.vel_ned+=weather_.wind_ned;
+  if(airborne_ || p.bot) s.vel_ned+=ofs::world().fromLocal(s.pos_ned, weather_.wind_ned);
   p.sim.setWeather(weather_);
   p.sim.setState(s);
   p.sim.setControls(controls);
@@ -997,7 +1024,7 @@ void World::step() {
           // A bomb is let go only with room to fall clear of the aircraft.
           const auto &own = p.sim.state();
           if (!w.inventory.bombs || tick_ < w.readyTick ||
-              groundHeightNed(own.pos_ned.x, own.pos_ned.y) - own.pos_ned.z < 40) {
+              ofs::world().clearance(own.pos_ned) < 40) {
             ++missiles_.stats().rejected;
             break;
           }
@@ -1152,7 +1179,7 @@ void World::step() {
     weapons::advanceDecoy(decoy, weather_, tickSeconds);
   std::erase_if(decoys_, [](const auto &decoy) {
     return decoy.age >= weapons::decoyDefinition(decoy.type).lifetime ||
-           decoy.position.z >= groundHeightNed(decoy.position.x, decoy.position.y);
+           ofs::world().clearance(decoy.position) <= 0;
   });
   combat_.step(tick_, std::span(targets).first(count));
   std::map<EntityId, AircraftWeapons *> controllers;

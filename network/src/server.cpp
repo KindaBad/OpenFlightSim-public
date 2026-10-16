@@ -1,4 +1,5 @@
 #include "ofs/net/server.hpp"
+#include <cmath>
 #include <algorithm>
 #include <chrono>
 #include <stdexcept>
@@ -13,12 +14,33 @@ Server::Server(const ServerConfig &config)
   world_.setMissileReload(config.missileReload);
   if (config.teams)
     world_.setTeams(config.scoreLimit);
+  if (config.map.kind == MapKind::Earth && (config.starts.empty() || config.starts.size() != config.startIdents.size() ||
+                                            config.teams || config.bots))
+    throw std::invalid_argument("an Earth game needs its theatre's starts, and is free flight without bots for now");
+  world_.setStarts(config.starts);
   transport_.listen(config.bind, config.port);
   config_.lobbyName = lobbyName(config_.lobbyName);
   if (!config_.lobbyName.empty())
     discovery_ = std::make_unique<DiscoveryResponder>(config_.discoveryPort);
 }
 Server::~Server() { shutdown(); }
+void useEarthTheatre(ServerConfig &config, const Theatre &theatre, const EarthTerrain &terrain, const EarthWorld &earth) {
+  config.map = {MapKind::Earth, std::string(theatre.id), terrain.contentHash(), {}};
+  config.starts.clear();
+  config.startIdents.clear();
+  for (const auto &airport : theatre.airports) {
+    const EarthRunway *runway = theatreRunway(terrain, airport);
+    if (!runway)
+      throw std::runtime_error("the Earth terrain pack has no runway at " + std::string(airport.ident));
+    const auto begin = runwayStart(*runway);
+    Start start;
+    start.point = earth.fromEcef(begin.point);
+    const auto along = earth.toLocal(start.point, earth.directionFromEcef(begin.along));
+    start.heading = std::atan2(along.y, along.x);
+    config.starts.push_back(start);
+    config.startIdents.emplace_back(airport.ident);
+  }
+}
 std::uint16_t Server::port() const { return transport_.port(); }
 LobbyInfo Server::lobby() const {
   LobbyInfo info;
@@ -29,6 +51,8 @@ LobbyInfo Server::lobby() const {
   info.bots = std::uint8_t(world_.botCount());
   info.players = std::uint8_t(world_.players().size() - world_.botCount());
   info.maxPlayers = std::uint8_t(config_.maxClients);
+  if (config_.map.kind == MapKind::Earth)
+    info.map = "earth:" + config_.map.theatre;
   return info;
 }
 void Server::sendTeamStatus(Connection c) {
@@ -162,7 +186,17 @@ void Server::poll() {
       continue;
     }
     if (ok && m.type == Type::Hello && !s.entity) {
-      s.entity = world_.join(m.aircraftType, m.text, m.team, m.loadout);
+      // Only a client on the same map, with the same terrain, plays here.
+      if (const auto why = mapMismatch(config_.map, m.map); !why.empty()) {
+        ++stats_.invalid;
+        remove(e.connection, why, true);
+        continue;
+      }
+      int start = -1;
+      for (std::size_t i = 0; i < config_.startIdents.size(); ++i)
+        if (config_.startIdents[i] == m.map.airport)
+          start = int(i);
+      s.entity = world_.join(m.aircraftType, m.text, m.team, m.loadout, start);
       if (!s.entity) {
         remove(e.connection, "world full", true);
         continue;
@@ -179,6 +213,7 @@ void Server::poll() {
       welcome.aircraft = world_.aircraft(s.entity);
       welcome.weather = world_.weather();
       welcome.team = world_.players().at(s.entity).team;
+      welcome.map = config_.map;
       send(e.connection, welcome, true);
       sendTeamStatus(e.connection);
       // The newcomer learns who is already here, then everyone learns of it.

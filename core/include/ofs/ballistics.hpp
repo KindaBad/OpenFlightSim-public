@@ -1,6 +1,7 @@
 #pragma once
 #include "ofs/aircraft_definition.hpp"
 #include "ofs/terrain.hpp"
+#include "ofs/world.hpp"
 #include <limits>
 
 namespace ofs {
@@ -12,13 +13,13 @@ inline Vec3 gunShotDirection(const GunConfig& gun, std::uint64_t sequence) {
   const auto up = side.cross(gun.direction).normalized();
   return (gun.direction + (side*std::cos(phase)+up*std::sin(phase))*gun.dispersion).normalized();
 }
-inline Vec3 ballisticDisplacement(Vec3 velocity, double dt) {
-  return velocity*dt + Vec3{0,0,.5*kG0*dt*dt};
+inline Vec3 ballisticDisplacement(Vec3 position, Vec3 velocity, double dt) {
+  return velocity*dt + world().down(position)*(.5*kG0*dt*dt);
 }
 // Sweep against the same triangle terrain the renderer and aircraft use.
 // Samples at <=10 m then bisects first contact; bounded by the gun speed/tick.
 inline double bulletTerrainFraction(Vec3 start, Vec3 end) {
-  const auto clearance = [](Vec3 p) { return groundHeightNed(p.x,p.y)-p.z; };
+  const auto clearance = [](Vec3 p) { return world().clearance(p); };
   if (clearance(start) <= 0) return 0;
   const int steps = std::clamp(int(std::ceil((end-start).norm()/10.)),1,128);
   double before = 0;

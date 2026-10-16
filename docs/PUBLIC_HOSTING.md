@@ -44,9 +44,16 @@ sent.
 
 | `op` | Fields | Answer |
 |---|---|---|
-| `list` | | `token`, `games` (`id`, `name`, `players`, `max`, `bots`, `version`, `protocol`, `teams`), `versions` the host can run, `capacity` |
-| `create` | `token`, `version`, `name`, `bots` 0–8, `missile_reload` 0–3600, `teams`, `score_limit` 50–5000 | `id` |
+| `list` | `maps` (optional: `["valley", "earth"]`) | `token`, `games` (`id`, `name`, `players`, `max`, `bots`, `version`, `protocol`, `teams`, and `map` when `maps` was asked), `versions` the host can run, `capacity` |
+| `create` | `token`, `version`, `name`, `bots` 0–8, `missile_reload` 0–3600, `teams`, `score_limit` 50–5000, optional `map` (`valley` or `earth`) and `theatre` | `id` |
 | `join` | `token`, `id` | `id`, `ready` once the game has opened its port |
+
+Games on the Earth map (`map: "earth"`, a `theatre` of `austria`, `alps` or
+`gulf`) are free flight: no bots or team game. They need a server of version
+`EARTH_VERSION` (in `public_host.py`) or newer and the host's copy of the
+terrain pack. A launcher that does not ask with `maps` predates the Earth map:
+it is listed valley games only, and its `games` carry no `map`. A game's `map`
+is `valley` or `earth:<theatre>`.
 
 A refusal is `{"ok": false, "error": CODE, "message": TEXT}`; the launcher
 shows the text if it is plain printable ASCII. The `token` is derived from the
@@ -102,6 +109,13 @@ ls /var/lib/ofs-public/builds           # versions it can run
 
 A game that exits with an error leaves its log in
 `/var/lib/ofs-public/host/logs`.
+
+The Earth map's terrain pack for the games on it is kept in
+`/var/lib/ofs-public/earth/`. The build service fetches it from its GitHub
+pre-release, checking its SHA-256 and size, whenever the public source's
+`data/earth/earth-data.json` describes a pack that is not there yet; games
+already running keep the pack they opened. Until a pack is there, the host
+refuses Earth games with a message.
 
 ## Tests
 

@@ -29,6 +29,7 @@
 #include <filesystem>
 #include <map>
 #include <future>
+#include "ofs/world.hpp"
 
 namespace ofs::client {
 
@@ -165,6 +166,8 @@ void Renderer::createPrograms() {
 #endif
   programs_.pbr = makeProgram("pbr", OFS_SHADER(pbr_vs), OFS_SHADER(pbr_fs));
   programs_.terrain = makeProgram("terrain", OFS_SHADER(terrain_vs), OFS_SHADER(terrain_fs));
+  programs_.earth = makeProgram("earth_terrain", OFS_SHADER(earth_terrain_vs), OFS_SHADER(earth_terrain_fs));
+  programs_.earthBuilding = makeProgram("earth_building", OFS_SHADER(earth_building_vs), OFS_SHADER(earth_building_fs));
   programs_.tree = makeProgram("tree", OFS_SHADER(tree_vs), OFS_SHADER(tree_fs));
   programs_.sky = makeProgram("sky", OFS_SHADER(sky_vs), OFS_SHADER(sky_fs));
   programs_.skyTable = makeProgram("skyview", OFS_SHADER(fullscreen_vs), OFS_SHADER(skyview_fs));
@@ -399,6 +402,7 @@ void Renderer::destroy() {
   if (!initialized_) return;
   // Never leave the synthesis thread running past the renderer.
   if (synthesis_.valid()) synthesis_.wait();
+  destroyEarth();
   destroyEnvironment();
   destroyAtmosphereResources();
 
@@ -784,6 +788,16 @@ void Renderer::updateFrameConstants(const Camera& camera, const State& local, co
 
   frame_.cameraPos = glm::vec4(cameraEye_, static_cast<float>(std::fmod(weatherTime_, 3600.)));
   frame_.worldOrigin = glm::vec4(renderDirection(origin_), exposure_);
+  frame_.planet = glm::vec4(0);
+  if (earth_) {
+    // World-fixed patterns (clouds, noise) need a position that moves with the
+    // origin as the ground does: distances along the surface, in render axes.
+    const Geodetic g = static_cast<const EarthWorld&>(world()).geodetic(origin_);
+    const double r = kEarthEquatorialRadius;
+    frame_.worldOrigin = glm::vec4(float(std::fmod(r * std::cos(g.latitude) * g.longitude, 1.0e6)), float(g.altitude),
+                                   float(std::fmod(-r * g.latitude, 1.0e6)), exposure_);
+    frame_.planet = glm::vec4(1, float(g.altitude), 0, 0);
+  }
   frame_.sunDirection = glm::vec4(sun_, kEmissiveRadiance);
   frame_.sunIrradiance = glm::vec4(lighting_.sunIrradiance.r, lighting_.sunIrradiance.g, lighting_.sunIrradiance.b,
                                     settings_.cloudShadows && clouds ? 1.f : 0.f);
@@ -815,7 +829,7 @@ void Renderer::updateFrameConstants(const Camera& camera, const State& local, co
   const bool relief = settings_.terrainShadows && settings_.terrain == TerrainQuality::High &&
                       settings_.sky.sunElevationDeg < 42.f && sun_.y > 0;
   frame_.quality = glm::vec4(static_cast<float>(settings_.terrain), settings_.water ? 1.f : 0.f, 1.f, relief ? 8.f : 0.f);
-  const glm::vec3 windRender = renderDirection(weather.wind_ned);
+  const glm::vec3 windRender = renderLocal(weather.wind_ned);
   frame_.wind = glm::vec4(glm::dot(windRender, windRender) < 1.f ? glm::vec3(4.f, 0, 1.5f) : windRender,
                           static_cast<float>(std::fmod(weatherTime_ * .37, 6.2831853)));
 
@@ -1269,7 +1283,7 @@ void Renderer::drawAfterburners(bool localDestroyed) {
       if (settings_.heatDistortion && settings_.engineHeat && sceneHasRefraction_ && spool>.25f) {
         // The hot exhaust column bends light: it is drawn as an image offset
         // into the refraction buffer, not as colour.
-        const float density=static_cast<float>(isaAtAltitude(-instance.state->pos_ned.z).rho/1.225);
+        const float density=static_cast<float>(isaAtAltitude(world().altitude(instance.state->pos_ned)).rho/1.225);
         const float heat=(.25f+.75f*intensity)*spool*std::sqrt(std::max(.04f,density));
         bindFrame(viewProj_);
         bgfx::setUniform(uniforms_.flame,glm::value_ptr(glm::vec4(heat,float(flameTime_),4,seed)));
@@ -1447,6 +1461,14 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
   // read fresh every frame rather than captured at construction.
   origin_ = origin;
   lastCamera_ = camera;
+  if (earth_) {
+    // Render axes follow the local vertical at the render origin.
+    RenderBasis& basis = renderBasis();
+    basis.identity = false;
+    basis.north = world().fromLocal(origin_, {1, 0, 0});
+    basis.east = world().fromLocal(origin_, {0, 1, 0});
+    basis.down = world().fromLocal(origin_, {0, 0, 1});
+  }
   stats_.drawCalls = 0;
   stats_.triangles = 0;
   stats_.activeParticles = 0;
@@ -1567,7 +1589,12 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
   cockpitPass_ = cockpit && aircraftDefinition(localType_).visual.cockpitGeometry && !combat.localDestroyed;
   cameraNear_ = cockpit ? 1.5f : std::max(2.5f, settings_.nearPlane);
   cameraFovDeg_ = static_cast<float>(camera.fov);
-  const float far = std::max(40000.0f, settings_.renderDistance) * 1.05f;
+  float far = std::max(40000.0f, settings_.renderDistance) * 1.05f;
+  if (earth_) {
+    // To the horizon, and the mountains standing beyond it.
+    const double radius = kEarthEquatorialRadius, height = std::max(world().altitude(camera.eye), 10.);
+    far = std::max(far, float(std::sqrt(2 * radius * height + height * height) + 360000.));
+  }
   projection_ = makeProjection(cameraFovDeg_, aspect, cameraNear_, far);
   viewProj_ = projection_ * view_;
   invViewProj_ = glm::inverse(viewProj_);
@@ -1593,7 +1620,8 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
     if (remote.alive && !aircraftCrashed(remote.state) && (remote.state.pos_ned-camera.eye).norm()<settings_.shadowDistance*1.5)
       casters.push_back(&instances_.at(remote.entity));
   }
-  updateTreeChunks();
+  if (!earth_) updateTreeChunks();
+  else updateEarthObjects();
   drawShadowAtlas(casters);
 
   // ---- World ----
@@ -1603,7 +1631,8 @@ void Renderer::render(const Camera& camera, const State& local, const Controls& 
   bgfx::setViewClear(kViewWorld, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x000000ffu, 1.0f, 0);
   bgfx::setViewMode(kViewWorld, bgfx::ViewMode::Sequential);
   drawSky();
-  drawEnvironment();
+  if (earth_) drawEarth();
+  else drawEnvironment();
   if (settings_.showDebugGrid) drawGrid();
   if (!cockpit) drawAircraft(instances_.at(0), combat.localDestroyed, kViewWorld, viewProj_);
   for (const RemoteAircraft& remote : remotes)

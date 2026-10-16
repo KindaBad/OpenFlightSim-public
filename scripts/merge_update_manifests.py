@@ -5,25 +5,31 @@ from pathlib import Path
 import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from launcher.manifest import Release
+from launcher.manifest import Release, index_entries, index_list
 from launcher.storage import LauncherError, read_json, write_json
 
 
 def merge(paths):
     releases = {}
     for path in paths:
-        data = read_json(path)
-        if not isinstance(data, dict) or data.get('schema') != 1 or not isinstance(data.get('releases'), list):
-            raise LauncherError('Invalid update index')
-        for entry in data['releases']:
+        try:
+            entries = index_entries(read_json(path))
+        except LauncherError:
+            raise LauncherError('Invalid update index') from None
+        for entry in entries:
             release = Release.parse(entry)
             key = (entry['platform'], entry['channel'], entry['version'])
             if key in releases and releases[key] != entry:
                 raise LauncherError('Conflicting release descriptors; published versions are immutable')
             releases[key] = release.data
-    if len(releases) > 100:
+    # Versions of four numbers go in their own list, which launchers older
+    # than 0.6.9 do not read (see launcher/manifest.py).
+    index = {'schema': 1, 'releases': []}
+    for entry in releases.values():
+        index.setdefault(index_list(entry['version']), []).append(entry)
+    if any(len(entries) > 100 for key, entries in index.items() if key != 'schema'):
         raise LauncherError('Index exceeds 100 releases; archive old channels with care')
-    return {'schema': 1, 'releases': list(releases.values())}
+    return index
 
 
 def main():

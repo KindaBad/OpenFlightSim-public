@@ -23,7 +23,9 @@ void main()
 
     vec3 sky = atmoSkyRadiance(vec3(ray.x, max(ray.y, 0.0), ray.z));
     vec3 color = sky;
-    if (ray.y < 0.0) {
+    // On the round Earth the ground falls away below the level line.
+    float horizon = u_planet.x > 0.5 ? atmoHorizonCos(eye) : 0.0;
+    if (ray.y < horizon) {
         float range = eye / max(-ray.y, 1.0e-6);
         vec3 world = u_cameraPos.xyz + u_worldOrigin.xyz + ray * range;
         vec3 light = atmoSunIrradiance(0.0, sun.y) * max(sun.y, 0.0) * ofsCloudShadow(vec3(world.x, 0.0, world.z))

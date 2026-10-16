@@ -13,6 +13,7 @@
 #include <cctype>
 #include <string>
 #include <vector>
+#include "ofs/world.hpp"
 
 namespace ofs::client {
 namespace {
@@ -110,7 +111,7 @@ constexpr ImU32 kFriendly = IM_COL32(110, 185, 255, 255);
 constexpr double kRunwayHalfLength = 1300;  // the airfield's runway lies north-south through the origin
 
 double headingOf(const State& state) {
-  const Vec3 nose = state.att.rotate({1, 0, 0});
+  const Vec3 nose = world().toLocal(state.pos_ned, state.att.rotate({1, 0, 0}));
   return std::atan2(nose.y, nose.x);
 }
 // Aircraft marker: a dart pointing along `heading`, radians clockwise from north (screen up).
@@ -196,7 +197,7 @@ void drawMap(ImDrawList* draw, const MapFrame& map, const HudFrame& frame, const
     } else {
       draw->AddRect({point.x - half, point.y - half}, {point.x + half, point.y + half}, (color & 0x00ffffffu) | 0xb0000000u);
     }
-    if (full && structure.site && structure.kind == StructureKind::Depot && structure.position.z == 0)
+    if (full && structure.site && structure.kind == StructureKind::Depot && world().altitude(structure.position) == 0)
       text(draw, {point.x + 8, point.y - 7}, std::string("OUTPOST ") + char('A' + structure.site - 1), color, 11);
   }
   if (frame.bombSight) {
@@ -266,6 +267,154 @@ void drawFullMap(ImDrawList* draw, ImVec2 display, const HudFrame& frame, const 
   map.halfSpan = Landscape::kExtent;
   draw->AddRectFilled({0, 0}, display, IM_COL32(0, 0, 0, 110));
   drawMap(draw, map, frame, renderer, true);
+}
+
+// ---- The round Earth's map -------------------------------------------------
+
+// Degrees and minutes, with the hemisphere.
+std::string degrees(double radians, bool latitude) {
+  const double value = std::abs(radians) / kDeg2Rad;
+  int whole = int(value), minutes = int(std::lround((value - whole) * 60));
+  if (minutes == 60) ++whole, minutes = 0;
+  const char hemisphere = latitude ? (radians >= 0 ? 'N' : 'S') : (radians >= 0 ? 'E' : 'W');
+  // The HUD's font has no degree sign: 47 30'N.
+  std::string out = std::to_string(whole);
+  if (minutes) out += std::string(minutes < 10 ? " 0" : " ") + std::to_string(minutes) + "'";
+  return out + hemisphere;
+}
+
+// The map of the round Earth in a square on screen, about `view`; `which`
+// picks the picture painted for it (0 minimap, 1 full map).
+void drawEarthMap(ImDrawList* draw, float x, float y, float size, const EarthMapView& view, int which, const HudFrame& frame,
+                  const Renderer& renderer, bool full) {
+  const EarthWorld& earth = *frame.earth;
+  const ImVec2 min{x, y}, max{x + size, y + size};
+  draw->AddRectFilled(min, max, IM_COL32(18, 22, 26, full ? 245 : 215));
+  const float scale = uiPointScale();
+  draw->PushClipRect({min.x * scale, min.y * scale}, {max.x * scale, max.y * scale}, true);
+  const auto project = [&](double latitude, double longitude, ImVec2& point) {
+    double east, north;
+    view.offsets(latitude, longitude, east, north);
+    point.x = x + float((east / (2 * view.halfSpan) + .5) * size);
+    point.y = y + float((.5 - north / (2 * view.halfSpan)) * size);
+    return point.x >= min.x && point.x <= max.x && point.y >= min.y && point.y <= max.y;
+  };
+  EarthMapView shown;
+  if (const auto texture = renderer.earthMapTexture(which, shown)) {
+    // The picture's corners, placed as this view places them.
+    double north, south, west, east;
+    shown.place(-shown.halfSpan, shown.halfSpan, north, west);
+    shown.place(shown.halfSpan, -shown.halfSpan, south, east);
+    ImVec2 nw, se;
+    project(north, west, nw);
+    project(south, east, se);
+    draw->AddImage(static_cast<ImTextureID>(texture), nw, se, {0, 0}, {1, 1}, IM_COL32(255, 255, 255, full ? 255 : 235));
+  }
+
+  // Latitude and longitude, a few lines across the view.
+  const double spanDegrees = view.halfSpan * 2 / kEarthMapRadius / kDeg2Rad;
+  double spacing = 30;
+  for (const double step : {.05, .1, .25, .5, 1., 2., 5., 10., 15., 30.})
+    if (spanDegrees / step <= 7) {
+      spacing = step;
+      break;
+    }
+  const double step = spacing * kDeg2Rad;
+  double topLatitude, leftLongitude, bottomLatitude, rightLongitude;
+  view.place(-view.halfSpan, view.halfSpan, topLatitude, leftLongitude);
+  view.place(view.halfSpan, -view.halfSpan, bottomLatitude, rightLongitude);
+  for (double lat = std::ceil(bottomLatitude / step) * step; lat <= topLatitude; lat += step) {
+    if (std::abs(lat) > kPi / 2) continue;
+    ImVec2 point;
+    project(lat, view.longitude, point);
+    draw->AddLine({min.x, point.y}, {max.x, point.y}, IM_COL32(255, 255, 255, 40));
+    if (full) text(draw, {min.x + 4, point.y + 2}, degrees(lat, true), kMuted, 11);
+  }
+  for (double lon = std::ceil(leftLongitude / step) * step; lon <= rightLongitude; lon += step) {
+    ImVec2 point;
+    project(view.latitude, lon, point);
+    draw->AddLine({point.x, min.y}, {point.x, max.y}, IM_COL32(255, 255, 255, 40));
+    if (full) text(draw, {point.x + 3, min.y + 3}, degrees(std::remainder(lon, 2 * kPi), false), kMuted, 11);
+  }
+
+  // Airports: the larger ones, and at close range all of them.
+  const int smallest = view.halfSpan > 300000 ? 3 : view.halfSpan > 60000 ? 2 : 1;
+  // Ten thousand of them: those beyond the view's band of latitude are passed
+  // over before they are projected.
+  const double band = view.halfSpan / kEarthMapRadius * 1.05;
+  if (frame.earthCover)
+    for (const auto& airport : frame.earthCover->airports()) {
+      if (airport.kind < smallest || std::abs(airport.latitude - view.latitude) > band) continue;
+      ImVec2 point;
+      if (!project(airport.latitude, airport.longitude, point)) continue;
+      const float half = airport.kind == 3 ? 3.f : 2.f;
+      draw->AddRectFilled({point.x - half, point.y - half}, {point.x + half, point.y + half}, IM_COL32(232, 232, 226, 220));
+      if (full && (airport.kind == 3 || view.halfSpan < 120000)) text(draw, {point.x + 5, point.y - 6}, airport.ident, kMuted, 10);
+    }
+  // The theatre's airports, where a flight starts.
+  for (const auto& airport : frame.theatreAirports) {
+    ImVec2 point;
+    if (!project(airport.latitude * kDeg2Rad, airport.longitude * kDeg2Rad, point)) continue;
+    draw->AddRect({point.x - 5, point.y - 5}, {point.x + 5, point.y + 5}, kAccent, 0, 0, 1.6f);
+    if (full) text(draw, {point.x + 8, point.y - 7}, std::string(airport.name) + " " + std::string(airport.ident), kAccent, 12);
+  }
+
+  // Everything held to the edge when it is off the map, as on the valley's.
+  const auto place = [&](const Vec3& position, ImVec2& point) {
+    const Geodetic g = earth.geodetic(position);
+    const bool inside = project(g.latitude, g.longitude, point);
+    point.x = std::clamp(point.x, min.x + 7, max.x - 7);
+    point.y = std::clamp(point.y, min.y + 7, max.y - 7);
+    return inside;
+  };
+  for (const auto& remote : frame.remotes) {
+    if (!remote.alive) continue;
+    const ImU32 otherColor = frame.teams ? teamColor(remote.team, kFriendly) : frame.dogfight ? kDanger : kFriendly;
+    ImVec2 point;
+    if (place(remote.state.pos_ned, point)) {
+      dart(draw, point, headingOf(remote.state), full ? 8.f : 7.f, otherColor);
+      if (full) text(draw, {point.x + 10, point.y - 6}, remote.name.empty() ? "Aircraft" : remote.name, otherColor, 12);
+    } else {
+      draw->AddCircleFilled(point, 3.5f, otherColor);
+      draw->AddCircle(point, 3.5f, IM_COL32(0, 0, 0, 230), 12, 1.2f);
+    }
+  }
+  const State& own = *frame.local;
+  ImVec2 self, ahead;
+  place(own.pos_ned, self);
+  const Geodetic later = earth.geodetic(own.pos_ned + own.vel_ned * 30);
+  project(later.latitude, later.longitude, ahead);
+  draw->AddLine(self, ahead, IM_COL32(255, 255, 255, 120), 1.2f);
+  dart(draw, self, headingOf(own), full ? 10.f : 9.f, kText);
+  draw->PopClipRect();
+  draw->AddRect(min, max, kBorder, 1);
+
+  const Geodetic here = earth.geodetic(own.pos_ned);
+  if (full) {
+    const std::string across = view.halfSpan * 2 >= 100000 ? number(view.halfSpan * 2 / 1000) + " km" : number(view.halfSpan * 2 / 1000, 1) + " km";
+    text(draw, {min.x, min.y - 24}, "MAP", kText, 18);
+    text(draw, {max.x - 86, min.y - 19}, "N TO CLOSE", kMuted, 12);
+    text(draw, {min.x, max.y + 7},
+         degrees(here.latitude, true) + "  " + degrees(here.longitude, false) + "     " + across + " across     + and - or the wheel to zoom     North is up",
+         kMuted, 12);
+  } else {
+    text(draw, {min.x + 6, max.y - 18}, degrees(here.latitude, true) + " " + degrees(here.longitude, false), kText, 11);
+    text(draw, {max.x - 46, max.y - 18}, "N MAP", kMuted, 11);
+    text(draw, {(min.x + max.x) * .5f - 4, min.y + 3}, "N", kText, 11);
+  }
+}
+
+void drawEarthFullMap(ImDrawList* draw, ImVec2 display, const HudFrame& frame, const Renderer& renderer) {
+  const float size = std::floor(std::min(display.x, display.y) * .78f);
+  const Geodetic here = frame.earth->geodetic(frame.local->pos_ned);
+  EarthMapView view;
+  renderer.earthMapTexture(1, view);
+  // Centred on the aircraft at the scale asked for; until the picture for it
+  // is painted, at the scale of the one there is.
+  view.latitude = here.latitude;
+  view.longitude = here.longitude;
+  draw->AddRectFilled({0, 0}, display, IM_COL32(0, 0, 0, 110));
+  drawEarthMap(draw, std::floor((display.x - size) * .5f), std::floor((display.y - size) * .5f), size, view, 1, frame, renderer, true);
 }
 
 // ---- Weapons ---------------------------------------------------------------
@@ -722,7 +871,7 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
   const ImVec2 chatAnchor{24, display.y - (frame.chatOpen ? 84.f : 50.f)};
   if (!settings.show) {
     // The map is asked for by name, so it opens even with the HUD hidden.
-    if (frame.fullMap) drawFullMap(draw, display, frame, renderer);
+    if (frame.fullMap) frame.earth ? drawEarthFullMap(draw, display, frame, renderer) : drawFullMap(draw, display, frame, renderer);
     drawChat(draw, chatAnchor, frame);
     if (frame.showScores) drawScores(draw, display, frame);
     return;
@@ -909,7 +1058,7 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
     if (kill) centred(draw, {cx, 76}, "ENEMY DESTROYED", faded(kDanger, std::min(1.f, life * 2)), 20);
   }
 
-  const bool mapShown = settings.showMinimap && !frame.fullMap && display.x > 760 && display.y > 480;
+  const bool mapShown = settings.showMinimap && (frame.valleyMap || frame.earth) && !frame.fullMap && display.x > 760 && display.y > 480;
   float mapSize = 0;
   if (mapShown) {
     MapFrame map;
@@ -918,8 +1067,14 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
     map.y = display.y - map.size - 40;
     map.north = state.pos_ned.x;
     map.east = state.pos_ned.y;
-    map.halfSpan = minimapHalfSpan(std::hypot(state.vel_ned.x, state.vel_ned.y));
-    drawMap(draw, map, frame, renderer, false);
+    const Vec3 velocity = world().toLocal(state.pos_ned, state.vel_ned);
+    map.halfSpan = minimapHalfSpan(std::hypot(velocity.x, velocity.y));
+    if (frame.earth) {
+      const Geodetic here = frame.earth->geodetic(state.pos_ned);
+      drawEarthMap(draw, map.x, map.y, map.size, {here.latitude, here.longitude, map.halfSpan}, 0, frame, renderer, false);
+    } else {
+      drawMap(draw, map, frame, renderer, false);
+    }
   }
   // The airframe diagram sits beside the map, once there is a fight to be in
   // or damage to show.
@@ -1063,7 +1218,7 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
     const double distance=(structure.position-state.pos_ned).norm();
     if (distance>18000) continue;
     float x,y,depth;
-    if (!projectHud(renderer, structure.position+Vec3{0,0,-12},x,y,depth)) continue;
+    if (!projectHud(renderer, structure.position+world().up(structure.position)*12,x,y,depth)) continue;
     const ImU32 color=faded(teamColor(structure.team,kText),distance<7000?.95f:.6f);
     diamond(draw,{x,y},distance<7000?6.f:4.f,color,1.4f);
     if (distance<7000) centred(draw,{x,y-22},std::string(structureName(structure.kind))+"  "+number(distance/1000,1)+" km",color,11);
@@ -1104,7 +1259,7 @@ void drawHud(const HudFrame& frame, const HudSettings& settings, const Renderer&
       centred(draw,{cx,cy-54},"Next round in "+number(frame.restartSeconds)+" s",kMuted,13);
     }
   }
-  if (frame.fullMap) drawFullMap(draw, display, frame, renderer);
+  if (frame.fullMap) frame.earth ? drawEarthFullMap(draw, display, frame, renderer) : drawFullMap(draw, display, frame, renderer);
   if (frame.showScores) drawScores(draw, display, frame);
 }
 void shutdownHud() {}

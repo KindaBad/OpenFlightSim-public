@@ -14,7 +14,7 @@ Simulator::AeroResult Simulator::evalAero(const State& state_, const Controls& c
   AeroResult r;
   if (cfg_.wing_area == 0)
     return r;
-  const auto air = isaAtAltitude(-state_.pos_ned.z, weather_.temp_offset_c);
+  const auto air = isaAtAltitude(world().altitude(state_.pos_ned), weather_.temp_offset_c);
   const auto mass = massProperties(state_);
   const Vec3 v = state_.att.inverseRotate(state_.vel_ned -
                                           windAt(state_.pos_ned, state_.time, weather_));
@@ -92,7 +92,7 @@ Simulator::AeroResult Simulator::evalAero(const State& state_, const Controls& c
   const double effectiveness = aerodynamics::controlMach(mach) *
       (unsteady?1-.94*.5*(state_.separation[0]+state_.separation[1]):aerodynamics::controlFlow(r.alpha,acrit));
   const Vec3 wingPosition=state_.pos_ned+state_.att.rotate(cfg_.surfaces[0].position-mass.cg);
-  const double height=std::max(0.,groundHeightAt(wingPosition.x,wingPosition.y)-wingPosition.z);
+  const double height=std::max(0.,clearanceAt(wingPosition));
   // Continuous at ground and altitude; finite asymptote rather than a cutoff.
   r.ground_effect = 1 - .28 * std::exp(-height / (cfg_.wing_span * .18));
   const double induced =

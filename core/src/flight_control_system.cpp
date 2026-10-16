@@ -60,7 +60,7 @@ Controls Simulator::controlTargets() const {
     const auto cg=massProperties().cg;
     for(const Vec3 point:{cfg_.gear_nose,cfg_.gear_main_l,cfg_.gear_main_r}) {
       const auto position = state_.pos_ned+state_.att.rotate(point-cg);
-      groundRotation |= position.z >= groundHeightAt(position.x, position.y);
+      groundRotation |= clearanceAt(position) <= 0;
     }
   }
   if (state_.fcs_enabled && !groundRotation && cfg_.control_law != FlightControlLaw::Direct &&
@@ -76,7 +76,7 @@ Controls Simulator::controlTargets() const {
     const double load = normalLoad();
     const double loadFeedback =
         (cfg_.control_law == FlightControlLaw::Transport ? .12 : .08) *
-        (state_.att.inverseRotate({0, 0, 1}).z - load);
+        (state_.att.inverseRotate(world().down(state_.pos_ned)).z - load);
     // Typhoon gameplay engineering law, sharing the Su-57 airspeed schedule
     // and gear-down inhibit. Without vectoring nozzles it only asks more of
     // the foreplanes and elevons, so its gains and AoA extension are smaller.
@@ -95,7 +95,7 @@ Controls Simulator::controlTargets() const {
       // OpenFlightSim reconstruction, not the Airbus ELAC algorithm. Load
       // factor command, alpha command transition, bank and speed protections
       // all request actuator motion; none modifies the rigid-body state.
-      double bank,pitch,heading;eulerFromQuat(state_.att,bank,pitch,heading);
+      double bank,pitch,heading;eulerFromQuat(world().toLocal(state_.pos_ned,state_.att),bank,pitch,heading);
       const double neutralLoad=std::cos(pitch)/std::max(.5,std::cos(bank));
       const double maxLoad=state_.flap>.2?2.0:cfg_.g_positive;
       const double minLoad=state_.flap>.2?0.0:cfg_.g_negative;
@@ -155,7 +155,7 @@ Simulator::ControlAllocation Simulator::vectorFighterAllocation(double horizon_s
   const auto mass=massProperties();
   if(controls_.gear01>.5) for(const auto point:{cfg_.gear_nose,cfg_.gear_main_l,cfg_.gear_main_r}) {
     const auto position = state_.pos_ned+state_.att.rotate(point-mass.cg);
-    ground |= position.z >= groundHeightAt(position.x, position.y);
+    ground |= clearanceAt(position) <= 0;
   }
   if(!state_.fcs_enabled || ground || cfg_.wing_area<=0) return out;
   const auto aero=evalAero();
@@ -192,7 +192,7 @@ Simulator::ControlAllocation Simulator::vectorFighterAllocation(double horizon_s
     const double released=1-clamp(std::abs(state_.pilot_pitch)/.25,0.,1.);
     pitchCommand-=maneuver*released*clamp(2.2*excess,-pitchRate,pitchRate);
   }
-  double roll,pitch,yaw;eulerFromQuat(state_.att,roll,pitch,yaw);
+  double roll,pitch,yaw;eulerFromQuat(world().toLocal(state_.pos_ned,state_.att),roll,pitch,yaw);
   const double coordinatedR=load*kG0*std::sin(roll)*std::cos(pitch)/std::max(60.,aero.vtas);
   const Vec3 commanded{state_.pilot_roll*rollRate,pitchCommand,
                        state_.pilot_yaw*.45+coordinatedR+.65*aero.beta};
