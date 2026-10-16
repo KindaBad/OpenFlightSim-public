@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from launcher.download import fetch_manifest
 from launcher.manifest import Release, index_entries
-from launcher.storage import LauncherError, read_json, sha256, write_json
+from launcher.storage import LauncherError, read_json, sha256
 from scripts.merge_update_manifests import merge
 
 INDEX_TAG = 'launcher-updates'
@@ -127,7 +127,8 @@ def publish(directory, repo, commit, notes):
                         gh('release', 'download', old_tag, '--repo', repo, '--pattern', 'manifest.json', '--dir', temporary / old_tag)
                         manifests.insert(0, temporary / old_tag / 'manifest.json')
         merged = merge(manifests)  # Reject conflicting already announced versions before any upload.
-        if len((json.dumps(merged, indent=2) + '\n').encode()) > 4 * 1024 * 1024:
+        # Written compact: the launcher reads at most 4 MiB, and indentation would use a third of it.
+        if len(json.dumps(merged, separators=(',', ':')).encode()) > 4 * 1024 * 1024:
             raise LauncherError('Launcher index would exceed its 4 MiB limit')
         existing = release_info(repo, tag)
         if existing and not existing['draft']:
@@ -159,7 +160,7 @@ def publish(directory, repo, commit, notes):
         if fetch_manifest(version_url) != current:
             raise LauncherError('Public version manifest verification failed')
         index_path = temporary / 'manifest.json'
-        write_json(index_path, merged)
+        index_path.write_text(json.dumps(merged, separators=(',', ':')) + '\n', encoding='utf-8')
         if not old_index:
             gh('release', 'create', INDEX_TAG, '--repo', repo, '--target', commit, '--draft',
                '--title', 'OpenFlightSim launcher updates',
