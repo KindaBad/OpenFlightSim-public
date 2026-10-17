@@ -177,7 +177,7 @@ class Games(Hosted):
 class EarthGames(Hosted):
     """Games on the Earth map are offered to launchers that know it, and only those."""
 
-    def test_an_earth_game_needs_the_pack_and_is_free_flight(self):
+    def test_an_earth_game_needs_the_pack(self):
         earth = Preferences(name='Ada', map='earth', theatre='alps')
         with self.assertRaisesRegex(LauncherError, 'does not have the Earth map yet'):
             public.host(self.cache, earth, VERSION)
@@ -185,6 +185,19 @@ class EarthGames(Hosted):
         create = {'op': 'create', 'token': session['token'], 'version': VERSION, 'name': 'x', 'map': 'earth', 'theatre': 'alps'}
         for wrong in ({'theatre': 'moon'}, {'theatre': None}, {'map': 'mars'}, {'bots': 2}, {'teams': True}):
             self.assertEqual(public.ask('127.0.0.1', self.host.port, {**create, **wrong})['ok'], False)
+        self.assertEqual(self.host.games, {})
+
+    def test_bots_and_teams_on_the_earth_need_0_7_0_1(self):
+        (self.host.state / 'earth').mkdir(parents=True, exist_ok=True)
+        (self.host.state / 'earth' / 'earth.ofse').write_bytes(b'pack')
+        (self.host.builds / '0.7.0').mkdir(parents=True)
+        (self.host.builds / '0.7.0' / 'ofs_server').symlink_to(SERVER)
+        session = public.ask('127.0.0.1', self.host.port, {'op': 'list'})
+        create = {'op': 'create', 'token': session['token'], 'version': '0.7.0', 'name': 'x', 'map': 'earth', 'theatre': 'alps'}
+        for fight in ({'bots': 2}, {'teams': True}):
+            reply = public.ask('127.0.0.1', self.host.port, {**create, **fight})
+            self.assertEqual((reply['ok'], reply['error']), (False, 'version'))
+            self.assertIn('0.7.0.1', reply['message'])
         self.assertEqual(self.host.games, {})
 
     def test_older_launchers_see_only_valley_games(self):

@@ -50,7 +50,22 @@ constexpr Tick roundPause = 15 * 120;
 void World::setTeams(unsigned scoreLimit) {
   teams_ = true;
   scoreLimit_ = std::clamp(scoreLimit, 50u, 5000u);
-  sites_.assign(structures().size(), Site{});
+  // The structures stand in the valley; a game on the round Earth is scored
+  // by kills alone.
+  sites_.assign(starts_.empty() ? structures().size() : 0, Site{});
+}
+void World::setStarts(std::vector<Start> starts) {
+  starts_ = std::move(starts);
+  if (!starts_.empty())
+    sites_.clear();
+}
+Team World::homeField(const Vec3 &position) const {
+  if (starts_.empty())
+    return airfieldOwner(position.x, position.y);
+  for (const auto &start : starts_)
+    if (start.home != Team::None && (position - start.point).norm() < earthHomeRadius)
+      return start.home;
+  return Team::None;
 }
 Team World::smallerTeam() const {
   int red = 0, blue = 0;
@@ -125,7 +140,7 @@ void World::startRound() {
   score_[0] = score_[1] = 0;
   winner_ = Team::None;
   restart_ = 0;
-  sites_.assign(structures().size(), Site{});
+  sites_.assign(starts_.empty() ? structures().size() : 0, Site{});
   combat_ = Combat(gunOverride_.value_or(GunConfig{}));
   missiles_ = MissileCombat();
   decoys_.clear();
@@ -154,7 +169,7 @@ void World::applyBlasts() {
   const auto all = structures();
   for (const auto &blast : blasts) {
     const auto &bomb = weapons::bombDefinition(blast.type);
-    for (std::size_t i = 0; i < all.size(); ++i) {
+    for (std::size_t i = 0; i < all.size() && i < sites_.size(); ++i) {
       auto &site = sites_[i];
       // A side's own bombs do its own ground no harm.
       if (site.health <= 0 || all[i].team == blast.team)
@@ -182,7 +197,7 @@ void World::defend(std::span<CombatTarget> targets) {
     return;
   const auto all = structures();
   static const GunConfig gun = flakGun();
-  for (std::size_t i = 0; i < all.size(); ++i) {
+  for (std::size_t i = 0; i < all.size() && i < sites_.size(); ++i) {
     auto &site = sites_[i];
     if (site.health <= 0) {
       if (tick_ >= site.rebuilt) {
@@ -299,6 +314,9 @@ void World::spawn(EntityId id, Player &p) {
   s.pos_ned.x = -double(p.spawnSlot / 8) * 150;
   s.pos_ned.y = double(p.spawnSlot % 8) * 100;
   auto controls = spawn.controls;
+  // A bot in a free-for-all appears near a pilot; otherwise it starts where
+  // a pilot would.
+  bool nearHuman = false;
   if (p.bot) {
     const auto trim = solveTrim(p.sim.config(), {1000, 160, 0, 0, 0});
     if (!trim.converged) throw std::runtime_error("bot spawn trim failed");
@@ -307,6 +325,7 @@ void World::spawn(EntityId id, Player &p) {
     const auto human = std::find_if(players_.begin(), players_.end(),
         [](const auto &entry) { return !entry.second.bot && entry.second.life.alive(); });
     if (human != players_.end() && !teams_) {
+      nearHuman = true;
       const auto &target = human->second.sim.state();
       const auto &globe = ofs::world();
       const Vec3 targetVelocity = globe.toLocal(target.pos_ned, target.vel_ned);
@@ -330,7 +349,7 @@ void World::spawn(EntityId id, Player &p) {
   p.lastAttacker = 0;
   p.lastAttacked = 0;
   Vec3 back{-150, 0, 0};
-  if (teams_ && p.team != Team::None) {
+  if (teams_ && p.team != Team::None && starts_.empty()) {
     // Each side starts at its own airfield, pointed down the runway toward
     // the other: in the air over it, or lined up nose to tail on the ground.
     const auto &field = teamAirfield(p.team);
@@ -350,12 +369,16 @@ void World::spawn(EntityId id, Player &p) {
     s.att = globe.fromLocal(s.pos_ned, heading * globe.toLocal(before, s.att));
     s.vel_ned = globe.fromLocal(s.pos_ned, heading.rotate(globe.toLocal(before, s.vel_ned)));
   }
-  if (!starts_.empty() && !p.bot) {
-    // On the round Earth: at the pilot's airport, pointed down its runway, in
-    // the air over it or on the centre line, later arrivals spaced along it.
+  if (!starts_.empty() && (!p.bot || !nearHuman)) {
+    // On the round Earth: at the pilot's airport (a side's own in a team
+    // game), pointed down its runway, in the air over it or on the centre
+    // line, later arrivals spaced along it.
+    if (teams_ && p.team != Team::None)
+      for (unsigned i = 0; i < starts_.size(); ++i)
+        if (starts_[i].home == p.team) p.start = i;
     const Start &start = starts_.at(p.start % starts_.size());
     const auto heading = quatFromEuler(0, 0, start.heading);
-    const bool flying = airborne_;
+    const bool flying = airborne_ || p.bot;
     const auto &globe = ofs::world();
     const double ground = globe.terrain(start.point).altitude;
     const Vec3 before = s.pos_ned;
@@ -760,7 +783,7 @@ bool World::enqueueWeapon(EntityId id, const WeaponAction &action) {
     return false;
   };
   if (it == players_.end() || !action.sequence ||
-      unsigned(action.kind) > unsigned(WeaponActionKind::Loadout) ||
+      unsigned(action.kind) > unsigned(WeaponActionKind::Strike) ||
       action.tick > tick_ + 120 ||
       (action.tick < tick_ && tick_ - action.tick > 120))
     return reject();
@@ -776,7 +799,8 @@ bool World::enqueueWeapon(EntityId id, const WeaponAction &action) {
   // Every aircraft has a seat to leave by; only armed ones have weapons.
   const auto &definition = aircraftDefinition(p.type);
   if (w.actions.size() >= 32 ||
-      (!definition.gun && !definition.bomber && action.kind != WeaponActionKind::Eject))
+      (!definition.gun && !definition.bomber && action.kind != WeaponActionKind::Eject &&
+       action.kind != WeaponActionKind::Strike))
     return reject();
   if (action.kind == WeaponActionKind::Launch && !definition.bomber &&
       action.station >= w.inventory.stations.size())
@@ -958,7 +982,7 @@ void World::step() {
           w.lockProgress = 0;
       }
     }
-    bool ejecting = false;
+    bool ejecting = false, struck = false;
     while (!w.actions.empty() && w.actions.begin()->first <= tick_) {
       const auto action = w.actions.begin()->second;
       w.actions.erase(w.actions.begin());
@@ -1014,6 +1038,9 @@ void World::step() {
         break;
       case WeaponActionKind::Eject:
         ejecting = true;
+        break;
+      case WeaponActionKind::Strike:
+        struck = true;
         break;
       case WeaponActionKind::Loadout:
         if (const auto loads = weapons::bombLoadouts(p.type))
@@ -1089,6 +1116,23 @@ void World::step() {
     if (p.bot && p.sim.state().engine_health[0] <= 0 &&
         p.sim.state().engine_health[1] <= 0)
       ejecting = true;
+    if (struck) {
+      // Into the trees or a building: the aircraft breaks up where it is, a
+      // crash like any other.
+      const auto &wreck = p.sim.state();
+      p.life.health = 0;
+      CombatEvent event;
+      event.kind = CombatKind::Hit;
+      event.tick = tick_;
+      event.owner = event.target = id;
+      event.generation = p.life.generation;
+      event.health = 0;
+      event.position = wreck.pos_ned;
+      event.velocity = wreck.vel_ned;
+      combat_.emit(event);
+      destroy(id, p, wreck.pos_ned, wreck.vel_ned);
+      continue;
+    }
     if (ejecting) {
       // The seat goes and the aircraft is lost with it: a death for its
       // pilot, and a kill for whoever hit it last.
@@ -1164,7 +1208,7 @@ void World::step() {
     // aircraft stands, so one that needs nothing is served the moment it does.
     // In a team game the stop has to be made at the side's own airfield.
     if (p.life.alive() && standingOnGround(p.sim.config(), p.sim.state()) &&
-        (!teams_ || airfieldOwner(p.sim.state().pos_ned.x, p.sim.state().pos_ned.y) == p.team)) {
+        (!teams_ || homeField(p.sim.state().pos_ned) == p.team)) {
       if (++p.standing >= serviceTicks() && needsService(p)) {
         service(id, p);
         p.standing = 0;

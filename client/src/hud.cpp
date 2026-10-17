@@ -410,9 +410,11 @@ void drawEarthFullMap(ImDrawList* draw, ImVec2 display, const HudFrame& frame, c
   EarthMapView view;
   renderer.earthMapTexture(1, view);
   // Centred on the aircraft at the scale asked for; until the picture for it
-  // is painted, at the scale of the one there is.
+  // is painted, at the scale of the one there is. The picture reaches half as
+  // far again as the map shows, so moving on never uncovers its edge.
   view.latitude = here.latitude;
   view.longitude = here.longitude;
+  view.halfSpan /= 1.5;
   draw->AddRectFilled({0, 0}, display, IM_COL32(0, 0, 0, 110));
   drawEarthMap(draw, std::floor((display.x - size) * .5f), std::floor((display.y - size) * .5f), size, view, 1, frame, renderer, true);
 }

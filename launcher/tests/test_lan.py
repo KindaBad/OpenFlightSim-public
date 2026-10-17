@@ -320,10 +320,19 @@ class Hosting(unittest.TestCase):
             # An airport the theatre does not have starts at its first.
             command = arguments(self.installation, Preferences(map='earth', theatre='alps', earth_airport='LOWW', aircraft=prefs.aircraft), graphics)
             self.assertEqual(command[command.index('--earth-airport') + 1], 'LSGG')
-            for bad in (Preferences(map='earth', theatre='moon', aircraft=prefs.aircraft),
-                        Preferences(map='earth', theatre='alps', mode='dogfight', aircraft='typhoon')):
-                with self.assertRaises(LauncherError):
-                    arguments(self.installation, bad, graphics)
+            with self.assertRaises(LauncherError):
+                arguments(self.installation, Preferences(map='earth', theatre='moon', aircraft=prefs.aircraft), graphics)
+            # Bots fly on the Earth from 0.7.0.1; an older build refuses them.
+            dogfight = Preferences(map='earth', theatre='alps', mode='dogfight', aircraft=next(a['id'] for a in self.installation.aircraft if a['armed']), bots=2)
+            version = self.installation.catalog['version']
+            self.installation.catalog['version'] = '0.7.0'
+            with self.assertRaises(LauncherError):
+                arguments(self.installation, dogfight, graphics)
+            self.installation.catalog['version'] = '0.7.0.1'
+            command = arguments(self.installation, dogfight, graphics)
+            self.assertEqual(command[command.index('--bots') + 1], '2')
+            self.assertEqual(command[command.index('--theatre') + 1], 'alps')
+            self.installation.catalog['version'] = version
 
     def test_an_earth_game_is_hosted_on_this_computers_pack(self):
         self.installation.catalog['theatres'] = [{'id': 'gulf', 'name': 'Persian Gulf', 'airports': [{'ident': 'OMDB', 'name': 'Dubai'}]}]
@@ -337,9 +346,17 @@ class Hosting(unittest.TestCase):
             (data / 'earth-cover.ofsc').write_bytes(b'cover')
             command = server_arguments(self.installation, prefs, lan=True)
             self.assertEqual(command[5:11], ['--map', 'earth', '--theatre', 'gulf', '--earth-pack', str(data / 'earth.ofse')])
-            for bad in (Preferences(map='earth', theatre='gulf', lan_bots=2), Preferences(map='earth', theatre='gulf', lan_teams=True)):
+            # Bots and team games on the Earth need 0.7.0.1.
+            fights = (Preferences(map='earth', theatre='gulf', lan_bots=2), Preferences(map='earth', theatre='gulf', lan_teams=True))
+            version = self.installation.catalog['version']
+            self.installation.catalog['version'] = '0.7.0'
+            for fight in fights:
                 with self.assertRaises(LauncherError):
-                    server_arguments(self.installation, bad, lan=True)
+                    server_arguments(self.installation, fight, lan=True)
+            self.installation.catalog['version'] = '0.7.0.1'
+            self.assertIn('--bots', server_arguments(self.installation, fights[0], lan=True))
+            self.assertIn('--teams', server_arguments(self.installation, fights[1], lan=True))
+            self.installation.catalog['version'] = version
             # Multiplayer on the Earth is passed the theatre as a flight is.
             graphics = Graphics(self.root / 'user/graphics.cfg')
             flight = Preferences(map='earth', theatre='gulf', mode='multiplayer', aircraft=self.installation.aircraft[0]['id'])

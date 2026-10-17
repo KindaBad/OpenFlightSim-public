@@ -67,7 +67,11 @@ float cloudDensity(vec3 p, float heightFraction, vec4 weather, float lod, float 
     float kind = ofsSaturate(weather.g * 0.85 + u_cloudLayer.x * 0.25 + u_cloudShape.w);
     float reach = mix(0.40, 1.0, kind) * mix(0.30, 1.0, cover) * mix(0.55, 1.0, smoothstep(0.30, 0.72, shape));
     float h = heightFraction / reach;
-    float profile = smoothstep(0.0, 0.10, h) * (1.0 - smoothstep(0.45, 1.0, h));
+    // The underside is not one level deck: the body of a cell sits lowest and
+    // its edges are lifted, so each base is rounded, and the bulges on the
+    // body hang ragged below it.
+    float lift = (1.0 - smoothstep(0.30, 0.80, shape)) * 0.30;
+    float profile = smoothstep(lift, lift + 0.16, h) * (1.0 - smoothstep(0.45, 1.0, h));
     // Coverage sets how much of the noise survives: at full cover the layer is
     // continuous, below it only the cores of the noise remain as separate cells.
     float keep = cover * 0.86;
@@ -77,8 +81,8 @@ float cloudDensity(vec3 p, float heightFraction, vec4 weather, float lod, float 
     }
     if (detailAmount > 0.0) {
         float fine = texture3DLod(s_cloudDetail, q.xzy / DETAIL_TILE, lod).r;
-        // Wisps at the base, billows at the top.
-        float erosion = mix(fine, 1.0 - fine, ofsSaturate(h * 3.0)) * 0.52 * detailAmount;
+        // Wisps and rags at the base, billows at the top.
+        float erosion = mix(fine, 1.0 - fine, ofsSaturate(h * 3.0)) * mix(0.70, 0.52, ofsSaturate(h * 4.0)) * detailAmount;
         base = ofsSaturate((base - erosion) / (1.0 - erosion));
     }
     return base * mix(0.7, 1.25, ofsSaturate(h)) * (0.65 + 0.5 * weather.a);

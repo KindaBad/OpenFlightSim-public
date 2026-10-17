@@ -322,6 +322,16 @@ and user/account authentication remain outside this protocol milestone.
 
 ## v22 additions
 
+Version 26 adds one `WeaponAction` kind, Strike (11): the aircraft has flown
+into a tree or a building. Scenery is built by each client for itself, from
+settings the server never sees, so only the client can find the strike. Like
+Eject it is accepted from an unarmed aircraft and the station byte is ignored.
+The server announces a Hit event with health 0 and destroys the aircraft as a
+crash does. A client can claim it only for its own aircraft, so it costs no one
+else anything. Version 26 also lets an Earth game have bots and teams: each
+side starts and is serviced at its theatre's team airport (`teamAirport`), and
+the team status carries no structures there.
+
 Version 24 adds the Boeing 747-206B as aircraft type 8. As with every version
 change, peers on another version are refused.
 

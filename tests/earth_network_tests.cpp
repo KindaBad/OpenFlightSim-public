@@ -222,16 +222,41 @@ void game(const std::filesystem::path &packPath) {
   stranger.disconnect();
   server.shutdown();
 
-  // An Earth game needs its starts, and is free flight.
+  // An Earth game needs its starts.
   bool refused = false;
   try {
-    ServerConfig bots = config;
-    bots.bots = 2;
-    Server invalid(bots);
+    ServerConfig startless = config;
+    startless.starts.clear();
+    Server invalid(startless);
   } catch (const std::invalid_argument &) {
     refused = true;
   }
-  check(refused, "no bots on the Earth yet");
+  check(refused, "an Earth game without starts is refused");
+
+  // Bots and team games are played on the Earth too: each side from its own
+  // airport, a bot in the air over its side's, and only kills to score.
+  {
+    const std::size_t red = teamAirport(alps, Team::Red), blue = teamAirport(alps, Team::Blue);
+    check(red != blue && config.starts[red].home == Team::Red && config.starts[blue].home == Team::Blue,
+          "each side has an airport of its own");
+    World fight(false);
+    fight.setStarts(config.starts);
+    fight.setTeams(300);
+    check(fight.teamStatus().health.empty(), "nothing to bomb on the Earth");
+    const auto human = fight.join(AircraftType::Typhoon, "pilot", Team::Blue);
+    check(human && fight.joinBot() && fight.joinBot(), "bots join an Earth game");
+    for (const auto &[id, p] : fight.players()) {
+      const auto &s = p.sim.state();
+      const Start &home = config.starts[p.team == Team::Red ? red : blue];
+      const double distance = (s.pos_ned - home.point).norm();
+      const double clearance = earth.altitude(s.pos_ned) - earth.terrain(s.pos_ned).altitude;
+      std::printf("%s %s %.0f m from its airport, %.0f m above the ground\n", p.bot ? "bot" : "pilot", teamName(p.team),
+                  distance, clearance);
+      check(distance < 4000, "everyone starts at their side's airport");
+      check(p.bot ? clearance > 500 : clearance < 4, p.bot ? "a bot starts in the air" : "the pilot starts on the runway");
+      check(fight.homeField(s.pos_ned) == p.team, "and services there");
+    }
+  }
   std::puts("earthnet.game PASS");
 }
 }  // namespace

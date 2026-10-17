@@ -9,7 +9,7 @@ import subprocess
 import time
 from .config import PURSUIT_CAMERA_VERSION, LIVERIES
 from .installation import active_directory
-from .lan import LAN_VERSION, LIVERY_VERSION, MISSILE_RELOAD_VERSION, TEAMS_VERSION, lobby_name
+from .lan import EARTH_FIGHT_VERSION, LAN_VERSION, LIVERY_VERSION, MISSILE_RELOAD_VERSION, TEAMS_VERSION, lobby_name
 from .config import LOADOUTS, TEAMS, user_directory
 from .platform_process import spawn
 from .storage import LauncherError, read_json, safe_path, relative_name
@@ -248,8 +248,8 @@ def arguments(installation, preferences, graphics):
         if selected.get('bomber'):
             args += ['--loadout', preferences.loadout]
     if preferences.map == 'earth':
-        if preferences.mode == 'dogfight':
-            raise LauncherError('Bots fly in the valley only for now. Choose free flight or multiplayer, or the valley.')
+        if preferences.mode == 'dogfight' and Version(installation.catalog['version']) < Version(EARTH_FIGHT_VERSION):
+            raise LauncherError(f'Bots on the Earth map need OpenFlightSim {EARTH_FIGHT_VERSION} or newer. Update the game, or choose the valley.')
         theatre = earth_theatre(installation, preferences.theatre)
         airports = [a.get('ident') for a in theatre['airports'] if isinstance(a, dict)]
         airport = preferences.earth_airport if preferences.earth_airport in airports else airports[0]
@@ -268,9 +268,9 @@ def server_arguments(installation, preferences, lan=False):
     """Command line of the server behind a hosted game: this computer only, or the local network."""
     command = [str(installation.server_executable()), '--bind', '0.0.0.0' if lan else '127.0.0.1', '--port', str(preferences.port)]
     if preferences.map == 'earth':
-        # A game on the round Earth: a theatre, free flight, on this computer's terrain pack.
-        if preferences.lan_bots or preferences.lan_teams:
-            raise LauncherError('A game on the Earth map is free flight for now: no bots or team game.')
+        # A game on the round Earth: a theatre, on this computer's terrain pack.
+        if (preferences.lan_bots or preferences.lan_teams) and Version(installation.catalog['version']) < Version(EARTH_FIGHT_VERSION):
+            raise LauncherError(f'Bots and team games on the Earth map need OpenFlightSim {EARTH_FIGHT_VERSION} or newer. Update the game.')
         theatre = earth_theatre(installation, preferences.theatre)
         pack, _ = earth_data(installation)
         command += ['--map', 'earth', '--theatre', theatre['id'], '--earth-pack', str(pack)]

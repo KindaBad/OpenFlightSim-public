@@ -50,6 +50,8 @@ GAME_ID = re.compile(r'[0-9a-f]{8}')
 # say they know the Earth map are offered valley games only.
 THEATRES = ('austria', 'alps', 'gulf')
 EARTH_VERSION = '0.7.0'
+# The first version whose server runs bots and team games on the Earth map.
+EARTH_FIGHT_VERSION = '0.7.0.1'
 
 
 @dataclass
@@ -273,10 +275,10 @@ class Host:
         if world not in ('valley', 'earth') or (world == 'earth' and theatre not in THEATRES):
             return self.refuse('request', 'The game settings were not understood.')
         if world == 'earth':
-            if bots or teams:
-                return self.refuse('request', 'A game on the Earth map is free flight for now: no bots or team game.')
             if version_key(version) < version_key(EARTH_VERSION):
                 return self.refuse('version', f'Games on the Earth map need OpenFlightSim {EARTH_VERSION} or newer.')
+            if (bots or teams) and version_key(version) < version_key(EARTH_FIGHT_VERSION):
+                return self.refuse('version', f'Bots and team games on the Earth map need OpenFlightSim {EARTH_FIGHT_VERSION} or newer.')
             if not self.earth_pack.is_file():
                 return self.refuse('earth', 'The public server does not have the Earth map yet. Try again later, or play in the valley.')
         mine = [g for g in self.games.values() if g.creator == address]

@@ -19,7 +19,11 @@ enum class WeaponActionKind : std::uint8_t {
   Eject, // the pilot abandons the aircraft; `station` is unused
   // A bomber asks for the bomb load numbered `station`, which it is given the
   // next time it is rearmed.
-  Loadout
+  Loadout,
+  // The aircraft has flown into a tree or a building. Scenery is drawn by each
+  // player's own game, so only the player's own can find it; a claim costs no
+  // one but the claimant.
+  Strike
 };
 struct WeaponAction {
   std::uint64_t sequence{};

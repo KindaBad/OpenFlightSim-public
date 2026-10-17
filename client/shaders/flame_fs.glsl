@@ -87,23 +87,27 @@ void main()
         float opacity, gain;
         float depth = v_surfacePos.y;
         if (layer < .5) {
-            // Shock diamonds: knots of burning gas, yellow near the nozzle and
-            // pink as they weaken downstream, brightest at each Mach disc.
-            color = mix(vec3(1.0, .66, .40), vec3(1.0, .38, .36), smoothstep(0.0, .55, t));
-            opacity = .44 * cell * cell * pow(decay, 1.1) * depth;
-            gain = 1.3;
+            // Shock diamonds: knots of burning gas, white-yellow near the
+            // nozzle and orange as they weaken downstream, brightest at each
+            // Mach disc.
+            color = mix(vec3(1.0, .90, .68), vec3(1.0, .60, .28), smoothstep(0.0, .55, t));
+            opacity = .55 * cell * cell * pow(decay, 1.1) * depth;
+            gain = 1.5;
         } else if (layer < 1.5) {
-            // The flame: orange and brightest as it leaves the nozzle, then the
-            // pale blue of burning kerosene, fading to violet.
-            float root = 1.0 - smoothstep(0.0, .10, t);
-            color = mix(vec3(.36, .48, 1.0), vec3(1.0, .56, .20), root);
-            color = mix(color, vec3(.46, .40, .86), smoothstep(.45, 1.0, t));
-            opacity = .19 * pow(decay, 1.25) * (.78 + .22 * turbulence) * (.88 + .24 * cell * decay);
-            gain = 1.0 + 2.2 * root;
+            // The flame: yellow-white as it leaves the nozzle, then the orange
+            // of a hydrocarbon flame in daylight, reddening as it cools. At
+            // part reheat the root shows the blue of a lean flame.
+            float root = 1.0 - smoothstep(0.0, .16, t);
+            color = mix(vec3(1.0, .50, .17), vec3(1.0, .80, .44), root);
+            color = mix(color, vec3(.90, .30, .12), smoothstep(.40, 1.0, t));
+            color = mix(color, vec3(.42, .52, 1.0), (1.0 - reheat) * .45 * root);
+            opacity = .24 * pow(decay, 1.2) * (.74 + .26 * turbulence) * (.88 + .24 * cell * decay);
+            gain = 1.0 + 1.8 * root;
         } else {
-            color = vec3(.30, .42, 1.0);
-            opacity = .055 * pow(decay, .9) * (.65 + .35 * turbulence);
-            gain = 1.0;
+            // A faint sheath of hot gas mixing with the air.
+            color = vec3(1.0, .46, .20);
+            opacity = .05 * pow(decay, .9) * (.6 + .4 * turbulence);
+            gain = .9;
         }
         opacity *= ends * flicker * depth * sqrt(reheat);
         gain *= flameAdaptation(u_worldOrigin.w);

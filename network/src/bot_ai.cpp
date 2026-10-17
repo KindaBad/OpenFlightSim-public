@@ -41,7 +41,9 @@ BotDecision flyBot(const Simulator &sim, const State *target, const GunConfig &g
   } else {
     // Gentle patrol with altitude hold until a live human becomes available.
     aim = ofs::world().toLocal(s.pos_ned, s.att.rotate({1500, turnSide * 250, 0}));
-    aim.z = (-1000 + ofs::world().altitude(s.pos_ned)) * .8;
+    // 1,000 m, or high enough over mountains to patrol clear of them.
+    const double patrol = std::max(1000., ofs::world().terrain(s.pos_ned).altitude + 900.);
+    aim.z = (-patrol + ofs::world().altitude(s.pos_ned)) * .8;
   }
   // From here on the aim is in the local north-east-down axes.
   const double headingError = std::remainder(std::atan2(aim.y, aim.x) -

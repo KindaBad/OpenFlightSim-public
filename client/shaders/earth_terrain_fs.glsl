@@ -227,6 +227,27 @@ void main()
     }
 
     vec3 sand = srgbToLinear(cover) * 0.42 * mix(vec3_splat(1.0), clamp(soil / max(layerMean(LAYER_SOIL), vec3_splat(0.02)), 0.6, 1.4), closeness);
+    if (arid > 0.01) {
+        // Desert is never one even tint: broad paler and darker tracts, plains
+        // of dark gravel, and in the sand seas long dune ridges, their crests
+        // pale and their troughs darker, winding as the wind has laid them.
+        float tract = valueNoise(pf / 5200.0) * 0.6 + valueNoise(pf / 1700.0 + 9.0) * 0.4;
+        float gravel = smoothstep(0.52, 0.70, valueNoise(pf / 2300.0 + 31.0)) * (1.0 - smoothstep(0.55, 0.85, light));
+        // Ridges stretched across the wind, as ridged noise rather than
+        // stripes, so no two are alike.
+        vec2 across = vec2(dot(pf, vec2(0.92, 0.39)), dot(pf, vec2(-0.39, 0.92)));
+        vec2 q = vec2(across.x / 420.0, across.y / 1500.0) + vec2(valueNoise(pf / 2600.0 + 3.0) * 2.5, 0.0);
+        float crest = 1.0 - abs(2.0 * (valueNoise(q) * 0.7 + valueNoise(q * 2.3 + 7.0) * 0.3) - 1.0);
+        crest *= crest;
+        float dunes = smoothstep(0.35, 0.60, valueNoise(pf / 6000.0 + 51.0)) * (1.0 - gravel) * (1.0 - smoothstep(0.04, 0.10, steep));
+        float ripple = valueNoise(pf / 70.0 + 17.0) * 0.6 + valueNoise(pf / 19.0 + 23.0) * 0.4;
+        // Sand is warm: Natural Earth's pale tints are drawn toward ochre.
+        sand = mix(sand, dot(sand, vec3_splat(1.0 / 3.0)) * vec3(1.34, 1.02, 0.64), 0.55);
+        sand *= 0.80 + 0.38 * tract;
+        sand = mix(sand, sand * vec3(0.62, 0.56, 0.52), gravel * 0.8);
+        sand *= mix(1.0, 0.86 + 0.24 * crest, dunes);
+        sand *= 0.94 + 0.12 * mix(0.5, ripple, closeness);
+    }
     vec3 albedo = mix(meadow, farm, smoothstep(0.3, 0.5, fields)) * plants + sand * arid + vec3(0.72, 0.74, 0.78) * ice;
     if (forest > 0.0) {
         vec3 canopy = layerColourGrad(p / 256.0, LAYER_WOODLAND, closeness, dpx / 256.0, dpy / 256.0)

@@ -320,13 +320,23 @@ void Renderer::buildEnvironment(Synthesis& data) {
 
   // ---- Villages ------------------------------------------------------------
   // Where the low country is farmed there are villages: a street of houses
-  // with pitched roofs, and in the larger ones a church. They are scenery,
-  // like the trees, and are not collided with.
+  // with pitched roofs, and in the larger ones a church. Like the trees, they
+  // can be flown into (scenery_collision.hpp).
   std::vector<SurfaceVertex> walls, roofs;
+  houseBoxes_.clear();
   {
     const auto ground = [](float x, float z) { return float(-groundHeightNed(-z, x)); };
     const auto building = [&](float x, float z, float width, float depth, float height, float pitch, float yaw, bool spire) {
       geometry::house(walls, roofs, ground, x, z, width, depth, height, pitch, yaw, spire);
+      // Its box, from the ground at its corners as geometry::house finds it.
+      float low = 1e9f, high = -1e9f;
+      for (const float u : {-1.f, 1.f})
+        for (const float v : {-1.f, 1.f}) {
+          const float g = ground(x + std::cos(yaw) * u * width * .5f + std::sin(yaw) * v * depth * .5f,
+                                 z - std::sin(yaw) * u * width * .5f + std::cos(yaw) * v * depth * .5f);
+          low = std::min(low, g), high = std::max(high, g);
+        }
+      houseBoxes_.push_back(houseBox(x, z, width, depth, low - .4f, high + height + pitch, yaw));
     };
     const auto buildable = [&](float x, float z) {
       const double north = -z, east = x;
@@ -594,6 +604,7 @@ void Renderer::updateTreeChunks() {
       chunk.radius = std::hypot(static_cast<float>(size) * .7072f, .5f * (high - low)) + 6.f;
       chunk.instances = bgfx::createVertexBuffer(
           bgfx::copy(data.data(), static_cast<std::uint32_t>(data.size() * sizeof(float))), instanceLayout_);
+      chunk.shapes = trees;
     }
     treeChunks_[{cx, cz}] = chunk;
   }
@@ -649,6 +660,41 @@ void Renderer::drawTrees(bgfx::ViewId view, bgfx::ProgramHandle program, const C
       if (!cascade) stats_.treesDrawn += count;
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Collisions with scenery
+// ---------------------------------------------------------------------------
+
+bool Renderer::sceneryStrike(const Vec3& position, double margin) const {
+  if (earth_) {
+    const EarthState& e = *earth_;
+    const Vec3 ecef = e.world->toEcef(position);
+    for (const auto& [key, tile] : e.objectTiles) {
+      const Vec3 d = ecef - tile.centre;
+      const Vec3 p{d.dot(tile.east), d.dot(tile.up), d.dot(tile.south)};
+      if (p.y > tile.high + margin || p.y < tile.low - margin || std::hypot(p.x, p.z) > tile.radius + margin) continue;
+      for (const auto& tree : tile.treeShapes)
+        if (insideTree(tree, p, margin)) return true;
+      for (const auto& box : tile.boxes)
+        if (insideBox(box, p, margin)) return true;
+    }
+    return false;
+  }
+  // The valley's render axes: east, up, south.
+  const Vec3 p{position.y, -position.z, -position.x};
+  // The chunk the point is in, and those whose crowns may reach over to it.
+  const auto chunkOf = [](double v) { return int(std::floor(v / Landscape::kTreeChunk)); };
+  for (int cx = chunkOf(p.x - 15); cx <= chunkOf(p.x + 15); ++cx)
+    for (int cz = chunkOf(p.z - 15); cz <= chunkOf(p.z + 15); ++cz) {
+      const auto chunk = treeChunks_.find({cx, cz});
+      if (chunk == treeChunks_.end()) continue;
+      for (const auto& tree : chunk->second.shapes)
+        if (insideTree(tree, p, margin)) return true;
+    }
+  for (const auto& box : houseBoxes_)
+    if (insideBox(box, p, margin)) return true;
+  return false;
 }
 
 }  // namespace ofs::client

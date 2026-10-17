@@ -439,10 +439,8 @@ int main(int argc, char** argv) {
     std::unique_ptr<EarthWorld> earthWorld;
     std::filesystem::path earthCover;
     if (options.earth) {
-      // Games with others on the Earth are played in a theatre, free flight.
-      if (options.bots || options.teams)
-        throw std::runtime_error("The round Earth is free flight only for now: no bots or team games");
-      if ((!options.server.empty() || options.localGame) && options.theatre.empty())
+      // Games with others or bots on the Earth are played in a theatre.
+      if ((!options.server.empty() || options.localGame || options.bots) && options.theatre.empty())
         throw std::runtime_error("A game on the round Earth is played in a theatre: give --theatre");
       const std::filesystem::path root(OFS_SOURCE_ROOT);
       const std::filesystem::path earthPack = options.earthPack.empty() ? root / "build/earth/earth.ofse"
@@ -535,16 +533,28 @@ int main(int argc, char** argv) {
       if (earthWorld) ofs::net::useEarthTheatre(config, *findTheatre(options.theatre), *earthTerrain, *earthWorld);
       dogfight = std::make_unique<ofs::net::Server>(config);
     }
+    // The map this client has loaded, so a game on another is not joined.
+    const auto useMap = [&](ofs::net::Client& client) {
+      if (!earthWorld) return;
+      const Theatre& theatre = *findTheatre(options.theatre);
+      const TheatreAirport& airport = options.earthAirport.empty() ? theatre.airports.front()
+                                                                   : *findTheatreAirport(theatre, options.earthAirport);
+      client.setMap({ofs::net::MapKind::Earth, std::string(theatre.id), earthTerrain->contentHash(), std::string(airport.ident)});
+    };
+    // The side whose home airfield a point is on, as the server decides it.
+    const auto homeField = [&](const Vec3& p) {
+      if (!earthWorld) return airfieldOwner(p.x, p.y);
+      const Theatre* theatre = findTheatre(options.theatre);
+      for (const Team team : {Team::Red, Team::Blue}) {
+        const EarthRunway* runway = theatre ? theatreRunway(*earthTerrain, theatre->airports[teamAirport(*theatre, team)]) : nullptr;
+        if (runway && (earthWorld->fromEcef(runwayStart(*runway).point) - p).norm() < ofs::net::earthHomeRadius) return team;
+      }
+      return Team::None;
+    };
     if (!options.server.empty() || dogfight) {
       network = std::make_unique<ofs::net::Client>(options.name, options.aircraft, options.team, options.loadout);
       network->prediction().simulator() = Simulator(definition.flight);
-      // The map this client has loaded, so a game on another is not joined.
-      if (earthWorld) {
-        const Theatre& theatre = *findTheatre(options.theatre);
-        const TheatreAirport& airport = options.earthAirport.empty() ? theatre.airports.front()
-                                                                     : *findTheatreAirport(theatre, options.earthAirport);
-        network->setMap({ofs::net::MapKind::Earth, std::string(theatre.id), earthTerrain->contentHash(), std::string(airport.ident)});
-      }
+      useMap(*network);
     }
     const auto simulation = [&]() -> Simulator& {
       return network ? network->prediction().simulator() : offlineSim;
@@ -562,8 +572,8 @@ int main(int argc, char** argv) {
     UiSettings ui;
 #ifdef OFS_NETWORK_ENABLED
     ui.multiplayer = bool(network);
-    // Bots fly in the valley only, for now.
-    ui.botsAvailable = !earthWorld;
+    // On the round Earth bots fly in a theatre.
+    ui.botsAvailable = !earthWorld || !options.theatre.empty();
     ui.dogfight = bool(dogfight);
 #endif
     ui.hud.show = graphics.showHud;
@@ -747,6 +757,10 @@ int main(int argc, char** argv) {
     // hard landing, so that neither becomes a buzz.
     double hitCueClock = 1, crunchClock = 1;
     bool menuWasOpen = false, mapWasOpen = options.map, triggerWasHeld = false, wasCrashed = false;
+    // Where the aircraft was when last tested against the trees and buildings,
+    // and the life in a game with others that has already reported a strike.
+    State strikeBefore = simulation().state();
+    std::uint32_t struckGeneration = ~0u;
     unsigned frame = 0, fullscreenSwitches = 0;
     bool sawFlightInput = false, sawMouseLook = false, sawFocusRelease = false;
     bool sawCameraMove = false, sawCameraTurn = false, sawAirborneReset = false;
@@ -885,10 +899,12 @@ int main(int argc, char** argv) {
           renderer.setAircraftType(options.aircraft);
           ofs::net::ServerConfig config;
           config.bind = "127.0.0.1"; config.port = 0; config.bots = 2;
+          if (earthWorld) ofs::net::useEarthTheatre(config, *findTheatre(options.theatre), *earthTerrain, *earthWorld);
           dogfight = std::make_unique<ofs::net::Server>(config);
           ++dogfightStarts;
           network = std::make_unique<ofs::net::Client>(options.name, options.aircraft, options.team, options.loadout);
           network->prediction().simulator() = Simulator(definition.flight);
+          useMap(*network);
           reset(simulation(), controls, previous, camera, clock, true);
           network->connect("127.0.0.1", dogfight->port());
           options.bots = config.bots;
@@ -1405,6 +1421,57 @@ int main(int argc, char** argv) {
             }
           }
         });
+      // ---- Trees and buildings ----
+      // The way the aircraft came this frame, a couple of metres at a time,
+      // with its nose, tail, wing tips and belly. Brushing past slowly on the
+      // ground does no harm; at flying speed a strike is a crash.
+      if (steps > 0) {
+        const State& now = simulation().state();
+        const auto& config = simulation().config();
+        const double travel = (now.pos_ned - strikeBefore.pos_ned).norm();
+        bool struck = false;
+        if (!aircraftCrashed(now) && travel < 200 && now.vel_ned.norm() > 25 && world().clearance(now.pos_ned) < 260) {
+          const Vec3 cg = loadedCg(config, now);
+          const int samples = std::clamp(int(std::ceil(travel / 2)), 1, 100);
+          for (int i = 1; i <= samples && !struck; ++i) {
+            const Vec3 at = strikeBefore.pos_ned + (now.pos_ned - strikeBefore.pos_ned) * (double(i) / samples);
+            for (const auto& point : config.belly_contacts)
+              if (renderer.sceneryStrike(at + now.att.rotate(point - cg), .3)) {
+                struck = true;
+                break;
+              }
+          }
+        }
+        if (struck) {
+#ifdef OFS_NETWORK_ENABLED
+          if (network) {
+            if (network->ready() && network->life().alive() && network->life().generation != struckGeneration) {
+              network->weaponAction(ofs::net::WeaponActionKind::Strike);
+              struckGeneration = network->life().generation;
+            }
+          } else
+#endif
+          {
+            // Alone, the aircraft breaks up where it is, as on hitting the ground.
+            State wreck = now;
+            Simulator::GroundImpact impact;
+            impact.position = wreck.pos_ned;
+            impact.normal = world().up(wreck.pos_ned);
+            impact.velocity = wreck.vel_ned;
+            impact.closingSpeed = wreck.vel_ned.norm();
+            impact.damage = 1;
+            impact.bodyContact = true;
+            frameImpacts.push_back(impact);
+            for (auto& health : wreck.surface_health) health = 0;
+            for (auto& health : wreck.engine_health) health = 0;
+            wreck.afterburner[0] = wreck.afterburner[1] = 0;
+            wreck.vel_ned = wreck.vel_ned * .35;
+            simulation().setState(wreck);
+            log("SIM", "Flew into trees or a building");
+          }
+        }
+        strikeBefore = simulation().state();
+      }
       totalTicks += steps;
       rateTicks += steps;
       rateElapsed += realElapsed;
@@ -1770,7 +1837,7 @@ int main(int argc, char** argv) {
                                                  radar.flares < decoyStock || radar.chaff < decoyStock);
           }
           // In a team game only the side's own airfield does the work.
-          if (network->teamStatus().teams && airfieldOwner(aircraft.pos_ned.x, aircraft.pos_ned.y) != network->team())
+          if (network->teamStatus().teams && homeField(aircraft.pos_ned) != network->team())
             needs = false;
         }
 #endif
@@ -2069,15 +2136,20 @@ int main(int argc, char** argv) {
         const double span = minimapHalfSpan(std::hypot(velocity.x, velocity.y));
         double east, north;
         earthMiniView.offsets(here.latitude, here.longitude, east, north);
-        if (std::hypot(east, north) > .35 * (earthMiniView.halfSpan - span) || earthMiniView.halfSpan < 1.8 * span ||
+        // A new picture is started well before the old one's edge comes into
+        // view, so the aircraft never outruns it while it is being painted.
+        if (std::hypot(east, north) > .2 * (earthMiniView.halfSpan - span) || earthMiniView.halfSpan < 1.8 * span ||
             earthMiniView.halfSpan > 3.2 * span)
           earthMiniView = {here.latitude, here.longitude, 2.4 * span};
         if (graphics.showMinimap) renderer.requestEarthMap(0, earthMiniView, 512);
         if (fullMap) {
+          // The full map's picture, likewise, reaches half as far again as
+          // the map shows.
           const double full = kEarthMapScales[earthMapScale];
           earthFullView.offsets(here.latitude, here.longitude, east, north);
-          if (earthFullView.halfSpan != full || std::hypot(east, north) > .1 * full) earthFullView = {here.latitude, here.longitude, full};
-          renderer.requestEarthMap(1, earthFullView, 1024);
+          if (earthFullView.halfSpan != 1.5 * full || std::hypot(east, north) > .15 * full)
+            earthFullView = {here.latitude, here.longitude, 1.5 * full};
+          renderer.requestEarthMap(1, earthFullView, 1536);
         }
         hud.earth = earthWorld.get();
         hud.earthCover = renderer.earthCover();

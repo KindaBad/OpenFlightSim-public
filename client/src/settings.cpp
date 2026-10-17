@@ -255,8 +255,9 @@ void GraphicsSettings::load(const std::string& path) {
   int cloudQuality = static_cast<int>(clouds);
   read(table, "clouds", cloudQuality);
   read(table, "cloudCoverage", cloudCoverage);
-  read(table, "cloudBase", cloudBase);
-  read(table, "cloudThickness", cloudThickness);
+  // Before 0.7.0.1 the base was above sea level ("cloudBase").
+  read(table, "cloudBaseAgl", cloudBase);
+  read(table, "cloudDepth", cloudThickness);
   read(table, "cirrusCoverage", cirrusCoverage);
   read(table, "cloudShadows", cloudShadows);
   int terrainQuality = static_cast<int>(terrain);
@@ -368,8 +369,8 @@ bool GraphicsSettings::save() const {
   write(file, "lodBias", lodBias);
   write(file, "clouds", static_cast<int>(clouds));
   write(file, "cloudCoverage", cloudCoverage);
-  write(file, "cloudBase", cloudBase);
-  write(file, "cloudThickness", cloudThickness);
+  write(file, "cloudBaseAgl", cloudBase);
+  write(file, "cloudDepth", cloudThickness);
   write(file, "cirrusCoverage", cirrusCoverage);
   write(file, "cloudShadows", cloudShadows);
   write(file, "terrain", static_cast<int>(terrain));

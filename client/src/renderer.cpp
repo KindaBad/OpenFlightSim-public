@@ -739,7 +739,6 @@ glm::mat4 Renderer::modelTransform(const State& state, AircraftType type) const 
 // ---------------------------------------------------------------------------
 
 void Renderer::updateFrameConstants(const Camera& camera, const State& local, const Weather& weather, double dt) {
-  (void)camera;
   (void)local;
   const double step = std::clamp(dt, 0.0, .1);
   weatherTime_ += step;
@@ -765,14 +764,16 @@ void Renderer::updateFrameConstants(const Camera& camera, const State& local, co
   float sunVector[3];
   ofs::client::sunDirection(settings_.sky, sunVector);
   sun_ = glm::vec3(sunVector[0], sunVector[1], sunVector[2]);
-  const float eyeAltitude = std::max(cameraEye_.y + static_cast<float>(-origin_.z), 1.f);
+  // Above the sea, from the world: on the round Earth the game frame's z is
+  // not the vertical away from its anchor.
+  const float eyeAltitude = std::max(static_cast<float>(world().altitude(camera.eye)), 1.f);
   lighting_ = atmosphere_->lighting(eyeAltitude, {sun_.x, sun_.y, sun_.z});
 
   // ---- Exposure ----
   const bool clouds = cloudsEnabled();
   // Under a deck of cloud the ground receives far less direct light than the
   // clear-sky meter reading; expose for what the camera is actually in.
-  const float under = clouds && eyeAltitude < settings_.cloudBase + settings_.cloudThickness * .5f
+  const float under = clouds && eyeAltitude < cloudGround_ + settings_.cloudBase + settings_.cloudThickness * .5f
                           ? std::clamp((settings_.cloudCoverage - .55f) / .4f, 0.f, 1.f) : 0.f;
   const float metered = settings_.sky.autoExposure ? lighting_.meteredIrradiance * (1.f - .55f * under) : 9.5f;
   const float target = exposureFromIrradiance(metered, settings_.sky.exposureCompensation);
@@ -781,6 +782,24 @@ void Renderer::updateFrameConstants(const Camera& camera, const State& local, co
   exposurePrimed_ = true;
 
   // ---- Clouds ----
+  // The layer stands its height above the ground of the region: the mean of
+  // the terrain under the camera and in a ring 15 km out, followed slowly so
+  // the clouds are not seen to rise and sink.
+  cloudGroundClock_ -= step;
+  if (cloudGroundClock_ <= 0) {
+    cloudGroundClock_ = .5;
+    const auto& globe = world();
+    const Vec3 eye = camera.eye;
+    double sum = std::max(globe.terrain(eye).altitude, 0.);
+    for (int i = 0; i < 8; ++i) {
+      const double angle = i * kPi / 4;
+      const Vec3 at = eye + globe.fromLocal(eye, Vec3{std::cos(angle), std::sin(angle), 0} * 15000.);
+      sum += std::max(globe.terrain(at).altitude, 0.);
+    }
+    const float target = static_cast<float>(sum / 9);
+    cloudGround_ = cloudGroundPrimed_ ? cloudGround_ + (target - cloudGround_) * .02f : target;
+    cloudGroundPrimed_ = true;
+  }
   glm::dvec2 wind(weather.wind_ned.y, -weather.wind_ned.x);
   // Still air would freeze the sky; give the layer a gentle default drift.
   if (glm::dot(wind, wind) < 1.) wind = {8.5, 3.2};
@@ -814,7 +833,7 @@ void Renderer::updateFrameConstants(const Camera& camera, const State& local, co
   frame_.groundAlbedo = glm::vec4(p.groundAlbedo.r, p.groundAlbedo.g, p.groundAlbedo.b, settings_.renderDistance);
   frame_.solar = glm::vec4(p.solarIrradiance.r, p.solarIrradiance.g, p.solarIrradiance.b,
                            static_cast<float>(std::fmod(weatherTime_, 3600.)));
-  frame_.cloudLayer = glm::vec4(settings_.cloudCoverage, settings_.cloudBase, settings_.cloudThickness, clouds ? 1.f : 0.f);
+  frame_.cloudLayer = glm::vec4(settings_.cloudCoverage, cloudGround_ + settings_.cloudBase, settings_.cloudThickness, clouds ? 1.f : 0.f);
   frame_.cloudWeather = glm::vec4(static_cast<float>(cloudDrift_.x), static_cast<float>(cloudDrift_.y),
                                   kCloudExtinction, 1.f / kWeatherMapExtent);
   const float marchRange = settings_.clouds == CloudQuality::Low ? 45000.f
@@ -1260,7 +1279,7 @@ void Renderer::drawAfterburners(bool localDestroyed) {
     if (!instance.state || (id==0 && localDestroyed) || aircraftCrashed(*instance.state)) continue;
     const auto& definition=aircraftDefinition(instance.type);
     if (!instance.state || definition.flight.afterburner_thrust_each<=0 ||
-        (lastCamera_.eye-instance.state->pos_ned).norm()>1200) continue;
+        (lastCamera_.eye-instance.state->pos_ned).norm()>3000) continue;
     for(unsigned e=0;e<definition.flight.engine_count;++e) {
       const float intensity=static_cast<float>(instance.state->afterburner[e]);
       const float spool=static_cast<float>(instance.state->n1[e]);

@@ -439,7 +439,7 @@ void debugUi(const Simulator& sim, Controls& controls, const Camera& camera,
       if (ImGui::Combo("Cloud quality", &cloud, "Off\0Low\0Medium\0High\0"))
         settings.clouds = static_cast<CloudQuality>(cloud);
       ImGui::SliderFloat("Cumulus coverage", &settings.cloudCoverage, 0.f, 1.f, "%.2f");
-      ImGui::SliderFloat("Cloud base (m)", &settings.cloudBase, 300.f, 6000.f, "%.0f");
+      ImGui::SliderFloat("Cloud base above ground (m)", &settings.cloudBase, 300.f, 6000.f, "%.0f");
       ImGui::SliderFloat("Cloud depth (m)", &settings.cloudThickness, 300.f, 4000.f, "%.0f");
       ImGui::SliderFloat("Cirrus coverage", &settings.cirrusCoverage, 0.f, 1.f, "%.2f");
       ImGui::Checkbox("Cloud shadows", &settings.cloudShadows);

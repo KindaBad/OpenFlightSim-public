@@ -59,6 +59,20 @@ const TheatreAirport* findTheatreAirport(const Theatre& theatre, std::string_vie
   return nullptr;
 }
 
+std::size_t teamAirport(const Theatre& theatre, Team team) {
+  if (team != Team::Blue) return 0;
+  const auto& first = theatre.airports.front();
+  const Vec3 home = ecefFromGeodetic({first.latitude * kDeg2Rad, first.longitude * kDeg2Rad, 0});
+  std::size_t farthest = 0;
+  double distance = 0;
+  for (std::size_t i = 1; i < theatre.airports.size(); ++i) {
+    const auto& airport = theatre.airports[i];
+    const double d = (ecefFromGeodetic({airport.latitude * kDeg2Rad, airport.longitude * kDeg2Rad, 0}) - home).norm();
+    if (d > distance) distance = d, farthest = i;
+  }
+  return farthest;
+}
+
 const EarthRunway* theatreRunway(const EarthTerrain& terrain, const TheatreAirport& airport) {
   const Vec3 place = ecefFromGeodetic({airport.latitude * kDeg2Rad, airport.longitude * kDeg2Rad, 0});
   const EarthRunway* best = nullptr;

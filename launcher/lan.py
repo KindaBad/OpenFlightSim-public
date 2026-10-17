@@ -27,6 +27,8 @@ MISSILE_RELOAD_VERSION = '0.5.6'
 TEAMS_VERSION = '0.6.0'
 # The first simulator version that takes --livery for the Typhoon's original paint.
 LIVERY_VERSION = '0.6.7'
+# The first version with bots and team games on the Earth map.
+EARTH_FIGHT_VERSION = '0.7.0.1'
 # The longest map name an answer carries, and the form of one: a game on the
 # round Earth names its theatre ('earth:alps'); a game in the valley sends none.
 MAX_MAP = 24

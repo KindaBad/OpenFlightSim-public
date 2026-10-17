@@ -14,9 +14,8 @@ Server::Server(const ServerConfig &config)
   world_.setMissileReload(config.missileReload);
   if (config.teams)
     world_.setTeams(config.scoreLimit);
-  if (config.map.kind == MapKind::Earth && (config.starts.empty() || config.starts.size() != config.startIdents.size() ||
-                                            config.teams || config.bots))
-    throw std::invalid_argument("an Earth game needs its theatre's starts, and is free flight without bots for now");
+  if (config.map.kind == MapKind::Earth && (config.starts.empty() || config.starts.size() != config.startIdents.size()))
+    throw std::invalid_argument("an Earth game needs its theatre's starts");
   world_.setStarts(config.starts);
   transport_.listen(config.bind, config.port);
   config_.lobbyName = lobbyName(config_.lobbyName);
@@ -37,6 +36,9 @@ void useEarthTheatre(ServerConfig &config, const Theatre &theatre, const EarthTe
     start.point = earth.fromEcef(begin.point);
     const auto along = earth.toLocal(start.point, earth.directionFromEcef(begin.along));
     start.heading = std::atan2(along.y, along.x);
+    const std::size_t index = config.starts.size();
+    start.home = index == teamAirport(theatre, Team::Red) ? Team::Red
+                 : index == teamAirport(theatre, Team::Blue) ? Team::Blue : Team::None;
     config.starts.push_back(start);
     config.startIdents.emplace_back(airport.ident);
   }

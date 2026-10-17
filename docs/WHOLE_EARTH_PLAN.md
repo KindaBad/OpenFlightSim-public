@@ -821,3 +821,21 @@ free tier, because it needs a card.
   should not need the Earth pack.
 - **Rendering cost.** Showing a 565 km horizon at 60 fps on the owner's Low
   setting is the hardest performance target in the plan.
+
+## After release: fights on the Earth (0.7.0.1)
+
+Players asked to fight on the Earth map. From 0.7.0.1 (protocol 26) Local
+Dogfight, bots in hosted games and team games run in every theatre. A team
+game puts Red at the theatre's first airport and Blue at the one farthest from
+it (`teamAirport`, `Start::home`); each side is serviced within 4.5 km of its
+start. The valley's structures are not placed on the Earth, so a team game
+there is scored by kills. A bot with no pilot to chase starts 1 km above its
+side's airport (or over a start in turn) and patrols at least 900 m over the
+ground. The launcher and the public host refuse bots and teams on the Earth
+for versions before 0.7.0.1.
+
+The same release fixed the hard line across the view at eye level reported at
+Innsbruck: the renderer took the eye's altitude from the game frame's z,
+which away from the theatre's anchor is not the vertical, so the aerial
+perspective clipped every downward ray at a few metres.
+

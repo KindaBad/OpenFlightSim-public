@@ -367,7 +367,9 @@ void Renderer::updateEarthObjects() {
       tile.trees = bgfx::createVertexBuffer(bgfx::copy(data.data(), std::uint32_t(data.size() * sizeof(float))), instanceLayout_);
       tile.broadleaf = built.broadleaf;
       tile.conifer = std::uint32_t(built.trees.size()) - built.broadleaf;
+      tile.treeShapes = std::move(built.trees);
     }
+    tile.boxes = std::move(built.boxes);
     if (!built.merged.empty()) {
       tile.buildings = bgfx::createVertexBuffer(
           bgfx::copy(built.merged.data(), std::uint32_t(built.merged.size() * sizeof(EarthBuildingVertex))), e.buildingLayout);

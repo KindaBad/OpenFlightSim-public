@@ -52,6 +52,9 @@ EarthMapImage buildEarthMap(const EarthTerrain& terrain, const EarthCover& cover
          kQuarterMeridian / (terrain.roots() << (level + 1)) / (terrain.tileSamples() - 1) > cell * .5)
     ++level;
   const Sampler sampler{terrain, level};
+  // Close in, the pack's levels are coarser than the pixels: the ground is
+  // taken as the simulation has it, with the 90 m detail where it is loaded.
+  const bool precise = cell < 150;
   // Heights for every pixel and a ring round them, for the relief.
   const int ring = size + 2;
   std::vector<float> height(std::size_t(ring) * ring), water(std::size_t(ring) * ring);
@@ -67,7 +70,14 @@ EarthMapImage buildEarthMap(const EarthTerrain& terrain, const EarthCover& cover
       latitudes[k] = lat;
       longitudes[k] = lon;
       const Vec3 up{std::cos(lat) * std::cos(lon), std::cos(lat) * std::sin(lon), std::sin(lat)};
-      height[k] = sampler.sample(up, water[k]);
+      if (precise) {
+        const Surface surface{std::sin(lat), std::cos(lat), std::sin(lon), std::cos(lon), 0};
+        height[k] = float(terrain.groundAltitude(earthSeaLevel(surface), surface));
+        const double level = terrain.waterAltitude(surface);
+        water[k] = level > kNoWater + 1 ? float(level) : -10000.f;
+      } else {
+        height[k] = sampler.sample(up, water[k]);
+      }
     }
   for (int row = 0; row < size; ++row)
     for (int column = 0; column < size; ++column) {

@@ -64,7 +64,9 @@ struct GraphicsSettings {
   float lodBias{0.f}; // Log2 distance bias; positive selects cheaper geometry.
 
   CloudQuality clouds{CloudQuality::High};
-  float cloudCoverage{.42f}, cloudBase{1500.f}, cloudThickness{1500.f};
+  // The cumulus base is a height above the ground of the region flown over,
+  // not above the sea: clouds stand over mountains as they do over plains.
+  float cloudCoverage{.42f}, cloudBase{1800.f}, cloudThickness{1800.f};
   float cirrusCoverage{.35f};
   bool cloudShadows{true};
 

@@ -227,7 +227,7 @@ bool decodeWeapon(std::span<const std::uint8_t> bytes, WeaponMessage &out) {
     m.action = {m.sequence, m.tick, std::uint32_t(r.u(4)),
                 WeaponActionKind(r.u(1)), std::uint8_t(r.u(1))};
     if (!m.entity ||
-        unsigned(m.action.kind) > unsigned(WeaponActionKind::Loadout) ||
+        unsigned(m.action.kind) > unsigned(WeaponActionKind::Strike) ||
         m.action.station > 7)
       r.ok = false;
     break;

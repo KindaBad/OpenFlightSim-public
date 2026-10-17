@@ -355,9 +355,10 @@ void Renderer::drawMissilePlumes(const CombatVisuals& combat) {
     // brighter. It grows over the first instants as the motor comes up.
     const float burn = static_cast<float>(std::clamp(missile.age * 6, .35, 1.));
     const Vec3 nozzle = missile.position + missile.attitude.rotate({-missile.length * .5, 0, 0});
-    const float length = static_cast<float>(missile.length * .62), radius = static_cast<float>(missile.diameter * 3.6);
+    const float length = static_cast<float>(missile.length * 1.05), radius = static_cast<float>(missile.diameter * 4.2);
     const glm::mat4 matrix = storeMatrix(nozzle, missile.attitude, origin_) * glm::scale(glm::mat4{1}, glm::vec3(length, radius, radius));
-    drawFlame(matrix, localPosition(nozzle, origin_), static_cast<float>(missile.diameter * 2.4), burn,
+    // The glare round the motor is seen from far off, as the flame itself is not.
+    drawFlame(matrix, localPosition(nozzle, origin_), static_cast<float>(missile.diameter * 7.), burn,
               static_cast<float>(missile.id % 251), true);
   }
   bgfx::discard();

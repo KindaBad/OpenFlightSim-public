@@ -52,6 +52,8 @@ struct Player {
 struct Start {
   Vec3 point;
   double heading{};
+  // The side whose home this airport is in a team game, if either.
+  Team home{Team::None};
 };
 // A structure of a team game: how much of it stands, when it will have been
 // rebuilt, and the gun or launcher it may be.
@@ -60,6 +62,8 @@ struct Site {
   Tick rebuilt{}, ready{};
   Life gun;
 };
+// How near a side's starting runway on the round Earth its airfield reaches.
+constexpr double earthHomeRadius = 4500;
 // How long after a hit a crash still counts for the attacker.
 constexpr Tick killCreditTicks = 20 * 120;
 // Flares and chaff in the air at once; the oldest goes when another is needed.
@@ -72,7 +76,7 @@ public:
   // A game on the round Earth starts its aircraft at these runways instead of
   // the valley's airfield: at the one each pilot asks for, or in turn. Set
   // before anyone joins.
-  void setStarts(std::vector<Start> starts) { starts_ = std::move(starts); }
+  void setStarts(std::vector<Start> starts);
   const std::vector<Start> &starts() const { return starts_; }
   // A team game: Red against Blue, first to `scoreLimit` points. Set before
   // anyone joins.
@@ -84,6 +88,9 @@ public:
   bool setTeam(EntityId, Team);
   TeamStatus teamStatus() const;
   const std::vector<Site> &sites() const { return sites_; }
+  // The side whose home airfield a point is on: the valley's airfields, or
+  // on the round Earth the airport each side starts at.
+  Team homeField(const Vec3 &position) const;
   // What happened on the ground since last asked, for everyone to read.
   std::vector<std::string> takeNotices();
   EntityId joinBot(AircraftType type = AircraftType::Typhoon);

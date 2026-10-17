@@ -498,7 +498,8 @@ void Renderer::drawRain(const State& local, const Weather& weather) {
   if (intensity <= .01f || settings_.effects == EffectsQuality::Off) return;
   // Rain falls from the cloud layer; above it the air is dry.
   const float eyeAltitude = frame_.ozone.w;
-  const float below = 1 - glm::smoothstep(settings_.cloudBase, settings_.cloudBase + settings_.cloudThickness * .5f, eyeAltitude);
+  const float base = frame_.cloudLayer.y;
+  const float below = 1 - glm::smoothstep(base, base + settings_.cloudThickness * .5f, eyeAltitude);
   if (below <= 0) return;
   // Raindrops fall at about nine metres per second and drift with the wind.
   // What the eye sees is their motion relative to the camera.

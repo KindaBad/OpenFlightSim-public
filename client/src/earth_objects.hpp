@@ -3,7 +3,8 @@
 // hedgerow trees, towns and villages, masts and chimneys, and the buildings of
 // every airport. None of it is data: it is placed from the land cover, the
 // places in the cover file and hashes of where things stand, so every machine
-// sees the same thing. It is scenery and is not collided with.
+// sees the same thing. The player's own aircraft is tested against it
+// (scenery_collision.hpp).
 //
 // It is built a tile at a time on background threads, a tile being one node of
 // the terrain pack's cube at kEarthObjectLevel (about 1.6 km across). A tile's
@@ -14,6 +15,7 @@
 #include "earth_scenery.hpp"
 #include "landscape.hpp"
 #include "scenery.hpp"
+#include "scenery_collision.hpp"
 
 #include <array>
 #include <atomic>
@@ -79,6 +81,8 @@ struct EarthObjectTile {
   std::uint32_t broadleaf{};
   std::array<std::vector<SurfaceVertex>, kEarthParts> parts;
   std::uint32_t buildings{};
+  // What an aircraft can hit of the buildings, in the tile's frame.
+  std::vector<SceneryBox> boxes;
   // The parts in one, those that cast shadows first (see mergeEarthParts).
   std::vector<EarthBuildingVertex> merged;
   std::uint32_t casters{};  // vertices

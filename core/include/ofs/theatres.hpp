@@ -4,6 +4,7 @@
 // airports players start at. Positions are OurAirports' reference points; the
 // start is the longest runway of the pack near each one.
 
+#include "bases.hpp"
 #include "earth_terrain.hpp"
 
 #include <filesystem>
@@ -30,6 +31,10 @@ std::span<const Theatre> theatres();
 const Theatre* findTheatre(std::string_view id);
 // Null when the theatre has no such airport.
 const TheatreAirport* findTheatreAirport(const Theatre& theatre, std::string_view ident);
+
+// The airport each side of a team game starts from and services at: Red at
+// the theatre's first, Blue at the one farthest from it.
+std::size_t teamAirport(const Theatre& theatre, Team team);
 
 // The longest runway within 5 km of an airport, or null.
 const EarthRunway* theatreRunway(const EarthTerrain& terrain, const TheatreAirport& airport);

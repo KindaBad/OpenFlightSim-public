@@ -1018,8 +1018,11 @@ void countermeasures() {
       check(decodeWeapon(encodeWeapon(m), out) && out.action.kind == kind,
             "countermeasure request round trip");
     }
+    m.action = {1, 10, 0, WeaponActionKind::Strike, 0};
+    check(decodeWeapon(encodeWeapon(m), out) && out.action.kind == WeaponActionKind::Strike,
+          "a scenery strike round trip");
     auto bytes = encodeWeapon(m);
-    bytes[36] = std::uint8_t(unsigned(WeaponActionKind::Loadout) + 1);
+    bytes[36] = std::uint8_t(unsigned(WeaponActionKind::Strike) + 1);
     check(!decodeWeapon(bytes, out), "unknown request rejected");
     Message combat;
     combat.type = Type::Combat;

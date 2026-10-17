@@ -418,8 +418,10 @@ namespace {
 
 // Geometry built in its own axes (x across, z along, y up from its ground),
 // moved into the tile's frame: `origin` and the axes in the tile's frame.
+// Each piece placed is also kept as a box to collide with.
 void placeInto(std::vector<SurfaceVertex>& out, const std::vector<SurfaceVertex>& in, const Vec3& origin, const Vec3& x, const Vec3& y,
-           const Vec3& z) {
+           const Vec3& z, std::vector<SceneryBox>& boxes) {
+  if (!in.empty()) boxes.push_back(sceneryBox(origin, x, y, z, in));
   for (SurfaceVertex v : in) {
     const Vec3 p = origin + x * double(v.x) + y * double(v.y) + z * double(v.z);
     const Vec3 n = x * double(v.nx) + y * double(v.ny) + z * double(v.nz);
@@ -592,9 +594,9 @@ void EarthObjects::townBuildings(const EarthPlace& place, std::size_t index, con
           Mesher{brick}.cylinder(w * .5f + 6, 0, low - .5f, stack, 3.2f, 1.9f, 12);
           Mesher{red}.cylinder(w * .5f + 6, 0, stack - 6, stack, 2.06f, 1.9f, 12, false);
           Mesher{white}.cylinder(w * .5f + 6, 0, stack - 12, stack - 6, 2.22f, 2.06f, 12, false);
-          placeInto(part(parts, EarthPart::Concrete), brick, origin, bx, ay, bz);
-          placeInto(part(parts, EarthPart::Red), red, origin, bx, ay, bz);
-          placeInto(part(parts, EarthPart::White), white, origin, bx, ay, bz);
+          placeInto(part(parts, EarthPart::Concrete), brick, origin, bx, ay, bz, tile.boxes);
+          placeInto(part(parts, EarthPart::Red), red, origin, bx, ay, bz, tile.boxes);
+          placeInto(part(parts, EarthPart::White), white, origin, bx, ay, bz, tile.boxes);
         }
       } else if (city && density > .8f && h2 < .5f) {
         // The centre of a city: offices, and in the largest towers, the
@@ -614,7 +616,7 @@ void EarthObjects::townBuildings(const EarthPlace& place, std::size_t index, con
           std::vector<SurfaceVertex> frame;
           Mesher f{frame};
           for (float y = 3.5f; y < height; y += 3.5f) f.box(0, 0, w + .25f, d + .25f, y, .35f);
-          placeInto(part(parts, EarthPart::Concrete), frame, origin, bx, ay, bz);
+          placeInto(part(parts, EarthPart::Concrete), frame, origin, bx, ay, bz, tile.boxes);
         }
       } else if (town && density > (city ? .45f : .62f) && h2 < (city ? .6f : .4f)) {
         // Blocks of flats, and shops under them.
@@ -641,8 +643,8 @@ void EarthObjects::townBuildings(const EarthPlace& place, std::size_t index, con
           house(walls, roofs, groundY, 0, -22, 6.5f, 6.5f, 21, 11, 0, true);
         }
       }
-      placeInto(part(parts, wallPart), walls, origin, bx, ay, bz);
-      placeInto(part(parts, roofPart), roofs, origin, bx, ay, bz);
+      placeInto(part(parts, wallPart), walls, origin, bx, ay, bz, tile.boxes);
+      placeInto(part(parts, roofPart), roofs, origin, bx, ay, bz, tile.boxes);
       ++tile.buildings;
     }
 }
@@ -677,7 +679,7 @@ void EarthObjects::airportBuildings(std::uint32_t r, EarthObjectTile& tile) cons
       }
     Parts made;
     build(made, low - .5f, high);
-    for (std::size_t k = 0; k < kEarthParts; ++k) placeInto(parts[k], made[k], inTile(origin - tile.centre), ax, ay, az);
+    for (std::size_t k = 0; k < kEarthParts; ++k) placeInto(parts[k], made[k], inTile(origin - tile.centre), ax, ay, az, tile.boxes);
     ++tile.buildings;
   };
   const double half = runway.length * .5;
@@ -794,7 +796,10 @@ void EarthObjects::mast(EarthObjectTile& tile) const {
     steel.beam({reach * std::cos(a), 0, reach * std::sin(a)}, {0, height * .8f, 0}, .06f);
   }
   lamp.box(0, 0, .6f, .6f, height, .6f);
-  for (std::size_t k = 0; k < kEarthParts; ++k) placeInto(tile.parts[k], made[k], origin, ax, ay, az);
+  // The stays are wires: the mast is hit as its tower alone.
+  std::vector<SceneryBox> stays;
+  for (std::size_t k = 0; k < kEarthParts; ++k)
+    placeInto(tile.parts[k], made[k], origin, ax, ay, az, EarthPart(k) == EarthPart::Steel ? stays : tile.boxes);
   ++tile.buildings;
 }
 

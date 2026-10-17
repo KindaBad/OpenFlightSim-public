@@ -288,6 +288,9 @@ class Renderer {
   // The round Earth's maps: 0 the minimap, 1 the full map. Asks for a picture
   // of `view` at `size` pixels unless one is being painted; the newest picture
   // painted, and the view it covers, are then shown.
+  // Whether a point of the game frame is within `margin` metres of a tree or
+  // building this renderer has built (scenery_collision.hpp).
+  bool sceneryStrike(const Vec3& position, double margin) const;
   void requestEarthMap(int which, const EarthMapView& view, int size);
   std::uintptr_t earthMapTexture(int which, EarthMapView& shown) const;
   // The land cover and its places, on the round Earth.
@@ -395,6 +398,7 @@ class Renderer {
   // Trees standing in one square kilometre, as a static instance buffer.
   struct TreeChunk {
     bgfx::VertexBufferHandle instances{BGFX_INVALID_HANDLE};
+    std::vector<TreeInstance> shapes;  // to collide with
     std::uint32_t broadleaf{}, conifer{};  // broadleaf instances come first
     glm::vec3 center{};
     float radius{};
@@ -515,6 +519,9 @@ class Renderer {
       std::uint32_t broadleaf{}, conifer{};
       bgfx::VertexBufferHandle buildings{BGFX_INVALID_HANDLE};
       std::uint32_t vertices{}, casters{};
+      // What an aircraft can hit, in the tile's frame.
+      std::vector<TreeInstance> treeShapes;
+      std::vector<SceneryBox> boxes;
       std::uint64_t used{};
       glm::mat4 model{1};  // this frame's
       glm::vec3 middle{};  // this frame's, in render space
@@ -592,6 +599,11 @@ class Renderer {
   AtmosphereLighting lighting_{};
   float exposure_{.36f};
   bool exposurePrimed_{};
+  // The mean height of the ground about the camera, which the cloud base
+  // stands above, and when to measure it again.
+  float cloudGround_{};
+  bool cloudGroundPrimed_{};
+  double cloudGroundClock_{};
   glm::vec3 sun_{0, 1, 0};
   bgfx::TextureHandle transmittanceTexture_{BGFX_INVALID_HANDLE}, multiScatterTexture_{BGFX_INVALID_HANDLE};
   bgfx::FrameBufferHandle skyTableBuffer_{BGFX_INVALID_HANDLE}, aerialBuffer_{BGFX_INVALID_HANDLE};
@@ -661,6 +673,7 @@ class Renderer {
   // Village buildings, in two batches: walls and roofs.
   bgfx::VertexBufferHandle houses_{BGFX_INVALID_HANDLE}, roofs_{BGFX_INVALID_HANDLE};
   std::uint32_t houseVertices_{}, roofVertices_{};
+  std::vector<SceneryBox> houseBoxes_;
   // Tree meshes: [species][0 near, 1 far].
   TreeMesh treeMeshes_[2][2]{};
   std::map<std::pair<int, int>, TreeChunk> treeChunks_;

@@ -593,7 +593,7 @@ class Window(QMainWindow):
         form.addRow('Dogfight opponents', self.bots)
         # The valley, or the round Earth at one of the theatres this build lists.
         self.map_combo = DropDown()
-        self.map_combo.setToolTip('Where to fly. The Earth map is the real world from a separate download, in free flight for now.')
+        self.map_combo.setToolTip('Where to fly. The Earth map is the real world from a separate download.')
         self.map_combo.currentIndexChanged.connect(self.select_map)
         form.addRow('Map', self.map_combo)
         self.airport_combo = DropDown()
@@ -957,7 +957,7 @@ class Window(QMainWindow):
         where = ''
         if self.prefs.map == 'earth':
             where = (f'Your game is on the Earth map, in {self.theatre_names().get(self.prefs.theatre, self.prefs.theatre)}, '
-                     'free flight; pilots need the Earth map to join. Choose the map on the Flight mode page.\n\n')
+                     'and pilots need the Earth map to join. Choose the map on the Flight mode page.\n\n')
         self.lan_address.setText(where)
         if self.prefs.host_public:
             self.lan_address.setText(where + 'Your game runs on the OpenFlightSim public server and appears in every player\'s list, wherever they are. '

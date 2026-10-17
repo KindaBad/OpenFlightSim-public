@@ -1,3 +1,28 @@
+OpenFlightSim 0.7.0.1 Launcher
+
+- Fights on the Earth map: Local Dogfight, bots in hosted games and team games
+  now work in every Earth theatre, on the local network and on the public
+  server. In a team game Red starts from the theatre's first airport and Blue
+  from the one farthest from it; each side rearms at its own. There is nothing
+  to bomb on the Earth yet, so a team game there is won by kills. Bots keep
+  clear of the mountains while they patrol.
+- Trees and buildings can be flown into. Hitting one at flying speed is a
+  crash, in the valley and on the Earth, alone or with others.
+- The Earth map looks much better: the hard line across the view at eye level
+  in the mountains is gone, and the haze now matches the distance properly.
+  Deserts have warm sand, dune ridges and gravel plains instead of one flat
+  colour. The minimap is sharper close in.
+- The map no longer goes black at its edges while you fly: the picture behind
+  it is painted wider than the map and repainted well before you reach its
+  edge.
+- Afterburners burn yellow and orange with bright shock diamonds, as they look
+  in daylight, rather than pale violet, and are drawn out to 3 km. Missile
+  motors have a longer, brighter flame and a glare you can see from afar.
+- Clouds stand higher, their base about 1,800 m above the ground of the region
+  you fly over, so they no longer sit in the mountains. Their undersides are
+  rounded and ragged rather than one flat deck.
+- Games with others need everyone on 0.7.0.1.
+
 OpenFlightSim 0.6.9 Launcher
 
 - A launcher on a platform with no published build yet (Linux, at present) no
