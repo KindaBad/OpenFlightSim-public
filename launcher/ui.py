@@ -20,7 +20,7 @@ from .config import Preferences, Graphics, GRAPHICS, PRESETS, CUSTOM_PRESET
 from .download import download, fetch_manifest, Cancelled
 from .game import Installation, Session, MODES, arguments, download_earth, earth_data, earth_downloads, earth_missing
 from .hardware import probe, recommendation, display_modes
-from .installation import Lease, verify, repair_stage, recover, pointer
+from .installation import Lease, verify, repair_stage, recover, pointer, refresh_bootstrap
 from .manifest import NoReleaseError, index_entries, select_release, https_url
 from .platform_process import spawn
 from .storage import LauncherError, read_json, write_json, safe_path
@@ -1650,7 +1650,13 @@ class Window(QMainWindow):
 
     def dispatch_helper(self, request=None, rollback=False):
         root = self.installation.root
-        # Stable bootstrap sits outside every replaceable release slot.
+        # Stable bootstrap sits outside every replaceable release slot. One
+        # installed by an older setup is brought up to this release's first,
+        # so it can read the version it is asked to apply.
+        try:
+            refresh_bootstrap(root)
+        except (LauncherError, OSError) as exc:
+            log.warning('Bootstrap not refreshed: %s', exc)
         helper = root / ('OpenFlightSim.exe' if os.name == 'nt' else 'OpenFlightSim')
         if not helper.is_file():
             self.error('Stable bootstrap is missing; restore it from the distribution package.')

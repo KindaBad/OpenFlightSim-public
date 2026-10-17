@@ -130,6 +130,13 @@ def package(simulator, bundles, output, base_url, approval=None, local=False, no
     stage = work / 'payload'
     shutil.copytree(simulator, stage)
     shutil.copytree(bundles / 'ofs_launcher', stage / 'launcher')
+    # The stable bootstrap is never replaced by itself, so each release carries
+    # a copy for the launcher to install (launcher.installation.refresh_bootstrap):
+    # an old one cannot read every version a later release may have.
+    bootstrap = bundles / ('OpenFlightSim' + suffix)
+    if bootstrap.is_file():
+        (stage / 'launcher/bootstrap').mkdir(parents=True, exist_ok=True)
+        shutil.copy2(bootstrap, stage / 'launcher/bootstrap' / bootstrap.name)
     # PEP 561 markers serve source type checkers, not the frozen runtime.
     # GitHub rejects zero-byte repair assets; retain the CA data itself.
     for marker in (stage / 'launcher').rglob('py.typed'):

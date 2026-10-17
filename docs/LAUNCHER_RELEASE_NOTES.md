@@ -1,3 +1,12 @@
+OpenFlightSim 0.7.1 Launcher
+
+- 0.7.1 is 0.7.0.1 again, under a version every installation's updater can
+  read. Updaters installed by a setup from before 0.6.10 refused 0.7.0.1 with
+  "Invalid semantic version". Everything listed for 0.7.0.1 below is in it.
+- Each release now carries the updater, and the launcher brings an older one
+  up to date before it installs an update, so this cannot happen again.
+- Games with others need everyone on 0.7.1.
+
 OpenFlightSim 0.7.0.1 Launcher
 
 - Fights on the Earth map: Local Dogfight, bots in hosted games and team games

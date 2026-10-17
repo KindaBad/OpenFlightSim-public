@@ -73,6 +73,9 @@ class ReleasePipeline(unittest.TestCase):
         installed = distribution / pointer(distribution)['active']
         self.assertEqual(verify(installed), {})
         self.assertTrue((installed / 'LOCAL-DEVELOPMENT-ONLY.txt').exists())
+        # Each release carries the bootstrap, for older installations to take up.
+        suffix = '.exe' if os.name == 'nt' else ''
+        self.assertIn('launcher/bootstrap/OpenFlightSim' + suffix, descriptor['files'])
         cache = distribution / '.downloads'
         cache.mkdir()
         archive = next(output.glob('*-update.zip'))
@@ -366,3 +369,27 @@ class ReleasePipeline(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class BootstrapRefresh(unittest.TestCase):
+    """An installation's stable bootstrap is brought up to the one its active
+    release carries, so an old setup's can apply versions it could not read."""
+
+    def test_the_active_releases_bootstrap_replaces_an_older_one(self):
+        from launcher.installation import bootstrap_name, refresh_bootstrap
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            carried = root / 'releases/0.7.1-a/launcher/bootstrap' / bootstrap_name()
+            carried.parent.mkdir(parents=True)
+            carried.write_bytes(b'new bootstrap')
+            write_json(root / 'current.json', {'schema': 1, 'active': 'releases/0.7.1-a', 'previous': None})
+            (root / bootstrap_name()).write_bytes(b'old bootstrap')
+            self.assertTrue(refresh_bootstrap(root))
+            self.assertEqual((root / bootstrap_name()).read_bytes(), b'new bootstrap')
+            self.assertFalse(refresh_bootstrap(root))
+            self.assertFalse((root / (bootstrap_name() + '.new')).exists())
+            # A release from before bootstraps were carried leaves it alone.
+            write_json(root / 'current.json', {'schema': 1, 'active': 'releases/0.7.0-b', 'previous': None})
+            (root / 'releases/0.7.0-b').mkdir()
+            self.assertFalse(refresh_bootstrap(root))
+            self.assertEqual((root / bootstrap_name()).read_bytes(), b'new bootstrap')

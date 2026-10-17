@@ -84,6 +84,30 @@ def active_directory(root):
     return safe_path(root, pointer(root)['active']) if (root / 'current.json').exists() else root
 
 
+def bootstrap_name():
+    return 'OpenFlightSim.exe' if os.name == 'nt' else 'OpenFlightSim'
+
+
+def refresh_bootstrap(root):
+    """Install the bootstrap the active release carries over the stable one at
+    the installation's root, where they differ. The stable bootstrap never
+    replaces itself, and one from an older release cannot read every version a
+    later one may be published as. Returns whether it was replaced; an OSError
+    (one still running, say) leaves the old one in place."""
+    root = Path(root).resolve()
+    if not (root / 'current.json').exists():
+        return False
+    source = active_directory(root) / 'launcher' / 'bootstrap' / bootstrap_name()
+    target = root / bootstrap_name()
+    if not source.is_file() or (target.is_file() and sha256(target) == sha256(source)):
+        return False
+    temporary = root / (bootstrap_name() + '.new')
+    shutil.copy2(source, temporary)
+    os.replace(temporary, target)
+    log.info('Bootstrap refreshed from %s', source.parent)
+    return True
+
+
 def verify(directory, metadata=None, cancel=None, progress=None):
     directory = Path(directory)
     metadata = release_metadata(metadata or read_json(directory / 'release.json'))
