@@ -90,6 +90,36 @@ Controls Simulator::controlTargets() const {
         (state_.pilot_pitch + controls_.elevator_trim - state_.trim_reference) *
             cfg_.max_pitch_rate * (1. + 1.2 * maneuver) +
         loadFeedback;
+    // The canard law commands load as well as rate: past corner speed a full
+    // stick asks only for the pitch rate that, with the share of gravity the
+    // wing already carries, makes the g limit. Left to the soft limit below,
+    // a full pull or push overshot to 14 g and -15 g and hunted round it.
+    const double gravityLoad = state_.att.inverseRotate(world().down(state_.pos_ned)).z;
+    // Load past a limit eases the rate asked for rather than the surfaces
+    // directly: at 300 m/s a tenth of the travel is four g.
+    const bool loadLaw = cfg_.control_law == FlightControlLaw::Canard;
+    if (loadLaw) {
+      // Manoeuvre mode flies past the wing's best lift on purpose, where the
+      // rate no longer makes the load, so it lifts the cap with the rate.
+      const double margin = 1.2 * maneuver * cfg_.max_pitch_rate;
+      pitchCommand = clamp(pitchCommand, (cfg_.g_negative - gravityLoad) * kG0 / V - margin,
+                           (cfg_.g_positive - gravityLoad) * kG0 / V + margin);
+      if (load > cfg_.g_positive && pitchCommand > 0)
+        pitchCommand = std::max(0., pitchCommand - .6 * (load - cfg_.g_positive) * kG0 / V);
+      if (load < cfg_.g_negative && pitchCommand < 0)
+        pitchCommand = std::min(0., pitchCommand + .6 * (cfg_.g_negative - load) * kG0 / V);
+    }
+    // A heavy transport pushes over to weightlessness at most, the zero-g
+    // arc airliners are flown along for training; its -1 g limit is a
+    // structural margin, not a manoeuvre. Held, the push only steepens the
+    // dive towards vertical: the yoke alone carried the 747 through an
+    // outside loop at -1 g and 700 kt.
+    if (cfg_.control_law == FlightControlLaw::Transport) {
+      const double pushLimit = std::max(0., cfg_.g_negative);
+      pitchCommand = std::max(pitchCommand, (pushLimit - gravityLoad) * kG0 / V);
+      if (load < pushLimit && pitchCommand < 0)
+        pitchCommand = std::min(0., pitchCommand + .6 * (pushLimit - load) * kG0 / V);
+    }
     double rollCommand=state_.pilot_roll*cfg_.max_roll_rate*(1.+.25*maneuver);
     if(cfg_.aero_kind==AeroModelKind::AirlinerEngineering) {
       // OpenFlightSim reconstruction, not the Airbus ELAC algorithm. Load
@@ -130,9 +160,14 @@ Controls Simulator::controlTargets() const {
     // the wing's best lift instead of mushing past it and bleeding to a stall.
     if (alpha > alphaLimit && target.elevator_stick > 0)
       target.elevator_stick -= (cfg_.control_law == FlightControlLaw::Canard ? 14 : 3) * (alpha - alphaLimit);
-    if (load > cfg_.g_positive && target.elevator_stick > 0)
+    // Pushed, the wing stalls upside down well before it does the right way
+    // up, and a stalled push only mushes. Hold the angle short of it.
+    const double negativeAlphaLimit = -.45 * cfg_.alpha_limit;
+    if (alpha < negativeAlphaLimit && target.elevator_stick < 0)
+      target.elevator_stick += (cfg_.control_law == FlightControlLaw::Canard ? 14 : 3) * (negativeAlphaLimit - alpha);
+    if (!loadLaw && load > cfg_.g_positive && target.elevator_stick > 0)
       target.elevator_stick -= .25 * (load - cfg_.g_positive);
-    if (load < cfg_.g_negative && target.elevator_stick < 0)
+    if (!loadLaw && load < cfg_.g_negative && target.elevator_stick < 0)
       target.elevator_stick += .25 * (cfg_.g_negative - load);
     target.rudder_pedal -= .12 * state_.omega_body.z;
   }

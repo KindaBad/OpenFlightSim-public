@@ -87,6 +87,21 @@ void landing() {
   check(touched && speed>55 && speed<95 && sink>0 && sink<2.5,"normal landing touchdown");
   check(sim.instruments().tas<1e-5 && m.min_alt>3 && m.peak_contact<3*sim.config().mass*kG0,"stable landing stop");
 }
+void pushover() {
+  // A full push floats the airliner near zero g and steepens the dive; it is
+  // never pushed negative or over the top into an outside loop.
+  auto sim=trimmed(240,9000);auto c=sim.controls();c.elevator_stick=-1;sim.setControls(c);
+  double low=1e9,pitch=0;
+  for(unsigned tick=0;tick<120*30;++tick){
+    sim.step(FixedStepClock::tick);check(finite(sim.state()),"pushover finite");
+    if(tick>60)low=std::min(low,sim.instruments().g_load);
+    pitch=std::min(pitch,sim.instruments().pitch_deg);
+    check(std::abs(sim.instruments().roll_deg)<5,"pushover stays upright");
+  }
+  std::printf("B-747 pushover lowestLoad=%.4f steepestPitch=%.3f TAS=%.3f\n",low,pitch,sim.instruments().tas);
+  check(low>-.15 && low<.3,"full push floats near zero g");
+  check(pitch>-75,"full push does not carry over the top");
+}
 void robustness() {
   for(double v:{0.,.5,20.,90.,250.,600.})for(double angle:{-180.,-90.,-30.,0.,30.,90.,180.}){
     Simulator sim(referenceConfig());State s;s.pos_ned.z=-10000;s.vel_ned={v*std::cos(angle*kDeg2Rad),0,v*std::sin(angle*kDeg2Rad)};sim.setState(s);
@@ -97,5 +112,5 @@ void robustness() {
 }
 }
 int main(int argc,char**argv){try{check(argc==2,"expected scenario");std::string n=argv[1];
-  if(n=="engines")engines();else if(n=="cruise")cruise();else if(n=="taxi")taxi();else if(n=="takeoff")takeoff();else if(n=="controls")controls();else if(n=="stall")stall();else if(n=="landing")landing();else if(n=="robustness")robustness();else throw std::invalid_argument("unknown scenario");
+  if(n=="engines")engines();else if(n=="cruise")cruise();else if(n=="taxi")taxi();else if(n=="takeoff")takeoff();else if(n=="controls")controls();else if(n=="stall")stall();else if(n=="landing")landing();else if(n=="pushover")pushover();else if(n=="robustness")robustness();else throw std::invalid_argument("unknown scenario");
   return 0;}catch(const std::exception&e){std::fprintf(stderr,"B-747 FAIL: %s\n",e.what());return 1;}}

@@ -123,10 +123,16 @@ Simulator::AeroResult Simulator::evalAero(const State& state_, const Controls& c
   const bool canard = cfg_.control_law == FlightControlLaw::Canard;
   const double wingX = cfg_.surfaces[0].position.x;
   const double pitchShare = canard ? .45 : 1;
+  // The elevons sit on the trailing edge, about 4.2 m behind the CG, not at the
+  // wing's lift station 1.2 m behind it. Their lift is what their moment needs
+  // at that arm; the wing station carries it, and the moment it then lacks is
+  // added whole. Sized at the wing station the pull first dropped the load by
+  // nearly 4 g at 300 m/s, and the g limiter pushing against that spiked it to 14.
+  constexpr double kElevonArm = -4.2;
   const double trailingLift =
-      canard && std::abs(wingX) > 1e-6
-          ? (1 - pitchShare) * trailingCm * cfg_.mac / wingX
-          : 0;
+      canard ? (1 - pitchShare) * trailingCm * cfg_.mac / kElevonArm : 0;
+  const double elevonMomentResidual =
+      canard ? (1 - pitchShare) * trailingCm * cfg_.mac - trailingLift * wingX : 0;
   const double referenceLift=(unsteady?.5*(lift(r.alpha,de,0)+lift(r.alpha,de,1)):lift(r.alpha,de))*liftMach;
   const double levconBase=cfg_.levcon_lift_share*referenceLift;
   const double levconX=.5*(cfg_.levcon_position[0].x+cfg_.levcon_position[1].x);
@@ -244,6 +250,8 @@ Simulator::AeroResult Simulator::evalAero(const State& state_, const Controls& c
                      (cfg_.cl_beta * std::sin(r.beta) +
                       (cfg_.cl_p - wingDamping) * (1-.9*aerodynamics::separation(r.alpha,acrit)) * phat + .025 * rhat);
   r.moment_body.y += r.qbar * cfg_.wing_area * chord * cfg_.cm_q * (1-.7*aerodynamics::separation(r.alpha,acrit)) * qhat;
+  r.moment_body.y += r.qbar * cfg_.wing_area * elevonMomentResidual *
+                     .5 * (state_.surface_health[0] + state_.surface_health[1]);
   r.moment_body.z +=
       r.qbar * cfg_.wing_area * b * (cfg_.cn_r * (1-.8*aerodynamics::separation(r.alpha,acrit)) * rhat - .015 * phat);
   if (r.qbar > 1e-12) {

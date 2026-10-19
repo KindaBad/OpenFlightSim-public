@@ -135,6 +135,27 @@ void maneuver() {
   check(peak>normalPeak+2 && peak>cfg.alpha_limit*kRad2Deg && sim.instruments().alpha_deg<peak-10,"high AoA entry and normal-mode recovery");
   check(peakLoad<cfg.g_positive+1,"positive load protection retained");
 }
+void limits() {
+  // A full pull or push past corner speed holds the load limit without hunting
+  // round it. The elevons' lift and the g limit once fought each other here,
+  // swinging a full pull between 2 and 14 g and a full push between -15 and 9.
+  const auto cfg=referenceConfig();
+  for(double speed:{200.,250.,300.,350.})for(double stick:{1.,-1.}){
+    auto sim=trimmed(speed,3000);auto c=sim.controls();c.elevator_stick=stick;c.throttle[0]=c.throttle[1]=1;sim.setControls(c);
+    double low=1e9,high=-1e9,previous=0,swing=0;int reversals=0;
+    for(unsigned tick=0;tick<720;++tick){
+      sim.step(FixedStepClock::tick);check(finite(sim.state()),"limit run finite");
+      const double g=sim.instruments().g_load;
+      if(tick>=240){low=std::min(low,g);high=std::max(high,g);
+        const double change=g-previous;if(std::abs(change)>.02){if(change*swing<0)++reversals;swing=change;}}
+      previous=g;
+    }
+    std::printf("Typhoon limit V=%.0f stick=%+.0f load=[%.2f,%.2f] reversals=%d\n",speed,stick,low,high,reversals);
+    check(high<cfg.g_positive+.5 && low>cfg.g_negative-.5,"full stick stays inside the load limits");
+    check(reversals<=4,"full stick does not hunt round the limit");
+    if(stick<0)check(high<cfg.g_negative+.5,"full push holds near the negative limit");
+  }
+}
 void robustness() {
   for(double v:{0.,.5,20.,90.,250.,600.})for(double angle:{-180.,-90.,-30.,0.,30.,90.,180.}){
     Simulator sim(referenceConfig());State s;s.pos_ned.z=-10000;s.vel_ned={v*std::cos(angle*kDeg2Rad),0,v*std::sin(angle*kDeg2Rad)};sim.setState(s);
@@ -145,5 +166,5 @@ void robustness() {
 }
 }
 int main(int argc,char**argv){try{check(argc==2,"expected scenario");std::string n=argv[1];
-  if(n=="engines")engines();else if(n=="cruise")cruise();else if(n=="taxi")taxi();else if(n=="takeoff")takeoff();else if(n=="controls")controls();else if(n=="stall")stall();else if(n=="landing")landing();else if(n=="maneuver")maneuver();else if(n=="robustness")robustness();else throw std::invalid_argument("unknown scenario");
+  if(n=="engines")engines();else if(n=="cruise")cruise();else if(n=="taxi")taxi();else if(n=="takeoff")takeoff();else if(n=="controls")controls();else if(n=="stall")stall();else if(n=="landing")landing();else if(n=="maneuver")maneuver();else if(n=="limits")limits();else if(n=="robustness")robustness();else throw std::invalid_argument("unknown scenario");
   return 0;}catch(const std::exception&e){std::fprintf(stderr,"TYPHOON FAIL: %s\n",e.what());return 1;}}

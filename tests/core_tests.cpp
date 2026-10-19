@@ -161,9 +161,9 @@ void pilotStrain() {
   require(hold(1, 60).strain == 0 && hold(5.9, 300).vision() == 0, "ordinary manoeuvring costs nothing");
   require(hold(-1.5, 300).strain == 0, "mild negative load costs nothing");
   const double nine = until(9), twelve = until(12), seven = until(7.5);
-  require(nine > 4 && nine < 8, "nine g can be held for a few seconds only");
-  require(twelve > 1.5 && twelve < nine * .6, "more load takes the pilot sooner");
-  require(seven > nine * 2 && seven < 30, "a little over the limit lasts much longer");
+  require(nine > 8 && nine < 13, "nine g can be held for ten seconds or so only");
+  require(twelve > 1.5 && twelve < nine * .4, "more load takes the pilot much sooner");
+  require(seven > nine * 2 && seven < 45, "a little over the limit lasts much longer");
   const double negative = until(-4);
   require(negative > 1.5 && negative < 6, "negative load is tolerated less");
   // Sight goes before consciousness does, by degrees.

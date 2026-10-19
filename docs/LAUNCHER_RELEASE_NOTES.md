@@ -1,3 +1,18 @@
+OpenFlightSim 0.7.2 Launcher
+
+- The Typhoon flies properly. A hard pull no longer wobbles: its control
+  system fought its own elevons and swung the load between 2 and 14 g, which
+  is also why it blacked you out so quickly. It now pulls a steady 9 g and
+  pushes a steady -3 g, its real limits, so negative pushovers work at any
+  speed. A full push no longer stalls the wing upside down at low speed.
+- Blacking out takes longer: 9 g can be held for about ten seconds, 10 g for
+  about six. Pulling past the limit still puts you out fast.
+- The 747 (and the B-52) no longer push into negative g. A full push now
+  floats the aircraft at about zero g, the weightless arc airliners are
+  really flown along for training, and steepens the dive; it can no longer
+  be pushed over the top into an outside loop.
+- Games with others need everyone on 0.7.2.
+
 OpenFlightSim 0.7.1 Launcher
 
 - 0.7.1 is 0.7.0.1 again, under a version every installation's updater can

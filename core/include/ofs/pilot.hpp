@@ -41,8 +41,10 @@ struct PilotStrain {
     const double over = g > kSustainedG ? g - kSustainedG : 0;
     const double under = g < kNegativeG ? kNegativeG - g : 0;
     if (over > 0 || under > 0) {
-      // Nine g is good for about six seconds from rested, twelve for under three.
-      const double rate = over > 0 ? std::pow(over, 1.3) / 25 : std::pow(under, 1.3) / 8;
+      // Nine g is good for about ten seconds from rested, ten for six and a half,
+      // twelve for under three and a half: a fighter is cleared to nine, and its
+      // pilot wears a full-coverage suit for it.
+      const double rate = over > 0 ? std::pow(over, 1.6) / 60 : std::pow(under, 1.3) / 8;
       strain += rate * dt;
       red += ((under > 0 ? 1. : 0.) - red) * std::min(1., dt * 4);
     } else {
