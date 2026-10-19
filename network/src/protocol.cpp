@@ -715,7 +715,7 @@ bool decode(std::span<const std::uint8_t> bytes, Message &output,
           !std::isfinite(e.health) || e.health < 0 || e.health > 100 ||
           !std::isfinite(e.lifetime) || e.lifetime < 0 || e.lifetime > 10 ||
           !std::isfinite(e.position.norm2()) ||
-          !std::isfinite(e.velocity.norm2()) || e.velocity.norm() > 10000 ||
+          !std::isfinite(e.velocity.norm2()) || e.velocity.norm() > 1e6 ||
           (e.kind == CombatKind::Shot && (!e.projectile || e.lifetime <= 0)) ||
           (e.kind != CombatKind::Shot && !e.target) ||
           (i && e.id <= m.events.back().id))

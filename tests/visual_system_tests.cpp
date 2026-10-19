@@ -289,7 +289,7 @@ void hierarchy(const std::string& root) {
       // One shared atlas: base colour, metallic/roughness and normal.
       check(mesh.images.size()>=3 && !mesh.textures.empty(),"Typhoon embedded atlas maps");
       check(std::count_if(mesh.materials.begin(),mesh.materials.end(),[](const auto&m){return m.normalTexture>=0;})>=1,"Typhoon normal map decoded");
-    } else if(definition.type==AircraftType::SR71) {
+    } else if(definition.type==AircraftType::SR71||definition.type==AircraftType::Dev) {
       for(const char* name:{"elevon_L","elevon_R","rudder","gear_fold","gear_door","wheel","nose_wheel","steering","inlet_L","inlet_R","nozzle_L","nozzle_R"})
         check(channels.contains(name),"SR71 delta and inlet articulated channels");
       check(!channels.contains("flap") && !channels.contains("canard"),"SR71 has no conventional flap or canard rig");

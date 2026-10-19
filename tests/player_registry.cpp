@@ -5,7 +5,7 @@
 int main() {
   using namespace ofs;
   try {
-    const auto expected = 5u + OFS_INCLUDE_SU57 + OFS_INCLUDE_JF17;
+    const auto expected = 6u + OFS_INCLUDE_SU57 + OFS_INCLUDE_JF17;
     if (aircraftDefinitions().size() != expected ||
         validAircraftType(AircraftType::Su57) != bool(OFS_INCLUDE_SU57) ||
         validAircraftType(AircraftType::JF17) != bool(OFS_INCLUDE_JF17))
@@ -18,6 +18,13 @@ int main() {
     const auto& b747 = aircraftDefinition(aircraftTypeFromName("b747"));
     if (b747.type != AircraftType::B747 || b747.bomber || b747.gun || dogfightAircraftType(AircraftType::B747) == AircraftType::B747)
       throw std::runtime_error("B-747 registration is incomplete");
+    // The dev jet is the one aircraft with no top speed, and it fights.
+    const auto& dev = aircraftDefinition(aircraftTypeFromName("dev"));
+    if (dev.type != AircraftType::Dev || !dev.flight.unlimited_speed || !dev.gun || dogfightAircraftType(AircraftType::Dev) != AircraftType::Dev)
+      throw std::runtime_error("Dev jet registration is incomplete");
+    for (const auto& definition : aircraftDefinitions())
+      if (definition.type != AircraftType::Dev && definition.flight.unlimited_speed)
+        throw std::runtime_error("Only the dev jet may have no top speed");
     for (const auto type : {AircraftType::A320, AircraftType::Typhoon, AircraftType::SR71, AircraftType::B52}) {
       const auto& definition = aircraftDefinition(type);
       if (aircraftTypeFromName(definition.key) != type)

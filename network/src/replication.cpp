@@ -230,8 +230,9 @@ AircraftNetState projectAircraft(const Aircraft &a, bool owner, Tier tier,
       q(orientation, v[i] * sign, 32767 * std::sqrt(2.), 2);
   s.fields[1] = std::move(orientation.b);
   Writer velocity;
+  // Three bytes each: the dev aircraft goes far past the 2 km/s two would hold.
   for (double x : {a.state.vel_ned.x, a.state.vel_ned.y, a.state.vel_ned.z})
-    q(velocity, x, 16, 2);
+    q(velocity, x, 16, 3);
   s.fields[2] = std::move(velocity.b);
   Writer omega;
   for (double x :
@@ -310,7 +311,7 @@ bool expandAircraft(EntityId id, const AircraftNetState &s, Vec3 ref,
     if (!decodeAircraft(w.b, a) || a.id != id)
       return false;
   } else {
-    constexpr std::array<unsigned, 9> sizes{0, 7, 6, 6, 7, 10, 24, 33, 36};
+    constexpr std::array<unsigned, 9> sizes{0, 7, 9, 6, 7, 10, 24, 33, 36};
     for (unsigned i = 1; i < 9; ++i)
       if (s.fields[i].size() != sizes[i])
         return false;
@@ -344,7 +345,7 @@ bool expandAircraft(EntityId id, const AircraftNetState &s, Vec3 ref,
     v[index] = std::sqrt(std::max(0., 1 - sum));
     a.state.att = Quat{v[0], v[1], v[2], v[3]}.normalized();
     Reader vel{s.fields[2]}, om{s.fields[3]};
-    double x = q(vel, 16, 2), y = q(vel, 16, 2), z = q(vel, 16, 2);
+    double x = q(vel, 16, 3), y = q(vel, 16, 3), z = q(vel, 16, 3);
     a.state.vel_ned = {x, y, z};
     x = q(om, 2048, 2);
     y = q(om, 2048, 2);

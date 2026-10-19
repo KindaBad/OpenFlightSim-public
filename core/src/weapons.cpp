@@ -246,6 +246,12 @@ void Inventory::reset(AircraftType type, unsigned loadout) {
                 {{1.2, .42, .30}, 6, WeaponType::ActiveRadar},
                 {{-3.4, -.42, .30}, 6, WeaponType::ActiveRadar},
                 {{-3.4, .42, .30}, 6, WeaponType::ActiveRadar}};
+  // Dev aircraft: two heat seekers and two radar missiles under the chines.
+  if (type == AircraftType::Dev)
+    stations = {{{-3, -3, .9}, 6, WeaponType::Infrared},
+                {{-3, 3, .9}, 6, WeaponType::Infrared},
+                {{2, -1.6, 1.1}, 6, WeaponType::ActiveRadar},
+                {{2, 1.6, 1.1}, 6, WeaponType::ActiveRadar}};
   // JF-17: two PL-5EII on the wingtip rails and four SD-10A under the model's
   // own outer and inner wing pylons.
   if (type == AircraftType::JF17)
@@ -366,7 +372,7 @@ double targetRcs(const SensorTarget &t, Vec3 observer) {
     side = 60;
     rear = 25;
   }
-  if (t.type == AircraftType::SR71) {
+  if (t.type == AircraftType::SR71 || t.type == AircraftType::Dev) {
     front = 2;
     side = 8;
     rear = 4;

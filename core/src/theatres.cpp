@@ -37,10 +37,21 @@ constexpr std::array<TheatreAirport, 8> kGulf{{
     {"OIKB", "Bandar Abbas", 27.2183, 56.3778},
     {"OIBB", "Bushehr", 28.9447994232, 50.8345985413},
 }};
-constexpr std::array<Theatre, 3> kTheatres{{
+// Moscow and the airfields around it, out to Tver, Yaroslavl and Bryansk.
+constexpr std::array<TheatreAirport, 7> kMoscow{{
+    {"UUEE", "Sheremetyevo", 55.977486, 37.386677},
+    {"UUWW", "Vnukovo", 55.591499, 37.261501},
+    {"UUDD", "Domodedovo", 55.408798, 37.9063},
+    {"UUMU", "Chkalovsky", 55.8783, 38.061699},
+    {"UUEM", "Tver Migalovo", 56.8247, 35.7577},
+    {"UUDL", "Yaroslavl", 57.560699, 40.157398},
+    {"UUBP", "Bryansk", 53.214403, 34.175965},
+}};
+constexpr std::array<Theatre, 4> kTheatres{{
     {"austria", "Austria", 47.6, 13.8, kAustria},
     {"alps", "Western Alps", 46.1, 7.4, kAlps},
     {"gulf", "Persian Gulf", 26.2, 53.0, kGulf},
+    {"moscow", "Moscow", 55.75, 37.6, kMoscow},
 }};
 
 }  // namespace

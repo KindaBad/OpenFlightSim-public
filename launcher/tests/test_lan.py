@@ -1,4 +1,5 @@
 """Local-network discovery and LAN hosting; loopback sockets only, no Qt."""
+import json
 import os
 from pathlib import Path
 import socket
@@ -398,6 +399,44 @@ class Hosting(unittest.TestCase):
             with self.assertRaises(LauncherError):
                 earth_downloads(self.installation)
 
+    def test_a_free_flight_starts_at_any_place_typed(self):
+        from launcher.game import earth_missing, place_regions
+        from launcher.places import coordinates
+        graphics = Graphics(self.root / 'user/graphics.cfg')
+        self.installation.catalog['theatres'] = [{'id': 'alps', 'name': 'Western Alps', 'airports': [{'ident': 'LSGG', 'name': 'Geneva'}]}]
+        places = self.installation.directory / 'data/launcher/places.json'
+        places.parent.mkdir(parents=True, exist_ok=True)
+        places.write_text(json.dumps({'schema': 1, 'places': [['Moscow', 'Russia', 55.7541, 37.6136, 10452000], ['Moscow', 'United States of America', 46.73, -117.0, 25000]],
+                                      'airports': [['UUEE', 'SVO', 'Sheremetyevo International Airport', 'Moscow', 'Russia', 55.9775, 37.3867],
+                                                   ['EGLL', 'LHR', 'London Heathrow Airport', 'London', 'United Kingdom', 51.4707, -0.4599]]}))
+        data = self.installation.directory / 'earth'
+        data.mkdir(parents=True, exist_ok=True)
+        (data / 'earth.ofse').write_bytes(b'pack')
+        (data / 'earth-cover.ofsc').write_bytes(b'cover')
+        aircraft = self.installation.aircraft[0]['id']
+        with patch('launcher.game.user_directory', return_value=self.root / 'nowhere'):
+            for typed, at in (('Moscow', '55.754100,37.613600'), ('moscow, united states', '46.730000,-117.000000'),
+                              ('SVO', '55.977500,37.386700'), ('Heathrow', '51.470700,-0.459900'),
+                              ('55.75, 37.6', '55.750000,37.600000'), ('33.9S 151.2E', '-33.900000,151.200000')):
+                command = arguments(self.installation, Preferences(map='earth', theatre='alps', earth_place=typed, aircraft=aircraft), graphics)
+                self.assertEqual(command[command.index('--earth-at') + 1], at, typed)
+                self.assertNotIn('--theatre', command)
+            # A game with others still starts at the theatre's airport.
+            command = arguments(self.installation, Preferences(map='earth', theatre='alps', earth_place='Moscow', mode='multiplayer',
+                                                               server='127.0.0.1', aircraft=aircraft), graphics)
+            self.assertNotIn('--earth-at', command)
+            self.assertEqual(command[command.index('--theatre') + 1], 'alps')
+            for bad in ('Atlantis', '95, 10', '10, 200', '10E 20E'):
+                with self.assertRaises(LauncherError):
+                    arguments(self.installation, Preferences(map='earth', theatre='alps', earth_place=bad, aircraft=aircraft), graphics)
+        self.assertIsNone(coordinates('Moscow'))
+        self.assertEqual(place_regions(55.75, 37.6), ['N50E020', 'N50E030', 'N50E040', 'N60E020', 'N60E030', 'N60E040'])
+        self.assertIn('N60W180', place_regions(65, 179))  # across the date line
+        saved = self.root / 'user/place-prefs.json'
+        write_json(saved, {'schema': 1, 'earth_place': 'x' * 121})
+        with self.assertRaises(LauncherError):
+            Preferences.load(saved)
+
     def test_a_theatres_detail_regions_are_downloaded_beside_the_pack(self):
         import hashlib
         from launcher.game import download_earth, earth_detail_downloads, earth_missing
@@ -426,6 +465,11 @@ class Hosting(unittest.TestCase):
             fetched.clear()
             download_earth(self.installation, 'gulf', fetch=fetch)
             self.assertEqual(fetched, ['detail/earth-detail-N20E050.ofsd'])
+            # A start anywhere fetches the regions around the place.
+            fetched.clear()
+            download_earth(self.installation, None, fetch=fetch, place=(45.0, 8.0))
+            self.assertEqual(fetched, [])
+            self.assertEqual(earth_missing(self.installation, None, (25.0, 55.0))[1], [])
             # A region of another size than this version's is fetched again.
             (self.root / 'user/earth/detail/earth-detail-N40E010.ofsd').write_bytes(b'old')
             self.assertEqual([r['region'] for r, _ in earth_missing(self.installation, 'alps')[1]], ['N40E010'])

@@ -200,6 +200,18 @@ class EarthGames(Hosted):
             self.assertIn('0.7.0.1', reply['message'])
         self.assertEqual(self.host.games, {})
 
+    def test_moscow_needs_0_7_3(self):
+        (self.host.state / 'earth').mkdir(parents=True, exist_ok=True)
+        (self.host.state / 'earth' / 'earth.ofse').write_bytes(b'pack')
+        (self.host.builds / '0.7.2').mkdir(parents=True)
+        (self.host.builds / '0.7.2' / 'ofs_server').symlink_to(SERVER)
+        session = public.ask('127.0.0.1', self.host.port, {'op': 'list'})
+        create = {'op': 'create', 'token': session['token'], 'version': '0.7.2', 'name': 'x', 'map': 'earth', 'theatre': 'moscow'}
+        reply = public.ask('127.0.0.1', self.host.port, create)
+        self.assertEqual((reply['ok'], reply['error']), (False, 'version'))
+        self.assertIn('0.7.3', reply['message'])
+        self.assertEqual(self.host.games, {})
+
     def test_older_launchers_see_only_valley_games(self):
         pack = ROOT / 'build' / 'earth' / 'earth.ofse'
         if not pack.is_file():

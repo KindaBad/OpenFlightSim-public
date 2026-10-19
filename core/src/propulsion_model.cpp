@@ -28,7 +28,9 @@ Simulator::ThrustResult Simulator::evalThrust(const State& state_, const Weather
           .inverseRotate(state_.vel_ned - windAt(state_.pos_ned, state_.time, weather_))
           .norm();
   const double mach = (air.sound > 1.0 && V > 0.0) ? V / air.sound : 0.0;
-  const double lapse = cfg_.variable_inlets
+  // The dev aircraft's thrust does not fade with height or speed.
+  const double lapse = cfg_.unlimited_speed ? 1
+      : cfg_.variable_inlets
       ? std::pow(std::max(sigma,.0001),cfg_.thrust_density_exponent)*
         machCurve(mach,{{0,1},{.8,.80},{1.2,.90},{1.6,1.20},{2,1.55},
                         {2.8,2.7},{3.2,3.1},{3.6,3.0},{4,2.3}})

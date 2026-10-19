@@ -67,7 +67,7 @@ int main(int argc,char** argv){try {
     for(const auto& material:mesh.materials)materials.insert(material.name);
     for(const auto& p:mesh.primitives){require(p.material<mesh.materials.size(),"Material reference bounds");for(float v:p.vertices)require(std::isfinite(v),"Nonfinite vertex attribute");}
     for(auto name:{"rudder","wheel","nose_wheel","steering"})require(channels.contains(name),"Missing channel: "+std::string(name));
-    if(d.type==AircraftType::Typhoon||d.type==AircraftType::SR71) {
+    if(d.type==AircraftType::Typhoon||d.type==AircraftType::SR71||d.type==AircraftType::Dev) {
       for(auto name:{"elevon_L","elevon_R","gear_fold","gear_door"})require(channels.contains(name),"Missing articulated node");
     } else for(auto name:{"elevator","aileron_L","aileron_R","flap"})require(channels.contains(name),"Missing surface channel");
     if(d.type==AircraftType::Su57)for(auto name:{"vector_L","vector_R","levcon","slat","compression_L","compression_R","compression_nose"})require(channels.contains(name),"Missing Su-57 rig channel");

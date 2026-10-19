@@ -88,7 +88,7 @@ for(std::size_t k=0;k<c.engines.size();++k){const auto& e=c.engines[k];const aut
         if binary is None: subprocess.run(['c++','-std=c++23','-I'+str(ROOT/'core/include'),str(cpp),str(build/'core/libofs_core.a'),'-o',str(exe)],check=True)
         lines=subprocess.check_output([str(binary or exe)],text=True).splitlines()
     datasets={};current=None
-    source_files=[ROOT/'core/src'/name for name in ['aircraft.cpp','aircraft_definition.cpp','sr71.cpp','su57.cpp','jf17.cpp','b52.cpp','b747.cpp']]+[ROOT/'core/include/ofs/aircraft.hpp']+list((ROOT/'data/physics').glob('*.json'))+[ROOT/'data/reference/parameter_sources.json']
+    source_files=[ROOT/'core/src'/name for name in ['aircraft.cpp','aircraft_definition.cpp','sr71.cpp','su57.cpp','jf17.cpp','b52.cpp','b747.cpp','dev.cpp']]+[ROOT/'core/include/ofs/aircraft.hpp']+list((ROOT/'data/physics').glob('*.json'))+[ROOT/'data/reference/parameter_sources.json']
     reviewed=json.loads((ROOT/'data/reference/parameter_sources.json').read_text())
     for name in ['a320','su57']:
         definition=json.loads((ROOT/'data/physics'/f'{name}.json').read_text())

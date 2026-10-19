@@ -89,7 +89,10 @@ see [docs/BUILDING.md](docs/BUILDING.md) before the first client configure.
 Seven aircraft fly: the A320, Eurofighter Typhoon, SR-71A, Su-57, JF-17 Thunder,
 B-52H Stratofortress and Boeing 747-206B. Their weights, thrust, speeds, guns, missile and bomb
 loads are set from published figures; see
-[the aircraft reference](docs/AIRCRAFT_REFERENCE.md). A hosted game can be a
+[the aircraft reference](docs/AIRCRAFT_REFERENCE.md). An eighth, the dev jet
+(`--aircraft dev`), is a test aircraft on the SR-71's airframe with no top
+speed: at full power its drag is cancelled and its thrust never fades, so it
+keeps accelerating, at about 2.5 g with reheat. A hosted game can be a
 free-for-all or a [team battle](docs/TEAM_GAME.md) between two sides with
 airfields and outposts to bomb.
 
@@ -102,6 +105,9 @@ ctest --preset debug
 ./build/debug/client/ofs_client --aircraft jf17 --airborne
 ./build/debug/client/ofs_client --aircraft b52 --airborne --teams --loadout mk84
 ./build/debug/client/ofs_client --aircraft b747 --airborne
+./build/debug/client/ofs_client --aircraft dev --airborne
+./build/debug/client/ofs_client --theatre moscow --earth-airport UUEE
+./build/debug/client/ofs_client --earth-at 48.86,2.33 --airborne
 
 cmake --preset release
 cmake --build --preset release

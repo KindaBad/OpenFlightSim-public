@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, Q
 from . import lan, public
 from .config import Preferences, Graphics, GRAPHICS, PRESETS, CUSTOM_PRESET
 from .download import download, fetch_manifest, Cancelled
-from .game import Installation, Session, MODES, arguments, download_earth, earth_data, earth_downloads, earth_missing
+from .game import Installation, Session, MODES, arguments, download_earth, earth_data, earth_downloads, earth_missing, earth_place
 from .hardware import probe, recommendation, display_modes
 from .installation import Lease, verify, repair_stage, recover, pointer, refresh_bootstrap
 from .manifest import NoReleaseError, index_entries, select_release, https_url
@@ -600,6 +600,17 @@ class Window(QMainWindow):
         self.airport_combo.setToolTip('The airport an Earth flight starts at, on its longest runway.')
         self.airport_combo.currentIndexChanged.connect(self.select_airport)
         form.addRow('Start at', self.airport_combo)
+        # Or, in free flight, anywhere: a place's name or a latitude and longitude.
+        self.place_field = QLineEdit(self.prefs.earth_place)
+        self.place_field.setMaxLength(120)
+        self.place_field.setPlaceholderText('A city, an airport or latitude, longitude')
+        self.place_field.setToolTip('Free flight on the Earth map can start anywhere: type a city or town (Moscow, Paris, Springfield, USA), '
+                                    'an airport (SVO, UUEE, Heathrow) or coordinates (55.75, 37.6 or 33.9S 151.2E). '
+                                    'You start on a runway within 15 km, or else in the air above the place. Leave it empty for the airport above.')
+        self.place_field.editingFinished.connect(self.select_place)
+        form.addRow('Or anywhere', self.place_field)
+        self.place_label = label('', 'muted')
+        form.addRow('', self.place_label)
         # The Earth map's data is a download of its own, kept between versions.
         earth_row = QHBoxLayout()
         self.earth_label = label('', 'muted')
@@ -1286,6 +1297,8 @@ class Window(QMainWindow):
             self.save()
         self.bots.setEnabled(mode == 'dogfight')
         self.airborne.setEnabled(mode == 'free')
+        self.place_status()
+        self.earth_status()
         self.mode_detail.setText({'free': 'Fly offline from the runway or start airborne. No network connection is required.', 'multiplayer': 'Configure server address, pilot name and local hosting in Multiplayer. Spawn state is managed by the server.', 'dogfight': 'Fight 1–8 AI opponents on the local authoritative server. Choose an armed aircraft; the simulator starts airborne.'}[mode])
         self.refresh_summary()
 
@@ -1317,6 +1330,7 @@ class Window(QMainWindow):
         self.airport_combo.setCurrentIndex(max(index, 0))
         self.updating = before
         self.airport_combo.setEnabled(earth)
+        self.place_status()
         self.earth_status()
         if not before:
             self.save()
@@ -1343,15 +1357,19 @@ class Window(QMainWindow):
             text, ready = str(exc), False
         theatre = next((t for t in self.theatres() if t['id'] == self.prefs.theatre), None)
         missing = []
-        if records and theatre:
+        place = self.place_point()
+        if records and (theatre or place):
             try:
-                _, missing = earth_missing(self.installation, theatre['id'])
+                _, missing = earth_missing(self.installation, theatre['id'] if theatre else None, place)
             except LauncherError as exc:
                 log.warning('Earth detail unusable: %s', exc)
         detail = [r for r, _ in missing if 'region' in r]
         size = sum(r['size'] for r, _ in missing)
+        where = 'the place' if place else theatre['name'] if theatre else ''
         if ready and detail:
-            text += f' · 90 m detail for {theatre["name"]}: {size / 1024**2:,.0f} MiB to download'
+            text += f' · 90 m detail for {where}: {size / 1024**2:,.0f} MiB to download'
+        elif ready and place:
+            text += ' · 90 m detail around the place installed, where the download has it'
         elif ready and theatre and theatre.get('regions') and any(r.get('region') for r in self.installation.catalog.get('earth_detail') or []):
             text += f' · 90 m detail for {theatre["name"]} installed'
         elif not ready and missing:
@@ -1365,9 +1383,48 @@ class Window(QMainWindow):
         if not installation:
             return
         theatre = self.prefs.theatre if any(t['id'] == self.prefs.theatre for t in self.theatres()) else None
+        place = self.place_point()
         self.start_job('Downloading the Earth map',
-                       lambda cancel, progress: download_earth(installation, theatre, cancel=cancel, progress=progress),
+                       lambda cancel, progress: download_earth(installation, theatre, cancel=cancel, progress=progress, place=place),
                        lambda folder: (self.status.setText(f'Earth map data installed in {folder}'), self.earth_status()))
+
+    def select_place(self):
+        text = self.place_field.text().strip()
+        if text != self.prefs.earth_place:
+            self.set_pref('earth_place', text)
+        self.place_status()
+        self.earth_status()
+
+    def place_point(self):
+        """(latitude, longitude) of the free flight's place, or None."""
+        if not (self.installation and self.prefs.map == 'earth' and self.prefs.mode == 'free' and self.prefs.earth_place.strip()):
+            return None
+        try:
+            latitude, longitude, _ = earth_place(self.installation, self.prefs.earth_place)
+        except LauncherError:
+            return None
+        return latitude, longitude
+
+    def place_status(self):
+        """What the place typed is found as, or why it is not."""
+        if not hasattr(self, 'place_label'):
+            return
+        earth = self.prefs.map == 'earth' and bool(self.theatres())
+        free = self.prefs.mode == 'free'
+        self.place_field.setEnabled(earth and free)
+        text = ''
+        if earth and self.prefs.earth_place.strip():
+            if not free:
+                text = 'Only free flight starts anywhere; games start at the airport above.'
+            elif self.installation:
+                try:
+                    latitude, longitude, found = earth_place(self.installation, self.prefs.earth_place)
+                    text = f'Starting near {found} ({latitude:.4f}, {longitude:.4f})'
+                except LauncherError as exc:
+                    text = str(exc)
+        self.place_label.setText(text)
+        self.place_label.setVisible(bool(text))
+        self.airport_combo.setEnabled(earth and not (free and self.prefs.earth_place.strip()))
 
     def select_airport(self):
         if self.airport_combo.currentData() is not None:
@@ -1410,6 +1467,8 @@ class Window(QMainWindow):
             if self.prefs.map == 'earth':
                 theatre = next((t for t in self.theatres() if t['id'] == self.prefs.theatre), None)
                 where = f'Earth · {theatre["name"]}' if theatre else 'Earth'
+                if self.prefs.mode == 'free' and self.prefs.earth_place.strip():
+                    where = f'Earth · {self.prefs.earth_place.strip()}'
             self.summary_label.setText(f'{MODES.get(self.prefs.mode, self.prefs.mode)}  ·  {where}  ·  {self.prefs.camera.replace("-", " ").title()} camera')
         if not busy:
             self.operation_label.setText('Update available' if update else 'Ready for departure')

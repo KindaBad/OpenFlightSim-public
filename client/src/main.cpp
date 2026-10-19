@@ -97,6 +97,8 @@ Options parse(int argc, char** argv) {
       if (comma == std::string::npos) throw std::runtime_error("--earth-at takes latitude,longitude in degrees");
       result.earthLatitude = std::stod(place.substr(0, comma));
       result.earthLongitude = std::stod(place.substr(comma + 1));
+      if (!(std::abs(result.earthLatitude) <= 90 && std::abs(result.earthLongitude) <= 180))
+        throw std::runtime_error("--earth-at takes a latitude of -90 to 90 and a longitude of -180 to 180");
     }
     else if (arg == "--aircraft" && i + 1 < argc) result.aircraft = ofs::aircraftTypeFromName(argv[++i]);
     else if (arg == "--visual-scenario" && i + 1 < argc) result.scenario = argv[++i];
@@ -184,7 +186,7 @@ Options parse(int argc, char** argv) {
     } else {
       throw std::runtime_error(
           "Usage: ofs_client [--smoke-test|--gun-smoke] [--frames N] [--screenshot path.ppm] "
-          "[--aircraft a320|su57|typhoon|sr71|jf17|b52|b747] [--asset path.glb] [--config path.cfg] [--airborne] [--width N] [--height N] "
+          "[--aircraft a320|su57|typhoon|sr71|jf17|b52|b747|dev] [--asset path.glb] [--config path.cfg] [--airborne] [--width N] [--height N] "
           "[--map] [--free-camera|--pursuit|--chase|--close-chase|--orbit|--cockpit] [--visual-bench N] [--frame-step seconds] "
           "[--no-sound] [--sound-capture path.wav] "
           "[--bots 0..8] [--server host --name name] [--team red|blue|auto] [--loadout mk82|mk84|nuke] [--livery 7lwo|luftwaffe] "
@@ -266,11 +268,14 @@ double validationPitchInput(const ofs::Simulator& sim,double target) {
 bool roundEarth = false;
 ofs::Vec3 spawnPoint;
 double spawnHeading = 0, spawnHeight = 600;
+// A start away from any runway is always in the air.
+bool spawnAirborneOnly = false;
 
 void reset(ofs::Simulator& sim, ofs::Controls& controls, ofs::State& previous,
            ofs::client::Camera& camera, ofs::FixedStepClock& clock, bool airborne) {
   ofs::State state;
   controls = {};
+  airborne = airborne || spawnAirborneOnly;
   if (airborne) {
     const auto trim = ofs::solveTrim(sim.config());
     if (!trim.converged) throw std::runtime_error("Airborne reset trim failed");
@@ -472,27 +477,39 @@ int main(int argc, char** argv) {
         anchorLongitude = theatre->longitude * kDeg2Rad;
         log("EARTH", "Theatre " + std::string(theatre->name) + ", starting at " + std::string(airport->name));
       } else {
+        // Anywhere on the Earth: on a runway within 15 km of the place, or else
+        // in the air above it, heading north.
         const Vec3 place = ecefFromGeodetic({options.earthLatitude * kDeg2Rad, options.earthLongitude * kDeg2Rad, 0});
         for (const auto& r : earthTerrain->runways())
           if (!runway || (r.centre - place).norm() < (runway->centre - place).norm()) runway = &r;
-        if (!runway) throw std::runtime_error("The Earth terrain pack has no runways");
-        const Geodetic at = geodeticFromEcef(runwayStart(*runway).point);
+        if (runway && (runwayStart(*runway).point - place).norm() > 15000) runway = nullptr;
+        const Geodetic at = runway ? geodeticFromEcef(runwayStart(*runway).point)
+                                   : Geodetic{options.earthLatitude * kDeg2Rad, options.earthLongitude * kDeg2Rad, 0};
         anchorLatitude = at.latitude;
         anchorLongitude = at.longitude;
       }
-      const RunwayStart begin = runwayStart(*runway);
-      const Geodetic start = geodeticFromEcef(begin.point);
       earthWorld = std::make_unique<EarthWorld>(anchorLatitude, anchorLongitude, earthTerrain.get());
       useWorld(*earthWorld);
-      spawnPoint = earthWorld->fromEcef(begin.point);
-      const Vec3 along = earthWorld->toLocal(spawnPoint, earthWorld->directionFromEcef(begin.along));
       roundEarth = true;
-      spawnHeading = std::atan2(along.y, along.x);
       spawnHeight = options.earthHeight;
-      log("EARTH", "Starting at " + std::to_string(start.latitude / kDeg2Rad) + ", " + std::to_string(start.longitude / kDeg2Rad) +
-                       " on a " + std::to_string(int(runway->length)) + " m runway, heading " +
-                       std::to_string(int(std::lround(std::fmod(spawnHeading / kDeg2Rad + 360, 360)))));
+      if (runway) {
+        const RunwayStart begin = runwayStart(*runway);
+        const Geodetic start = geodeticFromEcef(begin.point);
+        spawnPoint = earthWorld->fromEcef(begin.point);
+        const Vec3 along = earthWorld->toLocal(spawnPoint, earthWorld->directionFromEcef(begin.along));
+        spawnHeading = std::atan2(along.y, along.x);
+        log("EARTH", "Starting at " + std::to_string(start.latitude / kDeg2Rad) + ", " + std::to_string(start.longitude / kDeg2Rad) +
+                         " on a " + std::to_string(int(runway->length)) + " m runway, heading " +
+                         std::to_string(int(std::lround(std::fmod(spawnHeading / kDeg2Rad + 360, 360)))));
+      } else {
+        spawnPoint = earthWorld->fromEcef(ecefFromGeodetic({anchorLatitude, anchorLongitude, 0}));
+        spawnHeading = 0;
+        spawnAirborneOnly = true;
+        log("EARTH", "Starting in the air over " + std::to_string(options.earthLatitude) + ", " + std::to_string(options.earthLongitude) +
+                         ", no runway within 15 km");
+      }
     }
+    if (spawnAirborneOnly) options.airborne = true;
     GraphicsSettings graphics;
     graphics.load(options.config);
 

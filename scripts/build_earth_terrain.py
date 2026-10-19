@@ -467,7 +467,7 @@ def timing(pack):
 # (N40E010). A theatre needs every region its box touches: 4.5 degrees of
 # latitude (500 km) either side of its anchor, and as many kilometres east and
 # west. Mirrors theatreRegions in core/src/theatres.cpp.
-THEATRES = {'austria': (47.6, 13.8), 'alps': (46.1, 7.4), 'gulf': (26.2, 53.0)}
+THEATRES = {'austria': (47.6, 13.8), 'alps': (46.1, 7.4), 'gulf': (26.2, 53.0), 'moscow': (55.75, 37.6)}
 THEATRE_REACH = 4.5                   # degrees of latitude
 
 

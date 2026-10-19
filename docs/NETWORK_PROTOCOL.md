@@ -198,7 +198,7 @@ never fed back into authoritative physics or local-owner prediction.
 |---|---:|---|
 | Position | 10 or 25 | u8 mode + signed24 XYZ at 1 cm relative to reference: ±83,886.07 m, ≤5 mm/component; absolute fallback 3×binary64 |
 | Quaternion | 7 | u8 largest-component index +3×signed16 smallest-three in ±1/√2; normalization reconstructed; randomized angular-error test |
-| Linear velocity | 6 | 3×signed16, ±2,047.9375 m/s, 1/16 m/s resolution, ≤1/32 m/s/component |
+| Linear velocity | 9 | 3×signed24, ±524,287.9 m/s, 1/16 m/s resolution, ≤1/32 m/s/component (signed16 before v27) |
 | Angular velocity | 6 | 3×signed16, ±15.99951171875 rad/s, 1/2048 rad/s, ≤1/4096 rad/s/component |
 | Gear/flap/spoiler/throttles/steering/maneuver | 7 | 5×u8 [0,1], 1/255 resolution, ≤1/510; signed8 steering −1…1, 1/127 resolution, ≤1/254 error; −128 reserved; u8 maneuver flag, 0/1 |
 | Spool/AB/inlet/nozzles | 10 | per engine 3×u8 [0,1], one signed16 nozzle ±30°, step 60°/65534; clamp reconstructed nozzle to actual aircraft limit |
@@ -321,6 +321,11 @@ and user/account authentication remain outside this protocol milestone.
 
 
 ## v22 additions
+
+Version 27 adds the dev aircraft as type 9, a test jet with no top speed.
+Remote linear velocity grows to three signed24 components (9 bytes), since the
+two-byte form held only 2,047 m/s, and combat events accept velocities up to
+1,000 km/s. The Moscow theatre (`earth:moscow`) is new on the Earth map.
 
 Version 26 adds one `WeaponAction` kind, Strike (11): the aircraft has flown
 into a tree or a building. Scenery is built by each client for itself, from

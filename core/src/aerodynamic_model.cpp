@@ -265,6 +265,17 @@ Simulator::AeroResult Simulator::evalAero(const State& state_, const Controls& c
     r.cm = r.moment_body.y / (r.qbar * cfg_.wing_area * chord);
     r.induced_cd = induced * r.cl * r.cl * r.ground_effect;
   }
+  // The dev aircraft: its engines' power takes the drag away, all of it at full
+  // power, so it never meets a top speed. At idle it slows as any other.
+  if (cfg_.unlimited_speed && V > 1e-9) {
+    const Vec3 flow = v / V;
+    const double along = r.force_body.dot(flow);
+    if (along < 0) {
+      const double power = clamp(.5 * (state_.n1[0] + state_.n1[1]), 0, 1);
+      r.force_body -= flow * (along * power);
+      r.drag_body -= flow * (along * power);
+    }
+  }
   return r;
 }
 

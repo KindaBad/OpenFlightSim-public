@@ -491,7 +491,7 @@ void detail() {
 // Every theatre's airports have a runway in the pack to start on, and lie
 // within reach of the theatre's anchor.
 void theatreStarts() {
-  check(ofs::theatres().size() == 3, "three theatres");
+  check(ofs::theatres().size() == 4, "four theatres");
   for (const auto& theatre : ofs::theatres()) {
     check(findTheatre(theatre.id) == &theatre && !theatre.airports.empty(), "a theatre is found by its id");
     const Vec3 anchor = ecefFromGeodetic({theatre.latitude * kDeg, theatre.longitude * kDeg, 0});

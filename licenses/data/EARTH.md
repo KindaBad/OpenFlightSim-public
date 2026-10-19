@@ -14,6 +14,10 @@ separately from the game.
 | Airports and runways | OurAirports (ourairports.com) | Public domain |
 | Detailed heights on land (detail regions) | Copernicus DEM GLO-90 (Copernicus WorldDEM-90), from the AWS Open Data copy by Sinergise | Licence for the use of the Copernicus WorldDEM-90: free use, reproduction, distribution and adaptation with the notices below |
 
+The launcher's list of places to start a flight at, `data/launcher/places.json`,
+is built by `scripts/build_place_list.py` from the Natural Earth populated
+places and the OurAirports airports above.
+
 The detail regions are produced using Copernicus WorldDEM™-90 © DLR e.V.
 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under
 COPERNICUS by the European Union and ESA; all rights reserved. The data has

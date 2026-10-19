@@ -48,10 +48,12 @@ GAME_ID = re.compile(r'[0-9a-f]{8}')
 # Games on the round Earth (docs/WHOLE_EARTH_PLAN.md): the theatres a server
 # plays, and the first game version whose server does. Launchers that do not
 # say they know the Earth map are offered valley games only.
-THEATRES = ('austria', 'alps', 'gulf')
+THEATRES = ('austria', 'alps', 'gulf', 'moscow')
 EARTH_VERSION = '0.7.0'
 # The first version whose server runs bots and team games on the Earth map.
 EARTH_FIGHT_VERSION = '0.7.0.1'
+# Theatres added after the Earth map, and the first version whose server knows each.
+THEATRE_VERSIONS = {'moscow': '0.7.3'}
 
 
 @dataclass
@@ -277,6 +279,8 @@ class Host:
         if world == 'earth':
             if version_key(version) < version_key(EARTH_VERSION):
                 return self.refuse('version', f'Games on the Earth map need OpenFlightSim {EARTH_VERSION} or newer.')
+            if version_key(version) < version_key(THEATRE_VERSIONS.get(theatre, EARTH_VERSION)):
+                return self.refuse('version', f'This theatre needs OpenFlightSim {THEATRE_VERSIONS[theatre]} or newer.')
             if (bots or teams) and version_key(version) < version_key(EARTH_FIGHT_VERSION):
                 return self.refuse('version', f'Bots and team games on the Earth map need OpenFlightSim {EARTH_FIGHT_VERSION} or newer.')
             if not self.earth_pack.is_file():

@@ -111,14 +111,14 @@ void quantization() {
       massError, offsetError, cgError);
   auto a = aircraft();
   a.state.pos_ned = {1e9 + .125, -1e9 - .75, -1000};
-  a.state.vel_ned = {1e6, -1e6, 0};
+  a.state.vel_ned = {1e7, -1e7, 0};
   a.state.omega_body = {1e3, -1e3, 0};
   Aircraft b;
   auto s = projectAircraft(a, false, Tier::Far, 7, {});
   check(s.fields[0].size() == 25 && expandAircraft(a.id, s, {}, b) &&
             b.state.pos_ned.x == a.state.pos_ned.x,
         "absolute fallback");
-  check(b.state.vel_ned.x == 32767. / 16 && b.state.vel_ned.y == -32767. / 16 &&
+  check(b.state.vel_ned.x == 8388607. / 16 && b.state.vel_ned.y == -8388607. / 16 &&
             b.state.omega_body.x == 32767. / 2048,
         "saturation without wrap");
   for (double integrity : {0., .0001, .001, .0012, .1, 1.}) {

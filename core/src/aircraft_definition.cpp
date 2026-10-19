@@ -1,5 +1,6 @@
 #include "ofs/aircraft_definition.hpp"
 #include "ofs/physical_geometry.hpp"
+#include <algorithm>
 #include <array>
 #include <stdexcept>
 #include <vector>
@@ -167,6 +168,16 @@ std::span<const AircraftDefinition> aircraftDefinitions() {
           {{-4.8,-16.46,1.95},{-4.8,16.46,1.95}},{{-14.06,-29.69,-.79},{-14.06,29.69,-.79}},
           37,8,6,.62,.62,.020}, {1,1,1},std::nullopt,
         {"assets/aircraft/b747/b747_lod1.glb","assets/aircraft/b747/b747_lod2.glb","assets/aircraft/b747/b747_lod3.glb"},b747Boxes});
+    // The dev aircraft: the SR-71's model, hitboxes and anchors, with a gun.
+    GunConfig devGun;
+    devGun.rpm=3000;devGun.muzzleVelocity=1100;devGun.ammo=600;
+    devGun.muzzle={14,0,.9};devGun.damage=34;
+    {
+      AircraftDefinition dev=*std::find_if(definitions.begin(),definitions.end(),[](const auto& d){return d.type==AircraftType::SR71;});
+      dev.type=AircraftType::Dev;dev.key="dev";dev.displayName="Dev Jet | no top speed (test aircraft)";
+      dev.flight=devConfig();dev.gun=devGun;
+      definitions.push_back(dev);
+    }
     // A320/Su-57 renderer and physics consume the same geometry anchors.
     for(auto& d:definitions) {
       const PhysicalGeometry* g=d.type==AircraftType::A320?&a320Geometry():

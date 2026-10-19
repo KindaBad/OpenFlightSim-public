@@ -94,6 +94,9 @@ class Preferences:
     map: str = 'valley'
     theatre: str = 'austria'
     earth_airport: str = ''
+    # A free flight on the Earth map can start anywhere instead: a place's
+    # name or a latitude and longitude ('' for the theatre's airport).
+    earth_place: str = ''
     channel: str = 'stable'
     manifest_url: str = ''  # Publisher configures a public HTTPS host; no guessed endpoint.
     auto_check: bool = True
@@ -129,6 +132,8 @@ class Preferences:
         if prefs.map not in MAPS or not (prefs.theatre.isascii() and prefs.theatre.isalnum()) or \
                 not (prefs.earth_airport == '' or (prefs.earth_airport.isascii() and prefs.earth_airport.isalnum())):
             raise LauncherError('Invalid map')
+        if len(prefs.earth_place) > 120 or any(ord(c) < 32 for c in prefs.earth_place):
+            raise LauncherError('Invalid Earth start place')
         return prefs
 
     def save(self, path):

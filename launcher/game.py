@@ -1,6 +1,7 @@
 """Catalogue discovery, validated arguments and child process management."""
 from dataclasses import dataclass
 import ipaddress
+import math
 import re
 import logging
 import os
@@ -11,6 +12,7 @@ from .config import PURSUIT_CAMERA_VERSION, LIVERIES
 from .installation import active_directory
 from .lan import EARTH_FIGHT_VERSION, LAN_VERSION, LIVERY_VERSION, MISSILE_RELOAD_VERSION, TEAMS_VERSION, lobby_name
 from .config import LOADOUTS, TEAMS, user_directory
+from .places import resolve as resolve_place
 from .platform_process import spawn
 from .storage import LauncherError, read_json, safe_path, relative_name
 from .version import Version
@@ -155,11 +157,41 @@ def theatre_regions(theatre):
     return regions
 
 
-def earth_missing(installation, theatre_id):
+def places_file(installation):
+    """The list of named places: the installed game's, or this checkout's."""
+    for folder in (installation.directory, installation.root, Path(__file__).resolve().parents[1]):
+        path = folder / 'data/launcher/places.json'
+        if path.is_file():
+            return path
+    return installation.directory / 'data/launcher/places.json'
+
+
+def earth_place(installation, text):
+    """(latitude, longitude, description) of a free flight's start on the
+    Earth map, from a place's name or a latitude and longitude."""
+    return resolve_place(text, places_file(installation))
+
+
+def place_regions(latitude, longitude):
+    """The detail regions around a start anywhere on the Earth: those a
+    theatre anchored there would use (theatreRegions in core/src/theatres.cpp)."""
+    reach = 4.5
+    east = min(180.0, reach / max(math.cos(math.radians(latitude)), 1e-3))
+    names = set()
+    for a in range(math.floor((latitude - reach) / 10), math.floor((latitude + reach) / 10) + 1):
+        for b in range(math.floor((longitude - east) / 10), math.floor((longitude + east) / 10) + 1):
+            south, west = 10 * a, (10 * b + 180) % 360 - 180
+            if -90 <= south < 90:
+                names.add(f"{'N' if south >= 0 else 'S'}{abs(south):02d}{'E' if west >= 0 else 'W'}{abs(west):03d}")
+    return sorted(names)
+
+
+def earth_missing(installation, theatre_id, place=None):
     """What a flight in a theatre still needs: the folder the data goes in, and
     the records of the files missing there (the terrain pack and land cover if
-    they are not installed or are out of date, and the theatre's detail regions
-    this build offers), each with the path it is downloaded to."""
+    they are not installed or are out of date, and the detail regions this
+    build offers for the theatre, or around a `place` (latitude, longitude)),
+    each with the path it is downloaded to."""
     records = earth_downloads(installation)
     try:
         pack, _ = earth_data(installation)
@@ -167,7 +199,10 @@ def earth_missing(installation, theatre_id):
     except LauncherError:
         folder = user_directory() / 'earth'
         base = [(r, folder / r['name']) for r in records]
-    regions = set(theatre_regions(earth_theatre(installation, theatre_id))) if theatre_id else set()
+    if place:
+        regions = set(place_regions(*place))
+    else:
+        regions = set(theatre_regions(earth_theatre(installation, theatre_id))) if theatre_id else set()
     detail = []
     for record in earth_detail_downloads(installation):
         target = folder / 'detail' / record['name']
@@ -176,14 +211,14 @@ def earth_missing(installation, theatre_id):
     return folder, base + detail
 
 
-def download_earth(installation, theatre_id=None, cancel=None, progress=None, fetch=None):
+def download_earth(installation, theatre_id=None, cancel=None, progress=None, fetch=None, place=None):
     """Download what the Earth map still needs for a theatre into the user's
     data folder (or beside a pack already there), each file checked against its
     size and SHA-256, and return the folder."""
     from .download import download
     if not earth_downloads(installation):
         raise LauncherError('This version of the game has no Earth map download.')
-    folder, needed = earth_missing(installation, theatre_id)
+    folder, needed = earth_missing(installation, theatre_id, place)
     total = sum(r['size'] for r, _ in needed)
     done = 0
     for record, target in needed:
@@ -247,7 +282,12 @@ def arguments(installation, preferences, graphics):
             args += ['--team', preferences.team]
         if selected.get('bomber'):
             args += ['--loadout', preferences.loadout]
-    if preferences.map == 'earth':
+    if preferences.map == 'earth' and preferences.mode == 'free' and preferences.earth_place.strip():
+        # A free flight anywhere: on a runway within 15 km, or over the place.
+        latitude, longitude, _ = earth_place(installation, preferences.earth_place)
+        pack, cover = earth_data(installation)
+        args += ['--earth-at', f'{latitude:.6f},{longitude:.6f}', '--earth-pack', str(pack), '--earth-cover', str(cover)]
+    elif preferences.map == 'earth':
         if preferences.mode == 'dogfight' and Version(installation.catalog['version']) < Version(EARTH_FIGHT_VERSION):
             raise LauncherError(f'Bots on the Earth map need OpenFlightSim {EARTH_FIGHT_VERSION} or newer. Update the game, or choose the valley.')
         theatre = earth_theatre(installation, preferences.theatre)

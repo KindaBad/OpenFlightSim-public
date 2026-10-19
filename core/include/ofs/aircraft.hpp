@@ -103,6 +103,9 @@ struct AircraftConfig {
   // thrust: intake ram recovery that the subsonic lapse does not carry.
   double thrust_ram_supersonic{};
   bool variable_inlets{}; // optional mixed-compression propulsion approximation
+  // The dev aircraft: thrust that keeps its rating at any height and speed,
+  // and power that cancels drag, so there is no top speed.
+  bool unlimited_speed{};
   double inlet_spike_rate{.20}; // normalized travel / s; reconstructed actuator
   FlightControlLaw control_law{FlightControlLaw::Transport};
   double max_pitch_rate{.22}, max_roll_rate{.58}, response_time{.55};
